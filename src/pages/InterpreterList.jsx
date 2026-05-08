@@ -14,7 +14,8 @@ function InterpreterList({ onBackClick, onDetailClick }) {
       const { data, error } = await supabase
         .from("interpreters")
         .select("*")
-        .eq("status", "approved")
+        .eq("approved", true)
+        .in("status", ["active", "warning"])
         .order("id", { ascending: false });
 
       if (error) {
