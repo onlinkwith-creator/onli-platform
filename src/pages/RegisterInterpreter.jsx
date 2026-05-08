@@ -64,23 +64,29 @@ function RegisterInterpreter() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const values = Object.values(form);
-    const hasEmpty = values.some((value) => value.trim() === "");
+    const { error } = await supabase.from("interpreters").insert([
+      {
+        name: form.name,
+        gender: form.gender,
+        age: form.age,
+        region: form.region,
+        email: form.email,
+        phone: form.phone,
+        school: form.school,
+        kakao_or_line: form.kakaoOrLine,
+        jlpt: form.jlpt,
+        stay_period: form.stayPeriod,
+        experience_count: form.experienceCount,
+      },
+    ]);
 
-    if (hasEmpty) {
-      alert("모든 항목을 입력해주세요.");
-      return;
-    }
-
-    const { error } = await supabase
-  .from("interpreters")
-  .insert([{ ...form }]);
-
-if (error) {
-  console.error(error);
-  alert("등록 중 오류가 발생했습니다.");
+    if (error) {
+  console.error("등록 실패 원인:", error.message);
+  alert(error.message);
   return;
 }
+
+    alert("등록 완료");
   };
 
   return (
@@ -177,10 +183,7 @@ if (error) {
             <input style={inputStyle} name="stayPeriod" placeholder="일본 거주 기간 (0년 0개월)" value={form.stayPeriod} onChange={handleChange} />
 
             <input
-              style={{
-                ...inputStyle,
-                gridColumn: "1 / 3",
-              }}
+              style={{ ...inputStyle, gridColumn: "1 / 3" }}
               name="experienceCount"
               placeholder="통역 경험 횟수"
               value={form.experienceCount}
@@ -189,10 +192,7 @@ if (error) {
 
             <button
               type="submit"
-              style={{
-                ...submitButtonStyle,
-                gridColumn: "1 / 3",
-              }}
+              style={{ ...submitButtonStyle, gridColumn: "1 / 3" }}
             >
               등록하기
             </button>

@@ -1,24 +1,44 @@
 import { useState } from "react";
 import Home from "./pages/Home";
-import RegisterInterpreter from "./pages/RegisterInterpreter";
 import InterpreterList from "./pages/InterpreterList";
+import InterpreterDetail from "./pages/InterpreterDetail";
+import RequestForm from "./components/RequestForm";
 
 function App() {
   const [page, setPage] = useState("home");
+  const [selectedInterpreter, setSelectedInterpreter] = useState(null);
 
   return (
     <>
-      {page === "home" && (
-        <Home
-          onRegisterClick={() => setPage("register")}
-          onListClick={() => setPage("list")}
+      {page === "home" && <Home onListClick={() => setPage("list")} />}
+
+      {page === "list" && (
+        <InterpreterList
+          onBackClick={() => setPage("home")}
+          onDetailClick={(person) => {
+            setSelectedInterpreter(person);
+            setPage("detail");
+          }}
         />
       )}
 
-      {page === "register" && <RegisterInterpreter />}
+      {page === "detail" && (
+        <InterpreterDetail
+          interpreter={selectedInterpreter}
+          onBackClick={() => setPage("list")}
+          onRequestClick={(person) => {
+            setSelectedInterpreter(person);
+            setPage("request");
+          }}
+        />
+      )}
 
-      {page === "list" && (
-        <InterpreterList onBackClick={() => setPage("home")} />
+      {page === "request" && (
+        <RequestForm
+          interpreter={selectedInterpreter}
+          onBackClick={() => setPage("detail")}
+          onSubmitSuccess={() => setPage("home")}
+        />
       )}
     </>
   );

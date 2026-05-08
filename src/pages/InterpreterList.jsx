@@ -1,29 +1,37 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 
-function InterpreterList({ onBackClick }) {
+function InterpreterList({ onBackClick, onDetailClick }) {
   const [interpreters, setInterpreters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-  const fetchInterpreters = async () => {
-    const { data, error } = await supabase
-      .from("interpreters")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const fetchInterpreters = async () => {
+      setLoading(true);
+      setErrorMessage("");
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+      const { data, error } = await supabase
+        .from("interpreters")
+        .select("*")
+        .eq("status", "approved")
+        .order("id", { ascending: false });
 
-    setInterpreters(data);
-  };
+      if (error) {
+        console.error(error);
+        setErrorMessage("통역사 정보를 불러오지 못했습니다.");
+        setLoading(false);
+        return;
+      }
 
-  fetchInterpreters();
-}, []);
+      setInterpreters(data || []);
+      setLoading(false);
+    };
+
+    fetchInterpreters();
+  }, []);
 
   return (
-
     <div
       style={{
         minHeight: "100vh",
@@ -86,22 +94,16 @@ function InterpreterList({ onBackClick }) {
               fontSize: "15px",
             }}
           >
-            등록된 한일 비즈니스 통역사 정보를 확인할 수 있습니다.
+            승인된 한일 비즈니스 통역사 정보를 확인할 수 있습니다.
           </p>
         </div>
 
-        {interpreters.length === 0 ? (
-          <div
-            style={{
-              background: "white",
-              padding: "40px",
-              borderRadius: "20px",
-              textAlign: "center",
-              color: "#6b7280",
-            }}
-          >
-            아직 등록된 통역사가 없습니다.
-          </div>
+        {loading ? (
+          <MessageBox text="통역사 정보를 불러오는 중입니다..." />
+        ) : errorMessage ? (
+          <MessageBox text={errorMessage} />
+        ) : interpreters.length === 0 ? (
+          <MessageBox text="아직 승인된 통역사가 없습니다." />
         ) : (
           <div
             style={{
@@ -127,6 +129,7 @@ function InterpreterList({ onBackClick }) {
                     justifyContent: "space-between",
                     alignItems: "center",
                     marginBottom: "18px",
+                    gap: "12px",
                   }}
                 >
                   <h2
@@ -137,7 +140,7 @@ function InterpreterList({ onBackClick }) {
                       color: "#111827",
                     }}
                   >
-                    {person.name}
+                    {person.name || "이름 미입력"}
                   </h2>
 
                   <span
@@ -148,6 +151,7 @@ function InterpreterList({ onBackClick }) {
                       color: "#4f46e5",
                       fontSize: "12px",
                       fontWeight: "700",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {person.jlpt || "JLPT 미입력"}
@@ -158,11 +162,33 @@ function InterpreterList({ onBackClick }) {
                 <Info label="나이" value={person.age} />
                 <Info label="거주 지역" value={person.region} />
                 <Info label="학교/전공" value={person.school} />
-                <Info label="일본 거주 기간" value={person.stayPeriod} />
-                <Info label="통역 경험" value={`${person.experienceCount}회`} />
-                <Info label="연락처" value={person.phone} />
-                <Info label="카카오/라인" value={person.kakaoOrLine} />
-                <Info label="이메일" value={person.email} />
+                <Info label="일본 거주 기간" value={person.stay_period} />
+                <Info
+                  label="통역 경험"
+                  value={
+                    person.experience_count
+                      ? `${person.experience_count}회`
+                      : "-"
+                  }
+                />
+
+                <button
+  onClick={() => onDetailClick(person)}
+  style={{
+    marginTop: "20px",
+    width: "100%",
+    padding: "14px",
+    borderRadius: "14px",
+    border: "none",
+    background: "#4f46e5",
+    color: "white",
+    fontWeight: "800",
+    cursor: "pointer",
+    fontSize: "14px",
+  }}
+>
+  상세 보기
+</button>
               </div>
             ))}
           </div>
@@ -188,6 +214,22 @@ function Info({ label, value }) {
       <span style={{ color: "#111827", textAlign: "right" }}>
         {value || "-"}
       </span>
+    </div>
+  );
+}
+
+function MessageBox({ text }) {
+  return (
+    <div
+      style={{
+        background: "white",
+        padding: "40px",
+        borderRadius: "20px",
+        textAlign: "center",
+        color: "#6b7280",
+      }}
+    >
+      {text}
     </div>
   );
 }
