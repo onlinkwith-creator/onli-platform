@@ -139,3 +139,19 @@ input::placeholder {
   color: #000000;
   opacity: 0.3;
 }
+
+html,
+body,
+#root,
+#root * {
+  font-family: Arial, "Helvetica Neue", "Noto Sans KR", "Noto Sans JP", sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: Arial, "Helvetica Neue", "Noto Sans KR", "Noto Sans JP", sans-serif !important;
+}
