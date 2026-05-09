@@ -17,6 +17,10 @@ function getInitialPage() {
   if (path === "/jobs/create") return "jobCreate";
   if (path.startsWith("/jobs/")) return "jobDetail";
   if (path === "/interpreters") return "list";
+  if (path.startsWith("/interpreters/") && path.endsWith("/request")) {
+    return "missingInterpreterRequest";
+  }
+  if (path.startsWith("/interpreters/")) return "missingInterpreterDetail";
   return "home";
 }
 
@@ -128,7 +132,7 @@ function App() {
         />
       )}
 
-      {page === "detail" && (
+      {page === "detail" && selectedInterpreter && (
         <InterpreterDetail
           interpreter={selectedInterpreter}
           onBackClick={() => navigate("list", null)}
@@ -138,15 +142,151 @@ function App() {
         />
       )}
 
-      {page === "request" && (
+      {page === "detail" && !selectedInterpreter && (
+        <RouteMessage
+          title="통역사 정보를 다시 선택해주세요."
+          description="새로고침 또는 직접 URL 접속으로 선택 정보가 사라졌습니다."
+          primaryText="통역사 리스트 보기"
+          onPrimaryClick={() => navigate("list", null)}
+          onHomeClick={() => navigate("home", null)}
+        />
+      )}
+
+      {page === "request" && selectedInterpreter && (
         <RequestForm
           interpreter={selectedInterpreter}
           onBackClick={() => navigate("detail", selectedInterpreter)}
           onSubmitSuccess={() => navigate("home", null)}
         />
       )}
+
+      {page === "request" && !selectedInterpreter && (
+        <RouteMessage
+          title="의뢰할 통역사를 다시 선택해주세요."
+          description="통역사 프로필에서 의뢰 문의를 시작하면 정확한 정보로 접수할 수 있습니다."
+          primaryText="통역사 리스트 보기"
+          onPrimaryClick={() => navigate("list", null)}
+          onHomeClick={() => navigate("home", null)}
+        />
+      )}
+
+      {page === "missingInterpreterDetail" && (
+        <RouteMessage
+          title="통역사 상세 페이지를 바로 열 수 없습니다."
+          description="현재 구조에서는 리스트에서 통역사를 선택해야 상세 정보를 볼 수 있습니다."
+          primaryText="통역사 리스트 보기"
+          onPrimaryClick={() => navigate("list", null)}
+          onHomeClick={() => navigate("home", null)}
+        />
+      )}
+
+      {page === "missingInterpreterRequest" && (
+        <RouteMessage
+          title="의뢰 문의를 바로 열 수 없습니다."
+          description="통역사 프로필에서 의뢰 문의를 시작해주세요."
+          primaryText="통역사 리스트 보기"
+          onPrimaryClick={() => navigate("list", null)}
+          onHomeClick={() => navigate("home", null)}
+        />
+      )}
     </>
   );
 }
+
+function RouteMessage({
+  title,
+  description,
+  primaryText,
+  onPrimaryClick,
+  onHomeClick,
+}) {
+  return (
+    <div style={routeMessageStyles.page}>
+      <section style={routeMessageStyles.card}>
+        <p style={routeMessageStyles.kicker}>ON-LI</p>
+        <h1 style={routeMessageStyles.title}>{title}</h1>
+        <p style={routeMessageStyles.description}>{description}</p>
+        <div style={routeMessageStyles.actions}>
+          <button
+            type="button"
+            onClick={onPrimaryClick}
+            style={routeMessageStyles.primary}
+          >
+            {primaryText}
+          </button>
+          <button type="button" onClick={onHomeClick} style={routeMessageStyles.secondary}>
+            홈으로
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+const routeMessageStyles = {
+  page: {
+    minHeight: "100vh",
+    width: "100vw",
+    boxSizing: "border-box",
+    display: "grid",
+    placeItems: "center",
+    padding: "40px 20px",
+    background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
+    color: "#111827",
+  },
+  card: {
+    width: "min(100%, 560px)",
+    boxSizing: "border-box",
+    padding: "34px",
+    borderRadius: "24px",
+    background: "rgba(255, 255, 255, 0.96)",
+    border: "1px solid rgba(255, 255, 255, 0.85)",
+    boxShadow: "0 20px 50px rgba(15, 23, 42, 0.12)",
+    textAlign: "left",
+  },
+  kicker: {
+    margin: "0 0 10px",
+    color: "#4f46e5",
+    fontSize: "12px",
+    fontWeight: 900,
+    letterSpacing: "4px",
+  },
+  title: {
+    margin: 0,
+    fontSize: "30px",
+    lineHeight: 1.25,
+    fontWeight: 900,
+  },
+  description: {
+    margin: "14px 0 0",
+    color: "#6b7280",
+    fontSize: "15px",
+    lineHeight: 1.7,
+  },
+  actions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "10px",
+    marginTop: "24px",
+  },
+  primary: {
+    border: "none",
+    borderRadius: "999px",
+    padding: "13px 18px",
+    background: "#4f46e5",
+    color: "#ffffff",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  secondary: {
+    border: "1px solid #d1d5db",
+    borderRadius: "999px",
+    padding: "13px 18px",
+    background: "#ffffff",
+    color: "#111827",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+};
 
 export default App;
