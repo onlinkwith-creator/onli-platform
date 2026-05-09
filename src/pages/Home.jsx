@@ -2,6 +2,53 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import "./Home.css";
 
+const sampleJobs = [
+  {
+    title: "뷰티월드 재팬 2026 통역",
+    location: "도쿄 빅사이트",
+    date: "2026.05.18 ~ 2026.05.20",
+    pay: "220,000원 ~ 280,000원",
+    language: "한국어 ↔ 일본어",
+    level: "Lv2 이상",
+    preference: "뷰티/화장품 전시회 경험",
+    status: "모집중",
+    headcount: "3/5명 모집",
+  },
+  {
+    title: "K-콘텐츠 팝업스토어 통역",
+    location: "시부야",
+    date: "2026.06 예정",
+    pay: "180,000원 ~ 230,000원",
+    language: "한국어 ↔ 일본어",
+    level: "Lv1 이상",
+    preference: "이벤트 스태프 경험",
+    status: "모집중",
+    headcount: "2/4명 모집",
+  },
+  {
+    title: "BtoB 비즈니스 상담회 통역",
+    location: "도쿄도 내 전시장",
+    date: "일정 협의",
+    pay: "250,000원 ~ 300,000원",
+    language: "한국어 ↔ 일본어",
+    level: "Lv3 이상",
+    preference: "비즈니스 미팅 통역 경험",
+    status: "마감임박",
+    headcount: "1/2명 모집",
+  },
+  {
+    title: "IT 전시회 부스 통역",
+    location: "마쿠하리 멧세",
+    date: "2026.07 예정",
+    pay: "220,000원 ~ 260,000원",
+    language: "한국어 ↔ 일본어",
+    level: "Lv2 이상",
+    preference: "IT/스타트업 분야 관심자",
+    status: "모집중",
+    headcount: "4/6명 모집",
+  },
+];
+
 function Home({
   onRegisterClick,
   onListClick,
@@ -164,6 +211,21 @@ function Home({
         </button>
       </section>
 
+      <section className="home-jobs-preview">
+        <div className="home-section-head">
+          <div>
+            <p className="home-brand-sub">OPEN JOBS</p>
+            <h2>현재 모집 중인 통역 공고</h2>
+          </div>
+        </div>
+
+        <div className="home-job-grid">
+          {sampleJobs.map((job) => (
+            <JobPreviewCard key={job.title} job={job} />
+          ))}
+        </div>
+      </section>
+
       <section className="home-interpreters" id="interpreters">
         <div className="home-section-head">
           <div>
@@ -202,6 +264,47 @@ function Home({
         </button>
         <span>Copyright ON-LI. All rights reserved.</span>
       </footer>
+    </div>
+  );
+}
+
+function JobPreviewCard({ job }) {
+  const isUrgent = job.status === "마감임박";
+
+  return (
+    <article className="home-job-card">
+      <div>
+        <span className={isUrgent ? "home-job-status urgent" : "home-job-status"}>
+          {job.status}
+        </span>
+        <h3>{job.title}</h3>
+      </div>
+
+      <dl>
+        <JobInfo label="장소" value={job.location} />
+        <JobInfo label="날짜" value={job.date} />
+        <JobInfo label="일급" value={job.pay} />
+        <JobInfo label="언어" value={job.language} />
+        <JobInfo label="레벨" value={job.level} />
+        <JobInfo label="우대" value={job.preference} />
+        <JobInfo label="인원" value={job.headcount} />
+      </dl>
+
+      <button
+        type="button"
+        onClick={() => alert("지원 기능은 준비 중입니다.")}
+      >
+        지원하기
+      </button>
+    </article>
+  );
+}
+
+function JobInfo({ label, value }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
     </div>
   );
 }

@@ -89,7 +89,7 @@ function Admin({ onBackClick }) {
           .select(
             "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
           )
-          .order("assigned_at", { ascending: false }),
+          .order("id", { ascending: false }),
         supabase
           .from("request_applications")
           .select("*")
@@ -140,7 +140,11 @@ function Admin({ onBackClick }) {
     const search = requestFilters.search.trim().toLowerCase();
 
     return requests.filter((request) => {
-      const searchableText = [request.company_name, request.event_name]
+      const searchableText = [
+        request.company_name,
+        request.event_name,
+        request.event_location,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -167,6 +171,8 @@ function Admin({ onBackClick }) {
         interpreter.region,
         interpreter.school,
         interpreter.jlpt,
+        formatList(interpreter.available_regions),
+        formatList(interpreter.specialties),
       ]
         .filter(Boolean)
         .join(" ")
@@ -545,29 +551,33 @@ function RequestManagement({
               <th>연락 상태</th>
               <th>결제 상태</th>
               <th>공고 공개</th>
-              <th>상세</th>
+              <th>상세/수정</th>
             </tr>
           </thead>
           <tbody>
-            {requests.map((request) => (
-              <FragmentRequestRow
-                key={request.id}
-                applications={applicationsByRequest.get(request.id) || []}
-                assignmentDrafts={assignmentDrafts}
-                assignments={assignmentsByRequest.get(request.id) || []}
-                expanded={expandedRequestId === request.id}
-                interpreters={interpreters}
-                request={request}
-                savingKey={savingKey}
-                setAssignmentDrafts={setAssignmentDrafts}
-                setExpandedRequestId={setExpandedRequestId}
-                assignInterpreter={assignInterpreter}
-                handlePriceDraft={handlePriceDraft}
-                removeAssignment={removeAssignment}
-                updateApplicationStatus={updateApplicationStatus}
-                updateRequest={updateRequest}
-              />
-            ))}
+            {requests.length === 0 ? (
+              <EmptyTableRow colSpan="11" text="조건에 맞는 의뢰가 없습니다." />
+            ) : (
+              requests.map((request) => (
+                <FragmentRequestRow
+                  key={request.id}
+                  applications={applicationsByRequest.get(request.id) || []}
+                  assignmentDrafts={assignmentDrafts}
+                  assignments={assignmentsByRequest.get(request.id) || []}
+                  expanded={expandedRequestId === request.id}
+                  interpreters={interpreters}
+                  request={request}
+                  savingKey={savingKey}
+                  setAssignmentDrafts={setAssignmentDrafts}
+                  setExpandedRequestId={setExpandedRequestId}
+                  assignInterpreter={assignInterpreter}
+                  handlePriceDraft={handlePriceDraft}
+                  removeAssignment={removeAssignment}
+                  updateApplicationStatus={updateApplicationStatus}
+                  updateRequest={updateRequest}
+                />
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -687,6 +697,18 @@ function RequestDetailPanel({
 }) {
   return (
     <div className="admin-detail-panel">
+      <div>
+        <h3>의뢰 기본 정보</h3>
+        <dl className="admin-detail-list compact">
+          <Info label="담당자" value={request.manager_name} />
+          <Info label="이메일" value={request.email} />
+          <Info label="연락처" value={request.phone} />
+          <Info label="근무시간" value={request.work_hours} />
+          <Info label="필요 레벨" value={request.required_level} />
+          <Info label="모집 인원" value={request.required_count} />
+        </dl>
+      </div>
+
       <div>
         <h3>업무 내용</h3>
         <p>{request.job_description || request.request_detail || "-"}</p>
@@ -859,21 +881,25 @@ function InterpreterManagement({
               <th>승인</th>
               <th>활동 상태</th>
               <th>경고</th>
-              <th>상세</th>
+              <th>상세/수정</th>
             </tr>
           </thead>
           <tbody>
-            {interpreters.map((interpreter) => (
-              <FragmentInterpreterRow
-                key={interpreter.id}
-                expanded={expandedInterpreterId === interpreter.id}
-                interpreter={interpreter}
-                savingKey={savingKey}
-                setExpandedInterpreterId={setExpandedInterpreterId}
-                setInterpreters={setInterpreters}
-                updateInterpreter={updateInterpreter}
-              />
-            ))}
+            {interpreters.length === 0 ? (
+              <EmptyTableRow colSpan="9" text="조건에 맞는 통역사가 없습니다." />
+            ) : (
+              interpreters.map((interpreter) => (
+                <FragmentInterpreterRow
+                  key={interpreter.id}
+                  expanded={expandedInterpreterId === interpreter.id}
+                  interpreter={interpreter}
+                  savingKey={savingKey}
+                  setExpandedInterpreterId={setExpandedInterpreterId}
+                  setInterpreters={setInterpreters}
+                  updateInterpreter={updateInterpreter}
+                />
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -904,16 +930,25 @@ function FragmentInterpreterRow({
         <td>{getExperienceLabel(interpreter)}</td>
         <td>{formatList(interpreter.specialties)}</td>
         <td>
-          <InlineSelect
-            options={[
-              { label: "미승인", value: "false" },
-              { label: "승인", value: "true" },
-            ]}
-            value={String(Boolean(interpreter.approved))}
-            onChange={(value) =>
-              updateInterpreter(interpreter.id, { approved: value === "true" })
-            }
-          />
+          <div className="admin-approval-cell">
+            <span
+              className={
+                interpreter.approved ? "admin-approved" : "admin-pending"
+              }
+            >
+              {interpreter.approved ? "승인" : "미승인"}
+            </span>
+            <InlineSelect
+              options={[
+                { label: "미승인", value: "false" },
+                { label: "승인", value: "true" },
+              ]}
+              value={String(Boolean(interpreter.approved))}
+              onChange={(value) =>
+                updateInterpreter(interpreter.id, { approved: value === "true" })
+              }
+            />
+          </div>
         </td>
         <td>
           <InlineSelect
@@ -1043,41 +1078,45 @@ function ApplicationManagement({
             </tr>
           </thead>
           <tbody>
-            {applications.map((application) => (
-              <tr key={application.id}>
-                <td className="admin-strong-cell">
-                  {application.applicant_name || "이름 미입력"}
-                </td>
-                <td>
-                  {requestById.get(application.request_id)?.event_name ||
-                    `#${application.request_id}`}
-                </td>
-                <td>{application.applicant_email || "이메일 미입력"}</td>
-                <td>{formatDate(application.created_at)}</td>
-                <td>
-                  <InlineSelect
-                    options={APPLICATION_STATUSES}
-                    value={application.status || "pending"}
-                    onChange={(value) =>
-                      updateApplicationStatus(application, value)
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="admin-link-button"
-                    disabled={
-                      application.status !== "accepted" ||
-                      savingKey === `application-assign-${application.id}`
-                    }
-                    onClick={() => assignAcceptedApplication(application)}
-                  >
-                    배정 준비
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {applications.length === 0 ? (
+              <EmptyTableRow colSpan="6" text="아직 접수된 지원자가 없습니다." />
+            ) : (
+              applications.map((application) => (
+                <tr key={application.id}>
+                  <td className="admin-strong-cell">
+                    {application.applicant_name || "이름 미입력"}
+                  </td>
+                  <td>
+                    {requestById.get(application.request_id)?.event_name ||
+                      `#${application.request_id}`}
+                  </td>
+                  <td>{application.applicant_email || "이메일 미입력"}</td>
+                  <td>{formatDate(application.created_at)}</td>
+                  <td>
+                    <InlineSelect
+                      options={APPLICATION_STATUSES}
+                      value={application.status || "pending"}
+                      onChange={(value) =>
+                        updateApplicationStatus(application, value)
+                      }
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="admin-link-button"
+                      disabled={
+                        application.status !== "accepted" ||
+                        savingKey === `application-assign-${application.id}`
+                      }
+                      onClick={() => assignAcceptedApplication(application)}
+                    >
+                      배정 준비
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -1163,6 +1202,16 @@ function Info({ label, value }) {
       <dt>{label}</dt>
       <dd>{value || "-"}</dd>
     </div>
+  );
+}
+
+function EmptyTableRow({ colSpan, text }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="admin-empty-row">
+        {text}
+      </td>
+    </tr>
   );
 }
 
