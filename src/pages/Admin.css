@@ -216,11 +216,22 @@
   border-top: 1px solid #f1f5f9;
 }
 
+.admin-job-applications-row .admin-applications-panel {
+  margin-top: 0;
+  padding: 12px;
+  border-top: 1px solid #e5e7eb;
+  background: #f8fafc;
+  white-space: normal;
+}
+
 .admin-applications-panel h4 {
   margin: 0 0 8px;
   color: #111827;
   font-size: 15px;
   font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-application-count {
@@ -263,6 +274,26 @@
   color: #6b7280;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.admin-job-applications-row .admin-application-card {
+  grid-template-columns: 1fr;
+  padding: 10px 12px;
+}
+
+.admin-job-applications-row .admin-application-card strong,
+.admin-job-applications-row .admin-application-card span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-job-applications-row .admin-application-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .admin-application-actions {

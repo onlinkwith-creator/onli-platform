@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import {
   JOB_STATUS_OPTIONS,
@@ -34,7 +34,7 @@ function getSupabaseErrorMessage(error, fallback) {
 function AdminJobs({ onBackClick, embedded = false }) {
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
-  const [selectedJobForApplications, setSelectedJobForApplications] = useState(null);
+  const [expandedJobId, setExpandedJobId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -174,9 +174,6 @@ function AdminJobs({ onBackClick, embedded = false }) {
       setJobs((current) =>
         current.map((item) => (item.id === job.id ? { ...item, ...changes } : item))
       );
-      setSelectedJobForApplications((current) =>
-        current?.id === job.id ? { ...current, ...changes } : current
-      );
     } catch (error) {
       console.error(error);
       alert(getSupabaseErrorMessage(error, "공고 변경에 실패했습니다."));
@@ -206,8 +203,8 @@ function AdminJobs({ onBackClick, embedded = false }) {
       setApplications((current) =>
         current.filter((application) => String(application.job_id) !== String(job.id))
       );
-      setSelectedJobForApplications((current) =>
-        current?.id === job.id ? null : current
+      setExpandedJobId((current) =>
+        String(current) === String(job.id) ? null : current
       );
       if (editingId === job.id) resetForm();
     } catch (error) {
@@ -328,107 +325,121 @@ function AdminJobs({ onBackClick, embedded = false }) {
                     </td>
                   </tr>
                 ) : (
-                  jobs.map((job) => (
-                    <tr key={job.id}>
-                      <td className="admin-strong-cell admin-col-title" title={job.title || ""}>
-                        {job.title || "-"}
-                      </td>
-                      <td className="admin-col-location" title={job.location || ""}>
-                        {job.location || "-"}
-                      </td>
-                      <td className="admin-col-date">
-                        {formatDateRange(
-                          job.start_date,
-                          job.end_date,
-                          job.event_date || job.date
+                  jobs.map((job) => {
+                    const jobApplications = getApplicationsForJob(job.id);
+                    const expanded = String(expandedJobId) === String(job.id);
+
+                    return (
+                      <Fragment key={job.id}>
+                        <tr>
+                          <td
+                            className="admin-strong-cell admin-col-title"
+                            title={job.title || ""}
+                          >
+                            {job.title || "-"}
+                          </td>
+                          <td className="admin-col-location" title={job.location || ""}>
+                            {job.location || "-"}
+                          </td>
+                          <td className="admin-col-date">
+                            {formatDateRange(
+                              job.start_date,
+                              job.end_date,
+                              job.event_date || job.date
+                            )}
+                          </td>
+                          <td title={job.pay || ""}>{job.pay || "-"}</td>
+                          <td title={job.language || ""}>{job.language || "-"}</td>
+                          <td title={job.level || ""}>{job.level || "-"}</td>
+                          <td title={job.preference || ""}>{job.preference || "-"}</td>
+                          <td>{job.people || "-"}</td>
+                          <td className="admin-col-status">
+                            <select
+                              className="admin-inline-select"
+                              value={normalizeJobVisibility(job)}
+                              onChange={(event) =>
+                                updateJob(job, { visibility: event.target.value })
+                              }
+                            >
+                              {JOB_VISIBILITY_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="admin-muted-inline">
+                              {getJobVisibilityLabel(job)}
+                            </span>
+                          </td>
+                          <td className="admin-col-status">
+                            <select
+                              className="admin-inline-select"
+                              value={normalizeJobStatus(job)}
+                              onChange={(event) =>
+                                updateJob(job, {
+                                  status: event.target.value,
+                                  is_urgent: event.target.value === "closing_soon",
+                                })
+                              }
+                            >
+                              {JOB_STATUS_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="admin-muted-inline">
+                              {getJobStatusLabel(job)}
+                            </span>
+                          </td>
+                          <td className="admin-col-actions">
+                            <button
+                              type="button"
+                              className="admin-link-button"
+                              onClick={() =>
+                                setExpandedJobId((current) =>
+                                  String(current) === String(job.id) ? null : job.id
+                                )
+                              }
+                            >
+                              지원자 확인 ({jobApplications.length}명)
+                            </button>
+                          </td>
+                          <td className="admin-col-actions">
+                            <div className="admin-row-actions">
+                              <button
+                                type="button"
+                                className="admin-link-button"
+                                onClick={() => startEdit(job)}
+                              >
+                                수정
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-link-button danger"
+                                onClick={() => deleteJob(job)}
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {expanded && (
+                          <tr className="admin-expanded-row admin-job-applications-row">
+                            <td colSpan="12">
+                              <JobApplicationsPanel
+                                applications={jobApplications}
+                                job={job}
+                              />
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td title={job.pay || ""}>{job.pay || "-"}</td>
-                      <td title={job.language || ""}>{job.language || "-"}</td>
-                      <td title={job.level || ""}>{job.level || "-"}</td>
-                      <td title={job.preference || ""}>{job.preference || "-"}</td>
-                      <td>{job.people || "-"}</td>
-                      <td className="admin-col-status">
-                        <select
-                          className="admin-inline-select"
-                          value={normalizeJobVisibility(job)}
-                          onChange={(event) =>
-                            updateJob(job, { visibility: event.target.value })
-                          }
-                        >
-                          {JOB_VISIBILITY_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="admin-muted-inline">
-                          {getJobVisibilityLabel(job)}
-                        </span>
-                      </td>
-                      <td className="admin-col-status">
-                        <select
-                          className="admin-inline-select"
-                          value={normalizeJobStatus(job)}
-                          onChange={(event) =>
-                            updateJob(job, {
-                              status: event.target.value,
-                              is_urgent: event.target.value === "closing_soon",
-                            })
-                          }
-                        >
-                          {JOB_STATUS_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="admin-muted-inline">
-                          {getJobStatusLabel(job)}
-                        </span>
-                      </td>
-                      <td className="admin-col-actions">
-                        <button
-                          type="button"
-                          className="admin-link-button"
-                          onClick={() =>
-                            setSelectedJobForApplications((current) =>
-                              current?.id === job.id ? null : job
-                            )
-                          }
-                        >
-                          지원자 확인 ({getApplicationsForJob(job.id).length}명)
-                        </button>
-                      </td>
-                      <td className="admin-col-actions">
-                        <div className="admin-row-actions">
-                          <button
-                            type="button"
-                            className="admin-link-button"
-                            onClick={() => startEdit(job)}
-                          >
-                            수정
-                          </button>
-                          <button
-                            type="button"
-                            className="admin-link-button danger"
-                            onClick={() => deleteJob(job)}
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                      </Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>
-            {selectedJobForApplications && (
-              <JobApplicationsPanel
-                applications={getApplicationsForJob(selectedJobForApplications.id)}
-                job={selectedJobForApplications}
-              />
-            )}
           </div>
         )}
       </section>
