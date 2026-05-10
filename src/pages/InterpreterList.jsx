@@ -5,7 +5,8 @@ const initialFilters = {
   gender: "전체",
   region: "전체",
   field: "전체",
-  experienceCount: "전체",
+  level: "",
+  ageGroup: "",
   keyword: "",
 };
 
@@ -34,12 +35,20 @@ const fieldOptions = [
   "기타",
 ];
 
-const experienceCountOptions = [
-  "전체",
-  "1회 이상",
-  "3회 이상",
-  "5회 이상",
-  "10회 이상",
+const levelOptions = [
+  { value: "", label: "전체" },
+  { value: "LV1", label: "LV1" },
+  { value: "LV2", label: "LV2" },
+  { value: "LV3", label: "LV3" },
+  { value: "LV4", label: "LV4" },
+];
+
+const ageOptions = [
+  { value: "", label: "전체" },
+  { value: "20s", label: "20대" },
+  { value: "30s", label: "30대" },
+  { value: "40s", label: "40대" },
+  { value: "50plus", label: "50대 이상" },
 ];
 
 function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
@@ -92,10 +101,8 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
             normalizeRegionText(filters.region)
           );
         const fieldMatches = getFieldMatches(person, filters.field);
-        const experienceCountMatches = getExperienceCountMatches(
-          person,
-          filters.experienceCount
-        );
+        const levelMatches = getLevelMatches(person, filters.level);
+        const ageMatches = getAgeMatches(person, filters.ageGroup);
         const keywordMatches =
           !keyword || getSearchText(person).toLowerCase().includes(keyword);
 
@@ -103,7 +110,8 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
           genderMatches &&
           regionMatches &&
           fieldMatches &&
-          experienceCountMatches &&
+          levelMatches &&
+          ageMatches &&
           keywordMatches
         );
       }),
@@ -204,10 +212,16 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                 options={fieldOptions}
               />
               <FilterSelect
-                label="통역 경험 횟수"
-                value={filters.experienceCount}
-                onChange={(value) => updateFilter("experienceCount", value)}
-                options={experienceCountOptions}
+                label="통역 레벨"
+                value={filters.level}
+                onChange={(value) => updateFilter("level", value)}
+                options={levelOptions}
+              />
+              <FilterSelect
+                label="나이"
+                value={filters.ageGroup}
+                onChange={(value) => updateFilter("ageGroup", value)}
+                options={ageOptions}
               />
               <label style={styles.filterField}>
                 <span style={styles.filterLabel}>키워드 검색</span>
@@ -314,11 +328,18 @@ function FilterSelect({ label, value, onChange, options }) {
         onChange={(event) => onChange(event.target.value)}
         style={styles.filterInput}
       >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
+        {options.map((option) => {
+          const optionValue =
+            typeof option === "string" ? option : option.value;
+          const optionLabel =
+            typeof option === "string" ? option : option.label;
+
+          return (
+            <option key={optionValue} value={optionValue}>
+              {optionLabel}
+            </option>
+          );
+        })}
       </select>
     </label>
   );
@@ -435,33 +456,39 @@ function normalizeFieldText(value) {
     .replaceAll("일반 비즈니스", "비즈니스");
 }
 
-function getExperienceCountMatches(person, filter) {
-  if (filter === "전체") return true;
+function getLevelMatches(person, filter) {
+  if (!filter) return true;
 
-  const requiredCount = Number(filter.match(/\d+/)?.[0] || 0);
-  const currentCount = getExperienceCount(person);
-
-  return currentCount === null || currentCount >= requiredCount;
+  return normalizeLevelText(person.level) === filter;
 }
 
-function getExperienceCount(person) {
-  const values = [
-    person.experience_count,
-    person.interpretation_count,
-    person.interpretation_experience,
-    person.experience,
-    person.career,
-  ];
+function normalizeLevelText(value) {
+  const matchedLevel = normalizeText(value).match(/lv\s*(\d)/i);
+  return matchedLevel ? `LV${matchedLevel[1]}` : "";
+}
 
-  for (const value of values) {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
+function getAgeMatches(person, filter) {
+  if (!filter) return true;
 
-    const text = String(value || "");
-    const matchedNumber = text.match(/\d+/);
-    if (matchedNumber) return Number(matchedNumber[0]);
-  }
+  const age = getAgeNumber(person.age);
+  if (age === null) return false;
 
-  return null;
+  if (filter === "20s") return age >= 20 && age <= 29;
+  if (filter === "30s") return age >= 30 && age <= 39;
+  if (filter === "40s") return age >= 40 && age <= 49;
+  if (filter === "50plus") return age >= 50;
+
+  return true;
+}
+
+function getAgeNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  const matchedAge = String(value || "").match(/\d+/);
+  if (!matchedAge) return null;
+
+  const age = Number(matchedAge[0]);
+  return Number.isFinite(age) ? age : null;
 }
 
 function getSearchText(person) {
