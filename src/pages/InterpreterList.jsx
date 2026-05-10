@@ -222,6 +222,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                 value={filters.ageGroup}
                 onChange={(value) => updateFilter("ageGroup", value)}
                 options={ageOptions}
+                hint="나이는 만 나이 기준입니다."
               />
               <label style={styles.filterField}>
                 <span style={styles.filterLabel}>키워드 검색</span>
@@ -319,7 +320,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
   );
 }
 
-function FilterSelect({ label, value, onChange, options }) {
+function FilterSelect({ label, value, onChange, options, hint }) {
   return (
     <label style={styles.filterField}>
       <span style={styles.filterLabel}>{label}</span>
@@ -341,6 +342,7 @@ function FilterSelect({ label, value, onChange, options }) {
           );
         })}
       </select>
+      {hint && <span style={styles.filterHint}>{hint}</span>}
     </label>
   );
 }
@@ -484,10 +486,7 @@ function getAgeMatches(person, filter) {
 function getAgeNumber(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
 
-  const matchedAge = String(value || "").match(/\d+/);
-  if (!matchedAge) return null;
-
-  const age = Number(matchedAge[0]);
+  const age = Number(value);
   return Number.isFinite(age) ? age : null;
 }
 
@@ -595,6 +594,14 @@ const styles = {
     color: "#374151",
     fontSize: "13px",
     fontWeight: "800",
+  },
+  filterHint: {
+    color: "#9ca3af",
+    fontSize: "12px",
+    fontWeight: "700",
+    lineHeight: 1.5,
+    wordBreak: "keep-all",
+    overflowWrap: "break-word",
   },
   filterInput: {
     width: "100%",
