@@ -1,0 +1,347 @@
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "../supabase";
+import { JOB_STATUS_OPTIONS, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
+import "./Admin.css";
+
+const emptyForm = {
+  title: "",
+  location: "",
+  date: "",
+  pay: "",
+  language: "한국어 ↔ 일본어",
+  level: "",
+  preference: "",
+  people: "",
+  status: "open",
+  is_urgent: false,
+};
+
+function getSupabaseErrorMessage(error, fallback) {
+  return error?.message ? `${fallback} (${error.message})` : fallback;
+}
+
+function AdminJobs({ onBackClick, embedded = false }) {
+  const [jobs, setJobs] = useState([]);
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const fetchJobs = useCallback(async () => {
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      setJobs(data || []);
+    } catch (error) {
+      console.error(error);
+      setJobs([]);
+      setErrorMessage(
+        getSupabaseErrorMessage(error, "통역 공고를 불러오지 못했습니다.")
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(fetchJobs);
+  }, [fetchJobs]);
+
+  const handleChange = (event) => {
+    const { name, type, checked, value } = event.target;
+    setForm((current) => ({
+      ...current,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const resetForm = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setErrorMessage("");
+
+    const payload = {
+      title: form.title,
+      location: form.location,
+      date: form.date,
+      pay: form.pay,
+      language: form.language,
+      level: form.level,
+      preference: form.preference,
+      people: form.people,
+      status: form.status,
+      is_urgent: form.status === "closing_soon",
+    };
+
+    try {
+      const { error } = editingId
+        ? await supabase.from("jobs").update(payload).eq("id", editingId)
+        : await supabase.from("jobs").insert([payload]);
+
+      if (error) throw error;
+
+      resetForm();
+      await fetchJobs();
+      alert("공고가 저장되었습니다.");
+    } catch (error) {
+      console.error(error);
+      alert(getSupabaseErrorMessage(error, "공고 저장에 실패했습니다."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (job) => {
+    setEditingId(job.id);
+    setForm({
+      title: job.title || "",
+      location: job.location || "",
+      date: job.date || "",
+      pay: job.pay || "",
+      language: job.language || "",
+      level: job.level || "",
+      preference: job.preference || "",
+      people: job.people || "",
+      status: normalizeJobStatus(job),
+      is_urgent: normalizeJobStatus(job) === "closing_soon",
+    });
+  };
+
+  const updateJob = async (job, changes) => {
+    try {
+      const { error } = await supabase.from("jobs").update(changes).eq("id", job.id);
+
+      if (error) throw error;
+
+      setJobs((current) =>
+        current.map((item) => (item.id === job.id ? { ...item, ...changes } : item))
+      );
+    } catch (error) {
+      console.error(error);
+      alert(getSupabaseErrorMessage(error, "공고 변경에 실패했습니다."));
+    }
+  };
+
+  const deleteJob = async (job) => {
+    if (!window.confirm(`"${job.title || "공고"}"를 삭제할까요?`)) return;
+
+    try {
+      const { error } = await supabase.from("jobs").delete().eq("id", job.id);
+
+      if (error) throw error;
+
+      setJobs((current) => current.filter((item) => item.id !== job.id));
+      if (editingId === job.id) resetForm();
+    } catch (error) {
+      console.error(error);
+      alert(getSupabaseErrorMessage(error, "공고 삭제에 실패했습니다."));
+    }
+  };
+
+  const content = (
+    <>
+      <section className="admin-section">
+        <SectionTitle count={`${jobs.length}건`} title="통역 공고 관리" />
+
+        <form className="admin-job-form" onSubmit={handleSubmit}>
+          <JobField label="공고 제목">
+            <input name="title" value={form.title} onChange={handleChange} required />
+          </JobField>
+          <JobField label="장소">
+            <input name="location" value={form.location} onChange={handleChange} />
+          </JobField>
+          <JobField label="날짜">
+            <input name="date" value={form.date} onChange={handleChange} />
+          </JobField>
+          <JobField label="일급">
+            <input name="pay" value={form.pay} onChange={handleChange} />
+          </JobField>
+          <JobField label="언어">
+            <input name="language" value={form.language} onChange={handleChange} />
+          </JobField>
+          <JobField label="레벨">
+            <input name="level" value={form.level} onChange={handleChange} />
+          </JobField>
+          <JobField label="우대">
+            <input name="preference" value={form.preference} onChange={handleChange} />
+          </JobField>
+          <JobField label="모집 인원">
+            <input name="people" value={form.people} onChange={handleChange} />
+          </JobField>
+          <JobField label="공고 상태">
+            <select name="status" value={form.status} onChange={handleChange}>
+              {JOB_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </JobField>
+
+          <div className="admin-job-form-actions">
+            <button type="submit" className="admin-save" disabled={saving}>
+              {saving ? "저장 중..." : editingId ? "공고 수정" : "공고 등록"}
+            </button>
+            {editingId && (
+              <button type="button" className="admin-link-button" onClick={resetForm}>
+                새 공고 입력
+              </button>
+            )}
+          </div>
+        </form>
+      </section>
+
+      <section className="admin-section">
+        {loading ? (
+          <MessageBox text="공고를 불러오는 중입니다..." />
+        ) : errorMessage ? (
+          <MessageBox text={errorMessage} />
+        ) : (
+          <div className="admin-table-wrap">
+            <table className="admin-table admin-jobs-table">
+              <thead>
+                <tr>
+                  <th>공고 제목</th>
+                  <th>장소</th>
+                  <th>날짜</th>
+                  <th>일급</th>
+                  <th>언어</th>
+                  <th>레벨</th>
+                  <th>우대</th>
+                  <th>인원</th>
+                  <th>공고 상태</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.length === 0 ? (
+                  <tr>
+                    <td colSpan="10" className="admin-empty-row">
+                      현재 등록된 공고가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  jobs.map((job) => (
+                    <tr key={job.id}>
+                      <td className="admin-strong-cell">{job.title || "-"}</td>
+                      <td>{job.location || "-"}</td>
+                      <td>{job.date || "-"}</td>
+                      <td>{job.pay || "-"}</td>
+                      <td>{job.language || "-"}</td>
+                      <td>{job.level || "-"}</td>
+                      <td>{job.preference || "-"}</td>
+                      <td>{job.people || "-"}</td>
+                      <td>
+                        <select
+                          className="admin-inline-select"
+                          value={normalizeJobStatus(job)}
+                          onChange={(event) =>
+                            updateJob(job, {
+                              status: event.target.value,
+                              is_urgent: event.target.value === "closing_soon",
+                            })
+                          }
+                        >
+                          {JOB_STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="admin-muted-inline">
+                          {getJobStatusLabel(job)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="admin-row-actions">
+                          <button
+                            type="button"
+                            className="admin-link-button"
+                            onClick={() => startEdit(job)}
+                          >
+                            수정
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-link-button danger"
+                            onClick={() => deleteJob(job)}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <div className="admin-page">
+      <div className="admin-shell">
+        <button type="button" onClick={onBackClick} className="admin-back">
+          ← 관리자 홈으로
+        </button>
+        <header className="admin-header">
+          <div>
+            <p className="admin-kicker">ON-LI ADMIN</p>
+            <h1>통역 공고 관리</h1>
+            <p>홈페이지와 전체 공고 페이지에 노출되는 공고를 관리합니다.</p>
+          </div>
+          <button type="button" onClick={fetchJobs} className="admin-refresh">
+            새로고침
+          </button>
+        </header>
+        {content}
+      </div>
+    </div>
+  );
+}
+
+function JobField({ label, children }) {
+  return (
+    <label className="admin-field-control">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function SectionTitle({ count, title }) {
+  return (
+    <div className="admin-section-title">
+      <div>
+        <p className="admin-kicker">MANAGE</p>
+        <h2>{title}</h2>
+      </div>
+      <span className="admin-count">{count}</span>
+    </div>
+  );
+}
+
+function MessageBox({ text }) {
+  return <div className="admin-message">{text}</div>;
+}
+
+export default AdminJobs;

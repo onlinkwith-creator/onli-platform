@@ -1,63 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
+import JobCard from "../components/JobCard";
 import { supabase } from "../supabase";
+import { isPublicJob } from "../utils/jobStatus";
 import "./Home.css";
 
-const sampleJobs = [
-  {
-    title: "뷰티월드 재팬 2026 통역",
-    location: "도쿄 빅사이트",
-    date: "2026.05.18 ~ 2026.05.20",
-    pay: "220,000원 ~ 280,000원",
-    language: "한국어 ↔ 일본어",
-    level: "Lv2 이상",
-    preference: "뷰티/화장품 전시회 경험",
-    status: "모집중",
-    headcount: "3/5명 모집",
-  },
-  {
-    title: "K-콘텐츠 팝업스토어 통역",
-    location: "시부야",
-    date: "2026.06 예정",
-    pay: "180,000원 ~ 230,000원",
-    language: "한국어 ↔ 일본어",
-    level: "Lv1 이상",
-    preference: "이벤트 스태프 경험",
-    status: "모집중",
-    headcount: "2/4명 모집",
-  },
-  {
-    title: "BtoB 비즈니스 상담회 통역",
-    location: "도쿄도 내 전시장",
-    date: "일정 협의",
-    pay: "250,000원 ~ 300,000원",
-    language: "한국어 ↔ 일본어",
-    level: "Lv3 이상",
-    preference: "비즈니스 미팅 통역 경험",
-    status: "마감임박",
-    headcount: "1/2명 모집",
-  },
-  {
-    title: "IT 전시회 부스 통역",
-    location: "마쿠하리 멧세",
-    date: "2026.07 예정",
-    pay: "220,000원 ~ 260,000원",
-    language: "한국어 ↔ 일본어",
-    level: "Lv2 이상",
-    preference: "IT/스타트업 분야 관심자",
-    status: "모집중",
-    headcount: "4/6명 모집",
-  },
-];
+function getSupabaseErrorMessage(error, fallback) {
+  return error?.message ? `${fallback} (${error.message})` : fallback;
+}
 
 function Home({
+  onAboutClick,
   onRegisterClick,
   onListClick,
   onInterpreterClick,
   onJobsClick,
-  onJobCreateClick,
+  onJobApplyClick,
+  onRequestClick,
 }) {
   const [featuredInterpreters, setFeaturedInterpreters] = useState([]);
+  const [featuredJobs, setFeaturedJobs] = useState([]);
   const [interpreterLoading, setInterpreterLoading] = useState(true);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsErrorMessage, setJobsErrorMessage] = useState("");
 
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -66,45 +30,76 @@ function Home({
   const fetchFeaturedInterpreters = useCallback(async () => {
     setInterpreterLoading(true);
 
-    const { data, error } = await supabase
-      .from("interpreters")
-      .select("*")
-      .eq("approved", true)
-      .in("status", ["active", "warning"])
-      .order("id", { ascending: false })
-      .limit(10);
+    try {
+      const { data, error } = await supabase
+        .from("interpreters")
+        .select("*")
+        .eq("approved", true)
+        .in("status", ["active", "warning"])
+        .order("id", { ascending: false })
+        .limit(10);
 
-    if (error) {
+      if (error) throw error;
+
+      setFeaturedInterpreters(data || []);
+    } catch (error) {
       console.error(error);
       setFeaturedInterpreters([]);
+    } finally {
       setInterpreterLoading(false);
-      return;
     }
+  }, []);
 
-    setFeaturedInterpreters(data || []);
-    setInterpreterLoading(false);
+  const fetchFeaturedJobs = useCallback(async () => {
+    setJobsLoading(true);
+    setJobsErrorMessage("");
+
+    try {
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("*")
+        .in("status", ["open", "closing_soon", "closed", "모집중", "마감임박", "마감"])
+        .order("created_at", { ascending: false })
+        .limit(8);
+
+      if (error) throw error;
+
+      setFeaturedJobs((data || []).filter(isPublicJob).slice(0, 4));
+    } catch (error) {
+      console.error(error);
+      setFeaturedJobs([]);
+      setJobsErrorMessage(
+        getSupabaseErrorMessage(error, "통역 공고를 불러오지 못했습니다.")
+      );
+    } finally {
+      setJobsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     queueMicrotask(fetchFeaturedInterpreters);
   }, [fetchFeaturedInterpreters]);
 
+  useEffect(() => {
+    queueMicrotask(fetchFeaturedJobs);
+  }, [fetchFeaturedJobs]);
+
   return (
     <div className="home-page">
       <div className="home-bg-glow" />
 
       <header className="home-header">
-        <div>
+        <div className="home-logo-area">
           <div className="home-brand-sub">ON-LI</div>
           <h2 className="home-brand-title">On-Link Interpretation</h2>
           <div className="home-brand-line" />
         </div>
 
         <nav className="home-nav" aria-label="메인 메뉴">
-          <button type="button" onClick={() => scrollToSection("about-onli")}>
+          <button type="button" onClick={onAboutClick}>
             ON-LI 소개
           </button>
-          <button type="button" onClick={() => scrollToSection("interpreters")}>
+          <button type="button" onClick={onListClick}>
             통역사
           </button>
           <button type="button" onClick={onJobsClick}>
@@ -120,7 +115,7 @@ function Home({
         <section className="home-hero">
           <p className="home-pill">한일 비지니스 통역 매칭 플랫폼</p>
 
-          <h1>
+          <h1 className="home-hero-title">
             <span>한일 비즈니스 통역을</span>
             <br />
             <strong>더 정확하고 빠르게.</strong>
@@ -179,23 +174,28 @@ function Home({
         <div className="home-process-grid">
           <Step
             number="1"
-            title="공고 등록 / 의뢰 접수"
-            text="행사 일정·장소·인원을 입력"
+            title="기업 의뢰 접수"
+            text="행사 일정·장소·인원을 전달"
           />
           <Step
             number="2"
-            title="ON-LI 검토 및 매칭"
-            text="조건에 맞는 통역사 선정"
+            title="운영팀 검토"
+            text="의뢰 내용과 필요 레벨 확인"
           />
           <Step
             number="3"
-            title="사전 안내 및 범위 확정"
-            text="장소·복장·업무 범위 공유"
+            title="공고 등록 및 모집"
+            text="관리자 확인 후 통역사 모집"
           />
           <Step
             number="4"
-            title="현장 진행 및 완료 확인"
-            text="현장 진행 후 완료 확인"
+            title="매칭 진행"
+            text="조건에 맞는 통역사 선정"
+          />
+          <Step
+            number="5"
+            title="최종 배정 완료"
+            text="사전 안내 후 일정 확정"
           />
         </div>
       </section>
@@ -203,11 +203,11 @@ function Home({
       <section className="home-company-cta">
         <div>
           <p className="home-brand-sub">FOR COMPANIES</p>
-          <h2>통역 공고가 필요하신가요?</h2>
-          <p>전시회·상담회·비즈니스 미팅 통역 공고를 등록해보세요.</p>
+          <h2>통역 의뢰가 필요하신가요?</h2>
+          <p>의뢰 내용을 보내주시면 운영팀 검토 후 공고 등록과 매칭을 진행합니다.</p>
         </div>
-        <button type="button" onClick={onJobCreateClick}>
-          공고 등록하기
+        <button type="button" onClick={onRequestClick}>
+          통역 의뢰하기
         </button>
       </section>
 
@@ -217,13 +217,28 @@ function Home({
             <p className="home-brand-sub">OPEN JOBS</p>
             <h2>현재 모집 중인 통역 공고</h2>
           </div>
+          <button type="button" onClick={onJobsClick}>
+            전체 공고 확인하기
+          </button>
         </div>
 
-        <div className="home-job-grid">
-          {sampleJobs.map((job) => (
-            <JobPreviewCard key={job.title} job={job} />
-          ))}
-        </div>
+        {jobsLoading ? (
+          <div className="home-empty">통역 공고를 불러오는 중입니다...</div>
+        ) : jobsErrorMessage ? (
+          <div className="home-empty">{jobsErrorMessage}</div>
+        ) : featuredJobs.length === 0 ? (
+          <div className="home-empty">현재 모집 중인 공고가 없습니다.</div>
+        ) : (
+          <div className="home-job-grid">
+            {featuredJobs.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                onApplyClick={() => onJobApplyClick(job)}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="home-interpreters" id="interpreters">
@@ -264,47 +279,6 @@ function Home({
         </button>
         <span>Copyright ON-LI. All rights reserved.</span>
       </footer>
-    </div>
-  );
-}
-
-function JobPreviewCard({ job }) {
-  const isUrgent = job.status === "마감임박";
-
-  return (
-    <article className="home-job-card">
-      <div>
-        <span className={isUrgent ? "home-job-status urgent" : "home-job-status"}>
-          {job.status}
-        </span>
-        <h3>{job.title}</h3>
-      </div>
-
-      <dl>
-        <JobInfo label="장소" value={job.location} />
-        <JobInfo label="날짜" value={job.date} />
-        <JobInfo label="일급" value={job.pay} />
-        <JobInfo label="언어" value={job.language} />
-        <JobInfo label="레벨" value={job.level} />
-        <JobInfo label="우대" value={job.preference} />
-        <JobInfo label="인원" value={job.headcount} />
-      </dl>
-
-      <button
-        type="button"
-        onClick={() => alert("지원 기능은 준비 중입니다.")}
-      >
-        지원하기
-      </button>
-    </article>
-  );
-}
-
-function JobInfo({ label, value }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
     </div>
   );
 }
@@ -358,10 +332,6 @@ function InterpreterCard({ interpreter, onProfileClick }) {
       </div>
 
       <dl>
-        <div>
-          <dt>JLPT</dt>
-          <dd>{interpreter.jlpt || "-"}</dd>
-        </div>
         <div>
           <dt>전문 분야</dt>
           <dd>{specialtyBadges.join(", ")}</dd>

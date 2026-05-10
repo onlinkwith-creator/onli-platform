@@ -319,6 +319,7 @@
 
 .admin-field-control select,
 .admin-field-control input,
+.admin-field-control textarea,
 .admin-filters input,
 .admin-filters select,
 .admin-assign-row select {
@@ -333,6 +334,54 @@
   font-size: 14px;
   outline: none;
   padding: 10px 12px;
+}
+
+.admin-job-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  padding: 24px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
+}
+
+.admin-check-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding-top: 20px;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.admin-check-control input {
+  width: 18px;
+  height: 18px;
+  accent-color: #4f46e5;
+}
+
+.admin-job-form-actions {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
+.admin-row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-link-button.danger {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.admin-jobs-table {
+  min-width: 1180px;
 }
 
 .admin-chip-list {
@@ -467,6 +516,14 @@
   border-bottom: 1px solid #eef2f7;
   text-align: left;
   vertical-align: middle;
+}
+
+.admin-muted-inline {
+  display: block;
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .admin-table th {
@@ -712,6 +769,7 @@
   .admin-application-card,
   .admin-detail-grid,
   .admin-control-grid,
+  .admin-job-form,
   .admin-filters,
   .admin-detail-panel,
   .admin-detail-panel.interpreter-detail {
@@ -745,6 +803,7 @@
   .admin-application-card,
   .admin-detail-grid,
   .admin-control-grid,
+  .admin-job-form,
   .admin-card-controls,
   .admin-settlement,
   .admin-filters,
@@ -758,7 +817,7 @@
 
   .admin-tabs {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
     box-sizing: border-box;
   }

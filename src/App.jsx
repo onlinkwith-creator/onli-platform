@@ -1,20 +1,27 @@
 import { useEffect, useState } from "react";
 import Home from "./pages/Home";
+import About from "./pages/About";
 import InterpreterList from "./pages/InterpreterList";
 import InterpreterDetail from "./pages/InterpreterDetail";
 import RegisterInterpreter from "./pages/RegisterInterpreter";
 import RequestForm from "./pages/RequestForm";
 import Admin from "./pages/Admin";
+import AdminJobs from "./pages/AdminJobs";
 import JobList from "./pages/JobList";
 import JobDetail from "./pages/JobDetail";
+import JobApply from "./pages/JobApply";
 
 function getInitialPage() {
   const path = window.location.pathname;
 
+  if (path === "/about") return "about";
   if (path === "/register") return "register";
+  if (path === "/admin/jobs") return "adminJobs";
   if (path === "/admin") return "admin";
+  if (path === "/request") return "jobCreate";
   if (path === "/jobs") return "jobs";
   if (path === "/jobs/create") return "jobCreate";
+  if (path.startsWith("/jobs/") && path.endsWith("/apply")) return "jobApply";
   if (path.startsWith("/jobs/")) return "jobDetail";
   if (path === "/interpreters") return "list";
   if (path.startsWith("/interpreters/") && path.endsWith("/request")) {
@@ -31,10 +38,13 @@ function getInitialJobId() {
 }
 
 function getPath(page, interpreter, jobId) {
+  if (page === "about") return "/about";
   if (page === "register") return "/register";
+  if (page === "adminJobs") return "/admin/jobs";
   if (page === "admin") return "/admin";
   if (page === "jobs") return "/jobs";
-  if (page === "jobCreate") return "/jobs/create";
+  if (page === "jobCreate") return "/request";
+  if (page === "jobApply" && jobId) return `/jobs/${jobId}/apply`;
   if (page === "jobDetail" && jobId) return `/jobs/${jobId}`;
   if (page === "list") return "/interpreters";
   if (page === "detail" && interpreter?.id) {
@@ -88,10 +98,20 @@ function App() {
       {page === "home" && (
         <Home
           onRegisterClick={() => navigate("register", null)}
+          onAboutClick={() => navigate("about", null, null)}
           onListClick={() => navigate("list", null)}
           onInterpreterClick={(person) => navigate("detail", person)}
           onJobsClick={() => navigate("jobs", null, null)}
-          onJobCreateClick={() => navigate("jobCreate", null, null)}
+          onJobApplyClick={(job) => navigate("jobApply", null, job.id)}
+          onRequestClick={() => navigate("jobCreate", null, null)}
+        />
+      )}
+
+      {page === "about" && (
+        <About
+          onBackClick={() => navigate("home", null, null)}
+          onRequestClick={() => navigate("jobCreate", null, null)}
+          onListClick={() => navigate("list", null, null)}
         />
       )}
 
@@ -99,12 +119,21 @@ function App() {
         <RegisterInterpreter onBackClick={() => navigate("home", null)} />
       )}
 
-      {page === "admin" && <Admin onBackClick={() => navigate("home", null)} />}
+      {page === "admin" && (
+        <Admin
+          onBackClick={() => navigate("home", null)}
+          onJobsAdminClick={() => navigate("adminJobs", null, null)}
+        />
+      )}
+
+      {page === "adminJobs" && (
+        <AdminJobs onBackClick={() => navigate("admin", null, null)} />
+      )}
 
       {page === "jobs" && (
         <JobList
           onBackClick={() => navigate("home", null, null)}
-          onJobClick={(job) => navigate("jobDetail", null, job.id)}
+          onApplyClick={(job) => navigate("jobApply", null, job.id)}
         />
       )}
 
@@ -123,9 +152,18 @@ function App() {
         />
       )}
 
+      {page === "jobApply" && (
+        <JobApply
+          jobId={selectedJobId}
+          onBackClick={() => navigate("jobs", null, null)}
+          onSubmitSuccess={() => navigate("jobs", null, null)}
+        />
+      )}
+
       {page === "list" && (
         <InterpreterList
           onBackClick={() => navigate("home", null)}
+          onRegisterClick={() => navigate("register", null)}
           onDetailClick={(person) => {
             navigate("detail", person);
           }}

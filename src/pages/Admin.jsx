@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
+import AdminJobs from "./AdminJobs";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
 
 const TABS = [
   { id: "requests", label: "의뢰 관리" },
+  { id: "jobs", label: "통역 공고 관리" },
   { id: "interpreters", label: "통역사 관리" },
   { id: "applications", label: "지원자 관리" },
 ];
@@ -46,7 +48,7 @@ const STATUS_LABELS = {
   rejected: "거절",
 };
 
-function Admin({ onBackClick }) {
+function Admin({ onBackClick, onJobsAdminClick }) {
   const [activeTab, setActiveTab] = useState("requests");
   const [requests, setRequests] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
@@ -419,7 +421,13 @@ function Admin({ onBackClick }) {
                   key={tab.id}
                   type="button"
                   className={activeTab === tab.id ? "is-active" : ""}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    if (tab.id === "jobs") {
+                      onJobsAdminClick();
+                      return;
+                    }
+                    setActiveTab(tab.id);
+                  }}
                 >
                   {tab.label}
                 </button>
@@ -459,6 +467,8 @@ function Admin({ onBackClick }) {
                 updateInterpreter={updateInterpreter}
               />
             )}
+
+            {activeTab === "jobs" && <AdminJobs embedded />}
 
             {activeTab === "applications" && (
               <ApplicationManagement
@@ -704,8 +714,19 @@ function RequestDetailPanel({
           <Info label="이메일" value={request.email} />
           <Info label="연락처" value={request.phone} />
           <Info label="근무시간" value={request.work_hours} />
-          <Info label="필요 레벨" value={request.required_level} />
-          <Info label="모집 인원" value={request.required_count} />
+          <Info
+            label="희망 통역 레벨"
+            value={request.requested_level || request.required_level}
+          />
+          <Info
+            label="필요 인원 수"
+            value={
+              request.requested_people_count || request.required_count
+                ? `${request.requested_people_count || request.required_count}명`
+                : "-"
+            }
+          />
+          <Info label="희망 성별" value={request.preferred_gender} />
         </dl>
       </div>
 

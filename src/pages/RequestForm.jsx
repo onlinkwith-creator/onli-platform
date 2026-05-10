@@ -8,15 +8,30 @@ import {
 
 const initialForm = {
   companyName: "",
-  managerName: "",
-  email: "",
-  phone: "",
+  contactName: "",
+  contactEmailOrPhone: "",
   eventName: "",
   eventDate: "",
   eventLocation: "",
-  workHours: "",
-  requestDetail: "",
+  requestedLevel: "운영팀 추천받기",
+  requestedPeopleCount: "",
+  preferredGender: "성별 무관",
+  interpretationField: "일반 비즈니스",
+  requestDetails: "",
 };
+
+const levelOptions = ["운영팀 추천받기", "LV1", "LV2", "LV3", "LV4"];
+const fieldOptions = [
+  "뷰티/코스메",
+  "패션",
+  "식품",
+  "의료/헬스케어",
+  "IT/스타트업",
+  "관광/문화",
+  "제조/기계",
+  "일반 비즈니스",
+  "기타",
+];
 
 function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const isGeneralRequest = !interpreter;
@@ -43,29 +58,42 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       level: interpreter?.level,
       experienceCount: interpreter?.experience_count,
       urgency,
-      workHours: form.workHours,
+      workHours: 0,
     });
     const interpreterPay = calculateInterpreterPay(estimatedPrice);
+    const requestDetails = form.requestDetails;
+    const contact = form.contactEmailOrPhone;
 
     const { error } = await supabase.from("requests").insert([
       {
         interpreter_id: interpreter?.id || null,
         interpreter_name: interpreter?.name || "",
         company_name: form.companyName,
-        manager_name: form.managerName,
-        email: form.email,
-        phone: form.phone,
+        contact_name: form.contactName,
+        contact_email_or_phone: contact,
+        manager_name: form.contactName,
+        email: contact,
+        phone: contact,
         event_name: form.eventName,
         event_date: form.eventDate,
         event_location: form.eventLocation,
-        work_hours: Number(form.workHours || 0),
+        work_hours: 0,
+        requested_level: form.requestedLevel,
+        requested_people_count: Number(form.requestedPeopleCount || 1),
+        preferred_gender: form.preferredGender,
+        interpretation_field: form.interpretationField,
         urgency,
         estimated_price: estimatedPrice,
         interpreter_pay: interpreterPay,
-        request_detail: form.requestDetail,
+        request_details: requestDetails,
+        request_detail: requestDetails,
         status: "pending",
         is_public: false,
-        job_description: form.requestDetail,
+        job_description: requestDetails,
+        job_field: form.interpretationField,
+        required_level:
+          form.requestedLevel === "운영팀 추천받기" ? null : form.requestedLevel,
+        required_count: Number(form.requestedPeopleCount || 1),
         interpreter_fee: interpreterPay,
       },
     ]);
@@ -90,41 +118,103 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   return (
     <div style={styles.page}>
       <div style={styles.container}>
-        <button type="button" onClick={onBackClick} style={styles.backButton}>
-          {isGeneralRequest ? "← 메인으로" : "← 상세 페이지로"}
+        <button
+          type="button"
+          onClick={onBackClick}
+          className={isGeneralRequest ? "main-return-button" : undefined}
+          style={styles.backButton}
+        >
+          {isGeneralRequest ? "메인으로 돌아가기" : "← 상세 페이지로"}
         </button>
 
         <div style={styles.card}>
           <div style={styles.header}>
             <p style={styles.label}>ON-LI REQUEST</p>
-            <h1 style={styles.title}>통역 의뢰 문의</h1>
+            <h1 style={styles.title}>통역 의뢰하기</h1>
             <p style={styles.description}>
               {isGeneralRequest
-                ? "전시회·상담회·비즈니스 미팅 통역 공고를 등록해보세요."
-                : `${interpreter?.name || "선택한 통역사"}님에게 전달할 행사 정보를 입력해주세요.`}
+                ? "전시회·상담회·비즈니스 미팅 등 통역이 필요한 일정 정보를 입력해주세요."
+                : `${interpreter?.name || "선택한 통역사"}님과의 매칭 검토에 필요한 행사 정보를 입력해주세요.`}
+              <br />
+              접수 후 ON-LI 운영팀이 내용을 검토하여 적합한 통역사를 매칭합니다.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} style={styles.form}>
-            <Field label="기업명" name="companyName" value={form.companyName} onChange={handleChange} required />
-            <Field label="담당자명" name="managerName" value={form.managerName} onChange={handleChange} required />
-            <Field label="이메일" name="email" type="email" value={form.email} onChange={handleChange} required />
-            <Field label="연락처" name="phone" value={form.phone} onChange={handleChange} required />
+            <Field label="회사명" name="companyName" value={form.companyName} onChange={handleChange} required />
+            <Field label="담당자명" name="contactName" value={form.contactName} onChange={handleChange} required />
+            <Field label="연락처 또는 이메일" name="contactEmailOrPhone" value={form.contactEmailOrPhone} onChange={handleChange} required />
             <Field label="행사명" name="eventName" value={form.eventName} onChange={handleChange} required />
-            <Field label="날짜" name="eventDate" type="date" value={form.eventDate} onChange={handleChange} required />
-            <Field label="장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
-            <Field label="근무시간" name="workHours" type="number" min="1" value={form.workHours} onChange={handleChange} required />
+            <Field label="행사 날짜" name="eventDate" type="date" value={form.eventDate} onChange={handleChange} required />
+            <Field label="행사 장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
+
+            <Field
+              label="필요 인원 수"
+              name="requestedPeopleCount"
+              type="number"
+              min="1"
+              placeholder="예: 3"
+              value={form.requestedPeopleCount}
+              onChange={handleChange}
+              required
+            />
+
+            <label style={styles.field}>
+              <span style={styles.fieldLabel}>희망 통역 레벨</span>
+              <select
+                name="requestedLevel"
+                value={form.requestedLevel}
+                onChange={handleChange}
+                style={styles.input}
+              >
+                {levelOptions.map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={styles.field}>
+              <span style={styles.fieldLabel}>희망 성별</span>
+              <select
+                name="preferredGender"
+                value={form.preferredGender}
+                onChange={handleChange}
+                style={styles.input}
+              >
+                <option value="성별 무관">성별 무관</option>
+                <option value="여성 희망">여성 희망</option>
+                <option value="남성 희망">남성 희망</option>
+              </select>
+            </label>
+
+            <label style={styles.field}>
+              <span style={styles.fieldLabel}>통역 분야</span>
+              <select
+                name="interpretationField"
+                value={form.interpretationField}
+                onChange={handleChange}
+                style={styles.input}
+              >
+                {fieldOptions.map((field) => (
+                  <option key={field} value={field}>
+                    {field}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <label style={{ ...styles.field, ...styles.fullWidth }}>
-              <span style={styles.fieldLabel}>요청내용</span>
+              <span style={styles.fieldLabel}>요청 내용</span>
               <textarea
-                name="requestDetail"
-                value={form.requestDetail}
+                name="requestDetails"
+                value={form.requestDetails}
                 onChange={handleChange}
                 required
-                rows={6}
+                rows={5}
                 style={{ ...styles.input, resize: "vertical" }}
-                placeholder="행사 목적, 통역 유형, 참석자 정보 등"
+                placeholder="행사 목적, 통역 상황, 요청사항을 간단히 적어주세요."
               />
             </label>
 
@@ -173,11 +263,12 @@ const styles = {
   backButton: {
     marginBottom: "30px",
     padding: "12px 18px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    background: "white",
+    borderRadius: "12px",
+    border: "1px solid #395597",
+    backgroundColor: "#395597",
+    color: "#ffffff",
     cursor: "pointer",
-    fontWeight: "600",
+    fontWeight: "700",
   },
   card: {
     background: "rgba(255, 255, 255, 0.95)",
@@ -209,7 +300,7 @@ const styles = {
   },
   form: {
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
     gap: "18px",
   },
   field: {

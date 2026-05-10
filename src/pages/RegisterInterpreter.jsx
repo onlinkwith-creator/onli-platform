@@ -53,13 +53,13 @@ const submitButtonStyle = {
 const backButtonStyle = {
   marginTop: "14px",
   width: "100%",
-  padding: "14px",
-  borderRadius: "14px",
-  border: "1px solid #d1d5db",
-  background: "#ffffff",
-  color: "#374151",
+  padding: "12px 18px",
+  borderRadius: "12px",
+  border: "1px solid #395597",
+  backgroundColor: "#395597",
+  color: "#ffffff",
   fontSize: "14px",
-  fontWeight: "600",
+  fontWeight: "700",
   cursor: "pointer",
 };
 
@@ -218,7 +218,12 @@ function RegisterInterpreter({ onBackClick }) {
             </button>
           </form>
 
-          <button type="button" onClick={onBackClick} style={backButtonStyle}>
+          <button
+            type="button"
+            onClick={onBackClick}
+            className="main-return-button"
+            style={backButtonStyle}
+          >
             메인으로 돌아가기
           </button>
         </div>

@@ -70,6 +70,8 @@
 }
 
 .job-card {
+  display: flex;
+  flex-direction: column;
   padding: 24px;
 }
 
@@ -126,10 +128,12 @@
 
 .job-card dd,
 .job-detail-grid dd {
+  min-width: 0;
   margin: 0;
   color: #111827;
   font-weight: 800;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .job-card p {
@@ -146,6 +150,7 @@
 .job-card button,
 .job-apply-card button {
   width: 100%;
+  margin-top: auto;
   padding: 14px;
   border-radius: 14px;
   border: none;
@@ -154,6 +159,12 @@
   cursor: pointer;
   font: inherit;
   font-weight: 900;
+}
+
+.job-card button:disabled,
+.job-apply-card button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .job-detail-layout {
@@ -211,6 +222,7 @@
 }
 
 .job-apply-card input,
+.job-apply-card select,
 .job-apply-card textarea {
   width: 100%;
   box-sizing: border-box;
@@ -223,13 +235,12 @@
   outline: none;
 }
 
-.job-apply-card textarea {
-  resize: vertical;
+.job-apply-card select {
+  appearance: none;
 }
 
-.job-apply-card button:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
+.job-apply-card textarea {
+  resize: vertical;
 }
 
 .jobs-error {
