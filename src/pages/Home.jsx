@@ -268,6 +268,9 @@ function Home({
         <div>
           <strong>ON-LI</strong>
           <span>Korea-Japan Interpretation Platform</span>
+          <span>
+            Email: <a href="mailto:onlinkcp@gmail.com">onlinkcp@gmail.com</a>
+          </span>
         </div>
         <button type="button" onClick={onListClick}>
           Contact
