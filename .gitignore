@@ -12,6 +12,7 @@ dist
 dist-ssr
 .env
 .env.local
+.env.private.local
 .env.*
 .cache
 *.local
