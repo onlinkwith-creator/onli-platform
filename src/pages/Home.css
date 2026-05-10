@@ -439,14 +439,59 @@
   cursor: pointer;
 }
 
-.home-job-grid {
+.home-job-carousel-wrap {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.home-job-carousel {
+  display: flex;
   gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 14px;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-color: rgba(107, 114, 128, 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.home-job-carousel::-webkit-scrollbar {
+  height: 7px;
+}
+
+.home-job-carousel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.home-job-carousel::-webkit-scrollbar-thumb {
+  background: rgba(107, 114, 128, 0.24);
+  border-radius: 999px;
+}
+
+.home-job-carousel-button {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 }
 
 .home-job-card {
   display: flex;
+  flex: 0 0 calc((100% - 42px) / 4);
   min-width: 0;
   min-height: 430px;
   flex-direction: column;
@@ -460,6 +505,7 @@
     transform 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease;
+  scroll-snap-align: start;
 }
 
 .home-job-card:hover {
@@ -766,9 +812,12 @@
     justify-content: flex-start;
   }
 
-  .home-process-grid,
-  .home-job-grid {
+  .home-process-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .home-job-card {
+    flex-basis: calc((100% - 14px) / 2);
   }
 
   .home-section-head {
@@ -872,12 +921,23 @@
     gap: 10px;
   }
 
-  .home-job-grid {
+  .home-job-carousel-wrap {
     grid-template-columns: 1fr;
+  }
+
+  .home-job-carousel {
     gap: 12px;
+    margin: 0 -20px;
+    padding: 2px 20px 14px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .home-job-carousel-button {
+    display: none;
   }
 
   .home-job-card {
+    flex-basis: min(330px, 86vw);
     min-height: 0;
     padding: 20px;
   }

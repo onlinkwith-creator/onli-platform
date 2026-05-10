@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import JobCard from "../components/JobCard";
 import { supabase, supabaseConfigError } from "../supabase";
 import { fetchPublicJobs } from "../utils/jobsApi";
@@ -23,9 +23,24 @@ function Home({
   const [jobsLoading, setJobsLoading] = useState(true);
   const [interpreterErrorMessage, setInterpreterErrorMessage] = useState("");
   const [jobsErrorMessage, setJobsErrorMessage] = useState("");
+  const jobsCarouselRef = useRef(null);
 
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const scrollJobsCarousel = (direction) => {
+    const carousel = jobsCarouselRef.current;
+    if (!carousel) return;
+
+    const firstCard = carousel.querySelector(".home-job-card");
+    const cardWidth = firstCard?.getBoundingClientRect().width || 280;
+    const gap = 14;
+
+    carousel.scrollBy({
+      left: direction * (cardWidth + gap),
+      behavior: "smooth",
+    });
   };
 
   const fetchFeaturedInterpreters = useCallback(async () => {
@@ -62,7 +77,7 @@ function Home({
     setJobsErrorMessage("");
 
     try {
-      const { data, error } = await fetchPublicJobs(supabase, { limit: 4 });
+      const { data, error } = await fetchPublicJobs(supabase, { limit: 7 });
 
       if (error) throw error;
 
@@ -231,14 +246,36 @@ function Home({
         ) : featuredJobs.length === 0 ? (
           <div className="home-empty">현재 모집 중인 공고가 없습니다.</div>
         ) : (
-          <div className="home-job-grid">
-            {featuredJobs.map((job) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                onApplyClick={() => onJobApplyClick(job)}
-              />
-            ))}
+          <div className="home-job-carousel-wrap">
+            <button
+              type="button"
+              className="home-job-carousel-button"
+              onClick={() => scrollJobsCarousel(-1)}
+              aria-label="이전 공고 보기"
+            >
+              ‹
+            </button>
+            <div
+              className="home-job-carousel"
+              ref={jobsCarouselRef}
+              aria-label="현재 모집 중인 통역 공고"
+            >
+              {featuredJobs.slice(0, 7).map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  onApplyClick={() => onJobApplyClick(job)}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              className="home-job-carousel-button"
+              onClick={() => scrollJobsCarousel(1)}
+              aria-label="다음 공고 보기"
+            >
+              ›
+            </button>
           </div>
         )}
       </section>
