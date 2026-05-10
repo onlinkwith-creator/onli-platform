@@ -299,18 +299,18 @@ function AdminJobs({ onBackClick, embedded = false }) {
             <table className="admin-table admin-jobs-table">
               <thead>
                 <tr>
-                  <th>공고 제목</th>
-                  <th>장소</th>
-                  <th>날짜</th>
+                  <th className="admin-col-title">공고 제목</th>
+                  <th className="admin-col-location">장소</th>
+                  <th className="admin-col-date">날짜</th>
                   <th>일급</th>
                   <th>언어</th>
                   <th>레벨</th>
                   <th>우대</th>
                   <th>인원</th>
-                  <th>공개 상태</th>
-                  <th>모집 상태</th>
+                  <th className="admin-col-status">공개 상태</th>
+                  <th className="admin-col-status">모집 상태</th>
                   <th>지원자</th>
-                  <th>관리</th>
+                  <th className="admin-col-actions">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -323,21 +323,25 @@ function AdminJobs({ onBackClick, embedded = false }) {
                 ) : (
                   jobs.map((job) => (
                     <tr key={job.id}>
-                      <td className="admin-strong-cell">{job.title || "-"}</td>
-                      <td>{job.location || "-"}</td>
-                      <td>
+                      <td className="admin-strong-cell admin-col-title" title={job.title || ""}>
+                        {job.title || "-"}
+                      </td>
+                      <td className="admin-col-location" title={job.location || ""}>
+                        {job.location || "-"}
+                      </td>
+                      <td className="admin-col-date">
                         {formatDateRange(
                           job.start_date,
                           job.end_date,
                           job.event_date || job.date
                         )}
                       </td>
-                      <td>{job.pay || "-"}</td>
-                      <td>{job.language || "-"}</td>
-                      <td>{job.level || "-"}</td>
-                      <td>{job.preference || "-"}</td>
+                      <td title={job.pay || ""}>{job.pay || "-"}</td>
+                      <td title={job.language || ""}>{job.language || "-"}</td>
+                      <td title={job.level || ""}>{job.level || "-"}</td>
+                      <td title={job.preference || ""}>{job.preference || "-"}</td>
                       <td>{job.people || "-"}</td>
-                      <td>
+                      <td className="admin-col-status">
                         <select
                           className="admin-inline-select"
                           value={normalizeJobVisibility(job)}
@@ -355,7 +359,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                           {getJobVisibilityLabel(job)}
                         </span>
                       </td>
-                      <td>
+                      <td className="admin-col-status">
                         <select
                           className="admin-inline-select"
                           value={normalizeJobStatus(job)}
@@ -376,7 +380,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                           {getJobStatusLabel(job)}
                         </span>
                       </td>
-                      <td>
+                      <td className="admin-col-actions">
                         <button
                           type="button"
                           className="admin-link-button"

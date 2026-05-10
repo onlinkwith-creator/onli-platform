@@ -586,6 +586,84 @@ function Admin({ onBackClick }) {
     );
   };
 
+  const deleteRequest = async (request) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const ok = window.confirm(
+      "정말 이 의뢰를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다."
+    );
+    if (!ok) return;
+
+    setSavingKey(`request-delete-${request.id}`);
+
+    try {
+      if (request.job_id) {
+        const { error: applicationError } = await supabase
+          .from("job_applications")
+          .delete()
+          .eq("job_id", request.job_id);
+
+        if (applicationError) throw applicationError;
+
+        const { error: jobError } = await supabase
+          .from("jobs")
+          .delete()
+          .eq("id", request.job_id);
+
+        if (jobError) throw jobError;
+      }
+
+      await deleteRequestRelatedRows(request.id);
+
+      const { error: requestError } = await supabase
+        .from("requests")
+        .delete()
+        .eq("id", request.id)
+        .select("id")
+        .single();
+
+      if (requestError) throw requestError;
+
+      setRequests((current) => current.filter((item) => item.id !== request.id));
+      setJobs((current) =>
+        request.job_id
+          ? current.filter((job) => String(job.id) !== String(request.job_id))
+          : current
+      );
+      setJobApplications((current) =>
+        request.job_id
+          ? current.filter(
+              (application) => String(application.job_id) !== String(request.job_id)
+            )
+          : current
+      );
+      setAssignments((current) =>
+        current.filter((assignment) => assignment.request_id !== request.id)
+      );
+      setExpandedRequestId((current) => (current === request.id ? null : current));
+      setApplicationsRequestId((current) => (current === request.id ? null : current));
+      alert("삭제되었습니다.");
+    } catch (error) {
+      console.error("의뢰 삭제 실패:", error);
+      alert("삭제에 실패했습니다.");
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const deleteRequestRelatedRows = async (requestId) => {
+    const [assignmentResult, applicationResult] = await Promise.all([
+      supabase.from("request_interpreters").delete().eq("request_id", requestId),
+      supabase.from("request_applications").delete().eq("request_id", requestId),
+    ]);
+
+    if (assignmentResult.error) throw assignmentResult.error;
+    if (applicationResult.error) throw applicationResult.error;
+  };
+
   return (
     <div className="admin-page">
       <div className="admin-shell">
@@ -662,6 +740,7 @@ function Admin({ onBackClick }) {
                 handlePriceDraft={handlePriceDraft}
                 removeAssignment={removeAssignment}
                 updateRequest={updateRequest}
+                deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
               />
             )}
@@ -716,6 +795,7 @@ function RequestManagement({
   handlePriceDraft,
   removeAssignment,
   updateRequest,
+  deleteRequest,
   toggleRequestJobPublic,
 }) {
   return (
@@ -765,17 +845,17 @@ function RequestManagement({
         <table className="admin-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>행사명</th>
-              <th>기업명</th>
-              <th>날짜</th>
-              <th>장소</th>
+              <th className="admin-col-id">ID</th>
+              <th className="admin-col-title">행사명</th>
+              <th className="admin-col-company">기업명</th>
+              <th className="admin-col-date">날짜</th>
+              <th className="admin-col-location">장소</th>
               <th>지원자</th>
-              <th>의뢰 상태</th>
-              <th>연락 상태</th>
-              <th>결제 상태</th>
-              <th>공고 공개</th>
-              <th>상세/수정</th>
+              <th className="admin-col-status">의뢰 상태</th>
+              <th className="admin-col-status">연락 상태</th>
+              <th className="admin-col-status">결제 상태</th>
+              <th className="admin-col-public">공고 공개</th>
+              <th className="admin-col-actions">상세/수정</th>
             </tr>
           </thead>
           <tbody>
@@ -806,6 +886,7 @@ function RequestManagement({
                   handlePriceDraft={handlePriceDraft}
                   removeAssignment={removeAssignment}
                   updateRequest={updateRequest}
+                  deleteRequest={deleteRequest}
                   toggleRequestJobPublic={toggleRequestJobPublic}
                 />
               ))
@@ -835,6 +916,7 @@ function FragmentRequestRow({
   handlePriceDraft,
   removeAssignment,
   updateRequest,
+  deleteRequest,
   toggleRequestJobPublic,
 }) {
   const job = request.job_id ? jobsById.get(request.job_id) : null;
@@ -843,18 +925,27 @@ function FragmentRequestRow({
   return (
     <>
       <tr>
-        <td>#{request.id}</td>
-        <td className="admin-strong-cell">{request.event_name || "-"}</td>
-        <td>{request.company_name || "-"}</td>
-        <td>
+        <td className="admin-col-id">#{request.id}</td>
+        <td
+          className="admin-strong-cell admin-col-title"
+          title={request.event_name || ""}
+        >
+          {request.event_name || "-"}
+        </td>
+        <td className="admin-col-company" title={request.company_name || ""}>
+          {request.company_name || "-"}
+        </td>
+        <td className="admin-col-date">
           {formatDateRange(
             request.start_date,
             request.end_date,
             request.event_date
         )}
         </td>
-        <td>{request.event_location || "-"}</td>
-        <td>
+        <td className="admin-col-location" title={request.event_location || ""}>
+          {request.event_location || "-"}
+        </td>
+        <td className="admin-col-status">
           <button
             type="button"
             className="admin-link-button"
@@ -865,14 +956,14 @@ function FragmentRequestRow({
             지원자 확인 ({jobApplications.length}명)
           </button>
         </td>
-        <td>
+        <td className="admin-col-status">
           <InlineSelect
             options={REQUEST_STATUSES}
             value={request.status || "pending"}
             onChange={(value) => updateRequest(request.id, { status: value })}
           />
         </td>
-        <td>
+        <td className="admin-col-status">
           <InlineSelect
             options={CONTACT_STATUSES}
             value={request.contact_status || "not_contacted"}
@@ -881,7 +972,7 @@ function FragmentRequestRow({
             }
           />
         </td>
-        <td>
+        <td className="admin-col-public">
           <InlineSelect
             options={PAYMENT_STATUSES}
             value={request.payment_status || "unpaid"}
@@ -916,14 +1007,24 @@ function FragmentRequestRow({
             )}
           </div>
         </td>
-        <td>
-          <button
-            type="button"
-            className="admin-link-button"
-            onClick={() => setExpandedRequestId(expanded ? null : request.id)}
-          >
-            {expanded ? "닫기" : "상세 보기"}
-          </button>
+        <td className="admin-col-actions">
+          <div className="admin-row-actions">
+            <button
+              type="button"
+              className="admin-link-button"
+              onClick={() => setExpandedRequestId(expanded ? null : request.id)}
+            >
+              {expanded ? "닫기" : "상세 보기"}
+            </button>
+            <button
+              type="button"
+              className="admin-link-button danger"
+              disabled={savingKey === `request-delete-${request.id}`}
+              onClick={() => deleteRequest(request)}
+            >
+              삭제
+            </button>
+          </div>
         </td>
       </tr>
       {applicationsExpanded && (
@@ -1408,14 +1509,14 @@ function ApplicationManagement({
         <table className="admin-table">
           <thead>
             <tr>
-              <th>지원자</th>
-              <th>공고</th>
-              <th>기업/행사</th>
+              <th className="admin-col-company">지원자</th>
+              <th className="admin-col-title">공고</th>
+              <th className="admin-col-company">기업/행사</th>
               <th>연락처</th>
               <th>이메일</th>
-              <th>지원일</th>
-              <th>상태</th>
-              <th>메모</th>
+              <th className="admin-col-date">지원일</th>
+              <th className="admin-col-status">상태</th>
+              <th className="admin-col-message">메모</th>
             </tr>
           </thead>
           <tbody>
@@ -1427,15 +1528,32 @@ function ApplicationManagement({
 
                 return (
                   <tr key={application.id}>
-                    <td className="admin-strong-cell">
+                    <td
+                      className="admin-strong-cell admin-col-company"
+                      title={application.applicant_name || ""}
+                    >
                       {application.applicant_name || "이름 미입력"}
                     </td>
-                    <td>{getJobDisplayTitle(job, application.job_id)}</td>
-                    <td>{getJobOrganizationLabel(job)}</td>
-                    <td>{application.phone || "연락처 미입력"}</td>
-                    <td>{application.email || "이메일 미입력"}</td>
-                    <td>{formatDate(application.created_at)}</td>
-                    <td>
+                    <td
+                      className="admin-col-title"
+                      title={getJobDisplayTitle(job, application.job_id)}
+                    >
+                      {getJobDisplayTitle(job, application.job_id)}
+                    </td>
+                    <td
+                      className="admin-col-company"
+                      title={getJobOrganizationLabel(job)}
+                    >
+                      {getJobOrganizationLabel(job)}
+                    </td>
+                    <td title={application.phone || ""}>
+                      {application.phone || "연락처 미입력"}
+                    </td>
+                    <td title={application.email || ""}>
+                      {application.email || "이메일 미입력"}
+                    </td>
+                    <td className="admin-col-date">{formatDate(application.created_at)}</td>
+                    <td className="admin-col-status">
                       <InlineSelect
                         options={JOB_APPLICATION_STATUSES}
                         value={application.status || "지원완료"}
@@ -1445,7 +1563,9 @@ function ApplicationManagement({
                         }
                       />
                     </td>
-                    <td>{application.message || "지원 메모 없음"}</td>
+                    <td className="admin-col-message" title={application.message || ""}>
+                      {application.message || "지원 메모 없음"}
+                    </td>
                   </tr>
                 );
               })
