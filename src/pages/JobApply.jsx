@@ -197,10 +197,10 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
                     required
                   >
                     <option value="">선택해주세요</option>
-                    <option value="일상회화">일상회화</option>
-                    <option value="비즈니스 회화">비즈니스 회화</option>
-                    <option value="전문 통역 가능">전문 통역 가능</option>
-                    <option value="원어민 수준">원어민 수준</option>
+                    <option value="LV1">LV1</option>
+                    <option value="LV2">LV2</option>
+                    <option value="LV3">LV3</option>
+                    <option value="LV4">LV4</option>
                   </select>
                 </label>
 
