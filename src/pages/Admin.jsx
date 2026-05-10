@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
 import AdminJobs from "./AdminJobs";
+import { normalizeJobStatus, normalizeJobVisibility } from "../utils/jobStatus";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
@@ -48,9 +49,10 @@ const STATUS_LABELS = {
   rejected: "거절",
 };
 
-function Admin({ onBackClick, onJobsAdminClick }) {
+function Admin({ onBackClick }) {
   const [activeTab, setActiveTab] = useState("requests");
   const [requests, setRequests] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -77,9 +79,13 @@ function Admin({ onBackClick, onJobsAdminClick }) {
     setLoading(true);
     setErrorMessage("");
 
-    const [requestResult, interpreterResult, assignmentResult, applicationResult] =
+    const [requestResult, jobResult, interpreterResult, assignmentResult, applicationResult] =
       await Promise.all([
         supabase.from("requests").select("*").order("created_at", {
+          ascending: false,
+          nullsFirst: false,
+        }),
+        supabase.from("jobs").select("*").order("created_at", {
           ascending: false,
           nullsFirst: false,
         }),
@@ -100,12 +106,14 @@ function Admin({ onBackClick, onJobsAdminClick }) {
 
     if (
       requestResult.error ||
+      jobResult.error ||
       interpreterResult.error ||
       assignmentResult.error ||
       applicationResult.error
     ) {
       console.error(
         requestResult.error ||
+          jobResult.error ||
           interpreterResult.error ||
           assignmentResult.error ||
           applicationResult.error
@@ -116,6 +124,7 @@ function Admin({ onBackClick, onJobsAdminClick }) {
     }
 
     setRequests(requestResult.data || []);
+    setJobs(jobResult.data || []);
     setInterpreters(interpreterResult.data || []);
     setAssignments(assignmentResult.data || []);
     setApplications(applicationResult.data || []);
@@ -137,6 +146,7 @@ function Admin({ onBackClick, onJobsAdminClick }) {
     () => new Map(requests.map((request) => [request.id, request])),
     [requests]
   );
+  const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
 
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
@@ -158,11 +168,11 @@ function Admin({ onBackClick, onJobsAdminClick }) {
         request.status === requestFilters.status;
       const matchesPublic =
         requestFilters.public === "all" ||
-        String(Boolean(request.is_public)) === requestFilters.public;
+        String(isRequestJobPublic(request, jobsById)) === requestFilters.public;
 
       return matchesSearch && matchesDate && matchesStatus && matchesPublic;
     });
-  }, [requestFilters, requests]);
+  }, [jobsById, requestFilters, requests]);
 
   const filteredInterpreters = useMemo(() => {
     const search = interpreterFilters.search.trim().toLowerCase();
@@ -206,6 +216,10 @@ function Admin({ onBackClick, onJobsAdminClick }) {
     }),
     [applications.length, interpreters, requests]
   );
+
+  const switchToJobsTab = () => {
+    setActiveTab("jobs");
+  };
 
   const updateInterpreter = async (id, changes) => {
     setSavingKey(`interpreter-${id}`);
@@ -257,6 +271,148 @@ function Admin({ onBackClick, onJobsAdminClick }) {
     setRequests((current) =>
       current.map((item) => (item.id === id ? { ...item, ...payload } : item))
     );
+  };
+
+  const toggleRequestJobPublic = async (request, shouldBePublic) => {
+    setSavingKey(`request-job-${request.id}`);
+
+    try {
+      if (shouldBePublic) {
+        let jobId = request.job_id;
+        let nextJob = jobId ? jobsById.get(jobId) : null;
+
+        if (jobId) {
+          const { data, error } = await updateJobVisibility(jobId, "public");
+          if (error) throw error;
+          nextJob = { ...nextJob, ...(data || {}), id: jobId, visibility: "public" };
+        } else {
+          const { data, error } = await createJobFromRequest(request);
+          if (error) throw error;
+          nextJob = data;
+          jobId = data?.id;
+        }
+
+        const requestChanges = {
+          is_public: true,
+          is_job_public: true,
+          ...(jobId ? { job_id: jobId } : {}),
+        };
+        const { data: updatedRequest, error: requestError } =
+          await updateRequestWithFallback(request.id, requestChanges);
+
+        if (requestError) throw requestError;
+
+        if (nextJob?.id) {
+          setJobs((current) => upsertById(current, nextJob));
+        }
+        setRequests((current) =>
+          current.map((item) =>
+            item.id === request.id ? { ...item, ...requestChanges, ...updatedRequest } : item
+          )
+        );
+        return;
+      }
+
+      if (request.job_id) {
+        const { data, error } = await updateJobVisibility(request.job_id, "private");
+        if (error) throw error;
+        setJobs((current) =>
+          current.map((job) =>
+            job.id === request.job_id ? { ...job, ...(data || {}), visibility: "private" } : job
+          )
+        );
+      }
+
+      const requestChanges = { is_public: false, is_job_public: false };
+      const { data: updatedRequest, error: requestError } =
+        await updateRequestWithFallback(request.id, requestChanges);
+
+      if (requestError) throw requestError;
+
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, ...requestChanges, ...updatedRequest } : item
+        )
+      );
+    } catch (error) {
+      console.error("request job visibility error:", error);
+      alert("공고 공개 처리에 실패했습니다.");
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const createJobFromRequest = async (request) => {
+    const fullPayload = buildJobPayloadFromRequest(request);
+    const { data, error } = await supabase
+      .from("jobs")
+      .insert([fullPayload])
+      .select("*")
+      .single();
+
+    if (!error) return { data, error: null };
+
+    console.error("jobs insert error:", error);
+    if (!isMissingColumnError(error)) return { data: null, error };
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("jobs")
+      .insert([buildLegacyJobPayloadFromRequest(request)])
+      .select("*")
+      .single();
+
+    if (fallbackError) console.error("jobs insert fallback error:", fallbackError);
+    return { data: fallbackData, error: fallbackError };
+  };
+
+  const updateJobVisibility = async (jobId, visibility) => {
+    const { data, error } = await supabase
+      .from("jobs")
+      .update({ visibility })
+      .eq("id", jobId)
+      .select("*")
+      .single();
+
+    if (!error) return { data, error: null };
+
+    console.error("jobs visibility update error:", error);
+    if (!isMissingColumnError(error)) return { data: null, error };
+
+    const fallbackStatus = visibility === "private" ? "hidden" : "open";
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("jobs")
+      .update({ status: fallbackStatus })
+      .eq("id", jobId)
+      .select("*")
+      .single();
+
+    if (fallbackError) console.error("jobs visibility fallback update error:", fallbackError);
+    return { data: fallbackData, error: fallbackError };
+  };
+
+  const updateRequestWithFallback = async (requestId, changes) => {
+    const { data, error } = await supabase
+      .from("requests")
+      .update(changes)
+      .eq("id", requestId)
+      .select("*")
+      .single();
+
+    if (!error) return { data, error: null };
+
+    console.error("request update error:", error);
+    if (!isMissingColumnError(error)) return { data: null, error };
+
+    const legacyChanges = { is_public: Boolean(changes.is_public) };
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("requests")
+      .update(legacyChanges)
+      .eq("id", requestId)
+      .select("*")
+      .single();
+
+    if (fallbackError) console.error("request update fallback error:", fallbackError);
+    return { data: fallbackData, error: fallbackError };
   };
 
   const handlePriceDraft = (requestId, field, value) => {
@@ -376,7 +532,7 @@ function Admin({ onBackClick, onJobsAdminClick }) {
   return (
     <div className="admin-page">
       <div className="admin-shell">
-        <button type="button" onClick={onBackClick} className="admin-back">
+        <button type="button" onClick={onBackClick} className="admin-back main-return-button">
           ← 메인으로
         </button>
 
@@ -421,13 +577,7 @@ function Admin({ onBackClick, onJobsAdminClick }) {
                   key={tab.id}
                   type="button"
                   className={activeTab === tab.id ? "is-active" : ""}
-                  onClick={() => {
-                    if (tab.id === "jobs") {
-                      onJobsAdminClick();
-                      return;
-                    }
-                    setActiveTab(tab.id);
-                  }}
+                  onClick={() => setActiveTab(tab.id)}
                 >
                   {tab.label}
                 </button>
@@ -444,6 +594,8 @@ function Admin({ onBackClick, onJobsAdminClick }) {
                 interpreters={interpreters}
                 requests={filteredRequests}
                 savingKey={savingKey}
+                jobsById={jobsById}
+                onJobsAdminClick={switchToJobsTab}
                 setAssignmentDrafts={setAssignmentDrafts}
                 setExpandedRequestId={setExpandedRequestId}
                 setFilters={setRequestFilters}
@@ -452,6 +604,7 @@ function Admin({ onBackClick, onJobsAdminClick }) {
                 removeAssignment={removeAssignment}
                 updateApplicationStatus={updateApplicationStatus}
                 updateRequest={updateRequest}
+                toggleRequestJobPublic={toggleRequestJobPublic}
               />
             )}
 
@@ -493,6 +646,8 @@ function RequestManagement({
   expandedRequestId,
   filters,
   interpreters,
+  jobsById,
+  onJobsAdminClick,
   requests,
   savingKey,
   setAssignmentDrafts,
@@ -503,6 +658,7 @@ function RequestManagement({
   removeAssignment,
   updateApplicationStatus,
   updateRequest,
+  toggleRequestJobPublic,
 }) {
   return (
     <section className="admin-section">
@@ -576,6 +732,8 @@ function RequestManagement({
                   assignments={assignmentsByRequest.get(request.id) || []}
                   expanded={expandedRequestId === request.id}
                   interpreters={interpreters}
+                  jobsById={jobsById}
+                  onJobsAdminClick={onJobsAdminClick}
                   request={request}
                   savingKey={savingKey}
                   setAssignmentDrafts={setAssignmentDrafts}
@@ -585,6 +743,7 @@ function RequestManagement({
                   removeAssignment={removeAssignment}
                   updateApplicationStatus={updateApplicationStatus}
                   updateRequest={updateRequest}
+                  toggleRequestJobPublic={toggleRequestJobPublic}
                 />
               ))
             )}
@@ -601,6 +760,8 @@ function FragmentRequestRow({
   assignments,
   expanded,
   interpreters,
+  jobsById,
+  onJobsAdminClick,
   request,
   savingKey,
   setAssignmentDrafts,
@@ -610,7 +771,11 @@ function FragmentRequestRow({
   removeAssignment,
   updateApplicationStatus,
   updateRequest,
+  toggleRequestJobPublic,
 }) {
+  const job = request.job_id ? jobsById.get(request.job_id) : null;
+  const jobPublicState = getRequestJobPublicState(request, job);
+
   return (
     <>
       <tr>
@@ -646,16 +811,30 @@ function FragmentRequestRow({
           />
         </td>
         <td>
-          <InlineSelect
-            options={[
-              { label: "비공개", value: "false" },
-              { label: "공개", value: "true" },
-            ]}
-            value={String(Boolean(request.is_public))}
-            onChange={(value) =>
-              updateRequest(request.id, { is_public: value === "true" })
-            }
-          />
+          <div className="admin-public-control">
+            <span className={`admin-public-badge ${jobPublicState.type}`}>
+              {jobPublicState.label}
+            </span>
+            <button
+              type="button"
+              className="admin-link-button"
+              disabled={savingKey === `request-job-${request.id}`}
+              onClick={() =>
+                toggleRequestJobPublic(request, jobPublicState.type !== "public")
+              }
+            >
+              {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
+            </button>
+            {request.job_id && (
+              <button
+                type="button"
+                className="admin-link-button"
+                onClick={onJobsAdminClick}
+              >
+                공고 수정
+              </button>
+            )}
+          </div>
         </td>
         <td>
           <button
@@ -1259,6 +1438,91 @@ function ChipList({ emptyText, items, onRemove }) {
 
 function MessageBox({ text }) {
   return <div className="admin-message">{text}</div>;
+}
+
+function buildJobPayloadFromRequest(request) {
+  const title = request.event_name
+    ? `${request.event_name} 통역 모집`
+    : "통역 모집";
+  const peopleCount = request.requested_people_count || request.required_count;
+  const level = request.requested_level || request.required_level || "";
+  const field = request.interpretation_field || request.job_field || "";
+
+  return {
+    title,
+    event_name: request.event_name || title,
+    event_date: request.event_date || request.date || "",
+    location: request.event_location || request.location || "",
+    event_location: request.event_location || request.location || "",
+    pay: request.interpreter_fee
+      ? `${Number(request.interpreter_fee).toLocaleString()}원`
+      : "협의",
+    language: "한국어 ↔ 일본어",
+    level,
+    requested_level: level,
+    preference: [field, request.preferred_gender].filter(Boolean).join(" · "),
+    preferred_gender: request.preferred_gender || "",
+    people: peopleCount ? `${peopleCount}명` : "",
+    people_count: peopleCount || null,
+    field,
+    status: "open",
+    visibility: "public",
+  };
+}
+
+function buildLegacyJobPayloadFromRequest(request) {
+  const payload = buildJobPayloadFromRequest(request);
+  return {
+    title: payload.title,
+    location: payload.location,
+    date: payload.event_date,
+    pay: payload.pay,
+    language: payload.language,
+    level: payload.level,
+    preference: payload.preference,
+    people: payload.people,
+    status: "open",
+    is_urgent: false,
+  };
+}
+
+function getRequestJobPublicState(request, job) {
+  if (request.job_id && job) {
+    const isPublic =
+      normalizeJobVisibility(job) === "public" && normalizeJobStatus(job) !== "assigned";
+    return isPublic
+      ? { type: "public", label: "공개중" }
+      : { type: "private", label: "비공개" };
+  }
+
+  if (request.job_id && !job) {
+    return { type: "private", label: "공고 확인 필요" };
+  }
+
+  return { type: "missing", label: "공고 미생성" };
+}
+
+function isRequestJobPublic(request, jobsById) {
+  const job = request.job_id ? jobsById.get(request.job_id) : null;
+  if (job) return getRequestJobPublicState(request, job).type === "public";
+  return Boolean(request.is_public);
+}
+
+function isMissingColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column|schema cache/i.test(error?.message || "")
+  );
+}
+
+function upsertById(items, nextItem) {
+  if (!nextItem?.id) return items;
+  const exists = items.some((item) => item.id === nextItem.id);
+  if (exists) {
+    return items.map((item) => (item.id === nextItem.id ? { ...item, ...nextItem } : item));
+  }
+  return [nextItem, ...items];
 }
 
 function formatKRW(value) {

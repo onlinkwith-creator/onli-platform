@@ -21,7 +21,12 @@ function About({ onBackClick, onRequestClick, onListClick }) {
   return (
     <div style={styles.page}>
       <div style={styles.shell}>
-        <button type="button" onClick={onBackClick} style={styles.backButton}>
+        <button
+          type="button"
+          onClick={onBackClick}
+          className="main-return-button"
+          style={styles.backButton}
+        >
           ← 메인으로
         </button>
 

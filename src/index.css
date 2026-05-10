@@ -99,6 +99,9 @@ table {
   padding: 12px 18px !important;
   font-weight: 700 !important;
   cursor: pointer;
+  opacity: 1 !important;
+  text-decoration: none !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .main-return-button:hover,
@@ -106,6 +109,8 @@ table {
 .main-return-button:focus-visible {
   background-color: #2f477f !important;
   color: #ffffff !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 h1,

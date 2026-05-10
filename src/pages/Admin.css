@@ -375,6 +375,36 @@
   gap: 8px;
 }
 
+.admin-public-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.admin-public-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.admin-public-badge.public {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.admin-public-badge.private {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 .admin-link-button.danger {
   background: #fef2f2;
   color: #b91c1c;

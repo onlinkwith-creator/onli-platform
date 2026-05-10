@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabase";
-import { JOB_STATUS_OPTIONS, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
+import {
+  JOB_STATUS_OPTIONS,
+  JOB_VISIBILITY_OPTIONS,
+  getJobStatusLabel,
+  getJobVisibilityLabel,
+  normalizeJobStatus,
+  normalizeJobVisibility,
+} from "../utils/jobStatus";
 import "./Admin.css";
 
 const emptyForm = {
@@ -12,6 +19,7 @@ const emptyForm = {
   level: "",
   preference: "",
   people: "",
+  visibility: "public",
   status: "open",
   is_urgent: false,
 };
@@ -83,6 +91,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
       level: form.level,
       preference: form.preference,
       people: form.people,
+      visibility: form.visibility,
       status: form.status,
       is_urgent: form.status === "closing_soon",
     };
@@ -116,6 +125,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
       level: job.level || "",
       preference: job.preference || "",
       people: job.people || "",
+      visibility: normalizeJobVisibility(job),
       status: normalizeJobStatus(job),
       is_urgent: normalizeJobStatus(job) === "closing_soon",
     });
@@ -182,7 +192,16 @@ function AdminJobs({ onBackClick, embedded = false }) {
           <JobField label="모집 인원">
             <input name="people" value={form.people} onChange={handleChange} />
           </JobField>
-          <JobField label="공고 상태">
+          <JobField label="공고 공개 상태">
+            <select name="visibility" value={form.visibility} onChange={handleChange}>
+              {JOB_VISIBILITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </JobField>
+          <JobField label="모집 상태">
             <select name="status" value={form.status} onChange={handleChange}>
               {JOB_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -223,14 +242,15 @@ function AdminJobs({ onBackClick, embedded = false }) {
                   <th>레벨</th>
                   <th>우대</th>
                   <th>인원</th>
-                  <th>공고 상태</th>
+                  <th>공개 상태</th>
+                  <th>모집 상태</th>
                   <th>관리</th>
                 </tr>
               </thead>
               <tbody>
                 {jobs.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="admin-empty-row">
+                    <td colSpan="11" className="admin-empty-row">
                       현재 등록된 공고가 없습니다.
                     </td>
                   </tr>
@@ -245,6 +265,24 @@ function AdminJobs({ onBackClick, embedded = false }) {
                       <td>{job.level || "-"}</td>
                       <td>{job.preference || "-"}</td>
                       <td>{job.people || "-"}</td>
+                      <td>
+                        <select
+                          className="admin-inline-select"
+                          value={normalizeJobVisibility(job)}
+                          onChange={(event) =>
+                            updateJob(job, { visibility: event.target.value })
+                          }
+                        >
+                          {JOB_VISIBILITY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="admin-muted-inline">
+                          {getJobVisibilityLabel(job)}
+                        </span>
+                      </td>
                       <td>
                         <select
                           className="admin-inline-select"

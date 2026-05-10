@@ -47,6 +47,13 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     }));
   };
 
+  const updateFormValue = (name, value) => {
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -101,12 +108,13 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     setIsSubmitting(false);
 
     if (error) {
-      console.error("의뢰 저장 실패:", error);
-      setErrorMessage(
+      console.error("request insert error:", error);
+      const message =
         error.code === "42501"
           ? "의뢰 저장 권한 설정이 필요합니다. Supabase requests 테이블의 insert 정책을 확인해주세요."
-          : "의뢰 저장에 실패했습니다. 입력값을 확인한 뒤 다시 시도해주세요."
-      );
+          : `의뢰저장 실패: ${error.message || "입력값을 확인한 뒤 다시 시도해주세요."}`;
+      setErrorMessage(message);
+      alert(message);
       return;
     }
 
@@ -138,72 +146,50 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
               <br />
               접수 후 ON-LI 운영팀이 내용을 검토하여 적합한 통역사를 매칭합니다.
             </p>
+            <div style={styles.process}>
+              {["의뢰 접수", "운영팀 검토", "공고 등록", "매칭 진행", "배정 완료"].map(
+                (step, index, steps) => (
+                  <span key={step} style={styles.processItem}>
+                    {step}
+                    {index < steps.length - 1 && <b style={styles.processArrow}>→</b>}
+                  </span>
+                )
+              )}
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} style={styles.form}>
+            <SectionTitle title="기본 정보" />
             <Field label="회사명" name="companyName" value={form.companyName} onChange={handleChange} required />
             <Field label="담당자명" name="contactName" value={form.contactName} onChange={handleChange} required />
             <Field label="연락처 또는 이메일" name="contactEmailOrPhone" value={form.contactEmailOrPhone} onChange={handleChange} required />
+
+            <SectionTitle title="행사 정보" />
             <Field label="행사명" name="eventName" value={form.eventName} onChange={handleChange} required />
             <Field label="행사 날짜" name="eventDate" type="date" value={form.eventDate} onChange={handleChange} required />
             <Field label="행사 장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
 
-            <Field
-              label="필요 인원 수"
-              name="requestedPeopleCount"
-              type="number"
-              min="1"
-              placeholder="예: 3"
-              value={form.requestedPeopleCount}
-              onChange={handleChange}
-              required
+            <SectionTitle title="통역 요청 정보" />
+            <Field label="필요 인원 수" name="requestedPeopleCount" type="number" min="1" placeholder="예: 3" value={form.requestedPeopleCount} onChange={handleChange} required />
+            <TabField
+              label="희망 통역 레벨"
+              value={form.requestedLevel}
+              onChange={(value) => updateFormValue("requestedLevel", value)}
+              options={levelOptions}
+              helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
             />
-
-            <label style={styles.field}>
-              <span style={styles.fieldLabel}>희망 통역 레벨</span>
-              <select
-                name="requestedLevel"
-                value={form.requestedLevel}
-                onChange={handleChange}
-                style={styles.input}
-              >
-                {levelOptions.map((level) => (
-                  <option key={level} value={level}>
-                    {level}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={styles.field}>
-              <span style={styles.fieldLabel}>희망 성별</span>
-              <select
-                name="preferredGender"
-                value={form.preferredGender}
-                onChange={handleChange}
-                style={styles.input}
-              >
-                <option value="성별 무관">성별 무관</option>
-                <option value="여성 희망">여성 희망</option>
-                <option value="남성 희망">남성 희망</option>
-              </select>
-            </label>
-
-            <label style={styles.field}>
-              <span style={styles.fieldLabel}>통역 분야</span>
-              <select
-                name="interpretationField"
-                value={form.interpretationField}
-                onChange={handleChange}
-                style={styles.input}
-              >
-                {fieldOptions.map((field) => (
-                  <option key={field} value={field}>
-                    {field}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <TabField
+              label="희망 성별"
+              value={form.preferredGender}
+              onChange={(value) => updateFormValue("preferredGender", value)}
+              options={["성별 무관", "여성 희망", "남성 희망"]}
+            />
+            <TabField
+              label="통역 분야"
+              value={form.interpretationField}
+              onChange={(value) => updateFormValue("interpretationField", value)}
+              options={fieldOptions}
+            />
 
             <label style={{ ...styles.field, ...styles.fullWidth }}>
               <span style={styles.fieldLabel}>요청 내용</span>
@@ -212,8 +198,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                 value={form.requestDetails}
                 onChange={handleChange}
                 required
-                rows={5}
-                style={{ ...styles.input, resize: "vertical" }}
+                rows={4}
+                style={{ ...styles.input, ...styles.textarea }}
                 placeholder="행사 목적, 통역 상황, 요청사항을 간단히 적어주세요."
               />
             </label>
@@ -247,21 +233,53 @@ function Field({ label, ...inputProps }) {
   );
 }
 
+function TabField({ label, options, value, onChange, helpText }) {
+  return (
+    <div style={styles.field}>
+      <span style={styles.fieldLabel}>{label}</span>
+      <div style={styles.tabGroup}>
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            style={{
+              ...styles.tabButton,
+              ...(value === option ? styles.tabButtonActive : {}),
+            }}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      {helpText && <span style={styles.helpText}>{helpText}</span>}
+    </div>
+  );
+}
+
+function SectionTitle({ title }) {
+  return (
+    <div style={styles.sectionTitle}>
+      <span>{title}</span>
+    </div>
+  );
+}
+
 const styles = {
   page: {
     minHeight: "100vh",
     width: "100vw",
     background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
-    padding: "60px 24px",
+    padding: "48px 20px",
     boxSizing: "border-box",
     color: "#111827",
   },
   container: {
-    maxWidth: "900px",
+    maxWidth: "860px",
     margin: "0 auto",
   },
   backButton: {
-    marginBottom: "30px",
+    marginBottom: "22px",
     padding: "12px 18px",
     borderRadius: "12px",
     border: "1px solid #395597",
@@ -271,25 +289,26 @@ const styles = {
     fontWeight: "700",
   },
   card: {
-    background: "rgba(255, 255, 255, 0.95)",
-    borderRadius: "28px",
-    padding: "36px",
-    boxShadow: "0 20px 50px rgba(15, 23, 42, 0.12)",
-    border: "1px solid rgba(255,255,255,0.8)",
+    background: "#ffffff",
+    borderRadius: "16px",
+    padding: "28px",
+    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
+    border: "1px solid #e5e7eb",
   },
   header: {
-    marginBottom: "30px",
+    marginBottom: "24px",
+    textAlign: "left",
   },
   label: {
     fontSize: "12px",
     letterSpacing: "4px",
-    color: "#4f46e5",
+    color: "#395597",
     fontWeight: "800",
-    marginBottom: "10px",
+    margin: "0 0 8px",
   },
   title: {
     margin: 0,
-    fontSize: "38px",
+    fontSize: "34px",
     fontWeight: "900",
     color: "#111827",
   },
@@ -297,16 +316,47 @@ const styles = {
     marginTop: "12px",
     color: "#6b7280",
     fontSize: "15px",
+    lineHeight: 1.65,
+  },
+  process: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px 10px",
+    marginTop: "18px",
+    paddingTop: "16px",
+    borderTop: "1px solid #eef2f7",
+    color: "#6b7280",
+    fontSize: "13px",
+    fontWeight: "800",
+  },
+  processItem: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "10px",
+  },
+  processArrow: {
+    color: "#cbd5e1",
+    fontWeight: "900",
   },
   form: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-    gap: "18px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "14px",
+  },
+  sectionTitle: {
+    gridColumn: "1 / -1",
+    marginTop: "8px",
+    paddingTop: "12px",
+    borderTop: "1px solid #f1f5f9",
+    color: "#395597",
+    fontSize: "14px",
+    fontWeight: "900",
+    textAlign: "left",
   },
   field: {
     display: "flex",
     flexDirection: "column",
-    gap: "8px",
+    gap: "6px",
     textAlign: "left",
   },
   fullWidth: {
@@ -314,20 +364,54 @@ const styles = {
   },
   fieldLabel: {
     color: "#374151",
-    fontSize: "14px",
+    fontSize: "13px",
     fontWeight: "800",
   },
   input: {
     width: "100%",
-    padding: "15px 16px",
-    borderRadius: "14px",
+    minHeight: "46px",
+    padding: "0 13px",
+    borderRadius: "11px",
     border: "1px solid #d1d5db",
-    background: "#f9fafb",
+    background: "#ffffff",
     color: "#111827",
     fontSize: "14px",
     outline: "none",
     boxSizing: "border-box",
     fontFamily: "inherit",
+  },
+  tabGroup: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+  },
+  tabButton: {
+    minHeight: "42px",
+    padding: "0 13px",
+    borderRadius: "999px",
+    border: "1px solid #d1d5db",
+    background: "#ffffff",
+    color: "#374151",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "800",
+    fontFamily: "inherit",
+  },
+  tabButtonActive: {
+    border: "1px solid #395597",
+    background: "#395597",
+    color: "#ffffff",
+  },
+  textarea: {
+    minHeight: "112px",
+    padding: "13px",
+    lineHeight: 1.55,
+    resize: "vertical",
+  },
+  helpText: {
+    color: "#6b7280",
+    fontSize: "12px",
+    lineHeight: 1.45,
   },
   error: {
     gridColumn: "1 / -1",
@@ -338,11 +422,11 @@ const styles = {
   },
   submitButton: {
     gridColumn: "1 / -1",
-    marginTop: "8px",
-    padding: "16px",
-    borderRadius: "16px",
+    marginTop: "4px",
+    padding: "14px",
+    borderRadius: "12px",
     border: "none",
-    background: "#4f46e5",
+    background: "#395597",
     color: "white",
     fontWeight: "900",
     fontSize: "15px",

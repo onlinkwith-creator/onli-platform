@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabase";
-import { canApplyToJob, getJobStatusLabel } from "../utils/jobStatus";
+import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import "./Jobs.css";
 
 const initialForm = {
@@ -42,6 +42,12 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
         .single();
 
       if (error) throw error;
+
+      if (!isPublicJob(data)) {
+        setJob(null);
+        setErrorMessage("지원할 수 없는 공고입니다.");
+        return;
+      }
 
       setJob(data);
     } catch (error) {

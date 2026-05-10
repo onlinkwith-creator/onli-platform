@@ -15,13 +15,13 @@ function JobCard({ job, onApplyClick }) {
       </div>
 
       <dl>
-        <JobInfo label="장소" value={job.location} />
-        <JobInfo label="날짜" value={job.date} />
+        <JobInfo label="장소" value={job.location || job.event_location} />
+        <JobInfo label="날짜" value={job.date || job.event_date} />
         <JobInfo label="일급" value={job.pay} />
         <JobInfo label="언어" value={job.language} />
-        <JobInfo label="레벨" value={job.level} />
-        <JobInfo label="우대" value={job.preference} />
-        <JobInfo label="인원" value={job.people} />
+        <JobInfo label="레벨" value={job.level || job.requested_level} />
+        <JobInfo label="우대" value={job.preference || job.field} />
+        <JobInfo label="인원" value={job.people || job.people_count} />
       </dl>
 
       <button type="button" onClick={onApplyClick} disabled={!canApply}>

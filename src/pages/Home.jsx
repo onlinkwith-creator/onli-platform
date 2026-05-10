@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import JobCard from "../components/JobCard";
 import { supabase } from "../supabase";
-import { isPublicJob } from "../utils/jobStatus";
+import { fetchPublicJobs } from "../utils/jobsApi";
 import "./Home.css";
 
 function getSupabaseErrorMessage(error, fallback) {
@@ -55,18 +55,13 @@ function Home({
     setJobsErrorMessage("");
 
     try {
-      const { data, error } = await supabase
-        .from("jobs")
-        .select("*")
-        .in("status", ["open", "closing_soon", "closed", "모집중", "마감임박", "마감"])
-        .order("created_at", { ascending: false })
-        .limit(8);
+      const { data, error } = await fetchPublicJobs(supabase, { limit: 4 });
 
       if (error) throw error;
 
-      setFeaturedJobs((data || []).filter(isPublicJob).slice(0, 4));
+      setFeaturedJobs(data || []);
     } catch (error) {
-      console.error(error);
+      console.error("jobs fetch error:", error);
       setFeaturedJobs([]);
       setJobsErrorMessage(
         getSupabaseErrorMessage(error, "통역 공고를 불러오지 못했습니다.")

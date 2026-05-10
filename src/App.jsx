@@ -6,7 +6,6 @@ import InterpreterDetail from "./pages/InterpreterDetail";
 import RegisterInterpreter from "./pages/RegisterInterpreter";
 import RequestForm from "./pages/RequestForm";
 import Admin from "./pages/Admin";
-import AdminJobs from "./pages/AdminJobs";
 import JobList from "./pages/JobList";
 import JobDetail from "./pages/JobDetail";
 import JobApply from "./pages/JobApply";
@@ -16,7 +15,7 @@ function getInitialPage() {
 
   if (path === "/about") return "about";
   if (path === "/register") return "register";
-  if (path === "/admin/jobs") return "adminJobs";
+  if (path === "/admin/jobs") return "admin";
   if (path === "/admin") return "admin";
   if (path === "/request") return "jobCreate";
   if (path === "/jobs") return "jobs";
@@ -40,7 +39,6 @@ function getInitialJobId() {
 function getPath(page, interpreter, jobId) {
   if (page === "about") return "/about";
   if (page === "register") return "/register";
-  if (page === "adminJobs") return "/admin/jobs";
   if (page === "admin") return "/admin";
   if (page === "jobs") return "/jobs";
   if (page === "jobCreate") return "/request";
@@ -120,14 +118,7 @@ function App() {
       )}
 
       {page === "admin" && (
-        <Admin
-          onBackClick={() => navigate("home", null)}
-          onJobsAdminClick={() => navigate("adminJobs", null, null)}
-        />
-      )}
-
-      {page === "adminJobs" && (
-        <AdminJobs onBackClick={() => navigate("admin", null, null)} />
+        <Admin onBackClick={() => navigate("home", null)} />
       )}
 
       {page === "jobs" && (

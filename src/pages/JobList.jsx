@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import JobCard from "../components/JobCard";
 import { supabase } from "../supabase";
-import { isPublicJob } from "../utils/jobStatus";
+import { fetchPublicJobs } from "../utils/jobsApi";
 import "./Home.css";
 import "./Jobs.css";
 
@@ -19,16 +19,13 @@ function JobList({ onBackClick, onApplyClick }) {
     setErrorMessage("");
 
     try {
-      const { data, error } = await supabase
-        .from("jobs")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const { data, error } = await fetchPublicJobs(supabase);
 
       if (error) throw error;
 
-      setJobs((data || []).filter(isPublicJob));
+      setJobs(data || []);
     } catch (error) {
-      console.error(error);
+      console.error("jobs fetch error:", error);
       setJobs([]);
       setErrorMessage(
         getSupabaseErrorMessage(error, "통역 공고를 불러오지 못했습니다.")
@@ -45,7 +42,7 @@ function JobList({ onBackClick, onApplyClick }) {
   return (
     <div className="jobs-page">
       <div className="jobs-shell">
-        <button type="button" onClick={onBackClick} className="jobs-back">
+        <button type="button" onClick={onBackClick} className="jobs-back main-return-button">
           ← 메인으로
         </button>
 

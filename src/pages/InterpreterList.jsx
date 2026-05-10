@@ -130,14 +130,16 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
       >
         <button
           onClick={onBackClick}
+          className="main-return-button"
           style={{
             marginBottom: "30px",
             padding: "12px 18px",
-            borderRadius: "999px",
-            border: "1px solid #d1d5db",
-            background: "white",
+            borderRadius: "12px",
+            border: "1px solid #395597",
+            backgroundColor: "#395597",
+            color: "#ffffff",
             cursor: "pointer",
-            fontWeight: "600",
+            fontWeight: "700",
           }}
         >
           ← 메인으로
