@@ -191,6 +191,13 @@ function AdminJobs({ onBackClick, embedded = false }) {
     }
 
     try {
+      const { error: applicationError } = await supabase
+        .from("job_applications")
+        .delete()
+        .eq("job_id", job.id);
+
+      if (applicationError) throw applicationError;
+
       const { error } = await supabase.from("jobs").delete().eq("id", job.id);
 
       if (error) throw error;
@@ -309,7 +316,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                   <th>인원</th>
                   <th className="admin-col-status">공개 상태</th>
                   <th className="admin-col-status">모집 상태</th>
-                  <th>지원자</th>
+                  <th className="admin-col-actions">지원자</th>
                   <th className="admin-col-actions">관리</th>
                 </tr>
               </thead>
@@ -393,7 +400,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                           지원자 확인 ({getApplicationsForJob(job.id).length}명)
                         </button>
                       </td>
-                      <td>
+                      <td className="admin-col-actions">
                         <div className="admin-row-actions">
                           <button
                             type="button"
@@ -480,7 +487,7 @@ function MessageBox({ text }) {
 function JobApplicationsPanel({ applications, job }) {
   return (
     <div className="admin-applications-panel">
-      <h4>{job.title || "공고"} 지원자 확인</h4>
+      <h4 title={job.title || ""}>{job.title || "공고"} 지원자 확인</h4>
       {applications.length === 0 ? (
         <span className="admin-empty-chip">이 공고에는 아직 지원자가 없습니다.</span>
       ) : (
@@ -488,8 +495,14 @@ function JobApplicationsPanel({ applications, job }) {
           {applications.map((application) => (
             <article key={application.id} className="admin-application-card">
               <div>
-                <strong>{application.applicant_name || "이름 미입력"}</strong>
-                <span>
+                <strong title={application.applicant_name || ""}>
+                  {application.applicant_name || "이름 미입력"}
+                </strong>
+                <span
+                  title={`${application.phone || "연락처 미입력"} · ${
+                    application.email || "이메일 미입력"
+                  }`}
+                >
                   {application.phone || "연락처 미입력"} ·{" "}
                   {application.email || "이메일 미입력"}
                 </span>
@@ -497,7 +510,9 @@ function JobApplicationsPanel({ applications, job }) {
                   지원일 {formatDate(application.created_at)} ·{" "}
                   {application.status || "지원완료"}
                 </span>
-                <p>{application.message || "지원 메모 없음"}</p>
+                <p title={application.message || ""}>
+                  {application.message || "지원 메모 없음"}
+                </p>
               </div>
             </article>
           ))}
