@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 import {
   calculateEstimatedPrice,
   calculateInterpreterPay,
@@ -59,6 +59,12 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
     setIsSubmitting(true);
     setErrorMessage("");
+
+    if (!supabase) {
+      setErrorMessage(supabaseConfigError.message);
+      setIsSubmitting(false);
+      return;
+    }
 
     const urgency = getUrgency(form.eventDate);
     const estimatedPrice = calculateEstimatedPrice({

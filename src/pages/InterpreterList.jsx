@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 
 const initialFilters = {
   gender: "전체",
@@ -52,6 +52,12 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
     const fetchInterpreters = async () => {
       setLoading(true);
       setErrorMessage("");
+
+      if (!supabase) {
+        setErrorMessage(supabaseConfigError.message);
+        setLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from("interpreters")

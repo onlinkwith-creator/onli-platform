@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 import AdminJobs from "./AdminJobs";
 import { normalizeJobStatus, normalizeJobVisibility } from "../utils/jobStatus";
 import "./Admin.css";
@@ -78,6 +78,12 @@ function Admin({ onBackClick }) {
   const fetchAdminData = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
+
+    if (!supabase) {
+      setErrorMessage(supabaseConfigError.message);
+      setLoading(false);
+      return;
+    }
 
     const [requestResult, jobResult, interpreterResult, assignmentResult, applicationResult] =
       await Promise.all([
@@ -222,6 +228,11 @@ function Admin({ onBackClick }) {
   };
 
   const updateInterpreter = async (id, changes) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
     setSavingKey(`interpreter-${id}`);
     const { error } = await supabase
       .from("interpreters")
@@ -241,6 +252,11 @@ function Admin({ onBackClick }) {
   };
 
   const updateRequest = async (id, changes) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
     const request = requests.find((item) => item.id === id);
     const nextClientPrice =
       changes.client_price !== undefined
@@ -274,6 +290,11 @@ function Admin({ onBackClick }) {
   };
 
   const toggleRequestJobPublic = async (request, shouldBePublic) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
     setSavingKey(`request-job-${request.id}`);
 
     try {
@@ -429,6 +450,11 @@ function Admin({ onBackClick }) {
   };
 
   const assignInterpreter = async (requestId) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
     const interpreterId = Number(assignmentDrafts[requestId]);
 
     if (!interpreterId) {
@@ -460,6 +486,11 @@ function Admin({ onBackClick }) {
   };
 
   const removeAssignment = async (assignmentId) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
     setSavingKey(`assignment-${assignmentId}`);
     const { error } = await supabase
       .from("request_interpreters")
@@ -479,6 +510,11 @@ function Admin({ onBackClick }) {
   };
 
   const updateApplicationStatus = async (application, status) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
     setSavingKey(`application-${application.id}`);
     const { error } = await supabase
       .from("request_applications")
@@ -500,6 +536,11 @@ function Admin({ onBackClick }) {
   };
 
   const assignAcceptedApplication = async (application) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
     if (!application.interpreter_id) {
       alert(
         "로그인 없는 지원이라 연결된 interpreter_id가 없습니다. 등록 통역사 계정 연결 후 배정할 수 있습니다."

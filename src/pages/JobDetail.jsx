@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 import "./Jobs.css";
 
 const initialForm = {
@@ -26,6 +26,12 @@ function JobDetail({ jobId, onBackClick }) {
 
     setLoading(true);
     setErrorMessage("");
+
+    if (!supabase) {
+      setErrorMessage(supabaseConfigError.message);
+      setLoading(false);
+      return;
+    }
 
     const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
@@ -64,6 +70,12 @@ function JobDetail({ jobId, onBackClick }) {
 
     setSubmitting(true);
     setErrorMessage("");
+
+    if (!supabase) {
+      setErrorMessage(supabaseConfigError.message);
+      setSubmitting(false);
+      return;
+    }
 
     const { error } = await supabase.from("request_applications").insert([
       {

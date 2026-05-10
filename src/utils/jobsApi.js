@@ -1,4 +1,5 @@
 import { isPublicJob } from "./jobStatus";
+import { supabaseConfigError } from "../supabase";
 
 const PUBLIC_JOB_STATUSES = [
   "open",
@@ -19,6 +20,10 @@ function isMissingColumnError(error) {
 }
 
 export async function fetchPublicJobs(supabase, { limit } = {}) {
+  if (!supabase) {
+    return { data: null, error: supabaseConfigError };
+  }
+
   let query = supabase
     .from("jobs")
     .select("*")

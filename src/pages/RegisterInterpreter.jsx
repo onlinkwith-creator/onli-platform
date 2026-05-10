@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 
 const specialtyOptions = [
   "뷰티",
@@ -119,6 +119,11 @@ function RegisterInterpreter({ onBackClick }) {
 
     if (form.specialties.length === 0) {
       setErrorMessage("전문 분야를 1개 이상 선택해주세요.");
+      return;
+    }
+
+    if (!supabase) {
+      setErrorMessage(supabaseConfigError.message);
       return;
     }
 

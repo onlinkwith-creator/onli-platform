@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 import {
   JOB_STATUS_OPTIONS,
   JOB_VISIBILITY_OPTIONS,
@@ -41,6 +41,8 @@ function AdminJobs({ onBackClick, embedded = false }) {
     setErrorMessage("");
 
     try {
+      if (!supabase) throw supabaseConfigError;
+
       const { data, error } = await supabase
         .from("jobs")
         .select("*")
@@ -81,6 +83,12 @@ function AdminJobs({ onBackClick, embedded = false }) {
     event.preventDefault();
     setSaving(true);
     setErrorMessage("");
+
+    if (!supabase) {
+      setErrorMessage(supabaseConfigError.message);
+      setSaving(false);
+      return;
+    }
 
     const payload = {
       title: form.title,
@@ -132,6 +140,11 @@ function AdminJobs({ onBackClick, embedded = false }) {
   };
 
   const updateJob = async (job, changes) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
     try {
       const { error } = await supabase.from("jobs").update(changes).eq("id", job.id);
 
@@ -148,6 +161,10 @@ function AdminJobs({ onBackClick, embedded = false }) {
 
   const deleteJob = async (job) => {
     if (!window.confirm(`"${job.title || "공고"}"를 삭제할까요?`)) return;
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
 
     try {
       const { error } = await supabase.from("jobs").delete().eq("id", job.id);

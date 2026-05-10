@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import JobCard from "../components/JobCard";
-import { supabase } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 import { fetchPublicJobs } from "../utils/jobsApi";
 import "./Home.css";
 
@@ -21,6 +21,7 @@ function Home({
   const [featuredJobs, setFeaturedJobs] = useState([]);
   const [interpreterLoading, setInterpreterLoading] = useState(true);
   const [jobsLoading, setJobsLoading] = useState(true);
+  const [interpreterErrorMessage, setInterpreterErrorMessage] = useState("");
   const [jobsErrorMessage, setJobsErrorMessage] = useState("");
 
   const scrollToSection = (id) => {
@@ -29,8 +30,11 @@ function Home({
 
   const fetchFeaturedInterpreters = useCallback(async () => {
     setInterpreterLoading(true);
+    setInterpreterErrorMessage("");
 
     try {
+      if (!supabase) throw supabaseConfigError;
+
       const { data, error } = await supabase
         .from("interpreters")
         .select("*")
@@ -45,6 +49,9 @@ function Home({
     } catch (error) {
       console.error(error);
       setFeaturedInterpreters([]);
+      setInterpreterErrorMessage(
+        getSupabaseErrorMessage(error, "통역사 정보를 불러오지 못했습니다.")
+      );
     } finally {
       setInterpreterLoading(false);
     }
@@ -249,6 +256,8 @@ function Home({
 
         {interpreterLoading ? (
           <div className="home-empty">통역사 정보를 불러오는 중입니다...</div>
+        ) : interpreterErrorMessage ? (
+          <div className="home-empty">{interpreterErrorMessage}</div>
         ) : featuredInterpreters.length === 0 ? (
           <div className="home-empty">현재 승인된 통역사가 없습니다.</div>
         ) : (

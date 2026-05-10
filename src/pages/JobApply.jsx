@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import "./Jobs.css";
 
@@ -35,6 +35,8 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
     setErrorMessage("");
 
     try {
+      if (!supabase) throw supabaseConfigError;
+
       const { data, error } = await supabase
         .from("jobs")
         .select("*")
@@ -80,6 +82,12 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
 
     setSubmitting(true);
     setErrorMessage("");
+
+    if (!supabase) {
+      setErrorMessage(supabaseConfigError.message);
+      setSubmitting(false);
+      return;
+    }
 
     const application = {
       job_id: job.id,
