@@ -277,7 +277,8 @@
 }
 
 .admin-job-applications-row .admin-application-card {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   padding: 10px 12px;
 }
 
@@ -297,8 +298,9 @@
 }
 
 .admin-application-actions {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 6px;
 }
 
@@ -443,6 +445,11 @@
   color: #b91c1c;
 }
 
+.admin-link-button.warning {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 .admin-jobs-table {
   min-width: 1460px;
 }
@@ -576,10 +583,11 @@
 
 .admin-table th,
 .admin-table td {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid #eef2f7;
   text-align: left;
   vertical-align: middle;
+  line-height: 1.45;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -631,7 +639,7 @@
 
 .admin-col-title {
   min-width: 180px;
-  width: 220px;
+  width: 240px;
 }
 
 .admin-col-company {
@@ -641,7 +649,7 @@
 
 .admin-col-location {
   min-width: 100px;
-  width: 150px;
+  width: 160px;
 }
 
 .admin-col-date {
@@ -652,8 +660,13 @@
   width: 128px;
 }
 
+.admin-col-language {
+  min-width: 110px;
+  width: 120px;
+}
+
 .admin-col-actions {
-  width: 150px;
+  width: 190px;
 }
 
 .admin-col-public {
@@ -663,6 +676,92 @@
 .admin-col-message {
   min-width: 180px;
   width: 240px;
+}
+
+.admin-job-title {
+  max-width: 240px;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.admin-job-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.language-cell {
+  min-width: 110px;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.location-cell {
+  max-width: 160px;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.location-cell {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.email-cell {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+  min-width: 190px;
+}
+
+.status-badge,
+.admin-match-count {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 4px 8px;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.admin-application-card .status-badge {
+  display: inline-flex;
+}
+
+.application-status-매칭완료 {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.application-status-보류 {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.application-status-불합격 {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.application-status-검토중 {
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .admin-inline-select {

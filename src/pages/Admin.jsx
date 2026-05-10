@@ -30,7 +30,7 @@ const CONTACT_STATUSES = [
   "meeting_done",
 ];
 const PAYMENT_STATUSES = ["unpaid", "paid"];
-const JOB_APPLICATION_STATUSES = ["지원완료", "검토중", "수락", "거절"];
+const JOB_APPLICATION_STATUSES = ["지원완료", "검토중", "매칭완료", "보류", "불합격"];
 const ONGOING_REQUEST_STATUSES = ["pending", "matching", "confirmed"];
 const STATUS_LABELS = {
   active: "활동중",

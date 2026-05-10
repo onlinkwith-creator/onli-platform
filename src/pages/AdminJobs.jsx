@@ -31,6 +31,14 @@ function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
 
+const APPLICATION_STATUS_LABELS = {
+  지원완료: "지원완료",
+  검토중: "검토중",
+  매칭완료: "매칭완료",
+  보류: "보류",
+  불합격: "불합격",
+};
+
 function AdminJobs({ onBackClick, embedded = false }) {
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -216,6 +224,90 @@ function AdminJobs({ onBackClick, embedded = false }) {
   const getApplicationsForJob = (jobId) =>
     applications.filter((application) => String(application.job_id) === String(jobId));
 
+  const getMatchedCount = (jobId) =>
+    applications.filter(
+      (application) =>
+        String(application.job_id) === String(jobId) &&
+        application.status === "매칭완료"
+    ).length;
+
+  const refreshApplications = async () => {
+    const applicationData = await fetchJobApplications();
+    setApplications(applicationData);
+    return applicationData;
+  };
+
+  const updateApplicationStatus = async (
+    application,
+    status,
+    { confirmMessage, askAssignJob = false } = {}
+  ) => {
+    if (!application?.id) {
+      console.error("지원자 상태 변경 실패: application.id가 없습니다.", application);
+      alert("지원자 정보를 확인할 수 없습니다.");
+      return;
+    }
+
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+
+    const { error } = await supabase
+      .from("job_applications")
+      .update({ status })
+      .eq("id", application.id);
+
+    if (error) {
+      console.error("지원자 상태 변경 실패:", error);
+      alert("지원자 상태 변경에 실패했습니다.");
+      return;
+    }
+
+    setApplications((current) =>
+      current.map((item) =>
+        item.id === application.id ? { ...item, status } : item
+      )
+    );
+
+    if (askAssignJob) {
+      const shouldAssign = window.confirm(
+        "공고 모집 상태도 배정완료로 변경하시겠습니까?"
+      );
+
+      if (shouldAssign) {
+        if (!application.job_id) {
+          console.error("공고 상태 변경 실패: application.job_id가 없습니다.", application);
+          alert("공고 정보를 확인할 수 없습니다.");
+          await refreshApplications();
+          return;
+        }
+
+        const { error: jobError } = await supabase
+          .from("jobs")
+          .update({ status: "assigned", is_urgent: false })
+          .eq("id", application.job_id);
+
+        if (jobError) {
+          console.error("공고 상태 변경 실패:", jobError);
+          alert("공고 모집 상태 변경에 실패했습니다.");
+        } else {
+          setJobs((current) =>
+            current.map((job) =>
+              String(job.id) === String(application.job_id)
+                ? { ...job, status: "assigned", is_urgent: false }
+                : job
+            )
+          );
+        }
+      }
+    }
+
+    await refreshApplications();
+  };
+
   const content = (
     <>
       <section className="admin-section">
@@ -307,7 +399,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                   <th className="admin-col-location">장소</th>
                   <th className="admin-col-date">날짜</th>
                   <th>일급</th>
-                  <th>언어</th>
+                  <th className="admin-col-language">언어</th>
                   <th>레벨</th>
                   <th>우대</th>
                   <th>인원</th>
@@ -327,6 +419,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                 ) : (
                   jobs.map((job) => {
                     const jobApplications = getApplicationsForJob(job.id);
+                    const matchedCount = getMatchedCount(job.id);
                     const expanded = String(expandedJobId) === String(job.id);
 
                     return (
@@ -336,10 +429,10 @@ function AdminJobs({ onBackClick, embedded = false }) {
                             className="admin-strong-cell admin-col-title"
                             title={job.title || ""}
                           >
-                            {job.title || "-"}
+                            <span className="admin-job-title">{job.title || "-"}</span>
                           </td>
                           <td className="admin-col-location" title={job.location || ""}>
-                            {job.location || "-"}
+                            <span className="location-cell">{job.location || "-"}</span>
                           </td>
                           <td className="admin-col-date">
                             {formatDateRange(
@@ -349,7 +442,9 @@ function AdminJobs({ onBackClick, embedded = false }) {
                             )}
                           </td>
                           <td title={job.pay || ""}>{job.pay || "-"}</td>
-                          <td title={job.language || ""}>{job.language || "-"}</td>
+                          <td className="admin-col-language language-cell" title={job.language || ""}>
+                            {job.language || "-"}
+                          </td>
                           <td title={job.level || ""}>{job.level || "-"}</td>
                           <td title={job.preference || ""}>{job.preference || "-"}</td>
                           <td>{job.people || "-"}</td>
@@ -404,8 +499,11 @@ function AdminJobs({ onBackClick, embedded = false }) {
                             >
                               지원자 확인 ({jobApplications.length}명)
                             </button>
+                            <span className="admin-match-count">
+                              매칭완료 {matchedCount}명
+                            </span>
                           </td>
-                          <td className="admin-col-actions">
+                          <td className="admin-col-actions actions-cell">
                             <div className="admin-row-actions">
                               <button
                                 type="button"
@@ -430,6 +528,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                               <JobApplicationsPanel
                                 applications={jobApplications}
                                 job={job}
+                                onStatusChange={updateApplicationStatus}
                               />
                             </td>
                           </tr>
@@ -495,7 +594,7 @@ function MessageBox({ text }) {
   return <div className="admin-message">{text}</div>;
 }
 
-function JobApplicationsPanel({ applications, job }) {
+function JobApplicationsPanel({ applications, job, onStatusChange }) {
   return (
     <div className="admin-applications-panel">
       <h4 title={job.title || ""}>{job.title || "공고"} 지원자 확인</h4>
@@ -510,6 +609,7 @@ function JobApplicationsPanel({ applications, job }) {
                   {application.applicant_name || "이름 미입력"}
                 </strong>
                 <span
+                  className="email-cell"
                   title={`${application.phone || "연락처 미입력"} · ${
                     application.email || "이메일 미입력"
                   }`}
@@ -519,17 +619,70 @@ function JobApplicationsPanel({ applications, job }) {
                 </span>
                 <span>
                   지원일 {formatDate(application.created_at)} ·{" "}
-                  {application.status || "지원완료"}
+                  <StatusBadge status={application.status || "지원완료"} />
                 </span>
                 <p title={application.message || ""}>
                   {application.message || "지원 메모 없음"}
                 </p>
+              </div>
+              <div className="admin-application-actions actions-cell">
+                {application.status === "매칭완료" ? (
+                  <StatusBadge status="매칭완료" />
+                ) : (
+                  <button
+                    type="button"
+                    className="admin-link-button"
+                    onClick={() =>
+                      onStatusChange(application, "매칭완료", {
+                        confirmMessage: "이 지원자를 해당 공고에 매칭하시겠습니까?",
+                        askAssignJob: true,
+                      })
+                    }
+                  >
+                    매칭하기
+                  </button>
+                )}
+                {application.status !== "보류" && (
+                  <button
+                    type="button"
+                    className="admin-link-button warning"
+                    onClick={() =>
+                      onStatusChange(application, "보류", {
+                        confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
+                      })
+                    }
+                  >
+                    보류
+                  </button>
+                )}
+                {application.status !== "불합격" && (
+                  <button
+                    type="button"
+                    className="admin-link-button danger"
+                    onClick={() =>
+                      onStatusChange(application, "불합격", {
+                        confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
+                      })
+                    }
+                  >
+                    불합격
+                  </button>
+                )}
               </div>
             </article>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const normalized = APPLICATION_STATUS_LABELS[status] || status || "지원완료";
+  return (
+    <span className={`status-badge application-status-${normalized}`}>
+      {normalized}
+    </span>
   );
 }
 
