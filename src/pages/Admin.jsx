@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import AdminJobs from "./AdminJobs";
 import { normalizeJobStatus, normalizeJobVisibility } from "../utils/jobStatus";
+import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
+import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
@@ -28,7 +30,7 @@ const CONTACT_STATUSES = [
   "meeting_done",
 ];
 const PAYMENT_STATUSES = ["unpaid", "paid"];
-const APPLICATION_STATUSES = ["pending", "accepted", "rejected", "cancelled"];
+const JOB_APPLICATION_STATUSES = ["지원완료", "검토중", "수락", "거절"];
 const ONGOING_REQUEST_STATUSES = ["pending", "matching", "confirmed"];
 const STATUS_LABELS = {
   active: "활동중",
@@ -49,17 +51,58 @@ const STATUS_LABELS = {
   rejected: "거절",
 };
 
+async function fetchJobApplicationsWithJobs(jobs = []) {
+  const joinedResult = await supabase
+    .from("job_applications")
+    .select(
+      `
+        id,
+        job_id,
+        applicant_name,
+        phone,
+        email,
+        message,
+        status,
+        created_at,
+        jobs (
+          id,
+          title,
+          company_name,
+          event_name,
+          event_location
+        )
+      `
+    )
+    .order("created_at", { ascending: false });
+
+  if (!joinedResult.error) return joinedResult;
+
+  console.error("job_applications joined fetch error:", joinedResult.error);
+
+  const fallbackData = await fetchBaseJobApplications(supabase);
+
+  const jobsById = new Map(jobs.map((job) => [job.id, job]));
+  return {
+    data: fallbackData.map((application) => ({
+      ...application,
+      jobs: jobsById.get(application.job_id) || null,
+    })),
+    error: null,
+  };
+}
+
 function Admin({ onBackClick }) {
   const [activeTab, setActiveTab] = useState("requests");
   const [requests, setRequests] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
   const [assignments, setAssignments] = useState([]);
-  const [applications, setApplications] = useState([]);
+  const [jobApplications, setJobApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [savingKey, setSavingKey] = useState("");
   const [expandedRequestId, setExpandedRequestId] = useState(null);
+  const [applicationsRequestId, setApplicationsRequestId] = useState(null);
   const [expandedInterpreterId, setExpandedInterpreterId] = useState(null);
   const [assignmentDrafts, setAssignmentDrafts] = useState({});
   const [interpreterFilters, setInterpreterFilters] = useState({
@@ -85,7 +128,7 @@ function Admin({ onBackClick }) {
       return;
     }
 
-    const [requestResult, jobResult, interpreterResult, assignmentResult, applicationResult] =
+    const [requestResult, jobResult, interpreterResult, assignmentResult] =
       await Promise.all([
         supabase.from("requests").select("*").order("created_at", {
           ascending: false,
@@ -104,26 +147,28 @@ function Admin({ onBackClick }) {
             "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
           )
           .order("id", { ascending: false }),
-        supabase
-          .from("request_applications")
-          .select("*")
-          .order("created_at", { ascending: false }),
       ]);
 
     if (
       requestResult.error ||
       jobResult.error ||
       interpreterResult.error ||
-      assignmentResult.error ||
-      applicationResult.error
+      assignmentResult.error
     ) {
       console.error(
         requestResult.error ||
           jobResult.error ||
           interpreterResult.error ||
-          assignmentResult.error ||
-          applicationResult.error
+          assignmentResult.error
       );
+      setErrorMessage("관리자 데이터를 불러오지 못했습니다.");
+      setLoading(false);
+      return;
+    }
+
+    const jobApplicationResult = await fetchJobApplicationsWithJobs(jobResult.data || []);
+    if (jobApplicationResult.error) {
+      console.error("job_applications fetch error:", jobApplicationResult.error);
       setErrorMessage("관리자 데이터를 불러오지 못했습니다.");
       setLoading(false);
       return;
@@ -133,7 +178,7 @@ function Admin({ onBackClick }) {
     setJobs(jobResult.data || []);
     setInterpreters(interpreterResult.data || []);
     setAssignments(assignmentResult.data || []);
-    setApplications(applicationResult.data || []);
+    setJobApplications(jobApplicationResult.data || []);
     setLoading(false);
   }, []);
 
@@ -144,13 +189,9 @@ function Admin({ onBackClick }) {
   const assignmentsByRequest = useMemo(() => groupBy(assignments, "request_id"), [
     assignments,
   ]);
-  const applicationsByRequest = useMemo(
-    () => groupBy(applications, "request_id"),
-    [applications]
-  );
-  const requestById = useMemo(
-    () => new Map(requests.map((request) => [request.id, request])),
-    [requests]
+  const jobApplicationsByJob = useMemo(
+    () => groupByStringKey(jobApplications, "job_id"),
+    [jobApplications]
   );
   const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
 
@@ -168,7 +209,13 @@ function Admin({ onBackClick }) {
         .toLowerCase();
       const matchesSearch = !search || searchableText.includes(search);
       const matchesDate =
-        !requestFilters.date || request.event_date === requestFilters.date;
+        !requestFilters.date ||
+        isDateInRange(
+          requestFilters.date,
+          request.start_date,
+          request.end_date,
+          request.event_date
+        );
       const matchesStatus =
         requestFilters.status === "all" ||
         request.status === requestFilters.status;
@@ -218,9 +265,9 @@ function Admin({ onBackClick }) {
       ).length,
       approvedInterpreters: interpreters.filter((item) => item.approved).length,
       pendingApprovals: interpreters.filter((item) => !item.approved).length,
-      applications: applications.length,
+      applications: jobApplications.length,
     }),
-    [applications.length, interpreters, requests]
+    [jobApplications.length, interpreters, requests]
   );
 
   const switchToJobsTab = () => {
@@ -424,7 +471,11 @@ function Admin({ onBackClick }) {
     console.error("request update error:", error);
     if (!isMissingColumnError(error)) return { data: null, error };
 
-    const legacyChanges = { is_public: Boolean(changes.is_public) };
+    const legacyChanges = {};
+    if (changes.is_public !== undefined) legacyChanges.is_public = Boolean(changes.is_public);
+    if (changes.event_date !== undefined) legacyChanges.event_date = changes.event_date;
+    if (Object.keys(legacyChanges).length === 0) return { data: null, error: null };
+
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("requests")
       .update(legacyChanges)
@@ -509,65 +560,30 @@ function Admin({ onBackClick }) {
     );
   };
 
-  const updateApplicationStatus = async (application, status) => {
+  const updateJobApplicationStatus = async (application, status) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
       return;
     }
 
-    setSavingKey(`application-${application.id}`);
+    setSavingKey(`job-application-${application.id}`);
     const { error } = await supabase
-      .from("request_applications")
+      .from("job_applications")
       .update({ status })
       .eq("id", application.id);
     setSavingKey("");
 
     if (error) {
-      console.error(error);
+      console.error("job_applications status update error:", error);
       alert("지원 상태 변경에 실패했습니다.");
       return;
     }
 
-    setApplications((current) =>
+    setJobApplications((current) =>
       current.map((item) =>
         item.id === application.id ? { ...item, status } : item
       )
     );
-  };
-
-  const assignAcceptedApplication = async (application) => {
-    if (!supabase) {
-      alert(supabaseConfigError.message);
-      return;
-    }
-
-    if (!application.interpreter_id) {
-      alert(
-        "로그인 없는 지원이라 연결된 interpreter_id가 없습니다. 등록 통역사 계정 연결 후 배정할 수 있습니다."
-      );
-      return;
-    }
-
-    setSavingKey(`application-assign-${application.id}`);
-    const { error } = await supabase.from("request_interpreters").insert([
-      {
-        request_id: application.request_id,
-        interpreter_id: application.interpreter_id,
-      },
-    ]);
-    setSavingKey("");
-
-    if (error) {
-      console.error(error);
-      alert(
-        error.code === "23505"
-          ? "이미 배정된 통역사입니다."
-          : "지원자 배정에 실패했습니다."
-      );
-      return;
-    }
-
-    fetchAdminData();
   };
 
   return (
@@ -627,7 +643,7 @@ function Admin({ onBackClick }) {
 
             {activeTab === "requests" && (
               <RequestManagement
-                applicationsByRequest={applicationsByRequest}
+                applicationsRequestId={applicationsRequestId}
                 assignmentDrafts={assignmentDrafts}
                 assignmentsByRequest={assignmentsByRequest}
                 expandedRequestId={expandedRequestId}
@@ -636,14 +652,15 @@ function Admin({ onBackClick }) {
                 requests={filteredRequests}
                 savingKey={savingKey}
                 jobsById={jobsById}
+                jobApplicationsByJob={jobApplicationsByJob}
                 onJobsAdminClick={switchToJobsTab}
                 setAssignmentDrafts={setAssignmentDrafts}
+                setApplicationsRequestId={setApplicationsRequestId}
                 setExpandedRequestId={setExpandedRequestId}
                 setFilters={setRequestFilters}
                 assignInterpreter={assignInterpreter}
                 handlePriceDraft={handlePriceDraft}
                 removeAssignment={removeAssignment}
-                updateApplicationStatus={updateApplicationStatus}
                 updateRequest={updateRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
               />
@@ -666,11 +683,10 @@ function Admin({ onBackClick }) {
 
             {activeTab === "applications" && (
               <ApplicationManagement
-                applications={applications}
-                requestById={requestById}
+                applications={jobApplications}
+                jobsById={jobsById}
                 savingKey={savingKey}
-                assignAcceptedApplication={assignAcceptedApplication}
-                updateApplicationStatus={updateApplicationStatus}
+                updateApplicationStatus={updateJobApplicationStatus}
               />
             )}
           </>
@@ -681,23 +697,24 @@ function Admin({ onBackClick }) {
 }
 
 function RequestManagement({
-  applicationsByRequest,
+  applicationsRequestId,
   assignmentDrafts,
   assignmentsByRequest,
   expandedRequestId,
   filters,
   interpreters,
   jobsById,
+  jobApplicationsByJob,
   onJobsAdminClick,
   requests,
   savingKey,
   setAssignmentDrafts,
+  setApplicationsRequestId,
   setExpandedRequestId,
   setFilters,
   assignInterpreter,
   handlePriceDraft,
   removeAssignment,
-  updateApplicationStatus,
   updateRequest,
   toggleRequestJobPublic,
 }) {
@@ -768,21 +785,26 @@ function RequestManagement({
               requests.map((request) => (
                 <FragmentRequestRow
                   key={request.id}
-                  applications={applicationsByRequest.get(request.id) || []}
+                  applicationsExpanded={applicationsRequestId === request.id}
                   assignmentDrafts={assignmentDrafts}
                   assignments={assignmentsByRequest.get(request.id) || []}
                   expanded={expandedRequestId === request.id}
                   interpreters={interpreters}
+                  jobApplications={
+                    request.job_id
+                      ? jobApplicationsByJob.get(String(request.job_id)) || []
+                      : []
+                  }
                   jobsById={jobsById}
                   onJobsAdminClick={onJobsAdminClick}
                   request={request}
                   savingKey={savingKey}
                   setAssignmentDrafts={setAssignmentDrafts}
+                  setApplicationsRequestId={setApplicationsRequestId}
                   setExpandedRequestId={setExpandedRequestId}
                   assignInterpreter={assignInterpreter}
                   handlePriceDraft={handlePriceDraft}
                   removeAssignment={removeAssignment}
-                  updateApplicationStatus={updateApplicationStatus}
                   updateRequest={updateRequest}
                   toggleRequestJobPublic={toggleRequestJobPublic}
                 />
@@ -796,21 +818,22 @@ function RequestManagement({
 }
 
 function FragmentRequestRow({
-  applications,
+  applicationsExpanded,
   assignmentDrafts,
   assignments,
   expanded,
   interpreters,
+  jobApplications,
   jobsById,
   onJobsAdminClick,
   request,
   savingKey,
   setAssignmentDrafts,
+  setApplicationsRequestId,
   setExpandedRequestId,
   assignInterpreter,
   handlePriceDraft,
   removeAssignment,
-  updateApplicationStatus,
   updateRequest,
   toggleRequestJobPublic,
 }) {
@@ -823,9 +846,25 @@ function FragmentRequestRow({
         <td>#{request.id}</td>
         <td className="admin-strong-cell">{request.event_name || "-"}</td>
         <td>{request.company_name || "-"}</td>
-        <td>{request.event_date || "-"}</td>
+        <td>
+          {formatDateRange(
+            request.start_date,
+            request.end_date,
+            request.event_date
+        )}
+        </td>
         <td>{request.event_location || "-"}</td>
-        <td>{applications.length}명</td>
+        <td>
+          <button
+            type="button"
+            className="admin-link-button"
+            onClick={() =>
+              setApplicationsRequestId(applicationsExpanded ? null : request.id)
+            }
+          >
+            지원자 확인 ({jobApplications.length}명)
+          </button>
+        </td>
         <td>
           <InlineSelect
             options={REQUEST_STATUSES}
@@ -887,11 +926,18 @@ function FragmentRequestRow({
           </button>
         </td>
       </tr>
+      {applicationsExpanded && (
+        <tr className="admin-expanded-row">
+          <td colSpan="11">
+            <JobApplicationsPanel applications={jobApplications} />
+          </td>
+        </tr>
+      )}
       {expanded && (
         <tr className="admin-expanded-row">
           <td colSpan="11">
             <RequestDetailPanel
-              applications={applications}
+              applications={jobApplications}
               assignmentDrafts={assignmentDrafts}
               assignments={assignments}
               interpreters={interpreters}
@@ -901,7 +947,6 @@ function FragmentRequestRow({
               assignInterpreter={assignInterpreter}
               handlePriceDraft={handlePriceDraft}
               removeAssignment={removeAssignment}
-              updateApplicationStatus={updateApplicationStatus}
               updateRequest={updateRequest}
             />
           </td>
@@ -922,7 +967,6 @@ function RequestDetailPanel({
   assignInterpreter,
   handlePriceDraft,
   removeAssignment,
-  updateApplicationStatus,
   updateRequest,
 }) {
   return (
@@ -933,6 +977,14 @@ function RequestDetailPanel({
           <Info label="담당자" value={request.manager_name} />
           <Info label="이메일" value={request.email} />
           <Info label="연락처" value={request.phone} />
+          <Info
+            label="행사 기간"
+            value={formatDateRange(
+              request.start_date,
+              request.end_date,
+              request.event_date
+            )}
+          />
           <Info label="근무시간" value={request.work_hours} />
           <Info
             label="희망 통역 레벨"
@@ -955,6 +1007,39 @@ function RequestDetailPanel({
         <p>{request.job_description || request.request_detail || "-"}</p>
         <h3>복장/주의사항</h3>
         <p>{request.dress_code || "추후 안내"}</p>
+      </div>
+
+      <div>
+        <h3>행사 기간 수정</h3>
+        <div className="admin-settlement">
+          <DateControl
+            label="시작일"
+            value={getDateRangeStart(request.start_date, request.event_date)}
+            onChange={(value) => {
+              const end = getDateRangeEnd(request.end_date, request.event_date);
+              if (end && end < value) {
+                alert("종료일은 시작일보다 빠를 수 없습니다.");
+                return;
+              }
+              updateRequest(request.id, {
+                start_date: value,
+                event_date: value,
+              });
+            }}
+          />
+          <DateControl
+            label="종료일"
+            value={getDateRangeEnd(request.end_date, request.event_date)}
+            onChange={(value) => {
+              const start = getDateRangeStart(request.start_date, request.event_date);
+              if (value < start) {
+                alert("종료일은 시작일보다 빠를 수 없습니다.");
+                return;
+              }
+              updateRequest(request.id, { end_date: value });
+            }}
+          />
+        </div>
       </div>
 
       <div>
@@ -1032,21 +1117,35 @@ function RequestDetailPanel({
 
       <div>
         <h3>지원자 목록</h3>
-        {applications.length === 0 ? (
-          <span className="admin-empty-chip">지원자 없음</span>
-        ) : (
-          <div className="admin-application-list">
-            {applications.map((application) => (
-              <ApplicationCard
-                key={application.id}
-                application={application}
-                compact
-                updateApplicationStatus={updateApplicationStatus}
-              />
-            ))}
-          </div>
-        )}
+        <JobApplicationsPanel applications={applications} />
       </div>
+    </div>
+  );
+}
+
+function JobApplicationsPanel({ applications }) {
+  if (applications.length === 0) {
+    return <span className="admin-empty-chip">이 공고에는 아직 지원자가 없습니다.</span>;
+  }
+
+  return (
+    <div className="admin-application-list">
+      {applications.map((application) => (
+        <article key={application.id} className="admin-application-card">
+          <div>
+            <strong>{application.applicant_name || "이름 미입력"}</strong>
+            <span>
+              {application.phone || "연락처 미입력"} ·{" "}
+              {application.email || "이메일 미입력"}
+            </span>
+            <span>
+              지원일 {formatDate(application.created_at)} ·{" "}
+              {application.status || "지원완료"}
+            </span>
+            <p>{application.message || "지원 메모 없음"}</p>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
@@ -1298,9 +1397,8 @@ function InterpreterDetailPanel({
 
 function ApplicationManagement({
   applications,
-  requestById,
+  jobsById,
   savingKey,
-  assignAcceptedApplication,
   updateApplicationStatus,
 }) {
   return (
@@ -1312,73 +1410,50 @@ function ApplicationManagement({
             <tr>
               <th>지원자</th>
               <th>공고</th>
+              <th>기업/행사</th>
+              <th>연락처</th>
               <th>이메일</th>
               <th>지원일</th>
               <th>상태</th>
-              <th>배정</th>
+              <th>메모</th>
             </tr>
           </thead>
           <tbody>
             {applications.length === 0 ? (
-              <EmptyTableRow colSpan="6" text="아직 접수된 지원자가 없습니다." />
+              <EmptyTableRow colSpan="8" text="아직 접수된 지원자가 없습니다." />
             ) : (
-              applications.map((application) => (
-                <tr key={application.id}>
-                  <td className="admin-strong-cell">
-                    {application.applicant_name || "이름 미입력"}
-                  </td>
-                  <td>
-                    {requestById.get(application.request_id)?.event_name ||
-                      `#${application.request_id}`}
-                  </td>
-                  <td>{application.applicant_email || "이메일 미입력"}</td>
-                  <td>{formatDate(application.created_at)}</td>
-                  <td>
-                    <InlineSelect
-                      options={APPLICATION_STATUSES}
-                      value={application.status || "pending"}
-                      onChange={(value) =>
-                        updateApplicationStatus(application, value)
-                      }
-                    />
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="admin-link-button"
-                      disabled={
-                        application.status !== "accepted" ||
-                        savingKey === `application-assign-${application.id}`
-                      }
-                      onClick={() => assignAcceptedApplication(application)}
-                    >
-                      배정 준비
-                    </button>
-                  </td>
-                </tr>
-              ))
+              applications.map((application) => {
+                const job = application.jobs || jobsById.get(application.job_id);
+
+                return (
+                  <tr key={application.id}>
+                    <td className="admin-strong-cell">
+                      {application.applicant_name || "이름 미입력"}
+                    </td>
+                    <td>{getJobDisplayTitle(job, application.job_id)}</td>
+                    <td>{getJobOrganizationLabel(job)}</td>
+                    <td>{application.phone || "연락처 미입력"}</td>
+                    <td>{application.email || "이메일 미입력"}</td>
+                    <td>{formatDate(application.created_at)}</td>
+                    <td>
+                      <InlineSelect
+                        options={JOB_APPLICATION_STATUSES}
+                        value={application.status || "지원완료"}
+                        disabled={savingKey === `job-application-${application.id}`}
+                        onChange={(value) =>
+                          updateApplicationStatus(application, value)
+                        }
+                      />
+                    </td>
+                    <td>{application.message || "지원 메모 없음"}</td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
     </section>
-  );
-}
-
-function ApplicationCard({ application, updateApplicationStatus }) {
-  return (
-    <article className="admin-application-card">
-      <div>
-        <strong>{application.applicant_name || "이름 미입력"}</strong>
-        <span>{application.applicant_email || "이메일 미입력"} · ON-LI 운영팀 중개</span>
-        <p>{application.message || "지원 메시지 없음"}</p>
-      </div>
-      <InlineSelect
-        options={APPLICATION_STATUSES}
-        value={application.status || "pending"}
-        onChange={(value) => updateApplicationStatus(application, value)}
-      />
-    </article>
   );
 }
 
@@ -1403,11 +1478,12 @@ function SectionTitle({ count, title }) {
   );
 }
 
-function InlineSelect({ options, value, onChange }) {
+function InlineSelect({ options, value, onChange, disabled = false }) {
   return (
     <select
       className="admin-inline-select"
       value={value}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     >
       {options.map((option) => {
@@ -1430,6 +1506,19 @@ function NumberControl({ label, value, onChange }) {
       <input
         type="number"
         min="0"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function DateControl({ label, value, onChange }) {
+  return (
+    <label className="admin-field-control">
+      <span>{label}</span>
+      <input
+        type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -1488,11 +1577,16 @@ function buildJobPayloadFromRequest(request) {
   const peopleCount = request.requested_people_count || request.required_count;
   const level = request.requested_level || request.required_level || "";
   const field = request.interpretation_field || request.job_field || "";
+  const startDate = request.start_date || request.event_date || request.date || "";
+  const endDate = request.end_date || request.event_date || request.date || "";
 
   return {
     title,
     event_name: request.event_name || title,
-    event_date: request.event_date || request.date || "",
+    date: formatDateRange(startDate, endDate, startDate),
+    event_date: startDate,
+    start_date: startDate,
+    end_date: endDate,
     location: request.event_location || request.location || "",
     event_location: request.event_location || request.location || "",
     pay: request.interpreter_fee
@@ -1516,7 +1610,7 @@ function buildLegacyJobPayloadFromRequest(request) {
   return {
     title: payload.title,
     location: payload.location,
-    date: payload.event_date,
+    date: formatDateRange(payload.start_date, payload.end_date, payload.event_date),
     pay: payload.pay,
     language: payload.language,
     level: payload.level,
@@ -1547,6 +1641,14 @@ function isRequestJobPublic(request, jobsById) {
   const job = request.job_id ? jobsById.get(request.job_id) : null;
   if (job) return getRequestJobPublicState(request, job).type === "public";
   return Boolean(request.is_public);
+}
+
+function isDateInRange(date, startDate, endDate, fallbackDate) {
+  const start = startDate || fallbackDate;
+  const end = endDate || fallbackDate;
+  if (!start) return false;
+  if (!end) return date === start;
+  return start <= date && date <= end;
 }
 
 function isMissingColumnError(error) {
@@ -1580,6 +1682,14 @@ function formatList(value) {
   return value || "-";
 }
 
+function getJobDisplayTitle(job, jobId) {
+  return job?.title || job?.event_name || (jobId ? `#${jobId}` : "공고 정보 없음");
+}
+
+function getJobOrganizationLabel(job) {
+  return job?.company_name || job?.event_name || job?.event_location || "-";
+}
+
 function getExperienceLabel(interpreter) {
   const rawExperience =
     interpreter.interpretation_experience || interpreter.experience_count;
@@ -1595,6 +1705,15 @@ function groupBy(items, key) {
   return items.reduce((map, item) => {
     const list = map.get(item[key]) || [];
     map.set(item[key], [...list, item]);
+    return map;
+  }, new Map());
+}
+
+function groupByStringKey(items, key) {
+  return items.reduce((map, item) => {
+    const itemKey = String(item[key]);
+    const list = map.get(itemKey) || [];
+    map.set(itemKey, [...list, item]);
     return map;
   }, new Map());
 }

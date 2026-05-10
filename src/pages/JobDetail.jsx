@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
+import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
+import { formatDateRange } from "../utils/dateRange";
 import "./Jobs.css";
 
 const initialForm = {
   applicantName: "",
+  applicantPhone: "",
   applicantEmail: "",
   message: "",
 };
@@ -33,19 +36,22 @@ function JobDetail({ jobId, onBackClick }) {
       return;
     }
 
-    const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
-      .from("requests")
+      .from("jobs")
       .select("*")
       .eq("id", jobId)
-      .eq("is_public", true)
-      .in("status", ["pending", "matching"])
-      .gte("event_date", today)
       .single();
 
     if (error) {
       console.error(error);
       setErrorMessage("공고 정보를 불러오지 못했습니다.");
+      setLoading(false);
+      return;
+    }
+
+    if (!isPublicJob(data)) {
+      setJob(null);
+      setErrorMessage("지원할 수 없는 공고입니다.");
       setLoading(false);
       return;
     }
@@ -67,6 +73,10 @@ function JobDetail({ jobId, onBackClick }) {
     event.preventDefault();
 
     if (!job) return;
+    if (!canApplyToJob(job)) {
+      setErrorMessage("지원할 수 없는 공고입니다.");
+      return;
+    }
 
     setSubmitting(true);
     setErrorMessage("");
@@ -77,20 +87,21 @@ function JobDetail({ jobId, onBackClick }) {
       return;
     }
 
-    const { error } = await supabase.from("request_applications").insert([
+    const { error } = await supabase.from("job_applications").insert([
       {
-        request_id: job.id,
+        job_id: job.id,
         applicant_name: form.applicantName,
-        applicant_email: form.applicantEmail,
+        phone: form.applicantPhone,
+        email: form.applicantEmail,
         message: form.message,
-        status: "pending",
+        status: "지원완료",
       },
     ]);
 
     setSubmitting(false);
 
     if (error) {
-      console.error(error);
+      console.error("job_applications insert error:", error);
       setErrorMessage(
         error.code === "23505"
           ? "이미 같은 이메일로 지원한 공고입니다."
@@ -118,40 +129,37 @@ function JobDetail({ jobId, onBackClick }) {
           <div className="job-detail-layout">
             <article className="job-detail-card">
               <p className="jobs-kicker">JOB DETAIL</p>
-              <h1>{job.event_name || "행사명 미입력"}</h1>
+              <h1>{job.title || job.event_name || "공고 제목 미입력"}</h1>
               <p className="job-detail-lead">
-                {job.client_visible_name || "기업명 비공개"} ·{" "}
-                {job.job_field || "한일 비즈니스 통역"}
+                {job.location || job.event_location || "장소 협의"} ·{" "}
+                {job.language || job.field || "한일 비즈니스 통역"}
               </p>
 
               <div className="job-detail-grid">
-                <Info label="행사 날짜" value={job.event_date} />
-                <Info label="장소" value={job.event_location} />
                 <Info
-                  label="시간"
-                  value={job.work_hours ? `${job.work_hours}시간` : "협의"}
+                  label="일정"
+                  value={formatDateRange(
+                    job.start_date,
+                    job.end_date,
+                    job.event_date || job.date
+                  )}
                 />
-                <Info
-                  label="필요 인원"
-                  value={job.required_count ? `${job.required_count}명` : "협의"}
-                />
-                <Info label="통역 레벨" value={job.required_level || "협의"} />
-                <Info
-                  label="지급 예정 금액"
-                  value={formatKRW(job.interpreter_fee || job.interpreter_price)}
-                />
+                <Info label="장소" value={job.location || job.event_location} />
+                <Info label="일급" value={job.pay} />
+                <Info label="필요 인원" value={job.people || job.people_count} />
+                <Info label="통역 레벨" value={job.level || job.requested_level || "협의"} />
                 <Info label="지원 마감일" value={job.deadline || "상시"} />
-                <Info label="상태" value={job.status || "pending"} />
+                <Info label="상태" value={getJobStatusLabel(job)} />
               </div>
 
               <section>
                 <h2>업무 내용</h2>
-                <p>{job.job_description || job.request_detail || "업무 내용 협의"}</p>
+                <p>{job.job_description || job.preference || "업무 내용 협의"}</p>
               </section>
 
               <section>
                 <h2>복장/주의사항</h2>
-                <p>{job.dress_code || "추후 안내"}</p>
+                <p>{job.dress_code || job.preferred_gender || "추후 안내"}</p>
               </section>
             </article>
 
@@ -163,6 +171,15 @@ function JobDetail({ jobId, onBackClick }) {
                   <input
                     name="applicantName"
                     value={form.applicantName}
+                    onChange={handleChange}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>연락처</span>
+                  <input
+                    name="applicantPhone"
+                    value={form.applicantPhone}
                     onChange={handleChange}
                     required
                   />
@@ -216,11 +233,6 @@ function Info({ label, value }) {
 
 function MessageBox({ text }) {
   return <div className="jobs-message">{text}</div>;
-}
-
-function formatKRW(value) {
-  const number = Number(value || 0);
-  return number > 0 ? `₩${number.toLocaleString()}` : "금액 협의";
 }
 
 export default JobDetail;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
+import { formatDateRange } from "../utils/dateRange";
 import "./Jobs.css";
 
 const initialForm = {
@@ -91,19 +92,27 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
 
     const application = {
       job_id: job.id,
-      name: form.name,
+      applicant_name: form.name,
       phone: form.phone,
       email: form.email,
-      gender: form.gender,
-      japanese_level: form.japaneseLevel,
-      experience: form.experience,
-      message: form.message,
+      message: [
+        form.message,
+        form.gender ? `성별: ${form.gender}` : "",
+        form.japaneseLevel ? `일본어 수준: ${form.japaneseLevel}` : "",
+        form.experience ? `통역 경험: ${form.experience}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      status: "지원완료",
     };
 
     try {
-      const { error } = await supabase.from("applications").insert([application]);
+      const { error } = await supabase.from("job_applications").insert([application]);
 
-      if (error) throw error;
+      if (error) {
+        console.error("job_applications insert error:", error);
+        throw error;
+      }
 
       alert("지원서가 제출되었습니다.");
       setForm(initialForm);
@@ -138,7 +147,8 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
               <p className="jobs-kicker">JOB APPLY</p>
               <h1>{job.title || "공고 제목 미입력"}</h1>
               <p className="job-detail-lead">
-                {job.location || "장소 협의"} · {job.date || "일정 협의"}
+                {job.location || "장소 협의"} ·{" "}
+                {formatDateRange(job.start_date, job.end_date, job.event_date || job.date)}
               </p>
 
               <div className="job-detail-grid">

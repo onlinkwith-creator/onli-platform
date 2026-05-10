@@ -8,12 +8,15 @@ import {
   normalizeJobStatus,
   normalizeJobVisibility,
 } from "../utils/jobStatus";
+import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
+import { fetchJobApplications } from "../utils/jobsApi";
 import "./Admin.css";
 
 const emptyForm = {
   title: "",
   location: "",
-  date: "",
+  start_date: "",
+  end_date: "",
   pay: "",
   language: "한국어 ↔ 일본어",
   level: "",
@@ -30,6 +33,8 @@ function getSupabaseErrorMessage(error, fallback) {
 
 function AdminJobs({ onBackClick, embedded = false }) {
   const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [selectedJobForApplications, setSelectedJobForApplications] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,17 +48,19 @@ function AdminJobs({ onBackClick, embedded = false }) {
     try {
       if (!supabase) throw supabaseConfigError;
 
-      const { data, error } = await supabase
-        .from("jobs")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const [jobResult, applicationData] = await Promise.all([
+        supabase.from("jobs").select("*").order("created_at", { ascending: false }),
+        fetchJobApplications(),
+      ]);
 
-      if (error) throw error;
+      if (jobResult.error) throw jobResult.error;
 
-      setJobs(data || []);
+      setJobs(jobResult.data || []);
+      setApplications(applicationData);
     } catch (error) {
       console.error(error);
       setJobs([]);
+      setApplications([]);
       setErrorMessage(
         getSupabaseErrorMessage(error, "통역 공고를 불러오지 못했습니다.")
       );
@@ -90,10 +97,23 @@ function AdminJobs({ onBackClick, embedded = false }) {
       return;
     }
 
+    if (form.end_date < form.start_date) {
+      const message = "종료일은 시작일보다 빠를 수 없습니다.";
+      setErrorMessage(message);
+      alert(message);
+      setSaving(false);
+      return;
+    }
+
+    const formattedDate = formatDateRange(form.start_date, form.end_date);
+
     const payload = {
       title: form.title,
       location: form.location,
-      date: form.date,
+      date: formattedDate,
+      event_date: form.start_date,
+      start_date: form.start_date,
+      end_date: form.end_date,
       pay: form.pay,
       language: form.language,
       level: form.level,
@@ -127,7 +147,8 @@ function AdminJobs({ onBackClick, embedded = false }) {
     setForm({
       title: job.title || "",
       location: job.location || "",
-      date: job.date || "",
+      start_date: getDateRangeStart(job.start_date, job.event_date || job.date),
+      end_date: getDateRangeEnd(job.end_date, job.event_date || job.date),
       pay: job.pay || "",
       language: job.language || "",
       level: job.level || "",
@@ -153,6 +174,9 @@ function AdminJobs({ onBackClick, embedded = false }) {
       setJobs((current) =>
         current.map((item) => (item.id === job.id ? { ...item, ...changes } : item))
       );
+      setSelectedJobForApplications((current) =>
+        current?.id === job.id ? { ...current, ...changes } : current
+      );
     } catch (error) {
       console.error(error);
       alert(getSupabaseErrorMessage(error, "공고 변경에 실패했습니다."));
@@ -172,12 +196,21 @@ function AdminJobs({ onBackClick, embedded = false }) {
       if (error) throw error;
 
       setJobs((current) => current.filter((item) => item.id !== job.id));
+      setApplications((current) =>
+        current.filter((application) => String(application.job_id) !== String(job.id))
+      );
+      setSelectedJobForApplications((current) =>
+        current?.id === job.id ? null : current
+      );
       if (editingId === job.id) resetForm();
     } catch (error) {
       console.error(error);
       alert(getSupabaseErrorMessage(error, "공고 삭제에 실패했습니다."));
     }
   };
+
+  const getApplicationsForJob = (jobId) =>
+    applications.filter((application) => String(application.job_id) === String(jobId));
 
   const content = (
     <>
@@ -191,8 +224,23 @@ function AdminJobs({ onBackClick, embedded = false }) {
           <JobField label="장소">
             <input name="location" value={form.location} onChange={handleChange} />
           </JobField>
-          <JobField label="날짜">
-            <input name="date" value={form.date} onChange={handleChange} />
+          <JobField label="시작일">
+            <input
+              name="start_date"
+              type="date"
+              value={form.start_date}
+              onChange={handleChange}
+              required
+            />
+          </JobField>
+          <JobField label="종료일">
+            <input
+              name="end_date"
+              type="date"
+              value={form.end_date}
+              onChange={handleChange}
+              required
+            />
           </JobField>
           <JobField label="일급">
             <input name="pay" value={form.pay} onChange={handleChange} />
@@ -261,13 +309,14 @@ function AdminJobs({ onBackClick, embedded = false }) {
                   <th>인원</th>
                   <th>공개 상태</th>
                   <th>모집 상태</th>
+                  <th>지원자</th>
                   <th>관리</th>
                 </tr>
               </thead>
               <tbody>
                 {jobs.length === 0 ? (
                   <tr>
-                    <td colSpan="11" className="admin-empty-row">
+                    <td colSpan="12" className="admin-empty-row">
                       현재 등록된 공고가 없습니다.
                     </td>
                   </tr>
@@ -276,7 +325,13 @@ function AdminJobs({ onBackClick, embedded = false }) {
                     <tr key={job.id}>
                       <td className="admin-strong-cell">{job.title || "-"}</td>
                       <td>{job.location || "-"}</td>
-                      <td>{job.date || "-"}</td>
+                      <td>
+                        {formatDateRange(
+                          job.start_date,
+                          job.end_date,
+                          job.event_date || job.date
+                        )}
+                      </td>
                       <td>{job.pay || "-"}</td>
                       <td>{job.language || "-"}</td>
                       <td>{job.level || "-"}</td>
@@ -322,6 +377,19 @@ function AdminJobs({ onBackClick, embedded = false }) {
                         </span>
                       </td>
                       <td>
+                        <button
+                          type="button"
+                          className="admin-link-button"
+                          onClick={() =>
+                            setSelectedJobForApplications((current) =>
+                              current?.id === job.id ? null : job
+                            )
+                          }
+                        >
+                          지원자 확인 ({getApplicationsForJob(job.id).length}명)
+                        </button>
+                      </td>
+                      <td>
                         <div className="admin-row-actions">
                           <button
                             type="button"
@@ -344,6 +412,12 @@ function AdminJobs({ onBackClick, embedded = false }) {
                 )}
               </tbody>
             </table>
+            {selectedJobForApplications && (
+              <JobApplicationsPanel
+                applications={getApplicationsForJob(selectedJobForApplications.id)}
+                job={selectedJobForApplications}
+              />
+            )}
           </div>
         )}
       </section>
@@ -397,6 +471,41 @@ function SectionTitle({ count, title }) {
 
 function MessageBox({ text }) {
   return <div className="admin-message">{text}</div>;
+}
+
+function JobApplicationsPanel({ applications, job }) {
+  return (
+    <div className="admin-applications-panel">
+      <h4>{job.title || "공고"} 지원자 확인</h4>
+      {applications.length === 0 ? (
+        <span className="admin-empty-chip">이 공고에는 아직 지원자가 없습니다.</span>
+      ) : (
+        <div className="admin-application-list">
+          {applications.map((application) => (
+            <article key={application.id} className="admin-application-card">
+              <div>
+                <strong>{application.applicant_name || "이름 미입력"}</strong>
+                <span>
+                  {application.phone || "연락처 미입력"} ·{" "}
+                  {application.email || "이메일 미입력"}
+                </span>
+                <span>
+                  지원일 {formatDate(application.created_at)} ·{" "}
+                  {application.status || "지원완료"}
+                </span>
+                <p>{application.message || "지원 메모 없음"}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  return String(value).slice(0, 10);
 }
 
 export default AdminJobs;

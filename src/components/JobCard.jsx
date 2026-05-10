@@ -1,4 +1,5 @@
 import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
+import { formatDateRange } from "../utils/dateRange";
 
 function JobCard({ job, onApplyClick }) {
   const status = normalizeJobStatus(job);
@@ -16,7 +17,14 @@ function JobCard({ job, onApplyClick }) {
 
       <dl>
         <JobInfo label="장소" value={job.location || job.event_location} />
-        <JobInfo label="날짜" value={job.date || job.event_date} />
+        <JobInfo
+          label="날짜"
+          value={formatDateRange(
+            job.start_date,
+            job.end_date,
+            job.event_date || job.date
+          )}
+        />
         <JobInfo label="일급" value={job.pay} />
         <JobInfo label="언어" value={job.language} />
         <JobInfo label="레벨" value={job.level || job.requested_level} />

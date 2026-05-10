@@ -11,7 +11,8 @@ const initialForm = {
   contactName: "",
   contactEmailOrPhone: "",
   eventName: "",
-  eventDate: "",
+  startDate: "",
+  endDate: "",
   eventLocation: "",
   requestedLevel: "운영팀 추천받기",
   requestedPeopleCount: "",
@@ -66,7 +67,15 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       return;
     }
 
-    const urgency = getUrgency(form.eventDate);
+    if (form.endDate < form.startDate) {
+      const message = "종료일은 시작일보다 빠를 수 없습니다.";
+      setErrorMessage(message);
+      alert(message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const urgency = getUrgency(form.startDate);
     const estimatedPrice = calculateEstimatedPrice({
       level: interpreter?.level,
       experienceCount: interpreter?.experience_count,
@@ -88,7 +97,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         email: contact,
         phone: contact,
         event_name: form.eventName,
-        event_date: form.eventDate,
+        event_date: form.startDate,
+        start_date: form.startDate,
+        end_date: form.endDate,
         event_location: form.eventLocation,
         work_hours: 0,
         requested_level: form.requestedLevel,
@@ -172,7 +183,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
             <SectionTitle title="행사 정보" />
             <Field label="행사명" name="eventName" value={form.eventName} onChange={handleChange} required />
-            <Field label="행사 날짜" name="eventDate" type="date" value={form.eventDate} onChange={handleChange} required />
+            <Field label="시작일" name="startDate" type="date" value={form.startDate} onChange={handleChange} required />
+            <Field label="종료일" name="endDate" type="date" value={form.endDate} onChange={handleChange} required />
             <Field label="행사 장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
 
             <SectionTitle title="통역 요청 정보" />

@@ -1,3 +1,4 @@
+import { supabase as defaultSupabase } from "../supabase";
 import { isPublicJob } from "./jobStatus";
 import { supabaseConfigError } from "../supabase";
 
@@ -62,4 +63,18 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
     data: (fallbackResult.data || []).filter(isPublicJob).slice(0, limit || undefined),
     error: null,
   };
+}
+
+export async function fetchJobApplications(supabase = defaultSupabase) {
+  const { data, error } = await supabase
+    .from("job_applications")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("지원자 조회 실패:", error);
+    return [];
+  }
+
+  return data || [];
 }
