@@ -157,18 +157,26 @@ function Home({
 
       <section className="home-cta-stack" aria-label="ON-LI 이용 안내">
         <div className="home-company-cta">
-          <div>
+          <div className="home-cta-icon" aria-hidden="true">
+            <span>▣</span>
+          </div>
+          <div className="home-cta-copy">
             <p className="home-brand-sub">FOR COMPANIES</p>
             <h2>통역 의뢰가 필요하신가요?</h2>
             <p>의뢰 내용을 보내주시면 운영팀 검토 후 공고 등록과 매칭을 진행합니다.</p>
           </div>
-          <button type="button" onClick={onRequestClick}>
-            통역 의뢰하기
-          </button>
+          <div className="home-cta-actions">
+            <button type="button" onClick={onRequestClick}>
+              통역 의뢰하기
+            </button>
+          </div>
         </div>
 
         <div className="home-interpreter-cta">
-          <div>
+          <div className="home-cta-icon" aria-hidden="true">
+            <span>✓</span>
+          </div>
+          <div className="home-cta-copy">
             <p className="home-brand-sub">FOR INTERPRETERS</p>
             <h2>통역사로 활동하고 싶으신가요?</h2>
             <p>

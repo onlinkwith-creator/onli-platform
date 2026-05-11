@@ -373,7 +373,8 @@
 
 .home-cta-stack {
   display: grid;
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
   max-width: 1040px;
   margin-top: 0;
   padding: 0;
@@ -383,19 +384,54 @@
 .home-interpreter-cta {
   position: relative;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-  padding: 24px 28px;
+  min-height: 280px;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 18px;
+  padding: 32px;
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9));
   border: 1px solid #e5e7eb;
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
   text-align: left;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
 }
 
 .home-interpreter-cta {
-  background: rgba(248, 250, 252, 0.92);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(238, 242, 255, 0.54));
+}
+
+.home-company-cta:hover,
+.home-interpreter-cta:hover {
+  transform: translateY(-2px);
+  border-color: #d1d5db;
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.1);
+}
+
+.home-cta-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.home-company-cta .home-cta-icon {
+  background: #f3f4f6;
+  color: #38353c;
+}
+
+.home-cta-copy {
+  display: grid;
+  gap: 8px;
 }
 
 .home-company-cta h2,
@@ -408,7 +444,7 @@
 
 .home-company-cta p:last-child,
 .home-interpreter-cta p:last-child {
-  margin-top: 8px;
+  margin: 0;
   color: #6b7280;
   font-size: 15px;
   line-height: 1.6;
@@ -416,7 +452,6 @@
 }
 
 .home-company-cta button {
-  flex: 0 0 auto;
   padding: 14px 22px;
   border-radius: 14px;
   border: none;
@@ -429,11 +464,11 @@
 
 .home-cta-actions {
   display: flex;
-  flex: 0 0 auto;
+  margin-top: auto;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .home-cta-actions button {
@@ -933,6 +968,10 @@
     padding-right: 16px;
   }
 
+  .home-cta-stack {
+    grid-template-columns: 1fr;
+  }
+
   .home-carousel-wrap {
     grid-template-columns: 1fr;
   }
@@ -1016,9 +1055,8 @@
 
   .home-company-cta,
   .home-interpreter-cta {
-    align-items: stretch;
-    flex-direction: column;
-    padding: 22px;
+    min-height: 0;
+    padding: 24px;
   }
 
   .home-company-cta button,
