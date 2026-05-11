@@ -2243,14 +2243,7 @@ function getJobOrganizationLabel(job) {
 }
 
 function getExperienceLabel(interpreter) {
-  const rawExperience =
-    interpreter.interpretation_experience || interpreter.experience_count;
-  const numericExperience = Number(rawExperience);
-
-  if (!rawExperience && rawExperience !== 0) return "-";
-  if (Number.isNaN(numericExperience)) return String(rawExperience);
-  if (numericExperience >= 10) return "10회 이상";
-  return `${numericExperience}회`;
+  return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
 }
 
 function groupBy(items, key) {

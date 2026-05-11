@@ -9,12 +9,6 @@ function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
     );
   }
 
-  const experienceCount = interpreter.experience_count
-    ? `${interpreter.experience_count}회`
-    : interpreter.interpretation_experience === "있음"
-      ? "횟수 미입력"
-      : "0회";
-
   return (
     <div style={styles.page}>
       <div style={styles.container}>
@@ -48,9 +42,8 @@ function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
             <h2 style={styles.sectionTitle}>Experience</h2>
             <Info
               label="통역 경험 여부"
-              value={interpreter.interpretation_experience || (interpreter.experience_count ? "있음" : "없음")}
+              value={getExperienceLabel(interpreter)}
             />
-            <Info label="경험 횟수" value={experienceCount} />
             <div style={styles.badgeList}>
               {getList(interpreter.specialties).length === 0 ? (
                 <span style={styles.emptyBadge}>전문 분야 미입력</span>
@@ -86,6 +79,10 @@ function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
       </div>
     </div>
   );
+}
+
+function getExperienceLabel(interpreter) {
+  return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
 }
 
 function Info({ label, value }) {

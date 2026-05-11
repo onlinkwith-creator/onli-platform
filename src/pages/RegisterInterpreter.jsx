@@ -77,8 +77,7 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
     kakaoOrLine: "",
     jlpt: "N1 보유",
     stayPeriod: "",
-    hasInterpretationExperience: "없음",
-    experienceCount: "",
+    has_experience: false,
     specialties: [],
     availableRegions: [],
     availableTasks: "",
@@ -88,10 +87,7 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
     const { name, value } = event.target;
     setForm((current) => ({
       ...current,
-      [name]: value,
-      ...(name === "hasInterpretationExperience" && value === "없음"
-        ? { experienceCount: "0" }
-        : {}),
+      [name]: name === "has_experience" ? value === "true" : value,
     }));
   };
 
@@ -145,9 +141,7 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
         kakao_or_line: form.kakaoOrLine,
         jlpt: form.jlpt,
         stay_period: form.stayPeriod,
-        interpretation_experience: form.hasInterpretationExperience,
-        experience_count:
-          form.hasInterpretationExperience === "있음" ? form.experienceCount : "0",
+        has_experience: form.has_experience,
         specialties: form.specialties,
         available_regions: form.availableRegions,
         available_tasks: form.availableTasks,
@@ -207,24 +201,14 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
             <input style={inputStyle} name="stayPeriod" placeholder="일본 거주 기간 (0년 0개월)" value={form.stayPeriod} onChange={handleChange} required />
             <select
               style={inputStyle}
-              name="hasInterpretationExperience"
-              value={form.hasInterpretationExperience}
+              name="has_experience"
+              value={String(form.has_experience)}
               onChange={handleChange}
               required
             >
-              <option value="있음">통역 경험 있음</option>
-              <option value="없음">통역 경험 없음</option>
+              <option value="true">통역 경험 있음</option>
+              <option value="false">통역 경험 없음</option>
             </select>
-            {form.hasInterpretationExperience === "있음" && (
-              <input
-                style={inputStyle}
-                name="experienceCount"
-                placeholder="예) 5회"
-                value={form.experienceCount}
-                onChange={handleChange}
-                required
-              />
-            )}
 
             <CheckboxGroup
               title="활동 가능 지역"

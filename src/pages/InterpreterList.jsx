@@ -279,11 +279,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                 <Info label="일본 거주 기간" value={person.stay_period} />
                 <Info
                   label="통역 경험"
-                  value={
-                    person.experience_count
-                      ? `${person.experience_count}회`
-                      : "-"
-                  }
+                  value={getExperienceLabel(person)}
                 />
 
                 <button
@@ -486,7 +482,7 @@ function getSearchText(person) {
     person.interpretation_field,
     person.experience,
     person.experience_count,
-    person.interpretation_experience,
+    getExperienceLabel(person),
     person.career,
     person.intro,
     person.available_tasks,
@@ -494,6 +490,10 @@ function getSearchText(person) {
   ]
     .map(normalizeText)
     .join(" ");
+}
+
+function getExperienceLabel(person) {
+  return person.has_experience ? "통역 경험 있음" : "통역 경험 없음";
 }
 
 const styles = {
