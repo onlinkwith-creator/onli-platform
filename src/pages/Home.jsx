@@ -130,19 +130,6 @@ function Home({
           </p>
 
           <p className="home-sub-badge">전시회 · 상담회 · 비즈니스 미팅 특화</p>
-
-          <div className="home-actions">
-            <button
-              type="button"
-              onClick={onRegisterClick}
-              className="home-primary"
-            >
-              통역사 등록하기
-            </button>
-            <button type="button" onClick={onListClick} className="home-secondary">
-              등록된 통역사 보기
-            </button>
-          </div>
         </section>
 
         <section className="home-feature-card">
@@ -167,6 +154,42 @@ function Home({
           </div>
         </section>
       </main>
+
+      <section className="home-cta-stack" aria-label="ON-LI 이용 안내">
+        <div className="home-company-cta">
+          <div>
+            <p className="home-brand-sub">FOR COMPANIES</p>
+            <h2>통역 의뢰가 필요하신가요?</h2>
+            <p>의뢰 내용을 보내주시면 운영팀 검토 후 공고 등록과 매칭을 진행합니다.</p>
+          </div>
+          <button type="button" onClick={onRequestClick}>
+            통역 의뢰하기
+          </button>
+        </div>
+
+        <div className="home-interpreter-cta">
+          <div>
+            <p className="home-brand-sub">FOR INTERPRETERS</p>
+            <h2>통역사로 활동하고 싶으신가요?</h2>
+            <p>
+              한국어와 일본어 능력을 바탕으로 전시회·비즈니스 현장에서 활동할
+              통역사를 모집합니다.
+            </p>
+          </div>
+          <div className="home-cta-actions">
+            <button
+              type="button"
+              onClick={onRegisterClick}
+              className="home-primary"
+            >
+              통역사 등록하기
+            </button>
+            <button type="button" onClick={onListClick} className="home-secondary">
+              등록된 통역사 보기
+            </button>
+          </div>
+        </div>
+      </section>
 
       <section className="home-process">
         <div className="home-process-head">
@@ -201,17 +224,6 @@ function Home({
             text="사전 안내 후 일정 확정"
           />
         </div>
-      </section>
-
-      <section className="home-company-cta">
-        <div>
-          <p className="home-brand-sub">FOR COMPANIES</p>
-          <h2>통역 의뢰가 필요하신가요?</h2>
-          <p>의뢰 내용을 보내주시면 운영팀 검토 후 공고 등록과 매칭을 진행합니다.</p>
-        </div>
-        <button type="button" onClick={onRequestClick}>
-          통역 의뢰하기
-        </button>
       </section>
 
       <section className="home-jobs-preview">

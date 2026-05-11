@@ -28,6 +28,7 @@
 .home-header,
 .home-main,
 .home-process,
+.home-cta-stack,
 .home-jobs-preview,
 .home-interpreters,
 .home-footer {
@@ -113,7 +114,7 @@
 
 .home-main {
   margin-top: 0;
-  padding: 48px 24px 88px;
+  padding: 48px 24px 52px;
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
   gap: 64px;
@@ -195,20 +196,6 @@
   border: 1px solid rgba(209, 213, 219, 0.86);
 }
 
-.home-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 0;
-}
-
-.home-actions button {
-  cursor: pointer;
-  font-family: inherit;
-}
-
 .home-primary {
   min-height: 52px;
   padding: 16px 28px;
@@ -219,6 +206,8 @@
   font-size: 16px;
   font-weight: 800;
   box-shadow: 0 14px 30px rgba(17, 24, 39, 0.25);
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .home-secondary {
@@ -230,6 +219,8 @@
   color: #111827;
   font-size: 15px;
   font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .home-feature-card {
@@ -307,7 +298,7 @@
 
 .home-process {
   max-width: 1040px;
-  margin-top: 80px;
+  margin-top: 46px;
 }
 
 .home-process-head {
@@ -380,14 +371,21 @@
   margin-top: 46px;
 }
 
-.home-company-cta {
+.home-cta-stack {
+  display: grid;
+  gap: 16px;
+  max-width: 1040px;
+  margin-top: 0;
+  padding: 0;
+}
+
+.home-company-cta,
+.home-interpreter-cta {
   position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 24px;
-  max-width: 1100px;
-  margin: 46px auto 0;
   padding: 24px 28px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.9);
@@ -396,14 +394,20 @@
   text-align: left;
 }
 
-.home-company-cta h2 {
+.home-interpreter-cta {
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.home-company-cta h2,
+.home-interpreter-cta h2 {
   margin: 0;
   color: #111827;
   font-size: 24px;
   font-weight: 900;
 }
 
-.home-company-cta p:last-child {
+.home-company-cta p:last-child,
+.home-interpreter-cta p:last-child {
   margin-top: 8px;
   color: #6b7280;
   font-size: 15px;
@@ -421,6 +425,20 @@
   font-family: inherit;
   font-weight: 900;
   cursor: pointer;
+}
+
+.home-cta-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.home-cta-actions button {
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .home-section-head {
@@ -899,23 +917,13 @@
     line-height: 1.72;
   }
 
-  .home-actions {
-    justify-content: flex-start;
-    align-items: stretch;
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .home-actions button {
-    width: 100%;
-    max-width: 320px;
-  }
-
   .home-feature-card,
+  .home-cta-stack,
   .home-process,
   .home-jobs-preview,
   .home-interpreters,
-  .home-company-cta {
+  .home-company-cta,
+  .home-interpreter-cta {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -962,7 +970,7 @@
   }
 
   .home-process {
-    margin-top: 80px;
+    margin-top: 42px;
   }
 
   .home-process-grid {
@@ -1001,13 +1009,21 @@
     flex-direction: column;
   }
 
-  .home-company-cta {
+  .home-company-cta,
+  .home-interpreter-cta {
     align-items: stretch;
     flex-direction: column;
     padding: 22px;
   }
 
-  .home-company-cta button {
+  .home-company-cta button,
+  .home-cta-actions button {
+    width: 100%;
+  }
+
+  .home-cta-actions {
+    align-items: stretch;
+    flex-direction: column;
     width: 100%;
   }
 
