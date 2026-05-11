@@ -232,8 +232,8 @@ function Home({
       <section className="home-jobs-preview">
         <div className="home-section-head">
           <div>
-          <p className="home-brand-sub">JOBS</p>
-          <h2>통역 공고</h2>
+            <p className="home-brand-sub">JOBS</p>
+            <h2>통역 공고</h2>
           </div>
           <button type="button" onClick={onJobsClick}>
             전체 공고 확인하기

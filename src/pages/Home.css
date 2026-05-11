@@ -9,6 +9,7 @@
   color: #395597;
   padding: 0 0 56px;
   box-sizing: border-box;
+  text-align: left;
 }
 
 .home-bg-glow {
@@ -34,6 +35,7 @@
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
+  text-align: left;
 }
 
 .home-header {
@@ -56,6 +58,7 @@
   letter-spacing: 6px;
   color: #6b7280;
   font-weight: 600;
+  text-align: left;
 }
 
 .home-logo-area .home-brand-sub {
@@ -122,6 +125,7 @@
   align-items: flex-start;
   gap: 24px;
   min-width: 0;
+  text-align: left;
 }
 
 .home-pill {
@@ -175,6 +179,7 @@
   color: #111827;
   font-size: 19px;
   line-height: 1.72;
+  text-align: left;
 }
 
 .home-sub-badge {
@@ -192,9 +197,10 @@
 .home-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 14px;
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 .home-actions button {
@@ -235,6 +241,7 @@
   padding: 28px;
   box-shadow: 0 22px 54px rgba(80, 17, 111, 0.1);
   border: 1px solid #e5e7eb;
+  text-align: left;
 }
 
 .home-feature-card h3 {
@@ -304,6 +311,7 @@
 
 .home-process-head {
   margin-bottom: 18px;
+  text-align: left;
 }
 
 .home-process-head h2 {
@@ -329,6 +337,7 @@
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid #e5e7eb;
   box-shadow: 0 16px 38px rgba(15, 23, 42, 0.07);
+  text-align: left;
 }
 
 .home-step span {
@@ -383,6 +392,7 @@
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+  text-align: left;
 }
 
 .home-company-cta h2 {
@@ -397,6 +407,7 @@
   color: #6b7280;
   font-size: 15px;
   line-height: 1.6;
+  text-align: left;
 }
 
 .home-company-cta button {
@@ -417,6 +428,7 @@
   align-items: center;
   gap: 24px;
   margin-bottom: 18px;
+  text-align: left;
 }
 
 .home-section-head h2 {
@@ -506,6 +518,7 @@
     box-shadow 160ms ease,
     border-color 160ms ease;
   scroll-snap-align: start;
+  text-align: left;
 }
 
 .home-job-card:hover {
@@ -576,11 +589,13 @@
 }
 
 .home-job-card dl div {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
   gap: 12px;
   padding: 8px 0;
   border-bottom: 1px solid #f1f5f9;
+  align-items: start;
+  text-align: left;
 }
 
 .home-job-card dt {
@@ -597,7 +612,7 @@
   font-size: 12px;
   font-weight: 800;
   line-height: 1.45;
-  text-align: right;
+  text-align: left;
 }
 
 .home-job-card button {
@@ -663,6 +678,7 @@
   padding: 20px;
   overflow: hidden;
   scroll-snap-align: start;
+  text-align: left;
 }
 
 .home-interpreter-head {
@@ -728,11 +744,13 @@
 }
 
 .home-interpreter-card dl div {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 12px;
   padding: 8px 0;
   border-bottom: 1px solid #f1f5f9;
+  align-items: start;
+  text-align: left;
 }
 
 .home-interpreter-card dt {
@@ -747,7 +765,7 @@
   color: #111827;
   font-size: 13px;
   font-weight: 800;
-  text-align: right;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -798,6 +816,7 @@
   border-top: 1px solid rgba(209, 213, 219, 0.9);
   color: #6b7280;
   font-size: 13px;
+  text-align: left;
 }
 
 .home-footer div {
@@ -862,23 +881,23 @@
     padding: 32px 20px 24px;
     flex-direction: column;
     gap: 24px;
-    align-items: center;
-    text-align: center;
+    align-items: flex-start;
+    text-align: left;
   }
 
   .home-logo-area {
-    align-items: center;
+    align-items: flex-start;
   }
 
   .home-main {
     grid-template-columns: 1fr;
     gap: 28px;
     padding: 24px 16px 42px;
-    text-align: center;
+    text-align: left;
   }
 
   .home-hero {
-    align-items: center;
+    align-items: flex-start;
   }
 
   .home-brand-title {
@@ -892,7 +911,7 @@
   .home-hero-title {
     font-size: 34px;
     line-height: 1.25;
-    text-align: center;
+    text-align: left;
   }
 
   .home-description {
@@ -902,8 +921,8 @@
   }
 
   .home-actions {
-    justify-content: center;
-    align-items: center;
+    justify-content: flex-start;
+    align-items: stretch;
     flex-direction: column;
     width: 100%;
   }
@@ -944,7 +963,7 @@
     width: 100%;
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 16px;
   }
 
