@@ -159,13 +159,15 @@
   gap: 12px;
 }
 
-.admin-request-card-grid {
+.admin-request-card-grid,
+.admin-management-card-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
 .admin-request-card,
+.admin-list-card,
 .admin-card {
   padding: 16px;
   border-radius: 14px;
@@ -174,31 +176,44 @@
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.09);
 }
 
-.admin-request-card {
+.admin-request-card,
+.admin-list-card {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 14px;
 }
 
-.admin-request-card-head {
+.admin-request-card-head,
+.admin-list-card-head {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
 }
 
-.admin-request-card-head > div {
+.admin-request-card-head > div,
+.admin-list-card-head > div {
   min-width: 0;
 }
 
-.admin-request-card-head h3 {
+.admin-request-card-head h3,
+.admin-list-card-head h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 900;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.admin-request-id {
+.admin-list-card-head.compact h3 {
+  font-size: 15px;
+}
+
+.admin-request-id,
+.admin-card-meta {
   display: block;
   margin-bottom: 4px;
   color: #6b7280;
@@ -206,13 +221,15 @@
   font-weight: 900;
 }
 
-.admin-request-summary {
+.admin-request-summary,
+.admin-card-summary {
   display: grid;
   gap: 0;
   margin: 0;
 }
 
-.admin-request-summary div {
+.admin-request-summary div,
+.admin-card-summary div {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
   gap: 10px;
@@ -220,13 +237,20 @@
   border-bottom: 1px solid #f1f5f9;
 }
 
-.admin-request-summary dt {
+.admin-card-summary.compact div {
+  grid-template-columns: 74px minmax(0, 1fr);
+  padding: 6px 0;
+}
+
+.admin-request-summary dt,
+.admin-card-summary dt {
   color: #6b7280;
   font-size: 12px;
   font-weight: 900;
 }
 
-.admin-request-summary dd {
+.admin-request-summary dd,
+.admin-card-summary dd {
   min-width: 0;
   margin: 0;
   color: #111827;
@@ -235,28 +259,67 @@
   overflow-wrap: anywhere;
 }
 
-.admin-request-controls {
+.admin-request-controls,
+.admin-card-controls-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
-.admin-request-actions {
+.admin-card-controls-grid.single {
+  grid-template-columns: 1fr;
+}
+
+.admin-request-actions,
+.admin-card-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
   padding-top: 2px;
 }
 
-.admin-request-actions .admin-link-button {
+.admin-request-actions .admin-link-button,
+.admin-card-actions .admin-link-button,
+.admin-card-actions .status-badge {
   flex: 1 1 120px;
   min-height: 34px;
   white-space: normal;
 }
 
+.admin-card-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
 .admin-request-card .admin-detail-panel,
-.admin-request-card .admin-applications-panel {
+.admin-request-card .admin-applications-panel,
+.admin-list-card .admin-detail-panel,
+.admin-list-card .admin-applications-panel {
   margin-top: 0;
+}
+
+.admin-list-card .admin-field-control {
+  min-width: 0;
+}
+
+.admin-list-card .admin-field-control > span {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.admin-nested-card-list {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.admin-nested-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .admin-request-main {
@@ -1213,6 +1276,7 @@
 @media (max-width: 980px) {
   .admin-metrics,
   .admin-request-card-grid,
+  .admin-management-card-grid,
   .admin-request-main,
   .admin-subpanel,
   .admin-application-card,
@@ -1248,6 +1312,7 @@
 
   .admin-metrics,
   .admin-request-card-grid,
+  .admin-management-card-grid,
   .admin-request-main,
   .admin-subpanel,
   .admin-application-card,
@@ -1269,11 +1334,13 @@
     grid-template-columns: repeat(2, minmax(150px, 1fr));
   }
 
-  .admin-request-controls {
+  .admin-request-controls,
+  .admin-card-controls-grid {
     grid-template-columns: 1fr;
   }
 
-  .admin-request-card-head h3 {
+  .admin-request-card-head h3,
+  .admin-list-card-head h3 {
     white-space: normal;
   }
 

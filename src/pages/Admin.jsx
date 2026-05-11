@@ -1378,92 +1378,72 @@ function JobApplicationsPanel({ applications, onStatusChange }) {
   }
 
   return (
-    <div className="admin-nested-table-wrap">
-      <table className="admin-nested-table">
-        <thead>
-          <tr>
-            <th>지원일</th>
-            <th>이름</th>
-            <th>성별</th>
-            <th>언어</th>
-            <th>경력</th>
-            <th>연락처</th>
-            <th>이메일</th>
-            <th>상태</th>
-            <th>메모</th>
-            <th>관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          {applications.map((application) => (
-            <tr key={application.id}>
-              <td>{formatDate(application.created_at)}</td>
-              <td className="admin-strong-cell">{application.applicant_name || "이름 미입력"}</td>
-              <td>{application.gender || "-"}</td>
-              <td>{getApplicationLanguage(application)}</td>
-              <td>{application.experience || application.career || "-"}</td>
-              <td title={`${application.phone || ""} ${application.email || ""}`}>
-                {application.phone || "연락처 미입력"}
-              </td>
-              <td title={application.email || ""}>
-                {application.email || "-"}
-              </td>
-              <td>
-                <StatusBadge status={application.status || "지원완료"} />
-              </td>
-              <td title={application.message || ""}>{application.message || "지원 메모 없음"}</td>
-              <td>
-                {onStatusChange ? (
-                  <div className="admin-row-actions">
-                    {application.status === "매칭완료" ? (
-                      <StatusBadge status="매칭완료" />
-                    ) : (
-                      <button
-                        type="button"
-                        className="admin-link-button primary"
-                        onClick={() =>
-                          onStatusChange(application, "매칭완료", {
-                            confirmMessage: "이 지원자를 매칭완료로 변경하시겠습니까?",
-                            askAssignJob: true,
-                          })
-                        }
-                      >
-                        매칭하기
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="admin-link-button warning"
-                      disabled={application.status === "보류"}
-                      onClick={() =>
-                        onStatusChange(application, "보류", {
-                          confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
-                        })
-                      }
-                    >
-                      보류
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-link-button danger"
-                      disabled={application.status === "불합격"}
-                      onClick={() =>
-                        onStatusChange(application, "불합격", {
-                          confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
-                        })
-                      }
-                    >
-                      불합격
-                    </button>
-                  </div>
-                ) : (
-                  "-"
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="admin-nested-card-list">
+      {applications.map((application) => (
+        <article key={application.id} className="admin-nested-card">
+          <div className="admin-list-card-head compact">
+            <div>
+              <span className="admin-card-meta">{formatDate(application.created_at)}</span>
+              <h3>{application.applicant_name || "이름 미입력"}</h3>
+            </div>
+            <StatusBadge status={application.status || "지원완료"} />
+          </div>
+
+          <dl className="admin-card-summary compact">
+            <Info label="성별" value={application.gender || "-"} />
+            <Info label="언어" value={getApplicationLanguage(application)} />
+            <Info label="경력" value={application.experience || application.career || "-"} />
+            <Info label="연락처" value={application.phone || "연락처 미입력"} />
+            <Info label="이메일" value={application.email || "-"} />
+            <Info label="메모" value={application.message || "지원 메모 없음"} />
+          </dl>
+
+          {onStatusChange ? (
+            <div className="admin-card-actions">
+              {application.status === "매칭완료" ? (
+                <StatusBadge status="매칭완료" />
+              ) : (
+                <button
+                  type="button"
+                  className="admin-link-button primary"
+                  onClick={() =>
+                    onStatusChange(application, "매칭완료", {
+                      confirmMessage: "이 지원자를 매칭완료로 변경하시겠습니까?",
+                      askAssignJob: true,
+                    })
+                  }
+                >
+                  매칭하기
+                </button>
+              )}
+              <button
+                type="button"
+                className="admin-link-button warning"
+                disabled={application.status === "보류"}
+                onClick={() =>
+                  onStatusChange(application, "보류", {
+                    confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
+                  })
+                }
+              >
+                보류
+              </button>
+              <button
+                type="button"
+                className="admin-link-button danger"
+                disabled={application.status === "불합격"}
+                onClick={() =>
+                  onStatusChange(application, "불합격", {
+                    confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
+                  })
+                }
+              >
+                불합격
+              </button>
+            </div>
+          ) : null}
+        </article>
+      ))}
     </div>
   );
 }
@@ -1527,45 +1507,28 @@ function InterpreterManagement({
         </select>
       </div>
 
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>이름</th>
-              <th>레벨</th>
-              <th>JLPT</th>
-              <th>경험</th>
-              <th>전문 분야</th>
-              <th>승인</th>
-              <th>활동 상태</th>
-              <th>경고</th>
-              <th>상세/수정</th>
-            </tr>
-          </thead>
-          <tbody>
-            {interpreters.length === 0 ? (
-              <EmptyTableRow colSpan="9" text="조건에 맞는 통역사가 없습니다." />
-            ) : (
-              interpreters.map((interpreter) => (
-                <FragmentInterpreterRow
-                  key={interpreter.id}
-                  expanded={expandedInterpreterId === interpreter.id}
-                  interpreter={interpreter}
-                  savingKey={savingKey}
-                  setExpandedInterpreterId={setExpandedInterpreterId}
-                  setInterpreters={setInterpreters}
-                  updateInterpreter={updateInterpreter}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {interpreters.length === 0 ? (
+        <MessageBox text="조건에 맞는 통역사가 없습니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {interpreters.map((interpreter) => (
+            <InterpreterCard
+              key={interpreter.id}
+              expanded={expandedInterpreterId === interpreter.id}
+              interpreter={interpreter}
+              savingKey={savingKey}
+              setExpandedInterpreterId={setExpandedInterpreterId}
+              setInterpreters={setInterpreters}
+              updateInterpreter={updateInterpreter}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-function FragmentInterpreterRow({
+function InterpreterCard({
   expanded,
   interpreter,
   savingKey,
@@ -1574,11 +1537,28 @@ function FragmentInterpreterRow({
   updateInterpreter,
 }) {
   return (
-    <>
-      <tr>
-        <td className="admin-strong-cell">{interpreter.name || "이름 미입력"}</td>
-        <td>
-          <div className="admin-level-cell">
+    <article className="admin-list-card">
+      <div className="admin-list-card-head">
+        <div>
+          <span className="admin-card-meta">통역사</span>
+          <h3>{interpreter.name || "이름 미입력"}</h3>
+        </div>
+        <span className={interpreter.approved ? "admin-approved" : "admin-pending"}>
+          {interpreter.approved ? "승인" : "미승인"}
+        </span>
+      </div>
+
+      <dl className="admin-card-summary">
+        <Info label="성별" value={interpreter.gender} />
+        <Info label="일본어 수준" value={interpreter.jlpt} />
+        <Info label="활동 지역" value={formatList(interpreter.available_regions)} />
+        <Info label="전문 분야" value={formatList(interpreter.specialties)} />
+        <Info label="통역 경험" value={getExperienceLabel(interpreter)} />
+        <Info label="경고" value={`${interpreter.warning_count || 0}회`} />
+      </dl>
+
+      <div className="admin-card-controls-grid">
+        <FieldControl label="레벨">
           <span style={getLevelBadgeStyle(interpreter.level)}>
             {normalizeLevel(interpreter.level)}
           </span>
@@ -1587,65 +1567,49 @@ function FragmentInterpreterRow({
             value={interpreter.level || "Lv1"}
             onChange={(value) => updateInterpreter(interpreter.id, { level: value })}
           />
-          </div>
-        </td>
-        <td>{interpreter.jlpt || "-"}</td>
-        <td>{getExperienceLabel(interpreter)}</td>
-        <td>{formatList(interpreter.specialties)}</td>
-        <td>
-          <div className="admin-approval-cell">
-            <span
-              className={
-                interpreter.approved ? "admin-approved" : "admin-pending"
-              }
-            >
-              {interpreter.approved ? "승인" : "미승인"}
-            </span>
-            <InlineSelect
-              options={[
-                { label: "미승인", value: "false" },
-                { label: "승인", value: "true" },
-              ]}
-              value={String(Boolean(interpreter.approved))}
-              onChange={(value) =>
-                updateInterpreter(interpreter.id, { approved: value === "true" })
-              }
-            />
-          </div>
-        </td>
-        <td>
+        </FieldControl>
+        <FieldControl label="승인 상태">
+          <InlineSelect
+            options={[
+              { label: "미승인", value: "false" },
+              { label: "승인", value: "true" },
+            ]}
+            value={String(Boolean(interpreter.approved))}
+            onChange={(value) =>
+              updateInterpreter(interpreter.id, { approved: value === "true" })
+            }
+          />
+        </FieldControl>
+        <FieldControl label="활동 상태">
           <InlineSelect
             options={INTERPRETER_STATUSES}
             value={interpreter.status || "active"}
             onChange={(value) => updateInterpreter(interpreter.id, { status: value })}
           />
-        </td>
-        <td>{interpreter.warning_count || 0}회</td>
-        <td>
-          <button
-            type="button"
-            className="admin-link-button"
-            onClick={() =>
-              setExpandedInterpreterId(expanded ? null : interpreter.id)
-            }
-          >
-            {expanded ? "닫기" : "상세 보기"}
-          </button>
-        </td>
-      </tr>
+        </FieldControl>
+      </div>
+
+      <div className="admin-card-actions">
+        <button
+          type="button"
+          className="admin-link-button"
+          onClick={() =>
+            setExpandedInterpreterId(expanded ? null : interpreter.id)
+          }
+        >
+          {expanded ? "닫기" : "상세 보기"}
+        </button>
+      </div>
+
       {expanded && (
-        <tr className="admin-expanded-row">
-          <td colSpan="9">
-            <InterpreterDetailPanel
-              interpreter={interpreter}
-              savingKey={savingKey}
-              setInterpreters={setInterpreters}
-              updateInterpreter={updateInterpreter}
-            />
-          </td>
-        </tr>
+        <InterpreterDetailPanel
+          interpreter={interpreter}
+          savingKey={savingKey}
+          setInterpreters={setInterpreters}
+          updateInterpreter={updateInterpreter}
+        />
       )}
-    </>
+    </article>
   );
 }
 
@@ -1728,83 +1692,96 @@ function ApplicationManagement({
   return (
     <section className="admin-section">
       <SectionTitle count={`${applications.length}명`} title="지원자 관리" />
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th className="admin-col-company">지원자</th>
-              <th className="admin-col-title">공고</th>
-              <th className="admin-col-company">기업/행사</th>
-              <th className="admin-col-language">언어</th>
-              <th className="admin-col-date">지원일</th>
-              <th className="admin-col-status">상태</th>
-              <th className="admin-col-message">메모</th>
-              <th className="admin-col-actions">관리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applications.length === 0 ? (
-              <EmptyTableRow colSpan="8" text="아직 접수된 지원자가 없습니다." />
-            ) : (
-              applications.map((application) => {
-                const job = application.jobs || jobsById.get(application.job_id);
+      {applications.length === 0 ? (
+        <MessageBox text="아직 접수된 지원자가 없습니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {applications.map((application) => {
+            const job = application.jobs || jobsById.get(application.job_id);
 
-                return (
-                  <tr key={application.id}>
-                    <td
-                      className="admin-strong-cell admin-col-company"
-                      title={application.applicant_name || ""}
-                    >
-                      {application.applicant_name || "이름 미입력"}
-                    </td>
-                    <td
-                      className="admin-col-title"
-                      title={getJobDisplayTitle(job, application.job_id)}
-                    >
-                      {getJobDisplayTitle(job, application.job_id)}
-                    </td>
-                    <td
-                      className="admin-col-company"
-                      title={getJobOrganizationLabel(job)}
-                    >
-                      {getJobOrganizationLabel(job)}
-                    </td>
-                    <td className="admin-col-language">
-                      {getApplicationLanguage(application, job)}
-                    </td>
-                    <td className="admin-col-date">{formatDate(application.created_at)}</td>
-                    <td className="admin-col-status">
-                      <InlineSelect
-                        options={JOB_APPLICATION_STATUSES}
-                        value={application.status || "지원완료"}
-                        disabled={savingKey === `job-application-${application.id}`}
-                        onChange={(value) =>
-                          updateApplicationStatus(application, value)
-                        }
-                      />
-                      <StatusBadge status={application.status || "지원완료"} />
-                    </td>
-                    <td className="admin-col-message" title={application.message || ""}>
-                      {application.message || "지원 메모 없음"}
-                    </td>
-                    <td className="admin-col-actions">
-                      <button
-                        type="button"
-                        className="admin-link-button danger"
-                        disabled={savingKey === `job-application-delete-${application.id}`}
-                        onClick={() => deleteApplication(application)}
-                      >
-                        삭제
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+            return (
+              <ApplicationCard
+                key={application.id}
+                application={application}
+                job={job}
+                savingKey={savingKey}
+                updateApplicationStatus={updateApplicationStatus}
+                deleteApplication={deleteApplication}
+              />
+            );
+          })}
+        </div>
+      )}
     </section>
+  );
+}
+
+function ApplicationCard({
+  application,
+  job,
+  savingKey,
+  updateApplicationStatus,
+  deleteApplication,
+}) {
+  return (
+    <article className="admin-list-card">
+      <div className="admin-list-card-head">
+        <div>
+          <span className="admin-card-meta">지원자</span>
+          <h3 title={application.applicant_name || ""}>
+            {application.applicant_name || "이름 미입력"}
+          </h3>
+        </div>
+        <StatusBadge status={application.status || "지원완료"} />
+      </div>
+
+      <dl className="admin-card-summary">
+        <Info label="지원 공고" value={getJobDisplayTitle(job, application.job_id)} />
+        <Info label="기업/행사" value={getJobOrganizationLabel(job)} />
+        <Info label="언어" value={getApplicationLanguage(application, job)} />
+        <Info label="지원일" value={formatDate(application.created_at)} />
+        <Info label="메모" value={application.message || "지원 메모 없음"} />
+      </dl>
+
+      <div className="admin-card-controls-grid single">
+        <FieldControl label="상태">
+          <InlineSelect
+            options={JOB_APPLICATION_STATUSES}
+            value={application.status || "지원완료"}
+            disabled={savingKey === `job-application-${application.id}`}
+            onChange={(value) => updateApplicationStatus(application, value)}
+          />
+        </FieldControl>
+      </div>
+
+      <div className="admin-card-actions">
+        {application.status === "매칭완료" ? (
+          <StatusBadge status="매칭완료" />
+        ) : (
+          <button
+            type="button"
+            className="admin-link-button primary"
+            disabled={savingKey === `job-application-${application.id}`}
+            onClick={() =>
+              updateApplicationStatus(application, "매칭완료", {
+                confirmMessage: "이 지원자를 매칭완료로 변경하시겠습니까?",
+                askAssignJob: true,
+              })
+            }
+          >
+            매칭하기
+          </button>
+        )}
+        <button
+          type="button"
+          className="admin-link-button danger"
+          disabled={savingKey === `job-application-delete-${application.id}`}
+          onClick={() => deleteApplication(application)}
+        >
+          삭제
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -1819,112 +1796,89 @@ function MatchingManagement({
   return (
     <section className="admin-section">
       <SectionTitle count={`${applications.length}건`} title="매칭 관리" />
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th className="admin-col-title">공고</th>
-              <th className="admin-col-company">기업/행사</th>
-              <th className="admin-col-date">날짜</th>
-              <th className="admin-col-location">장소</th>
-              <th className="admin-col-company">지원자</th>
-              <th>연락처</th>
-              <th>이메일</th>
-              <th className="admin-col-language">언어</th>
-              <th className="admin-col-status">의뢰 유형</th>
-              <th className="admin-col-company">지정 통역사</th>
-              <th className="admin-col-status">상태</th>
-              <th className="admin-col-actions">관리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applications.length === 0 ? (
-              <EmptyTableRow colSpan="12" text="아직 매칭완료된 지원자가 없습니다." />
-            ) : (
-              applications.map((application) => {
-                const job = jobsById.get(application.job_id) || application.jobs;
-                const request = application.job_id
-                  ? requestsByJobId.get(String(application.job_id))
-                  : null;
-                const requestType = getDesignatedRequestType(request, job);
-                const designatedInterpreterName = getDesignatedInterpreterName(
-                  [request, job],
-                  interpreters
-                );
+      {applications.length === 0 ? (
+        <MessageBox text="아직 매칭완료된 지원자가 없습니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {applications.map((application) => {
+            const job = jobsById.get(application.job_id) || application.jobs;
+            const request = application.job_id
+              ? requestsByJobId.get(String(application.job_id))
+              : null;
+            const requestType = getDesignatedRequestType(request, job);
+            const designatedInterpreterName = getDesignatedInterpreterName(
+              [request, job],
+              interpreters
+            );
 
-                return (
-                  <tr key={application.id}>
-                    <td
-                      className="admin-strong-cell admin-col-title"
-                      title={getJobDisplayTitle(job, application.job_id)}
-                    >
-                      <span className="admin-job-title">
-                        {getJobDisplayTitle(job, application.job_id)}
-                      </span>
-                    </td>
-                    <td
-                      className="admin-col-company"
-                      title={getJobOrganizationLabel(job)}
-                    >
-                      {getJobOrganizationLabel(job)}
-                    </td>
-                    <td className="admin-col-date">
-                      {formatDateRange(
-                        job?.start_date,
-                        job?.end_date,
-                        job?.event_date || job?.date
-                      )}
-                    </td>
-                    <td
-                      className="admin-col-location"
-                      title={job?.event_location || job?.location || ""}
-                    >
-                      {job?.event_location || job?.location || "-"}
-                    </td>
-                    <td
-                      className="admin-col-company"
-                      title={application.applicant_name || ""}
-                    >
-                      {application.applicant_name || "이름 미입력"}
-                    </td>
-                    <td title={`${application.phone || ""} ${application.email || ""}`}>
-                      {application.phone || "연락처 미입력"}
-                    </td>
-                    <td title={application.email || ""}>
-                      {application.email || "-"}
-                    </td>
-                    <td className="admin-col-language">
-                      {getApplicationLanguage(application, job)}
-                    </td>
-                    <td className="admin-col-status">
-                      <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
-                        {requestType.label}
-                      </span>
-                    </td>
-                    <td className="admin-col-company" title={designatedInterpreterName}>
-                      {designatedInterpreterName}
-                    </td>
-                    <td className="admin-col-status">
-                      <StatusBadge status={application.status || "매칭완료"} />
-                    </td>
-                    <td className="admin-col-actions">
-                      <InlineSelect
-                        options={JOB_APPLICATION_STATUSES}
-                        value={application.status || "매칭완료"}
-                        disabled={savingKey === `job-application-${application.id}`}
-                        onChange={(value) =>
-                          updateApplicationStatus(application, value)
-                        }
-                      />
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+            return (
+              <MatchingCard
+                key={application.id}
+                application={application}
+                job={job}
+                requestType={requestType}
+                designatedInterpreterName={designatedInterpreterName}
+                savingKey={savingKey}
+                updateApplicationStatus={updateApplicationStatus}
+              />
+            );
+          })}
+        </div>
+      )}
     </section>
+  );
+}
+
+function MatchingCard({
+  application,
+  job,
+  requestType,
+  designatedInterpreterName,
+  savingKey,
+  updateApplicationStatus,
+}) {
+  return (
+    <article className="admin-list-card">
+      <div className="admin-list-card-head">
+        <div>
+          <span className="admin-card-meta">매칭</span>
+          <h3 title={getJobDisplayTitle(job, application.job_id)}>
+            {getJobDisplayTitle(job, application.job_id)}
+          </h3>
+        </div>
+        <StatusBadge status={application.status || "매칭완료"} />
+      </div>
+
+      <dl className="admin-card-summary">
+        <Info label="기업/행사" value={getJobOrganizationLabel(job)} />
+        <Info label="통역사명" value={application.applicant_name || "이름 미입력"} />
+        <Info
+          label="날짜"
+          value={formatDateRange(job?.start_date, job?.end_date, job?.event_date || job?.date)}
+        />
+        <Info label="장소" value={job?.event_location || job?.location || "-"} />
+        <Info label="언어" value={getApplicationLanguage(application, job)} />
+        <Info label="지정 통역사" value={designatedInterpreterName} />
+      </dl>
+
+      <div className="admin-card-chip-row">
+        <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
+          {requestType.label}
+        </span>
+        <span className="admin-empty-chip">{application.phone || "연락처 미입력"}</span>
+      </div>
+
+      <div className="admin-card-controls-grid single">
+        <FieldControl label="매칭 상태">
+          <InlineSelect
+            options={JOB_APPLICATION_STATUSES}
+            value={application.status || "매칭완료"}
+            disabled={savingKey === `job-application-${application.id}`}
+            onChange={(value) => updateApplicationStatus(application, value)}
+          />
+        </FieldControl>
+      </div>
+    </article>
   );
 }
 
