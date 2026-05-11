@@ -1,3 +1,5 @@
+import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
+
 function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
   if (!interpreter) {
     return (
@@ -26,7 +28,9 @@ function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
                 {interpreter.age || "-"} · {interpreter.region || "지역 미입력"}
               </p>
             </div>
-            <span style={styles.badge}>{interpreter.level || "Lv 미정"}</span>
+            <span style={getLevelBadgeStyle(interpreter.level)}>
+              {normalizeLevel(interpreter.level)}
+            </span>
           </div>
 
           <div style={styles.infoGrid}>
@@ -158,15 +162,6 @@ const styles = {
     fontSize: "15px",
     lineHeight: 1.6,
     overflowWrap: "anywhere",
-  },
-  badge: {
-    padding: "6px 11px",
-    borderRadius: "999px",
-    background: "#eef2ff",
-    color: "#4f46e5",
-    fontSize: "12px",
-    fontWeight: "900",
-    whiteSpace: "nowrap",
   },
   infoGrid: {
     display: "grid",

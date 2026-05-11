@@ -18,11 +18,12 @@ function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
 
-function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
+function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
   const [job, setJob] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const fetchJob = useCallback(async () => {
@@ -75,6 +76,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (submitting || submitted) return;
     if (!job) return;
     if (!canApplyToJob(job)) {
       setErrorMessage("지원할 수 없는 공고입니다.");
@@ -110,25 +112,53 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
       const { error } = await supabase.from("job_applications").insert([application]);
 
       if (error) {
-        console.error("job_applications insert error:", error);
+        console.error("지원 실패:", error);
         throw error;
       }
 
-      alert("지원서가 제출되었습니다.");
+      setSubmitted(true);
       setForm(initialForm);
-      onSubmitSuccess();
     } catch (error) {
-      console.error(error);
-      const message = getSupabaseErrorMessage(
-        error,
-        "지원서 제출에 실패했습니다. 입력값을 확인해주세요."
-      );
+      console.error("지원 실패:", error);
+      const message = error?.message || "지원서 제출에 실패했습니다. 입력값을 확인해주세요.";
       setErrorMessage(message);
       alert(message);
-    } finally {
       setSubmitting(false);
+      return;
+    } finally {
+      if (!submitted) setSubmitting(false);
     }
   };
+
+  const goToJobs = () => {
+    onSubmitSuccess();
+  };
+
+  const goHome = () => {
+    onHomeClick?.();
+  };
+
+  if (submitted) {
+    return (
+      <div className="jobs-page">
+        <div className="jobs-shell">
+          <div className="jobs-success-box">
+            <p className="jobs-kicker">APPLICATION COMPLETE</p>
+            <h1>지원 완료</h1>
+            <p>지원이 완료되었습니다. 담당자가 검토 후 연락드립니다.</p>
+            <div className="jobs-success-actions">
+              <button type="button" onClick={goToJobs}>
+                공고 목록으로 돌아가기
+              </button>
+              <button type="button" className="secondary" onClick={goHome}>
+                메인으로 돌아가기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="jobs-page">
@@ -242,7 +272,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess }) {
                   제출된 지원서는 ON-LI 운영팀 검토 후 공고 담당자에게 전달됩니다.
                 </p>
 
-                <button type="submit" disabled={submitting || !canApplyToJob(job)}>
+                <button type="submit" disabled={submitting || submitted || !canApplyToJob(job)}>
                   {!canApplyToJob(job)
                     ? "마감됨"
                     : submitting

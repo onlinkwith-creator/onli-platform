@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import JobCard from "../components/JobCard";
 import { supabase, supabaseConfigError } from "../supabase";
 import { fetchPublicJobs } from "../utils/jobsApi";
+import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import "./Home.css";
 
 function getSupabaseErrorMessage(error, fallback) {
@@ -366,7 +367,9 @@ function InterpreterCard({ interpreter, onProfileClick }) {
           <h3>{interpreter.name || "이름 미입력"}</h3>
           <p>{availableRegionLabel}</p>
         </div>
-        <span>{interpreter.level || "Lv1"}</span>
+        <span style={getLevelBadgeStyle(interpreter.level)}>
+          {normalizeLevel(interpreter.level || "Lv1")}
+        </span>
       </div>
 
       <div className="home-interpreter-badges">

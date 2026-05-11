@@ -18,6 +18,7 @@ function JobDetail({ jobId, onBackClick }) {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const fetchJob = useCallback(async () => {
@@ -71,6 +72,7 @@ function JobDetail({ jobId, onBackClick }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (submitting || submitted) return;
 
     if (!job) return;
     if (!canApplyToJob(job)) {
@@ -87,31 +89,29 @@ function JobDetail({ jobId, onBackClick }) {
       return;
     }
 
-    const { error } = await supabase.from("job_applications").insert([
-      {
-        job_id: job.id,
-        applicant_name: form.applicantName,
-        phone: form.applicantPhone,
-        email: form.applicantEmail,
-        message: form.message,
-        status: "지원완료",
-      },
-    ]);
+    try {
+      const { error } = await supabase.from("job_applications").insert([
+        {
+          job_id: job.id,
+          applicant_name: form.applicantName,
+          phone: form.applicantPhone,
+          email: form.applicantEmail,
+          message: form.message,
+          status: "지원완료",
+        },
+      ]);
 
-    setSubmitting(false);
+      if (error) throw error;
 
-    if (error) {
-      console.error("job_applications insert error:", error);
-      setErrorMessage(
-        error.code === "23505"
-          ? "이미 같은 이메일로 지원한 공고입니다."
-          : "지원 접수에 실패했습니다. 입력값을 확인해주세요."
-      );
-      return;
+      setSubmitted(true);
+      setForm(initialForm);
+    } catch (error) {
+      console.error("지원 실패:", error);
+      const message = error?.message || "지원 접수에 실패했습니다. 입력값을 확인해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      setSubmitting(false);
     }
-
-    alert("지원이 접수되었습니다.");
-    setForm(initialForm);
   };
 
   return (
@@ -164,60 +164,72 @@ function JobDetail({ jobId, onBackClick }) {
             </article>
 
             <aside className="job-apply-card">
-              <h2>{canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}</h2>
-              <form onSubmit={handleSubmit}>
-                <label>
-                  <span>이름</span>
-                  <input
-                    name="applicantName"
-                    value={form.applicantName}
-                    onChange={handleChange}
-                    required
-                  />
-                </label>
-                <label>
-                  <span>연락처</span>
-                  <input
-                    name="applicantPhone"
-                    value={form.applicantPhone}
-                    onChange={handleChange}
-                    required
-                  />
-                </label>
-                <label>
-                  <span>이메일(optional)</span>
-                  <input
-                    name="applicantEmail"
-                    type="email"
-                    value={form.applicantEmail}
-                    onChange={handleChange}
-                  />
-                </label>
-                <label>
-                  <span>지원 메시지</span>
-                  <textarea
-                    name="message"
-                    value={form.message}
-                    onChange={handleChange}
-                    rows={5}
-                    required
-                  />
-                </label>
+              {submitted ? (
+                <div className="jobs-success-inline">
+                  <h2>지원 완료</h2>
+                  <p>지원이 완료되었습니다. 담당자가 검토 후 연락드립니다.</p>
+                  <button type="button" onClick={onBackClick}>
+                    공고 목록으로 돌아가기
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h2>{canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}</h2>
+                  <form onSubmit={handleSubmit}>
+                    <label>
+                      <span>이름</span>
+                      <input
+                        name="applicantName"
+                        value={form.applicantName}
+                        onChange={handleChange}
+                        required
+                      />
+                    </label>
+                    <label>
+                      <span>연락처</span>
+                      <input
+                        name="applicantPhone"
+                        value={form.applicantPhone}
+                        onChange={handleChange}
+                        required
+                      />
+                    </label>
+                    <label>
+                      <span>이메일(optional)</span>
+                      <input
+                        name="applicantEmail"
+                        type="email"
+                        value={form.applicantEmail}
+                        onChange={handleChange}
+                      />
+                    </label>
+                    <label>
+                      <span>지원 메시지</span>
+                      <textarea
+                        name="message"
+                        value={form.message}
+                        onChange={handleChange}
+                        rows={5}
+                        required
+                      />
+                    </label>
 
-                {errorMessage && <p className="jobs-error">{errorMessage}</p>}
+                    {errorMessage && <p className="jobs-error">{errorMessage}</p>}
 
-                <p className="jobs-notice">
-                  지원 내용은 ON-LI 운영팀을 통해 전달됩니다.
-                </p>
+                    <p className="jobs-notice">
+                      지원 내용은 ON-LI 운영팀을 통해 전달됩니다.
+                    </p>
 
-                <button type="submit" disabled={submitting || !canApplyToJob(job)}>
-                  {canApplyToJob(job)
-                    ? submitting
-                      ? "지원 접수 중..."
-                      : "지원하기"
-                    : getJobStatusLabel(job)}
+                    <button type="submit" disabled={submitting || !canApplyToJob(job)}>
+                      {canApplyToJob(job)
+                        ? submitting
+                          ? "지원 중..."
+                          : "지원하기"
+                        : getJobStatusLabel(job)}
                 </button>
-              </form>
+                  </form>
+                </>
+              )}
             </aside>
           </div>
         )}

@@ -411,6 +411,13 @@
   gap: 6px;
 }
 
+.admin-level-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 170px;
+}
+
 .admin-public-control {
   display: flex;
   align-items: center;

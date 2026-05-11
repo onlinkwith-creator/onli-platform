@@ -493,14 +493,14 @@
   display: flex;
   flex: 0 0 calc((100% - 42px) / 4);
   min-width: 0;
-  min-height: 430px;
+  min-height: 360px;
   flex-direction: column;
   justify-content: space-between;
-  padding: 22px;
-  border-radius: 20px;
+  padding: 20px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid #e5e7eb;
-  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
@@ -559,10 +559,20 @@
   -webkit-line-clamp: 2;
 }
 
+.home-job-company {
+  overflow: hidden;
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .home-job-card dl {
   display: grid;
   gap: 0;
-  margin: 18px 0 20px;
+  margin: 16px 0 18px;
 }
 
 .home-job-card dl div {
@@ -593,8 +603,9 @@
 .home-job-card button {
   width: 100%;
   margin-top: auto;
-  padding: 13px;
-  border-radius: 13px;
+  min-height: 44px;
+  padding: 11px 16px;
+  border-radius: 12px;
   border: none;
   background: #4f46e5;
   color: #ffffff;
@@ -604,7 +615,9 @@
 }
 
 .home-job-card button:disabled {
-  opacity: 0.6;
+  background: #f3f4f6;
+  color: #4b5563;
+  opacity: 1;
   cursor: not-allowed;
 }
 

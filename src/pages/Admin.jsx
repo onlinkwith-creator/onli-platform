@@ -4,6 +4,7 @@ import AdminJobs from "./AdminJobs";
 import { normalizeJobVisibility } from "../utils/jobStatus";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
+import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
@@ -1564,11 +1565,16 @@ function FragmentInterpreterRow({
       <tr>
         <td className="admin-strong-cell">{interpreter.name || "이름 미입력"}</td>
         <td>
+          <div className="admin-level-cell">
+          <span style={getLevelBadgeStyle(interpreter.level)}>
+            {normalizeLevel(interpreter.level)}
+          </span>
           <InlineSelect
             options={LEVELS}
             value={interpreter.level || "Lv1"}
             onChange={(value) => updateInterpreter(interpreter.id, { level: value })}
           />
+          </div>
         </td>
         <td>{interpreter.jlpt || "-"}</td>
         <td>{getExperienceLabel(interpreter)}</td>

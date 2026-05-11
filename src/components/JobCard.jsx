@@ -12,11 +12,11 @@ function JobCard({ job, onApplyClick }) {
         <span className={`home-job-status ${status}`}>
           {badge}
         </span>
-        <h3>{job.title || "공고 제목 미입력"}</h3>
+        <h3>{job.event_name || job.title || "공고 제목 미입력"}</h3>
+        <p className="home-job-company">{job.company_name || "기업명 확인 중"}</p>
       </div>
 
       <dl>
-        <JobInfo label="장소" value={job.location || job.event_location} />
         <JobInfo
           label="날짜"
           value={formatDateRange(
@@ -25,11 +25,9 @@ function JobCard({ job, onApplyClick }) {
             job.event_date || job.date
           )}
         />
-        <JobInfo label="일급" value={job.pay} />
+        <JobInfo label="장소" value={job.location || job.event_location} />
         <JobInfo label="언어" value={job.language} />
-        <JobInfo label="레벨" value={job.level || job.requested_level} />
-        <JobInfo label="우대" value={job.preference || job.field} />
-        <JobInfo label="인원" value={job.people || job.people_count} />
+        <JobInfo label="일급" value={job.pay} />
       </dl>
 
       <button type="button" onClick={onApplyClick} disabled={!canApply}>

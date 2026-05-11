@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
+import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 
 const initialFilters = {
   gender: "전체",
@@ -131,14 +132,14 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
         minHeight: "100vh",
         width: "100vw",
         background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
-        padding: "60px 24px",
+        padding: "48px 20px",
         boxSizing: "border-box",
         color: "#111827",
       }}
     >
       <div
         style={{
-          maxWidth: "1100px",
+          maxWidth: "1120px",
           margin: "0 auto",
         }}
       >
@@ -146,8 +147,8 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
           onClick={onBackClick}
           className="main-return-button"
           style={{
-            marginBottom: "30px",
-            padding: "12px 18px",
+            marginBottom: "24px",
+            padding: "10px 16px",
             borderRadius: "12px",
             border: "1px solid #395597",
             backgroundColor: "#395597",
@@ -244,16 +245,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
             ) : (
               <div style={styles.grid}>
                 {filteredInterpreters.map((person) => (
-              <div
-                key={person.id}
-                style={{
-                  background: "rgba(255, 255, 255, 0.9)",
-                  borderRadius: "24px",
-                  padding: "26px",
-                  boxShadow: "0 20px 50px rgba(15, 23, 42, 0.12)",
-                  border: "1px solid rgba(255,255,255,0.8)",
-                }}
-              >
+              <div key={person.id} style={styles.card}>
                 <div
                   style={{
                     display: "flex",
@@ -274,7 +266,9 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                     {person.name || "이름 미입력"}
                   </h2>
 
-                  <span style={styles.levelBadge}>{person.level || "Lv 미정"}</span>
+                  <span style={getLevelBadgeStyle(person.level)}>
+                    {normalizeLevel(person.level)}
+                  </span>
                 </div>
 
                 <Info label="성별" value={person.gender} />
@@ -294,18 +288,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
 
                 <button
   onClick={() => onDetailClick(person)}
-  style={{
-    marginTop: "20px",
-    width: "100%",
-    padding: "14px",
-    borderRadius: "14px",
-    border: "none",
-    background: "#4f46e5",
-    color: "white",
-    fontWeight: "800",
-    cursor: "pointer",
-    fontSize: "14px",
-  }}
+  style={styles.cardButton}
 >
   상세 보기
 </button>
@@ -531,18 +514,19 @@ const styles = {
   },
   title: {
     margin: 0,
-    fontSize: "42px",
-    fontWeight: "800",
+    fontSize: "clamp(30px, 5vw, 40px)",
+    fontWeight: "900",
     color: "#111827",
   },
   description: {
     marginTop: "12px",
     color: "#6b7280",
     fontSize: "15px",
+    lineHeight: 1.6,
   },
   registerButton: {
-    padding: "14px 18px",
-    borderRadius: "14px",
+    padding: "11px 16px",
+    borderRadius: "12px",
     border: "none",
     background: "#4f46e5",
     color: "white",
@@ -550,24 +534,15 @@ const styles = {
     fontWeight: "900",
     fontSize: "14px",
   },
-  levelBadge: {
-    padding: "6px 12px",
-    borderRadius: "999px",
-    background: "#eef2ff",
-    color: "#4f46e5",
-    fontSize: "12px",
-    fontWeight: "700",
-    whiteSpace: "nowrap",
-  },
   filterCard: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: "14px",
     marginBottom: "14px",
     padding: "20px",
-    borderRadius: "22px",
+    borderRadius: "16px",
     background: "#ffffff",
-    boxShadow: "0 18px 45px rgba(15, 23, 42, 0.1)",
+    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
     border: "1px solid rgba(209, 213, 219, 0.72)",
   },
   filterHead: {
@@ -605,7 +580,7 @@ const styles = {
   },
   filterInput: {
     width: "100%",
-    minHeight: "46px",
+    minHeight: "44px",
     padding: "0 13px",
     borderRadius: "12px",
     border: "1px solid #d1d5db",
@@ -635,7 +610,31 @@ const styles = {
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: "22px",
+    gap: "16px",
+  },
+  card: {
+    display: "flex",
+    flexDirection: "column",
+    minHeight: "430px",
+    background: "rgba(255, 255, 255, 0.94)",
+    borderRadius: "18px",
+    padding: "22px",
+    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
+    border: "1px solid #e5e7eb",
+    wordBreak: "keep-all",
+    overflowWrap: "anywhere",
+  },
+  cardButton: {
+    marginTop: "auto",
+    width: "100%",
+    padding: "12px 16px",
+    borderRadius: "12px",
+    border: "none",
+    background: "#4f46e5",
+    color: "white",
+    fontWeight: "900",
+    cursor: "pointer",
+    fontSize: "14px",
   },
 };
 

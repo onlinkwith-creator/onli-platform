@@ -151,6 +151,7 @@ function App() {
           jobId={selectedJobId}
           onBackClick={() => navigate("jobs", null, null)}
           onSubmitSuccess={() => navigate("jobs", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
         />
       )}
 
