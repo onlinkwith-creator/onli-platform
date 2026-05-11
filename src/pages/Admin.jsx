@@ -998,69 +998,47 @@ function RequestManagement({
         </select>
       </div>
 
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th className="admin-col-id">ID</th>
-              <th className="admin-col-title">행사명</th>
-              <th className="admin-col-company">기업명</th>
-              <th className="admin-col-status">의뢰 유형</th>
-              <th className="admin-col-company">지정 통역사</th>
-              <th className="admin-col-date">날짜</th>
-              <th className="admin-col-location">장소</th>
-              <th>지원자</th>
-              <th className="admin-col-status">의뢰 상태</th>
-              <th className="admin-col-status">연락 상태</th>
-              <th className="admin-col-status">결제 상태</th>
-              <th className="admin-col-public">공고 공개</th>
-              <th className="admin-col-actions">상세/수정</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.length === 0 ? (
-              <EmptyTableRow colSpan="13" text="조건에 맞는 의뢰가 없습니다." />
-            ) : (
-              requests.map((request) => (
-                <FragmentRequestRow
-                  key={request.id}
-                  applicationsExpanded={applicationsRequestId === request.id}
-                  assignmentDrafts={assignmentDrafts}
-                  assignments={assignmentsByRequest.get(request.id) || []}
-                  expanded={expandedRequestId === request.id}
-                  interpreters={interpreters}
-                  jobApplications={
-                    request.job_id
-                      ? jobApplicationsByJob.get(String(request.job_id)) || []
-                      : []
-                  }
-                  jobsById={jobsById}
-                  requestsByJobId={requestsByJobId}
-                  interpreters={interpreters}
-                  onJobsAdminClick={onJobsAdminClick}
-                  request={request}
-                  savingKey={savingKey}
-                  setAssignmentDrafts={setAssignmentDrafts}
-                  setApplicationsRequestId={setApplicationsRequestId}
-                  setExpandedRequestId={setExpandedRequestId}
-                  assignInterpreter={assignInterpreter}
-                  handlePriceDraft={handlePriceDraft}
-                  removeAssignment={removeAssignment}
-                  updateRequest={updateRequest}
-                  updateApplicationStatus={updateApplicationStatus}
-                  deleteRequest={deleteRequest}
-                  toggleRequestJobPublic={toggleRequestJobPublic}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {requests.length === 0 ? (
+        <MessageBox text="조건에 맞는 의뢰가 없습니다." />
+      ) : (
+        <div className="admin-request-card-grid">
+          {requests.map((request) => (
+            <AdminRequestCard
+              key={request.id}
+              applicationsExpanded={applicationsRequestId === request.id}
+              assignmentDrafts={assignmentDrafts}
+              assignments={assignmentsByRequest.get(request.id) || []}
+              expanded={expandedRequestId === request.id}
+              interpreters={interpreters}
+              jobApplications={
+                request.job_id
+                  ? jobApplicationsByJob.get(String(request.job_id)) || []
+                  : []
+              }
+              jobsById={jobsById}
+              requestsByJobId={requestsByJobId}
+              onJobsAdminClick={onJobsAdminClick}
+              request={request}
+              savingKey={savingKey}
+              setAssignmentDrafts={setAssignmentDrafts}
+              setApplicationsRequestId={setApplicationsRequestId}
+              setExpandedRequestId={setExpandedRequestId}
+              assignInterpreter={assignInterpreter}
+              handlePriceDraft={handlePriceDraft}
+              removeAssignment={removeAssignment}
+              updateRequest={updateRequest}
+              updateApplicationStatus={updateApplicationStatus}
+              deleteRequest={deleteRequest}
+              toggleRequestJobPublic={toggleRequestJobPublic}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-function FragmentRequestRow({
+function AdminRequestCard({
   applicationsExpanded,
   assignmentDrafts,
   assignments,
@@ -1093,55 +1071,40 @@ function FragmentRequestRow({
   );
 
   return (
-    <>
-      <tr>
-        <td className="admin-col-id">#{request.id}</td>
-        <td
-          className="admin-strong-cell admin-col-title"
-          title={request.event_name || ""}
-        >
-          {request.event_name || "-"}
-        </td>
-        <td className="admin-col-company" title={request.company_name || ""}>
-          {request.company_name || "-"}
-        </td>
-        <td className="admin-col-status">
-          <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
-            {requestType.label}
-          </span>
-        </td>
-        <td className="admin-col-company" title={designatedInterpreterName}>
-          {designatedInterpreterName}
-        </td>
-        <td className="admin-col-date">
-          {formatDateRange(
+    <article className="admin-request-card">
+      <div className="admin-request-card-head">
+        <div>
+          <span className="admin-request-id">#{request.id}</span>
+          <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
+        </div>
+        <StatusBadge status={request.status || "pending"} />
+      </div>
+
+      <dl className="admin-request-summary">
+        <Info label="기업명" value={request.company_name || "-"} />
+        <Info label="의뢰 유형" value={requestType.label} />
+        <Info label="지정 통역사" value={designatedInterpreterName} />
+        <Info
+          label="날짜"
+          value={formatDateRange(
             request.start_date,
             request.end_date,
             request.event_date
-        )}
-        </td>
-        <td className="admin-col-location" title={request.event_location || ""}>
-          {request.event_location || "-"}
-        </td>
-        <td className="admin-col-status">
-          <button
-            type="button"
-            className="admin-link-button"
-            onClick={() =>
-              setApplicationsRequestId(applicationsExpanded ? null : request.id)
-            }
-          >
-            지원자 확인 ({jobApplications.length}명)
-          </button>
-        </td>
-        <td className="admin-col-status">
+          )}
+        />
+        <Info label="장소" value={request.event_location || "-"} />
+        <Info label="공개 여부" value={jobPublicState.label} />
+      </dl>
+
+      <div className="admin-request-controls">
+        <FieldControl label="의뢰 상태">
           <InlineSelect
             options={REQUEST_STATUSES}
             value={request.status || "pending"}
             onChange={(value) => updateRequest(request.id, { status: value })}
           />
-        </td>
-        <td className="admin-col-status">
+        </FieldControl>
+        <FieldControl label="연락 상태">
           <InlineSelect
             options={CONTACT_STATUSES}
             value={request.contact_status || "not_contacted"}
@@ -1149,8 +1112,8 @@ function FragmentRequestRow({
               updateRequest(request.id, { contact_status: value })
             }
           />
-        </td>
-        <td className="admin-col-public">
+        </FieldControl>
+        <FieldControl label="결제 상태">
           <InlineSelect
             options={PAYMENT_STATUSES}
             value={request.payment_status || "unpaid"}
@@ -1158,84 +1121,78 @@ function FragmentRequestRow({
               updateRequest(request.id, { payment_status: value })
             }
           />
-        </td>
-        <td>
-          <div className="admin-public-control">
-            <span className={`admin-public-badge ${jobPublicState.type}`}>
-              {jobPublicState.label}
-            </span>
-            <button
-              type="button"
-              className="admin-link-button"
-              disabled={savingKey === `request-job-${request.id}`}
-              onClick={() =>
-                toggleRequestJobPublic(request, jobPublicState.type !== "public")
-              }
-            >
-              {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
-            </button>
-            {request.job_id && (
-              <button
-                type="button"
-                className="admin-link-button"
-                onClick={onJobsAdminClick}
-              >
-                공고 수정
-              </button>
-            )}
-          </div>
-        </td>
-        <td className="admin-col-actions">
-          <div className="admin-row-actions">
-            <button
-              type="button"
-              className="admin-link-button"
-              onClick={() => setExpandedRequestId(expanded ? null : request.id)}
-            >
-              {expanded ? "닫기" : "상세 보기"}
-            </button>
-            <button
-              type="button"
-              className="admin-link-button danger"
-              disabled={savingKey === `request-delete-${request.id}`}
-              onClick={() => deleteRequest(request)}
-            >
-              삭제
-            </button>
-          </div>
-        </td>
-      </tr>
+        </FieldControl>
+      </div>
+
+      <div className="admin-request-actions">
+        <button
+          type="button"
+          className="admin-link-button"
+          onClick={() =>
+            setApplicationsRequestId(applicationsExpanded ? null : request.id)
+          }
+        >
+          지원자 확인 ({jobApplications.length}명)
+        </button>
+        <button
+          type="button"
+          className="admin-link-button"
+          disabled={savingKey === `request-job-${request.id}`}
+          onClick={() =>
+            toggleRequestJobPublic(request, jobPublicState.type !== "public")
+          }
+        >
+          {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
+        </button>
+        {request.job_id && (
+          <button
+            type="button"
+            className="admin-link-button"
+            onClick={onJobsAdminClick}
+          >
+            공고 수정
+          </button>
+        )}
+        <button
+          type="button"
+          className="admin-link-button"
+          onClick={() => setExpandedRequestId(expanded ? null : request.id)}
+        >
+          {expanded ? "닫기" : "상세 보기"}
+        </button>
+        <button
+          type="button"
+          className="admin-link-button danger"
+          disabled={savingKey === `request-delete-${request.id}`}
+          onClick={() => deleteRequest(request)}
+        >
+          삭제
+        </button>
+      </div>
+
       {applicationsExpanded && (
-        <tr className="admin-expanded-row">
-          <td colSpan="13">
-            <JobApplicationsPanel
-              applications={jobApplications}
-              onStatusChange={updateApplicationStatus}
-            />
-          </td>
-        </tr>
+        <JobApplicationsPanel
+          applications={jobApplications}
+          onStatusChange={updateApplicationStatus}
+        />
       )}
       {expanded && (
-        <tr className="admin-expanded-row">
-          <td colSpan="13">
-            <RequestDetailPanel
-              applications={jobApplications}
-              assignmentDrafts={assignmentDrafts}
-              assignments={assignments}
-              interpreters={interpreters}
-              request={request}
-              savingKey={savingKey}
-              setAssignmentDrafts={setAssignmentDrafts}
-              assignInterpreter={assignInterpreter}
-              handlePriceDraft={handlePriceDraft}
-              removeAssignment={removeAssignment}
-              updateRequest={updateRequest}
-              updateApplicationStatus={updateApplicationStatus}
-            />
-          </td>
-        </tr>
+        <RequestDetailPanel
+          applications={jobApplications}
+          assignmentDrafts={assignmentDrafts}
+          assignments={assignments}
+          interpreters={interpreters}
+          request={request}
+          savingKey={savingKey}
+          setAssignmentDrafts={setAssignmentDrafts}
+          assignInterpreter={assignInterpreter}
+          handlePriceDraft={handlePriceDraft}
+          removeAssignment={removeAssignment}
+          updateRequest={updateRequest}
+          updateApplicationStatus={updateApplicationStatus}
+        />
       )}
-    </>
+    </article>
   );
 }
 
@@ -2045,6 +2002,15 @@ function DateControl({ label, value, onChange }) {
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
+    </label>
+  );
+}
+
+function FieldControl({ label, children }) {
+  return (
+    <label className="admin-field-control">
+      <span>{label}</span>
+      {children}
     </label>
   );
 }

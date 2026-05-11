@@ -159,6 +159,12 @@
   gap: 12px;
 }
 
+.admin-request-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .admin-request-card,
 .admin-card {
   padding: 16px;
@@ -166,6 +172,91 @@
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.09);
+}
+
+.admin-request-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-request-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.admin-request-card-head > div {
+  min-width: 0;
+}
+
+.admin-request-card-head h3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-request-id {
+  display: block;
+  margin-bottom: 4px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-request-summary {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.admin-request-summary div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-request-summary dt {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-request-summary dd {
+  min-width: 0;
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.admin-request-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-top: 2px;
+}
+
+.admin-request-actions .admin-link-button {
+  flex: 1 1 120px;
+  min-height: 34px;
+  white-space: normal;
+}
+
+.admin-request-card .admin-detail-panel,
+.admin-request-card .admin-applications-panel {
+  margin-top: 0;
 }
 
 .admin-request-main {
@@ -1121,6 +1212,7 @@
 
 @media (max-width: 980px) {
   .admin-metrics,
+  .admin-request-card-grid,
   .admin-request-main,
   .admin-subpanel,
   .admin-application-card,
@@ -1155,6 +1247,7 @@
   }
 
   .admin-metrics,
+  .admin-request-card-grid,
   .admin-request-main,
   .admin-subpanel,
   .admin-application-card,
@@ -1174,6 +1267,14 @@
 
   .admin-metrics {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .admin-request-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-request-card-head h3 {
+    white-space: normal;
   }
 
   .admin-tabs {
