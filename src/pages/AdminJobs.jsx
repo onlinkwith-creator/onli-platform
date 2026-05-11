@@ -39,7 +39,15 @@ const APPLICATION_STATUS_LABELS = {
   불합격: "불합격",
 };
 
-function AdminJobs({ onBackClick, embedded = false }) {
+function AdminJobs({
+  onBackClick,
+  embedded = false,
+  jobs: controlledJobs,
+  applications: controlledApplications,
+  onDataChanged,
+  updateApplicationStatus: sharedUpdateApplicationStatus,
+}) {
+  const isControlled = embedded && Array.isArray(controlledJobs);
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
   const [expandedJobId, setExpandedJobId] = useState(null);
@@ -48,8 +56,17 @@ function AdminJobs({ onBackClick, embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const visibleJobs = isControlled ? controlledJobs : jobs;
+  const visibleApplications = isControlled
+    ? controlledApplications || []
+    : applications;
 
   const fetchJobs = useCallback(async () => {
+    if (isControlled) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setErrorMessage("");
 
@@ -75,7 +92,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isControlled]);
 
   useEffect(() => {
     queueMicrotask(fetchJobs);
@@ -140,7 +157,11 @@ function AdminJobs({ onBackClick, embedded = false }) {
       if (error) throw error;
 
       resetForm();
-      await fetchJobs();
+      if (isControlled) {
+        await onDataChanged?.();
+      } else {
+        await fetchJobs();
+      }
       alert("공고가 저장되었습니다.");
     } catch (error) {
       console.error(error);
@@ -179,9 +200,13 @@ function AdminJobs({ onBackClick, embedded = false }) {
 
       if (error) throw error;
 
-      setJobs((current) =>
-        current.map((item) => (item.id === job.id ? { ...item, ...changes } : item))
-      );
+      if (isControlled) {
+        await onDataChanged?.();
+      } else {
+        setJobs((current) =>
+          current.map((item) => (item.id === job.id ? { ...item, ...changes } : item))
+        );
+      }
     } catch (error) {
       console.error(error);
       alert(getSupabaseErrorMessage(error, "공고 변경에 실패했습니다."));
@@ -207,10 +232,14 @@ function AdminJobs({ onBackClick, embedded = false }) {
 
       if (error) throw error;
 
-      setJobs((current) => current.filter((item) => item.id !== job.id));
-      setApplications((current) =>
-        current.filter((application) => String(application.job_id) !== String(job.id))
-      );
+      if (isControlled) {
+        await onDataChanged?.();
+      } else {
+        setJobs((current) => current.filter((item) => item.id !== job.id));
+        setApplications((current) =>
+          current.filter((application) => String(application.job_id) !== String(job.id))
+        );
+      }
       setExpandedJobId((current) =>
         String(current) === String(job.id) ? null : current
       );
@@ -222,10 +251,12 @@ function AdminJobs({ onBackClick, embedded = false }) {
   };
 
   const getApplicationsForJob = (jobId) =>
-    applications.filter((application) => String(application.job_id) === String(jobId));
+    visibleApplications.filter(
+      (application) => String(application.job_id) === String(jobId)
+    );
 
   const getMatchedCount = (jobId) =>
-    applications.filter(
+    visibleApplications.filter(
       (application) =>
         String(application.job_id) === String(jobId) &&
         application.status === "매칭완료"
@@ -242,6 +273,14 @@ function AdminJobs({ onBackClick, embedded = false }) {
     status,
     { confirmMessage, askAssignJob = false } = {}
   ) => {
+    if (sharedUpdateApplicationStatus) {
+      await sharedUpdateApplicationStatus(application, status, {
+        confirmMessage,
+        askAssignJob,
+      });
+      return;
+    }
+
     if (!application?.id) {
       console.error("지원자 상태 변경 실패: application.id가 없습니다.", application);
       alert("지원자 정보를 확인할 수 없습니다.");
@@ -311,7 +350,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
   const content = (
     <>
       <section className="admin-section">
-        <SectionTitle count={`${jobs.length}건`} title="통역 공고 관리" />
+          <SectionTitle count={`${visibleJobs.length}건`} title="통역 공고 관리" />
 
         <form className="admin-job-form" onSubmit={handleSubmit}>
           <JobField label="공고 제목">
@@ -395,31 +434,28 @@ function AdminJobs({ onBackClick, embedded = false }) {
             <table className="admin-table admin-jobs-table">
               <thead>
                 <tr>
-                  <th className="admin-col-title">공고 제목</th>
-                  <th className="admin-col-status">의뢰 유형</th>
-                  <th className="admin-col-company">지정 통역사</th>
-                  <th className="admin-col-location">장소</th>
+                  <th className="admin-col-title">행사명</th>
+                  <th className="admin-col-company">기업명</th>
                   <th className="admin-col-date">날짜</th>
-                  <th>일급</th>
+                  <th className="admin-col-location">장소</th>
                   <th className="admin-col-language">언어</th>
-                  <th>레벨</th>
-                  <th>우대</th>
-                  <th>인원</th>
-                  <th className="admin-col-status">공개 상태</th>
+                  <th>일급</th>
+                  <th className="admin-col-status">지원자</th>
+                  <th className="admin-col-status">매칭완료</th>
                   <th className="admin-col-status">모집 상태</th>
-                  <th className="admin-col-actions">지원자</th>
+                  <th className="admin-col-status">공개 상태</th>
                   <th className="admin-col-actions">관리</th>
                 </tr>
               </thead>
               <tbody>
-                {jobs.length === 0 ? (
+                {visibleJobs.length === 0 ? (
                   <tr>
-                    <td colSpan="14" className="admin-empty-row">
+                    <td colSpan="11" className="admin-empty-row">
                       현재 등록된 공고가 없습니다.
                     </td>
                   </tr>
                 ) : (
-                  jobs.map((job) => {
+                  visibleJobs.map((job) => {
                     const jobApplications = getApplicationsForJob(job.id);
                     const matchedCount = getMatchedCount(job.id);
                     const expanded = String(expandedJobId) === String(job.id);
@@ -433,18 +469,23 @@ function AdminJobs({ onBackClick, embedded = false }) {
                             className="admin-strong-cell admin-col-title"
                             title={job.title || ""}
                           >
-                            <span className="admin-job-title">{job.title || "-"}</span>
-                          </td>
-                          <td className="admin-col-status">
-                            <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
+                            <span className="admin-job-title">
+                              {job.event_name || job.title || "-"}
+                            </span>
+                            <span className={`status-badge ${requestType.isDesignated ? "badge-purple" : "badge-gray"}`}>
                               {requestType.label}
                             </span>
                           </td>
-                          <td className="admin-col-company" title={interpreterName}>
-                            {interpreterName}
-                          </td>
-                          <td className="admin-col-location" title={job.location || ""}>
-                            <span className="location-cell">{job.location || "-"}</span>
+                          <td
+                            className="admin-col-company"
+                            title={job.company_name || interpreterName}
+                          >
+                            {job.company_name || "-"}
+                            {requestType.isDesignated && (
+                              <span className="admin-muted-inline">
+                                지정: {interpreterName}
+                              </span>
+                            )}
                           </td>
                           <td className="admin-col-date">
                             {formatDateRange(
@@ -453,29 +494,29 @@ function AdminJobs({ onBackClick, embedded = false }) {
                               job.event_date || job.date
                             )}
                           </td>
-                          <td title={job.pay || ""}>{job.pay || "-"}</td>
+                          <td className="admin-col-location" title={job.location || job.event_location || ""}>
+                            <span className="location-cell">{job.location || job.event_location || "-"}</span>
+                          </td>
                           <td className="admin-col-language language-cell" title={job.language || ""}>
                             {job.language || "-"}
                           </td>
-                          <td title={job.level || ""}>{job.level || "-"}</td>
-                          <td title={job.preference || ""}>{job.preference || "-"}</td>
-                          <td>{job.people || "-"}</td>
+                          <td title={job.pay || ""}>{job.pay || "-"}</td>
                           <td className="admin-col-status">
-                            <select
-                              className="admin-inline-select"
-                              value={normalizeJobVisibility(job)}
-                              onChange={(event) =>
-                                updateJob(job, { visibility: event.target.value })
+                            <button
+                              type="button"
+                              className="admin-link-button primary"
+                              onClick={() =>
+                                setExpandedJobId((current) =>
+                                  String(current) === String(job.id) ? null : job.id
+                                )
                               }
                             >
-                              {JOB_VISIBILITY_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                            <span className={`status-badge job-visibility-${normalizeJobVisibility(job)}`}>
-                              {getJobVisibilityLabel(job)}
+                              지원자 {jobApplications.length}명
+                            </button>
+                          </td>
+                          <td className="admin-col-status">
+                            <span className="admin-match-count">
+                              {matchedCount}명
                             </span>
                           </td>
                           <td className="admin-col-status">
@@ -495,24 +536,26 @@ function AdminJobs({ onBackClick, embedded = false }) {
                                 </option>
                               ))}
                             </select>
-                            <span className={`status-badge job-status-${normalizeJobStatus(job)}`}>
+                            <span className={`status-badge ${getJobStatusBadgeClass(normalizeJobStatus(job))}`}>
                               {getJobStatusLabel(job)}
                             </span>
                           </td>
-                          <td className="admin-col-actions">
-                            <button
-                              type="button"
-                              className="admin-link-button"
-                              onClick={() =>
-                                setExpandedJobId((current) =>
-                                  String(current) === String(job.id) ? null : job.id
-                                )
+                          <td className="admin-col-status">
+                            <select
+                              className="admin-inline-select"
+                              value={normalizeJobVisibility(job)}
+                              onChange={(event) =>
+                                updateJob(job, { visibility: event.target.value })
                               }
                             >
-                              지원자 확인 ({jobApplications.length}명)
-                            </button>
-                            <span className="admin-match-count">
-                              매칭완료 {matchedCount}명
+                              {JOB_VISIBILITY_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <span className={`status-badge ${getVisibilityBadgeClass(normalizeJobVisibility(job))}`}>
+                              {getJobVisibilityLabel(job)}
                             </span>
                           </td>
                           <td className="admin-col-actions actions-cell">
@@ -536,7 +579,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                         </tr>
                         {expanded && (
                           <tr className="admin-expanded-row admin-job-applications-row">
-                            <td colSpan="14">
+                            <td colSpan="11">
                               <JobApplicationsPanel
                                 applications={jobApplications}
                                 job={job}
@@ -617,12 +660,14 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
           <table className="admin-nested-table">
             <thead>
               <tr>
+                <th>지원일</th>
                 <th>이름</th>
+                <th>성별</th>
                 <th>언어</th>
                 <th>경력</th>
-                <th>지원일</th>
-                <th>상태</th>
                 <th>연락처</th>
+                <th>이메일</th>
+                <th>상태</th>
                 <th>메모</th>
                 <th>관리</th>
               </tr>
@@ -630,17 +675,20 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
             <tbody>
               {applications.map((application) => (
                 <tr key={application.id}>
+                  <td>{formatDate(application.created_at)}</td>
                   <td className="admin-strong-cell" title={application.applicant_name || ""}>
                     {application.applicant_name || "이름 미입력"}
                   </td>
-                  <td>{application.language || application.japanese_level || "-"}</td>
+                  <td>{application.gender || "-"}</td>
+                  <td>{application.language || application.japanese_level || job.language || "-"}</td>
                   <td>{application.experience || application.career || "-"}</td>
-                  <td>{formatDate(application.created_at)}</td>
-                  <td><StatusBadge status={application.status || "지원완료"} /></td>
                   <td title={`${application.phone || ""} ${application.email || ""}`}>
                     {application.phone || "연락처 미입력"}
-                    <span className="admin-muted-inline">{application.email || ""}</span>
                   </td>
+                  <td title={application.email || ""}>
+                    {application.email || "-"}
+                  </td>
+                  <td><StatusBadge status={application.status || "지원완료"} /></td>
                   <td title={application.message || ""}>
                     {application.message || "지원 메모 없음"}
                   </td>
@@ -651,7 +699,7 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                       ) : (
                         <button
                           type="button"
-                          className="admin-link-button"
+                          className="admin-link-button primary"
                           onClick={() =>
                             onStatusChange(application, "매칭완료", {
                               confirmMessage: "이 지원자를 해당 공고에 매칭하시겠습니까?",
@@ -703,10 +751,37 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
 function StatusBadge({ status }) {
   const normalized = APPLICATION_STATUS_LABELS[status] || status || "지원완료";
   return (
-    <span className={`status-badge application-status-${normalized}`}>
+    <span className={`status-badge ${getStatusBadgeClass(normalized)}`}>
       {normalized}
     </span>
   );
+}
+
+function getStatusBadgeClass(status) {
+  if (["모집중", "open", "공개", "public", "매칭완료"].includes(status)) {
+    return "badge-green";
+  }
+  if (["배정완료", "assigned", "지원완료"].includes(status)) {
+    return "badge-blue";
+  }
+  if (["모집마감", "closed", "비공개", "private", "일반의뢰"].includes(status)) {
+    return "badge-gray";
+  }
+  if (status === "검토중") return "badge-yellow";
+  if (status === "보류") return "badge-orange";
+  if (status === "불합격") return "badge-red";
+  if (status === "지정의뢰") return "badge-purple";
+  return "badge-blue";
+}
+
+function getJobStatusBadgeClass(status) {
+  return getStatusBadgeClass(
+    { open: "모집중", assigned: "배정완료", closed: "모집마감" }[status] || status
+  );
+}
+
+function getVisibilityBadgeClass(visibility) {
+  return getStatusBadgeClass(visibility === "public" ? "공개" : "비공개");
 }
 
 function getDesignatedJobType(job = {}) {
