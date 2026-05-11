@@ -84,10 +84,29 @@
 .admin-metric-card {
   min-height: 62px;
   padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.admin-metric-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(79, 70, 229, 0.22);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+}
+
+.admin-metric-card:focus-visible {
+  outline: 2px solid rgba(79, 70, 229, 0.32);
+  outline-offset: 2px;
 }
 
 .admin-metric-card span {

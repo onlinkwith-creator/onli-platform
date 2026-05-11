@@ -318,6 +318,39 @@ function Admin() {
     [jobApplications, requests]
   );
 
+  const metricCards = [
+    {
+      label: "전체 의뢰",
+      value: `${dashboard.totalRequests}건`,
+      targetTab: "requests",
+    },
+    {
+      label: "오늘 신규 지원",
+      value: `${dashboard.todayApplications}건`,
+      targetTab: "applications",
+    },
+    {
+      label: "미확인 지원",
+      value: `${dashboard.uncheckedApplications}건`,
+      targetTab: "applications",
+    },
+    {
+      label: "오늘 매칭 완료",
+      value: `${dashboard.todayMatched}건`,
+      targetTab: "matching",
+    },
+    {
+      label: "진행중 프로젝트",
+      value: `${dashboard.ongoingRequests}건`,
+      targetTab: "requests",
+    },
+    {
+      label: "긴급 요청(D-7)",
+      value: `${dashboard.urgentRequests}건`,
+      targetTab: "requests",
+    },
+  ];
+
   const switchToJobsTab = () => {
     setActiveTab("jobs");
   };
@@ -794,24 +827,14 @@ function Admin() {
         ) : (
           <>
             <section className="admin-metrics">
-              <MetricCard label="전체 의뢰" value={`${dashboard.totalRequests}건`} />
-              <MetricCard label="오늘 신규 지원" value={`${dashboard.todayApplications}건`} />
-              <MetricCard
-                label="미확인 지원"
-                value={`${dashboard.uncheckedApplications}건`}
-              />
-              <MetricCard
-                label="오늘 매칭 완료"
-                value={`${dashboard.todayMatched}건`}
-              />
-              <MetricCard
-                label="진행중 프로젝트"
-                value={`${dashboard.ongoingRequests}건`}
-              />
-              <MetricCard
-                label="긴급 요청(D-7)"
-                value={`${dashboard.urgentRequests}건`}
-              />
+              {metricCards.map((card) => (
+                <MetricCard
+                  key={card.label}
+                  label={card.label}
+                  value={card.value}
+                  onClick={() => setActiveTab(card.targetTab)}
+                />
+              ))}
             </section>
 
             <nav className="admin-tabs" aria-label="관리자 메뉴">
@@ -1948,12 +1971,12 @@ function MatchingManagement({
   );
 }
 
-function MetricCard({ label, value }) {
+function MetricCard({ label, value, onClick }) {
   return (
-    <article className="admin-metric-card">
+    <button type="button" className="admin-metric-card" onClick={onClick}>
       <span>{label}</span>
       <strong>{value}</strong>
-    </article>
+    </button>
   );
 }
 
