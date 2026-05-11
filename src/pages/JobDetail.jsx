@@ -164,7 +164,7 @@ function JobDetail({ jobId, onBackClick }) {
             </article>
 
             <aside className="job-apply-card">
-              <h2>지원하기</h2>
+              <h2>{canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}</h2>
               <form onSubmit={handleSubmit}>
                 <label>
                   <span>이름</span>
@@ -210,8 +210,12 @@ function JobDetail({ jobId, onBackClick }) {
                   지원 내용은 ON-LI 운영팀을 통해 전달됩니다.
                 </p>
 
-                <button type="submit" disabled={submitting}>
-                  {submitting ? "지원 접수 중..." : "지원하기"}
+                <button type="submit" disabled={submitting || !canApplyToJob(job)}>
+                  {canApplyToJob(job)
+                    ? submitting
+                      ? "지원 접수 중..."
+                      : "지원하기"
+                    : getJobStatusLabel(job)}
                 </button>
               </form>
             </aside>

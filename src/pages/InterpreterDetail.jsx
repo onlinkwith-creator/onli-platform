@@ -7,66 +7,76 @@ function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
     );
   }
 
+  const experienceCount = interpreter.experience_count
+    ? `${interpreter.experience_count}회`
+    : interpreter.interpretation_experience === "있음"
+      ? "횟수 미입력"
+      : "0회";
+
   return (
     <div style={styles.page}>
       <div style={styles.container}>
-        <button onClick={onBackClick} style={styles.backButton}>
-          ← 리스트로 돌아가기
-        </button>
-
-        <div style={styles.card}>
-          <div style={styles.header}>
+        <section style={styles.profileCard}>
+          <div style={styles.profileHeader}>
             <div>
               <p style={styles.label}>ON-LI INTERPRETER PROFILE</p>
               <h1 style={styles.name}>{interpreter.name || "이름 미입력"}</h1>
-              <p style={styles.region}>{interpreter.region || "지역 미입력"}</p>
+              <p style={styles.summary}>
+                {interpreter.gender || "성별 미입력"} · 나이(만){" "}
+                {interpreter.age || "-"} · {interpreter.region || "지역 미입력"}
+              </p>
             </div>
-
-            <span style={styles.badge}>
-              {interpreter.jlpt || "JLPT 미입력"}
-            </span>
+            <span style={styles.badge}>{interpreter.level || "Lv 미정"}</span>
           </div>
 
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>기본 정보</h2>
-            <Info label="성별" value={interpreter.gender} />
-            <Info label="나이" value={interpreter.age} />
-            <Info label="거주 지역" value={interpreter.region} />
+          <div style={styles.infoGrid}>
+            <Info label="활동 가능 지역" value={formatList(interpreter.available_regions)} />
+            <Info label="언어 수준" value={interpreter.language_level || interpreter.level} />
+            <Info label="JLPT N1 여부" value={interpreter.jlpt || "N1 미입력"} />
+            <Info label="일본 체류 기간" value={interpreter.stay_period} />
             <Info label="학교/전공" value={interpreter.school} />
-            <Info label="일본 거주 기간" value={interpreter.stay_period} />
+            <Info label="가능 업무" value={interpreter.available_tasks} />
           </div>
+        </section>
 
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>통역 역량</h2>
-            <Info label="JLPT" value={interpreter.jlpt} />
+        <div style={styles.contentGrid}>
+          <section style={styles.card}>
+            <h2 style={styles.sectionTitle}>Experience</h2>
             <Info
-              label="통역 경험"
-              value={
-                interpreter.experience_count
-                  ? `${interpreter.experience_count}회`
-                  : "-"
-              }
+              label="통역 경험 여부"
+              value={interpreter.interpretation_experience || (interpreter.experience_count ? "있음" : "없음")}
             />
-            <Info label="레벨" value={interpreter.level || "Lv 미정"} />
-          </div>
+            <Info label="경험 횟수" value={experienceCount} />
+            <div style={styles.badgeList}>
+              {getList(interpreter.specialties).length === 0 ? (
+                <span style={styles.emptyBadge}>전문 분야 미입력</span>
+              ) : (
+                getList(interpreter.specialties).map((item) => (
+                  <span key={item} style={styles.fieldBadge}>
+                    {item}
+                  </span>
+                ))
+              )}
+            </div>
+          </section>
 
-          <div style={styles.priceBox}>
-            <p style={styles.priceTitle}>예상 의뢰 금액</p>
-            <p style={styles.priceText}>₩200,000 ~ ₩300,000 / day</p>
-            <p style={styles.priceNotice}>
-              최종 금액은 일정, 근무 시간, 긴급도, 업무 난이도에 따라 안내됩니다.
+          <section style={styles.card}>
+            <h2 style={styles.sectionTitle}>Contact</h2>
+            <Info label="이메일" value={interpreter.email} />
+            <Info label="전화번호" value={interpreter.phone} />
+            <Info label="Kakao/LINE" value={interpreter.kakao_or_line} />
+            <p style={styles.notice}>
+              연락처는 의뢰 검토와 매칭 확정 과정에서 운영팀 기준에 따라 활용됩니다.
             </p>
-          </div>
+          </section>
+        </div>
 
-          <div style={styles.noticeBox}>
-            연락처는 의뢰 내용 확인 및 매칭 확정 전 공개되지 않습니다.
-          </div>
-
-          <button
-            onClick={() => onRequestClick(interpreter)}
-            style={styles.requestButton}
-          >
-            이 통역사로 의뢰 문의하기
+        <div style={styles.actions}>
+          <button onClick={() => onRequestClick(interpreter)} style={styles.requestButton}>
+            이 통역사 지정해서 의뢰하기
+          </button>
+          <button onClick={onBackClick} style={styles.backButton}>
+            뒤로가기
           </button>
         </div>
       </div>
@@ -87,133 +97,161 @@ function MessageBox({ text }) {
   return <div style={styles.messageBox}>{text}</div>;
 }
 
+function getList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (!value) return [];
+  return String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatList(value) {
+  const list = getList(value);
+  return list.length ? list.join(", ") : "-";
+}
+
 const styles = {
   page: {
     minHeight: "100vh",
     width: "100vw",
     background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
-    padding: "60px 24px",
+    padding: "44px 16px",
     boxSizing: "border-box",
     color: "#111827",
   },
   container: {
-    maxWidth: "900px",
+    maxWidth: "980px",
     margin: "0 auto",
   },
-  backButton: {
-    marginBottom: "30px",
-    padding: "12px 18px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    background: "white",
-    cursor: "pointer",
-    fontWeight: "600",
+  profileCard: {
+    background: "#ffffff",
+    borderRadius: "18px",
+    padding: "28px",
+    boxShadow: "0 16px 40px rgba(15, 23, 42, 0.1)",
+    border: "1px solid #e5e7eb",
   },
-  card: {
-    background: "rgba(255, 255, 255, 0.95)",
-    borderRadius: "28px",
-    padding: "36px",
-    boxShadow: "0 20px 50px rgba(15, 23, 42, 0.12)",
-    border: "1px solid rgba(255,255,255,0.8)",
-  },
-  header: {
+  profileHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: "20px",
-    marginBottom: "34px",
+    gap: "16px",
+    flexWrap: "wrap",
+    marginBottom: "22px",
   },
   label: {
     fontSize: "12px",
-    letterSpacing: "4px",
+    letterSpacing: "3px",
     color: "#4f46e5",
-    fontWeight: "800",
-    marginBottom: "10px",
+    fontWeight: "900",
+    margin: "0 0 8px",
   },
   name: {
     margin: 0,
-    fontSize: "40px",
+    fontSize: "clamp(30px, 5vw, 44px)",
     fontWeight: "900",
     color: "#111827",
   },
-  region: {
-    marginTop: "10px",
-    color: "#6b7280",
+  summary: {
+    margin: "10px 0 0",
+    color: "#4b5563",
     fontSize: "15px",
+    lineHeight: 1.6,
+    overflowWrap: "anywhere",
   },
   badge: {
-    padding: "8px 14px",
+    padding: "6px 11px",
     borderRadius: "999px",
     background: "#eef2ff",
     color: "#4f46e5",
-    fontSize: "13px",
-    fontWeight: "800",
+    fontSize: "12px",
+    fontWeight: "900",
     whiteSpace: "nowrap",
   },
-  section: {
-    marginTop: "28px",
+  infoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "0 18px",
+  },
+  contentGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "14px",
+    marginTop: "14px",
+  },
+  card: {
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "16px",
+    padding: "22px",
+    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
   },
   sectionTitle: {
-    fontSize: "20px",
-    fontWeight: "800",
-    marginBottom: "14px",
+    margin: "0 0 12px",
     color: "#111827",
+    fontSize: "18px",
+    fontWeight: "900",
   },
   infoRow: {
     display: "flex",
     justifyContent: "space-between",
-    gap: "14px",
-    padding: "13px 0",
+    gap: "12px",
+    padding: "10px 0",
     borderBottom: "1px solid #f1f5f9",
-    fontSize: "15px",
+    fontSize: "14px",
   },
   infoLabel: {
     color: "#6b7280",
-    fontWeight: "700",
+    fontWeight: "800",
+    whiteSpace: "nowrap",
   },
   infoValue: {
     color: "#111827",
     textAlign: "right",
-    fontWeight: "600",
+    fontWeight: "700",
+    overflowWrap: "anywhere",
   },
-  priceBox: {
-    marginTop: "30px",
-    padding: "20px",
-    borderRadius: "18px",
-    background: "#eef2ff",
+  badgeList: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "7px",
+    marginTop: "14px",
   },
-  priceTitle: {
-    margin: "0 0 8px",
-    fontSize: "14px",
-    fontWeight: "800",
-    color: "#4f46e5",
-  },
-  priceText: {
-    margin: 0,
-    fontSize: "24px",
+  fieldBadge: {
+    padding: "5px 9px",
+    borderRadius: "999px",
+    background: "#f3f4f6",
+    color: "#374151",
+    fontSize: "12px",
     fontWeight: "900",
-    color: "#111827",
   },
-  priceNotice: {
-    margin: "8px 0 0",
-    fontSize: "13px",
-    color: "#6b7280",
-    lineHeight: "1.6",
-  },
-  noticeBox: {
-    marginTop: "24px",
-    padding: "18px",
-    borderRadius: "18px",
+  emptyBadge: {
+    padding: "5px 9px",
+    borderRadius: "999px",
     background: "#f8fafc",
     color: "#6b7280",
-    fontSize: "14px",
-    lineHeight: "1.7",
+    fontSize: "12px",
+    fontWeight: "900",
+  },
+  notice: {
+    margin: "14px 0 0",
+    padding: "12px",
+    borderRadius: "12px",
+    background: "#f8fafc",
+    color: "#4b5563",
+    fontSize: "13px",
+    lineHeight: 1.6,
+  },
+  actions: {
+    display: "flex",
+    gap: "10px",
+    marginTop: "14px",
+    flexWrap: "wrap",
   },
   requestButton: {
-    marginTop: "24px",
-    width: "100%",
-    padding: "16px",
-    borderRadius: "16px",
+    flex: "1 1 260px",
+    padding: "14px 16px",
+    borderRadius: "12px",
     border: "none",
     background: "#4f46e5",
     color: "white",
@@ -221,12 +259,23 @@ const styles = {
     cursor: "pointer",
     fontSize: "15px",
   },
+  backButton: {
+    flex: "0 1 160px",
+    padding: "14px 16px",
+    borderRadius: "12px",
+    border: "1px solid #d1d5db",
+    background: "#ffffff",
+    color: "#111827",
+    fontWeight: "900",
+    cursor: "pointer",
+    fontSize: "14px",
+  },
   messageBox: {
     maxWidth: "900px",
     margin: "0 auto",
     background: "white",
-    padding: "40px",
-    borderRadius: "20px",
+    padding: "32px",
+    borderRadius: "16px",
     textAlign: "center",
     color: "#6b7280",
   },

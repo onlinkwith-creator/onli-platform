@@ -524,15 +524,25 @@
   color: #4f46e5;
   font-size: 12px;
   font-weight: 900;
+  white-space: nowrap;
 }
 
-.home-job-status.urgent {
+.home-job-status.open {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.home-job-status.closing_soon {
   background: #fff7ed;
   color: #c2410c;
 }
 
-.home-job-status.closed,
 .home-job-status.assigned {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.home-job-status.closed {
   background: #f3f4f6;
   color: #4b5563;
 }
@@ -543,6 +553,10 @@
   font-size: 19px;
   font-weight: 900;
   line-height: 1.35;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .home-job-card dl {
@@ -845,8 +859,8 @@
 
   .home-main {
     grid-template-columns: 1fr;
-    gap: 40px;
-    padding: 32px 20px 64px;
+    gap: 28px;
+    padding: 24px 16px 42px;
     text-align: center;
   }
 
@@ -863,14 +877,14 @@
   }
 
   .home-hero-title {
-    font-size: clamp(34px, 9vw, 46px);
+    font-size: 34px;
     line-height: 1.25;
     text-align: center;
   }
 
   .home-description {
     max-width: 100%;
-    font-size: 17px;
+    font-size: 16px;
     line-height: 1.72;
   }
 
@@ -884,6 +898,29 @@
   .home-actions button {
     width: 100%;
     max-width: 320px;
+  }
+
+  .home-feature-card,
+  .home-process,
+  .home-jobs-preview,
+  .home-interpreters,
+  .home-company-cta {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .home-job-carousel-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .home-job-carousel-button {
+    display: none;
+  }
+
+  .home-job-card {
+    flex-basis: 86%;
+    min-height: 390px;
+    padding: 18px;
   }
 
   .home-nav button {

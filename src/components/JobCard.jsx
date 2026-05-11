@@ -9,7 +9,7 @@ function JobCard({ job, onApplyClick }) {
   return (
     <article className="home-job-card">
       <div>
-        <span className={`home-job-status ${status === "closing_soon" ? "urgent" : status}`}>
+        <span className={`home-job-status ${status}`}>
           {badge}
         </span>
         <h3>{job.title || "공고 제목 미입력"}</h3>
@@ -33,7 +33,7 @@ function JobCard({ job, onApplyClick }) {
       </dl>
 
       <button type="button" onClick={onApplyClick} disabled={!canApply}>
-        {canApply ? "지원하기" : "마감됨"}
+        {canApply ? "지원하기" : badge}
       </button>
     </article>
   );

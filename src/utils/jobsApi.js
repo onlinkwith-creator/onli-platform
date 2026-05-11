@@ -6,10 +6,12 @@ const PUBLIC_JOB_STATUSES = [
   "open",
   "closing_soon",
   "closed",
+  "assigned",
   "모집중",
   "마감임박",
   "마감",
   "모집마감",
+  "배정완료",
 ];
 
 function isMissingColumnError(error) {

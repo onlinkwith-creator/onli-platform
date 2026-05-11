@@ -114,7 +114,10 @@ function App() {
       )}
 
       {page === "register" && (
-        <RegisterInterpreter onBackClick={() => navigate("home", null)} />
+        <RegisterInterpreter
+          onBackClick={() => navigate("home", null)}
+          onSubmitSuccess={() => navigate("home", null)}
+        />
       )}
 
       {page === "admin" && (

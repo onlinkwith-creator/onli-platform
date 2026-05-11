@@ -396,6 +396,8 @@ function AdminJobs({ onBackClick, embedded = false }) {
               <thead>
                 <tr>
                   <th className="admin-col-title">공고 제목</th>
+                  <th className="admin-col-status">의뢰 유형</th>
+                  <th className="admin-col-company">지정 통역사</th>
                   <th className="admin-col-location">장소</th>
                   <th className="admin-col-date">날짜</th>
                   <th>일급</th>
@@ -412,7 +414,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
               <tbody>
                 {jobs.length === 0 ? (
                   <tr>
-                    <td colSpan="12" className="admin-empty-row">
+                    <td colSpan="14" className="admin-empty-row">
                       현재 등록된 공고가 없습니다.
                     </td>
                   </tr>
@@ -421,6 +423,8 @@ function AdminJobs({ onBackClick, embedded = false }) {
                     const jobApplications = getApplicationsForJob(job.id);
                     const matchedCount = getMatchedCount(job.id);
                     const expanded = String(expandedJobId) === String(job.id);
+                    const requestType = getDesignatedJobType(job);
+                    const interpreterName = getDesignatedInterpreterName(job);
 
                     return (
                       <Fragment key={job.id}>
@@ -430,6 +434,14 @@ function AdminJobs({ onBackClick, embedded = false }) {
                             title={job.title || ""}
                           >
                             <span className="admin-job-title">{job.title || "-"}</span>
+                          </td>
+                          <td className="admin-col-status">
+                            <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
+                              {requestType.label}
+                            </span>
+                          </td>
+                          <td className="admin-col-company" title={interpreterName}>
+                            {interpreterName}
                           </td>
                           <td className="admin-col-location" title={job.location || ""}>
                             <span className="location-cell">{job.location || "-"}</span>
@@ -462,7 +474,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                                 </option>
                               ))}
                             </select>
-                            <span className="admin-muted-inline">
+                            <span className={`status-badge job-visibility-${normalizeJobVisibility(job)}`}>
                               {getJobVisibilityLabel(job)}
                             </span>
                           </td>
@@ -483,7 +495,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                                 </option>
                               ))}
                             </select>
-                            <span className="admin-muted-inline">
+                            <span className={`status-badge job-status-${normalizeJobStatus(job)}`}>
                               {getJobStatusLabel(job)}
                             </span>
                           </td>
@@ -524,7 +536,7 @@ function AdminJobs({ onBackClick, embedded = false }) {
                         </tr>
                         {expanded && (
                           <tr className="admin-expanded-row admin-job-applications-row">
-                            <td colSpan="12">
+                            <td colSpan="14">
                               <JobApplicationsPanel
                                 applications={jobApplications}
                                 job={job}
@@ -601,76 +613,87 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
       {applications.length === 0 ? (
         <span className="admin-empty-chip">이 공고에는 아직 지원자가 없습니다.</span>
       ) : (
-        <div className="admin-application-list">
-          {applications.map((application) => (
-            <article key={application.id} className="admin-application-card">
-              <div>
-                <strong title={application.applicant_name || ""}>
-                  {application.applicant_name || "이름 미입력"}
-                </strong>
-                <span
-                  className="email-cell"
-                  title={`${application.phone || "연락처 미입력"} · ${
-                    application.email || "이메일 미입력"
-                  }`}
-                >
-                  {application.phone || "연락처 미입력"} ·{" "}
-                  {application.email || "이메일 미입력"}
-                </span>
-                <span>
-                  지원일 {formatDate(application.created_at)} ·{" "}
-                  <StatusBadge status={application.status || "지원완료"} />
-                </span>
-                <p title={application.message || ""}>
-                  {application.message || "지원 메모 없음"}
-                </p>
-              </div>
-              <div className="admin-application-actions actions-cell">
-                {application.status === "매칭완료" ? (
-                  <StatusBadge status="매칭완료" />
-                ) : (
-                  <button
-                    type="button"
-                    className="admin-link-button"
-                    onClick={() =>
-                      onStatusChange(application, "매칭완료", {
-                        confirmMessage: "이 지원자를 해당 공고에 매칭하시겠습니까?",
-                        askAssignJob: true,
-                      })
-                    }
-                  >
-                    매칭하기
-                  </button>
-                )}
-                {application.status !== "보류" && (
-                  <button
-                    type="button"
-                    className="admin-link-button warning"
-                    onClick={() =>
-                      onStatusChange(application, "보류", {
-                        confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
-                      })
-                    }
-                  >
-                    보류
-                  </button>
-                )}
-                {application.status !== "불합격" && (
-                  <button
-                    type="button"
-                    className="admin-link-button danger"
-                    onClick={() =>
-                      onStatusChange(application, "불합격", {
-                        confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
-                      })
-                    }
-                  >
-                    불합격
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+        <div className="admin-nested-table-wrap">
+          <table className="admin-nested-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>언어</th>
+                <th>경력</th>
+                <th>지원일</th>
+                <th>상태</th>
+                <th>연락처</th>
+                <th>메모</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {applications.map((application) => (
+                <tr key={application.id}>
+                  <td className="admin-strong-cell" title={application.applicant_name || ""}>
+                    {application.applicant_name || "이름 미입력"}
+                  </td>
+                  <td>{application.language || application.japanese_level || "-"}</td>
+                  <td>{application.experience || application.career || "-"}</td>
+                  <td>{formatDate(application.created_at)}</td>
+                  <td><StatusBadge status={application.status || "지원완료"} /></td>
+                  <td title={`${application.phone || ""} ${application.email || ""}`}>
+                    {application.phone || "연락처 미입력"}
+                    <span className="admin-muted-inline">{application.email || ""}</span>
+                  </td>
+                  <td title={application.message || ""}>
+                    {application.message || "지원 메모 없음"}
+                  </td>
+                  <td>
+                    <div className="admin-application-actions actions-cell">
+                      {application.status === "매칭완료" ? (
+                        <StatusBadge status="매칭완료" />
+                      ) : (
+                        <button
+                          type="button"
+                          className="admin-link-button"
+                          onClick={() =>
+                            onStatusChange(application, "매칭완료", {
+                              confirmMessage: "이 지원자를 해당 공고에 매칭하시겠습니까?",
+                              askAssignJob: true,
+                            })
+                          }
+                        >
+                          매칭하기
+                        </button>
+                      )}
+                      {application.status !== "보류" && (
+                        <button
+                          type="button"
+                          className="admin-link-button warning"
+                          onClick={() =>
+                            onStatusChange(application, "보류", {
+                              confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
+                            })
+                          }
+                        >
+                          보류
+                        </button>
+                      )}
+                      {application.status !== "불합격" && (
+                        <button
+                          type="button"
+                          className="admin-link-button danger"
+                          onClick={() =>
+                            onStatusChange(application, "불합격", {
+                              confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
+                            })
+                          }
+                        >
+                          불합격
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -683,6 +706,30 @@ function StatusBadge({ status }) {
     <span className={`status-badge application-status-${normalized}`}>
       {normalized}
     </span>
+  );
+}
+
+function getDesignatedJobType(job = {}) {
+  const isDesignated = Boolean(
+    job.selected_interpreter_id ||
+      job.selected_interpreter_name ||
+      job.interpreter_id ||
+      job.interpreter_name
+  );
+
+  return {
+    isDesignated,
+    label: isDesignated ? "지정의뢰" : "일반의뢰",
+  };
+}
+
+function getDesignatedInterpreterName(job = {}) {
+  return (
+    job.selected_interpreter_name ||
+    job.interpreter_name ||
+    (job.selected_interpreter_id || job.interpreter_id
+      ? `#${job.selected_interpreter_id || job.interpreter_id}`
+      : "-")
   );
 }
 

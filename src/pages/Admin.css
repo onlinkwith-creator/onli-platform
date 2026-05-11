@@ -2,8 +2,8 @@
   min-height: 100vh;
   width: 100vw;
   box-sizing: border-box;
-  padding: 34px 18px;
-  background: linear-gradient(135deg, #f8fafc, #eef2ff);
+  padding: 24px 16px;
+  background: #f6f7fb;
   color: #111827;
 }
 
@@ -45,7 +45,7 @@
 
 .admin-header h1 {
   margin: 0;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 900;
   color: #111827;
 }
@@ -82,8 +82,8 @@
 }
 
 .admin-metric-card {
-  padding: 14px 16px;
-  border-radius: 14px;
+  padding: 11px 13px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
@@ -92,15 +92,15 @@
 .admin-metric-card span {
   display: block;
   color: #6b7280;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
 }
 
 .admin-metric-card strong {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   color: #111827;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 900;
 }
 
@@ -583,11 +583,11 @@
 
 .admin-table th,
 .admin-table td {
-  padding: 10px 12px;
+  padding: 9px 10px;
   border-bottom: 1px solid #eef2f7;
   text-align: left;
   vertical-align: middle;
-  line-height: 1.45;
+  line-height: 1.32;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -740,6 +740,46 @@
   color: #4f46e5;
 }
 
+.badge-neutral {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.badge-designated {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.job-status-open {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.job-status-assigned {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.job-status-closed {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.job-status-closing_soon {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.job-visibility-public {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.job-visibility-private {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
 .admin-application-card .status-badge {
   display: inline-flex;
 }
@@ -760,6 +800,11 @@
 }
 
 .application-status-검토중 {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.application-status-지원완료 {
   background: #eff6ff;
   color: #1d4ed8;
 }
@@ -781,15 +826,44 @@
 
 .admin-link-button {
   border: none;
-  border-radius: 999px;
+  border-radius: 7px;
   background: #eef2ff;
   color: #4f46e5;
   cursor: pointer;
   font: inherit;
   font-size: 12px;
   font-weight: 900;
-  padding: 6px 9px;
+  padding: 6px 10px;
   white-space: nowrap;
+}
+
+.admin-nested-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.admin-nested-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.admin-nested-table th,
+.admin-nested-table td {
+  padding: 8px 9px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-nested-table th {
+  color: #4b5563;
+  background: #f8fafc;
+  font-weight: 900;
 }
 
 .admin-link-button:disabled {
@@ -991,7 +1065,7 @@
 
 @media (max-width: 720px) {
   .admin-page {
-    padding: 34px 16px;
+    padding: 18px 10px;
   }
 
   .admin-header,
@@ -1001,7 +1075,7 @@
   }
 
   .admin-header h1 {
-    font-size: 32px;
+    font-size: 25px;
   }
 
   .admin-refresh,
@@ -1040,17 +1114,18 @@
   }
 
   .admin-table-wrap {
-    border-radius: 16px;
+    border-radius: 10px;
+    -webkit-overflow-scrolling: touch;
   }
 
   .admin-table {
-    min-width: 920px;
-    font-size: 13px;
+    min-width: 1180px;
+    font-size: 12px;
   }
 
   .admin-table th,
   .admin-table td {
-    padding: 11px 12px;
+    padding: 8px 9px;
   }
 
   .admin-detail-panel {
@@ -1068,6 +1143,10 @@
 
   .admin-request-card,
   .admin-card {
-    padding: 20px;
+    padding: 14px;
+  }
+
+  .admin-link-button {
+    min-height: 32px;
   }
 }

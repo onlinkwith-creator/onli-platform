@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import AdminJobs from "./AdminJobs";
-import { normalizeJobStatus, normalizeJobVisibility } from "../utils/jobStatus";
+import { normalizeJobVisibility } from "../utils/jobStatus";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import "./Admin.css";
@@ -13,6 +13,7 @@ const TABS = [
   { id: "jobs", label: "통역 공고 관리" },
   { id: "interpreters", label: "통역사 관리" },
   { id: "applications", label: "지원자 관리" },
+  { id: "matching", label: "매칭 관리" },
 ];
 const INTERPRETER_STATUSES = ["active", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
@@ -91,7 +92,7 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
   };
 }
 
-function Admin({ onBackClick }) {
+function Admin() {
   const [activeTab, setActiveTab] = useState("requests");
   const [requests, setRequests] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -194,6 +195,10 @@ function Admin({ onBackClick }) {
     [jobApplications]
   );
   const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
+  const requestsById = useMemo(
+    () => new Map(requests.map((request) => [request.id, request])),
+    [requests]
+  );
 
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
@@ -258,16 +263,27 @@ function Admin({ onBackClick }) {
   }, [interpreterFilters, interpreters]);
 
   const dashboard = useMemo(
-    () => ({
-      totalRequests: requests.length,
+    () => {
+      const today = new Date().toISOString().slice(0, 10);
+      return {
+      todayApplications: jobApplications.filter((application) =>
+        String(application.created_at || "").startsWith(today)
+      ).length,
+      uncheckedApplications: jobApplications.filter((application) =>
+        ["지원완료", "검토중"].includes(application.status || "지원완료")
+      ).length,
+      todayMatched: jobApplications.filter(
+        (application) =>
+          application.status === "매칭완료" &&
+          String(application.created_at || "").startsWith(today)
+      ).length,
       ongoingRequests: requests.filter((request) =>
         ONGOING_REQUEST_STATUSES.includes(request.status || "pending")
       ).length,
-      approvedInterpreters: interpreters.filter((item) => item.approved).length,
-      pendingApprovals: interpreters.filter((item) => !item.approved).length,
-      applications: jobApplications.length,
-    }),
-    [jobApplications.length, interpreters, requests]
+      urgentRequests: requests.filter((request) => isRequestWithinDays(request, 7)).length,
+    };
+    },
+    [jobApplications, requests]
   );
 
   const switchToJobsTab = () => {
@@ -586,6 +602,34 @@ function Admin({ onBackClick }) {
     );
   };
 
+  const deleteJobApplication = async (application) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    if (!window.confirm("이 지원자를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.")) {
+      return;
+    }
+
+    setSavingKey(`job-application-delete-${application.id}`);
+    const { error } = await supabase
+      .from("job_applications")
+      .delete()
+      .eq("id", application.id);
+    setSavingKey("");
+
+    if (error) {
+      console.error("지원자 삭제 실패:", error);
+      alert(error.message);
+      return;
+    }
+
+    setJobApplications((current) =>
+      current.filter((item) => item.id !== application.id)
+    );
+  };
+
   const deleteRequest = async (request) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
@@ -667,10 +711,6 @@ function Admin({ onBackClick }) {
   return (
     <div className="admin-page">
       <div className="admin-shell">
-        <button type="button" onClick={onBackClick} className="admin-back main-return-button">
-          ← 메인으로
-        </button>
-
         <header className="admin-header">
           <div>
             <p className="admin-kicker">ON-LI ADMIN</p>
@@ -690,20 +730,23 @@ function Admin({ onBackClick }) {
         ) : (
           <>
             <section className="admin-metrics">
-              <MetricCard label="전체 의뢰" value={`${dashboard.totalRequests}건`} />
+              <MetricCard label="오늘 신규 지원" value={`${dashboard.todayApplications}건`} />
               <MetricCard
-                label="진행중 의뢰"
+                label="미확인 지원"
+                value={`${dashboard.uncheckedApplications}건`}
+              />
+              <MetricCard
+                label="오늘 매칭 완료"
+                value={`${dashboard.todayMatched}건`}
+              />
+              <MetricCard
+                label="진행중 프로젝트"
                 value={`${dashboard.ongoingRequests}건`}
               />
               <MetricCard
-                label="승인 통역사"
-                value={`${dashboard.approvedInterpreters}명`}
+                label="긴급 요청(D-7)"
+                value={`${dashboard.urgentRequests}건`}
               />
-              <MetricCard
-                label="승인 대기"
-                value={`${dashboard.pendingApprovals}명`}
-              />
-              <MetricCard label="지원자" value={`${dashboard.applications}명`} />
             </section>
 
             <nav className="admin-tabs" aria-label="관리자 메뉴">
@@ -740,6 +783,7 @@ function Admin({ onBackClick }) {
                 handlePriceDraft={handlePriceDraft}
                 removeAssignment={removeAssignment}
                 updateRequest={updateRequest}
+                updateApplicationStatus={updateJobApplicationStatus}
                 deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
               />
@@ -766,6 +810,16 @@ function Admin({ onBackClick }) {
                 jobsById={jobsById}
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
+                deleteApplication={deleteJobApplication}
+              />
+            )}
+
+            {activeTab === "matching" && (
+              <MatchingManagement
+                assignments={assignments}
+                requestsById={requestsById}
+                removeAssignment={removeAssignment}
+                savingKey={savingKey}
               />
             )}
           </>
@@ -795,6 +849,7 @@ function RequestManagement({
   handlePriceDraft,
   removeAssignment,
   updateRequest,
+  updateApplicationStatus,
   deleteRequest,
   toggleRequestJobPublic,
 }) {
@@ -848,6 +903,8 @@ function RequestManagement({
               <th className="admin-col-id">ID</th>
               <th className="admin-col-title">행사명</th>
               <th className="admin-col-company">기업명</th>
+              <th className="admin-col-status">의뢰 유형</th>
+              <th className="admin-col-company">지정 통역사</th>
               <th className="admin-col-date">날짜</th>
               <th className="admin-col-location">장소</th>
               <th>지원자</th>
@@ -860,7 +917,7 @@ function RequestManagement({
           </thead>
           <tbody>
             {requests.length === 0 ? (
-              <EmptyTableRow colSpan="11" text="조건에 맞는 의뢰가 없습니다." />
+              <EmptyTableRow colSpan="13" text="조건에 맞는 의뢰가 없습니다." />
             ) : (
               requests.map((request) => (
                 <FragmentRequestRow
@@ -886,6 +943,7 @@ function RequestManagement({
                   handlePriceDraft={handlePriceDraft}
                   removeAssignment={removeAssignment}
                   updateRequest={updateRequest}
+                  updateApplicationStatus={updateApplicationStatus}
                   deleteRequest={deleteRequest}
                   toggleRequestJobPublic={toggleRequestJobPublic}
                 />
@@ -916,11 +974,14 @@ function FragmentRequestRow({
   handlePriceDraft,
   removeAssignment,
   updateRequest,
+  updateApplicationStatus,
   deleteRequest,
   toggleRequestJobPublic,
 }) {
   const job = request.job_id ? jobsById.get(request.job_id) : null;
   const jobPublicState = getRequestJobPublicState(request, job);
+  const requestType = getDesignatedRequestType(request, job);
+  const designatedInterpreterName = getDesignatedInterpreterName(request, job);
 
   return (
     <>
@@ -934,6 +995,14 @@ function FragmentRequestRow({
         </td>
         <td className="admin-col-company" title={request.company_name || ""}>
           {request.company_name || "-"}
+        </td>
+        <td className="admin-col-status">
+          <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
+            {requestType.label}
+          </span>
+        </td>
+        <td className="admin-col-company" title={designatedInterpreterName}>
+          {designatedInterpreterName}
         </td>
         <td className="admin-col-date">
           {formatDateRange(
@@ -1029,14 +1098,17 @@ function FragmentRequestRow({
       </tr>
       {applicationsExpanded && (
         <tr className="admin-expanded-row">
-          <td colSpan="11">
-            <JobApplicationsPanel applications={jobApplications} />
+          <td colSpan="13">
+            <JobApplicationsPanel
+              applications={jobApplications}
+              onStatusChange={updateApplicationStatus}
+            />
           </td>
         </tr>
       )}
       {expanded && (
         <tr className="admin-expanded-row">
-          <td colSpan="11">
+          <td colSpan="13">
             <RequestDetailPanel
               applications={jobApplications}
               assignmentDrafts={assignmentDrafts}
@@ -1049,6 +1121,7 @@ function FragmentRequestRow({
               handlePriceDraft={handlePriceDraft}
               removeAssignment={removeAssignment}
               updateRequest={updateRequest}
+              updateApplicationStatus={updateApplicationStatus}
             />
           </td>
         </tr>
@@ -1069,13 +1142,19 @@ function RequestDetailPanel({
   handlePriceDraft,
   removeAssignment,
   updateRequest,
+  updateApplicationStatus,
 }) {
+  const requestType = getDesignatedRequestType(request);
+  const designatedInterpreterName = getDesignatedInterpreterName(request);
+
   return (
     <div className="admin-detail-panel">
       <div>
         <h3>의뢰 기본 정보</h3>
         <dl className="admin-detail-list compact">
           <Info label="담당자" value={request.manager_name} />
+          <Info label="의뢰 유형" value={requestType.label} />
+          <Info label="지정 통역사" value={designatedInterpreterName} />
           <Info label="이메일" value={request.email} />
           <Info label="연락처" value={request.phone} />
           <Info
@@ -1218,35 +1297,85 @@ function RequestDetailPanel({
 
       <div>
         <h3>지원자 목록</h3>
-        <JobApplicationsPanel applications={applications} />
+        <JobApplicationsPanel
+          applications={applications}
+          onStatusChange={updateApplicationStatus}
+        />
       </div>
     </div>
   );
 }
 
-function JobApplicationsPanel({ applications }) {
+function JobApplicationsPanel({ applications, onStatusChange }) {
   if (applications.length === 0) {
     return <span className="admin-empty-chip">이 공고에는 아직 지원자가 없습니다.</span>;
   }
 
   return (
-    <div className="admin-application-list">
-      {applications.map((application) => (
-        <article key={application.id} className="admin-application-card">
-          <div>
-            <strong>{application.applicant_name || "이름 미입력"}</strong>
-            <span>
-              {application.phone || "연락처 미입력"} ·{" "}
-              {application.email || "이메일 미입력"}
-            </span>
-            <span>
-              지원일 {formatDate(application.created_at)} ·{" "}
-              {application.status || "지원완료"}
-            </span>
-            <p>{application.message || "지원 메모 없음"}</p>
-          </div>
-        </article>
-      ))}
+    <div className="admin-nested-table-wrap">
+      <table className="admin-nested-table">
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>언어</th>
+            <th>경력</th>
+            <th>지원일</th>
+            <th>상태</th>
+            <th>연락처</th>
+            <th>메모</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {applications.map((application) => (
+            <tr key={application.id}>
+              <td className="admin-strong-cell">{application.applicant_name || "이름 미입력"}</td>
+              <td>{application.language || application.japanese_level || "-"}</td>
+              <td>{application.experience || application.career || "-"}</td>
+              <td>{formatDate(application.created_at)}</td>
+              <td>
+                <span className={`status-badge ${getApplicationStatusClass(application.status)}`}>
+                  {application.status || "지원완료"}
+                </span>
+              </td>
+              <td title={`${application.phone || ""} ${application.email || ""}`}>
+                {application.phone || "연락처 미입력"}
+                <span className="admin-muted-inline">{application.email || ""}</span>
+              </td>
+              <td title={application.message || ""}>{application.message || "지원 메모 없음"}</td>
+              <td>
+                {onStatusChange ? (
+                  <div className="admin-row-actions">
+                    <button
+                      type="button"
+                      className="admin-link-button"
+                      onClick={() => onStatusChange(application, "매칭완료")}
+                    >
+                      매칭하기
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-link-button warning"
+                      onClick={() => onStatusChange(application, "보류")}
+                    >
+                      보류
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-link-button danger"
+                      onClick={() => onStatusChange(application, "불합격")}
+                    >
+                      불합격
+                    </button>
+                  </div>
+                ) : (
+                  "-"
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1501,6 +1630,7 @@ function ApplicationManagement({
   jobsById,
   savingKey,
   updateApplicationStatus,
+  deleteApplication,
 }) {
   return (
     <section className="admin-section">
@@ -1517,11 +1647,12 @@ function ApplicationManagement({
               <th className="admin-col-date">지원일</th>
               <th className="admin-col-status">상태</th>
               <th className="admin-col-message">메모</th>
+              <th className="admin-col-actions">관리</th>
             </tr>
           </thead>
           <tbody>
             {applications.length === 0 ? (
-              <EmptyTableRow colSpan="8" text="아직 접수된 지원자가 없습니다." />
+              <EmptyTableRow colSpan="9" text="아직 접수된 지원자가 없습니다." />
             ) : (
               applications.map((application) => {
                 const job = application.jobs || jobsById.get(application.job_id);
@@ -1565,6 +1696,84 @@ function ApplicationManagement({
                     </td>
                     <td className="admin-col-message" title={application.message || ""}>
                       {application.message || "지원 메모 없음"}
+                    </td>
+                    <td className="admin-col-actions">
+                      <button
+                        type="button"
+                        className="admin-link-button danger"
+                        disabled={savingKey === `job-application-delete-${application.id}`}
+                        onClick={() => deleteApplication(application)}
+                      >
+                        삭제
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function MatchingManagement({ assignments, requestsById, removeAssignment, savingKey }) {
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${assignments.length}건`} title="매칭 관리" />
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th className="admin-col-title">행사명</th>
+              <th className="admin-col-company">기업명</th>
+              <th className="admin-col-date">날짜</th>
+              <th className="admin-col-location">장소</th>
+              <th>통역사</th>
+              <th className="admin-col-status">상태</th>
+              <th className="admin-col-actions">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.length === 0 ? (
+              <EmptyTableRow colSpan="7" text="아직 배정된 매칭이 없습니다." />
+            ) : (
+              assignments.map((assignment) => {
+                const request = requestsById.get(assignment.request_id);
+                return (
+                  <tr key={assignment.id}>
+                    <td className="admin-strong-cell admin-col-title" title={request?.event_name || ""}>
+                      {request?.event_name || `의뢰 #${assignment.request_id}`}
+                    </td>
+                    <td className="admin-col-company" title={request?.company_name || ""}>
+                      {request?.company_name || "-"}
+                    </td>
+                    <td className="admin-col-date">
+                      {formatDateRange(
+                        request?.start_date,
+                        request?.end_date,
+                        request?.event_date
+                      )}
+                    </td>
+                    <td className="admin-col-location" title={request?.event_location || ""}>
+                      {request?.event_location || "-"}
+                    </td>
+                    <td>{assignment.interpreter?.name || "이름 미입력"}</td>
+                    <td>
+                      <span className="status-badge application-status-매칭완료">
+                        매칭완료
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="admin-link-button danger"
+                        disabled={savingKey === `assignment-${assignment.id}`}
+                        onClick={() => removeAssignment(assignment.id)}
+                      >
+                        삭제
+                      </button>
                     </td>
                   </tr>
                 );
@@ -1722,6 +1931,12 @@ function buildJobPayloadFromRequest(request) {
     field,
     status: "open",
     visibility: "public",
+    request_type: getDesignatedRequestType(request).label,
+    selected_interpreter_id: request.selected_interpreter_id || request.interpreter_id || null,
+    selected_interpreter_name:
+      request.selected_interpreter_name || request.interpreter_name || "",
+    interpreter_id: request.interpreter_id || request.selected_interpreter_id || null,
+    interpreter_name: request.interpreter_name || request.selected_interpreter_name || "",
   };
 }
 
@@ -1743,8 +1958,7 @@ function buildLegacyJobPayloadFromRequest(request) {
 
 function getRequestJobPublicState(request, job) {
   if (request.job_id && job) {
-    const isPublic =
-      normalizeJobVisibility(job) === "public" && normalizeJobStatus(job) !== "assigned";
+    const isPublic = normalizeJobVisibility(job) === "public";
     return isPublic
       ? { type: "public", label: "공개중" }
       : { type: "private", label: "비공개" };
@@ -1769,6 +1983,56 @@ function isDateInRange(date, startDate, endDate, fallbackDate) {
   if (!start) return false;
   if (!end) return date === start;
   return start <= date && date <= end;
+}
+
+function isRequestWithinDays(request, days) {
+  const date = getDateRangeStart(request.start_date, request.event_date);
+  if (!date) return false;
+
+  const today = new Date();
+  const target = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return false;
+
+  const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+  return diffDays >= 0 && diffDays <= days;
+}
+
+function getDesignatedRequestType(request = {}, job = {}) {
+  const isDesignated = Boolean(
+    request.selected_interpreter_id ||
+      request.selected_interpreter_name ||
+      request.interpreter_id ||
+      request.interpreter_name ||
+      job?.selected_interpreter_id ||
+      job?.selected_interpreter_name ||
+      job?.interpreter_id ||
+      job?.interpreter_name
+  );
+
+  return {
+    isDesignated,
+    label: isDesignated ? "지정의뢰" : "일반의뢰",
+  };
+}
+
+function getDesignatedInterpreterName(request = {}, job = {}) {
+  return (
+    request.selected_interpreter_name ||
+    request.interpreter_name ||
+    job?.selected_interpreter_name ||
+    job?.interpreter_name ||
+    (request.selected_interpreter_id || request.interpreter_id
+      ? `#${request.selected_interpreter_id || request.interpreter_id}`
+      : "") ||
+    (job?.selected_interpreter_id || job?.interpreter_id
+      ? `#${job.selected_interpreter_id || job.interpreter_id}`
+      : "") ||
+    "-"
+  );
+}
+
+function getApplicationStatusClass(status) {
+  return `application-status-${status || "지원완료"}`;
 }
 
 function isMissingColumnError(error) {

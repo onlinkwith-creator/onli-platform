@@ -63,8 +63,9 @@ const backButtonStyle = {
   cursor: "pointer",
 };
 
-function RegisterInterpreter({ onBackClick }) {
+function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [form, setForm] = useState({
     name: "",
     gender: "",
@@ -74,8 +75,9 @@ function RegisterInterpreter({ onBackClick }) {
     phone: "",
     school: "",
     kakaoOrLine: "",
-    jlpt: "",
+    jlpt: "N1 보유",
     stayPeriod: "",
+    hasInterpretationExperience: "없음",
     experienceCount: "",
     specialties: [],
     availableRegions: [],
@@ -87,6 +89,9 @@ function RegisterInterpreter({ onBackClick }) {
     setForm((current) => ({
       ...current,
       [name]: value,
+      ...(name === "hasInterpretationExperience" && value === "없음"
+        ? { experienceCount: "0" }
+        : {}),
     }));
   };
 
@@ -106,6 +111,7 @@ function RegisterInterpreter({ onBackClick }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage("");
+    setSuccessMessage("");
 
     if (!form.gender) {
       setErrorMessage("성별을 선택해주세요.");
@@ -139,7 +145,9 @@ function RegisterInterpreter({ onBackClick }) {
         kakao_or_line: form.kakaoOrLine,
         jlpt: form.jlpt,
         stay_period: form.stayPeriod,
-        experience_count: form.experienceCount,
+        interpretation_experience: form.hasInterpretationExperience,
+        experience_count:
+          form.hasInterpretationExperience === "있음" ? form.experienceCount : "0",
         specialties: form.specialties,
         available_regions: form.availableRegions,
         available_tasks: form.availableTasks,
@@ -152,7 +160,11 @@ function RegisterInterpreter({ onBackClick }) {
       return;
     }
 
-    alert("등록 완료");
+    setSuccessMessage("등록이 완료되었습니다. 메인 페이지로 이동합니다.");
+    setTimeout(() => {
+      onSubmitSuccess?.();
+      if (!onSubmitSuccess) onBackClick?.();
+    }, 700);
   };
 
   return (
@@ -169,7 +181,7 @@ function RegisterInterpreter({ onBackClick }) {
         <div style={styles.card}>
           <form onSubmit={handleSubmit} style={styles.form}>
             <input style={inputStyle} name="name" placeholder="성명" value={form.name} onChange={handleChange} required />
-            <input style={inputStyle} name="age" placeholder="나이" value={form.age} onChange={handleChange} required />
+            <input style={inputStyle} name="age" placeholder="나이(만)" value={form.age} onChange={handleChange} required />
 
             <select
               style={inputStyle}
@@ -188,9 +200,31 @@ function RegisterInterpreter({ onBackClick }) {
             <input style={inputStyle} name="phone" placeholder="일본 연락처" value={form.phone} onChange={handleChange} required />
             <input style={inputStyle} name="school" placeholder="학교 및 전공" value={form.school} onChange={handleChange} />
             <input style={inputStyle} name="kakaoOrLine" placeholder="카카오/라인 ID" value={form.kakaoOrLine} onChange={handleChange} />
-            <input style={inputStyle} name="jlpt" placeholder="JLPT 급수 및 점수" value={form.jlpt} onChange={handleChange} required />
+            <select style={inputStyle} name="jlpt" value={form.jlpt} onChange={handleChange} required>
+              <option value="N1 보유">N1 보유</option>
+              <option value="N1 미보유">N1 미보유</option>
+            </select>
             <input style={inputStyle} name="stayPeriod" placeholder="일본 거주 기간 (0년 0개월)" value={form.stayPeriod} onChange={handleChange} required />
-            <input style={inputStyle} name="experienceCount" placeholder="통역 경험 횟수" value={form.experienceCount} onChange={handleChange} />
+            <select
+              style={inputStyle}
+              name="hasInterpretationExperience"
+              value={form.hasInterpretationExperience}
+              onChange={handleChange}
+              required
+            >
+              <option value="있음">통역 경험 있음</option>
+              <option value="없음">통역 경험 없음</option>
+            </select>
+            {form.hasInterpretationExperience === "있음" && (
+              <input
+                style={inputStyle}
+                name="experienceCount"
+                placeholder="예) 5회"
+                value={form.experienceCount}
+                onChange={handleChange}
+                required
+              />
+            )}
 
             <CheckboxGroup
               title="활동 가능 지역"
@@ -216,6 +250,9 @@ function RegisterInterpreter({ onBackClick }) {
 
             {errorMessage && (
               <p style={styles.errorMessage}>{errorMessage}</p>
+            )}
+            {successMessage && (
+              <p style={styles.successMessage}>{successMessage}</p>
             )}
 
             <button type="submit" style={{ ...submitButtonStyle, ...styles.fullWidth }}>
@@ -266,11 +303,11 @@ const styles = {
     width: "100vw",
     background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #ffffff 100%)",
     color: "#111827",
-    padding: "70px 20px",
+    padding: "44px 16px",
     boxSizing: "border-box",
   },
   container: {
-    maxWidth: "720px",
+    maxWidth: "760px",
     margin: "0 auto",
   },
   header: {
@@ -302,18 +339,18 @@ const styles = {
   card: {
     background: "rgba(255, 255, 255, 0.88)",
     backdropFilter: "blur(16px)",
-    padding: "42px",
-    borderRadius: "28px",
+    padding: "28px",
+    borderRadius: "18px",
     border: "1px solid rgba(255, 255, 255, 0.8)",
     boxShadow: "0 30px 80px rgba(15, 23, 42, 0.14)",
   },
   form: {
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "16px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gap: "12px",
   },
   fullWidth: {
-    gridColumn: "1 / 3",
+    gridColumn: "1 / -1",
   },
   groupLabel: {
     margin: "4px 0 10px",
@@ -344,9 +381,17 @@ const styles = {
     color: "#4f46e5",
   },
   errorMessage: {
-    gridColumn: "1 / 3",
+    gridColumn: "1 / -1",
     margin: "0",
     color: "#dc2626",
+    fontSize: "14px",
+    fontWeight: "800",
+    textAlign: "left",
+  },
+  successMessage: {
+    gridColumn: "1 / -1",
+    margin: "0",
+    color: "#047857",
     fontSize: "14px",
     fontWeight: "800",
     textAlign: "left",

@@ -231,8 +231,8 @@ function Home({
       <section className="home-jobs-preview">
         <div className="home-section-head">
           <div>
-            <p className="home-brand-sub">OPEN JOBS</p>
-            <h2>현재 모집 중인 통역 공고</h2>
+          <p className="home-brand-sub">JOBS</p>
+          <h2>통역 공고</h2>
           </div>
           <button type="button" onClick={onJobsClick}>
             전체 공고 확인하기
@@ -244,7 +244,7 @@ function Home({
         ) : jobsErrorMessage ? (
           <div className="home-empty">{jobsErrorMessage}</div>
         ) : featuredJobs.length === 0 ? (
-          <div className="home-empty">현재 모집 중인 공고가 없습니다.</div>
+          <div className="home-empty">현재 표시할 공고가 없습니다.</div>
         ) : (
           <div className="home-job-carousel-wrap">
             <button
