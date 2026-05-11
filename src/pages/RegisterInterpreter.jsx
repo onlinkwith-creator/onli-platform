@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
+import "./RegisterInterpreter.css";
 
 const specialtyOptions = [
   "뷰티",
   "전시회",
   "스타트업",
   "게임/콘텐츠",
+  "의료",
   "F&B",
   "패션",
   "관광",
@@ -24,44 +26,6 @@ const regionOptions = [
   "후쿠오카",
   "기타",
 ];
-
-const inputStyle = {
-  width: "100%",
-  padding: "15px 16px",
-  borderRadius: "14px",
-  border: "1px solid #d1d5db",
-  background: "#f9fafb",
-  fontSize: "14px",
-  outline: "none",
-  color: "#111827",
-  boxSizing: "border-box",
-};
-
-const submitButtonStyle = {
-  marginTop: "12px",
-  padding: "16px",
-  borderRadius: "14px",
-  border: "none",
-  background: "linear-gradient(135deg, #111827, #374151)",
-  color: "white",
-  fontSize: "16px",
-  fontWeight: "700",
-  cursor: "pointer",
-  boxShadow: "0 12px 24px rgba(17, 24, 39, 0.25)",
-};
-
-const backButtonStyle = {
-  marginTop: "14px",
-  width: "100%",
-  padding: "12px 18px",
-  borderRadius: "12px",
-  border: "1px solid #395597",
-  backgroundColor: "#395597",
-  color: "#ffffff",
-  fontSize: "14px",
-  fontWeight: "700",
-  cursor: "pointer",
-};
 
 function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
   const [errorMessage, setErrorMessage] = useState("");
@@ -162,224 +126,222 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <div style={styles.badge}>ON-LI INTERPRETER</div>
-          <h1 style={styles.title}>통역사 등록</h1>
-          <p style={styles.description}>
-            한일 비즈니스 통역 매칭을 위한 기본 정보를 입력해주세요.
-          </p>
-        </div>
+    <div className="register-page">
+      <div className="register-shell">
+        <section className="register-hero">
+          <div className="register-hero-copy">
+            <p className="register-kicker">ON-LI INTERPRETER</p>
+            <h1>한일 비즈니스 현장에서 활동할 통역사를 모집합니다</h1>
+            <p>
+              전시회·상담회·비즈니스 미팅 중심의 통역 매칭 플랫폼에서
+              전문성을 가진 통역사와 기업을 연결합니다.
+            </p>
+          </div>
 
-        <div style={styles.card}>
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <input style={inputStyle} name="name" placeholder="성명" value={form.name} onChange={handleChange} required />
-            <input style={inputStyle} name="age" placeholder="나이(만)" value={form.age} onChange={handleChange} required />
+          <div className="register-hero-panel" aria-label="활동 예시">
+            <div>
+              <span>주요 활동 예시</span>
+              <strong>Business Field</strong>
+            </div>
+            <ul>
+              <li>Beautyworld Japan</li>
+              <li>KCON</li>
+              <li>스타트업 전시회</li>
+              <li>바이어 미팅</li>
+            </ul>
+            <div className="register-trust-grid">
+              <TrustMetric value="120+" label="활동 통역사" />
+              <TrustMetric value="300+" label="누적 매칭" />
+              <TrustMetric value="24h" label="평균 응답" />
+            </div>
+          </div>
+        </section>
 
-            <select
-              style={inputStyle}
-              name="gender"
-              value={form.gender}
-              onChange={handleChange}
-              required
-            >
-              <option value="">성별 선택</option>
-              <option value="남자">남자</option>
-              <option value="여자">여자</option>
-            </select>
+        <section className="register-trust">
+          <TrustCard title="한일 비즈니스 특화" text="일본 현장 커뮤니케이션에 맞춘 의뢰를 중심으로 운영합니다." />
+          <TrustCard title="운영팀 검토" text="등록 후 프로필과 활동 정보를 확인한 뒤 매칭에 반영합니다." />
+          <TrustCard title="현장 중심 매칭" text="전시회, 상담회, 미팅 목적에 맞춰 통역사를 연결합니다." />
+        </section>
 
-            <input style={inputStyle} name="region" placeholder="거주 지역 (예: 도쿄)" value={form.region} onChange={handleChange} required />
-            <input style={inputStyle} name="email" type="email" placeholder="이메일" value={form.email} onChange={handleChange} required />
-            <input style={inputStyle} name="phone" placeholder="일본 연락처" value={form.phone} onChange={handleChange} required />
-            <input style={inputStyle} name="school" placeholder="학교 및 전공" value={form.school} onChange={handleChange} />
-            <input style={inputStyle} name="kakaoOrLine" placeholder="카카오/라인 ID" value={form.kakaoOrLine} onChange={handleChange} />
-            <select style={inputStyle} name="jlpt" value={form.jlpt} onChange={handleChange} required>
-              <option value="N1 보유">N1 보유</option>
-              <option value="N1 미보유">N1 미보유</option>
-            </select>
-            <input style={inputStyle} name="stayPeriod" placeholder="일본 거주 기간 (0년 0개월)" value={form.stayPeriod} onChange={handleChange} required />
-            <select
-              style={inputStyle}
-              name="has_experience"
-              value={String(form.has_experience)}
-              onChange={handleChange}
-              required
-            >
-              <option value="true">통역 경험 있음</option>
-              <option value="false">통역 경험 없음</option>
-            </select>
+        <StepIndicator />
 
-            <CheckboxGroup
+        <form onSubmit={handleSubmit} className="register-form">
+          <FormSectionCard eyebrow="SECTION 1" title="기본 정보">
+            <Field label="이름" name="name" value={form.name} onChange={handleChange} required />
+            <Field label="나이" name="age" value={form.age} onChange={handleChange} required />
+            <Field label="성별">
+              <select name="gender" value={form.gender} onChange={handleChange} required>
+                <option value="">성별 선택</option>
+                <option value="남자">남자</option>
+                <option value="여자">여자</option>
+              </select>
+            </Field>
+            <Field label="거주 지역" name="region" value={form.region} onChange={handleChange} required />
+            <Field label="연락처" name="phone" value={form.phone} onChange={handleChange} required />
+            <Field label="이메일" name="email" type="email" value={form.email} onChange={handleChange} required />
+          </FormSectionCard>
+
+          <FormSectionCard eyebrow="SECTION 2" title="활동 정보">
+            <Field label="학교 및 전공" name="school" value={form.school} onChange={handleChange} />
+            <Field label="JLPT">
+              <select name="jlpt" value={form.jlpt} onChange={handleChange} required>
+                <option value="N1 보유">N1 보유</option>
+                <option value="N1 미보유">N1 미보유</option>
+              </select>
+            </Field>
+            <Field label="일본 거주 기간" name="stayPeriod" value={form.stayPeriod} onChange={handleChange} required />
+            <Field label="통역 경험 여부">
+              <select
+                name="has_experience"
+                value={String(form.has_experience)}
+                onChange={handleChange}
+                required
+              >
+                <option value="true">통역 경험 있음</option>
+                <option value="false">통역 경험 없음</option>
+              </select>
+            </Field>
+            <Field label="카카오/라인 ID" name="kakaoOrLine" value={form.kakaoOrLine} onChange={handleChange} />
+            <Field label="통역 가능 업무" className="register-field-wide">
+              <input
+                name="availableTasks"
+                placeholder="상담 통역, 부스 응대, 바이어 미팅, 제품 설명 등"
+                value={form.availableTasks}
+                onChange={handleChange}
+              />
+            </Field>
+
+            <ChipGroup
               title="활동 가능 지역"
+              description="활동 가능한 지역을 모두 선택해주세요."
               options={regionOptions}
               values={form.availableRegions}
               onToggle={(value) => toggleArrayValue("availableRegions", value)}
             />
+          </FormSectionCard>
 
-            <CheckboxGroup
-              title="전문 분야"
+          <FormSectionCard eyebrow="SECTION 3" title="전문 분야">
+            <ChipGroup
+              title="전문 분야 선택"
+              description="강점이 있는 분야를 1개 이상 선택해주세요."
               options={specialtyOptions}
               values={form.specialties}
               onToggle={(value) => toggleArrayValue("specialties", value)}
             />
+          </FormSectionCard>
 
-            <input
-              style={{ ...inputStyle, ...styles.fullWidth }}
-              name="availableTasks"
-              placeholder="통역 가능 업무 (예: 상담 통역, 부스 응대, 바이어 미팅, 제품 설명 등)"
-              value={form.availableTasks}
-              onChange={handleChange}
-            />
-
-            {errorMessage && (
-              <p style={styles.errorMessage}>{errorMessage}</p>
-            )}
-            {successMessage && (
-              <p style={styles.successMessage}>{successMessage}</p>
-            )}
-
-            <button type="submit" style={{ ...submitButtonStyle, ...styles.fullWidth }}>
-              등록하기
+          <section className="register-submit-card">
+            {errorMessage && <p className="register-message is-error">{errorMessage}</p>}
+            {successMessage && <p className="register-message is-success">{successMessage}</p>}
+            <button type="submit" className="register-submit-button">
+              통역사 등록 신청하기
             </button>
-          </form>
-
-          <button
-            type="button"
-            onClick={onBackClick}
-            className="main-return-button"
-            style={backButtonStyle}
-          >
-            메인으로 돌아가기
-          </button>
-        </div>
+            <p>등록 후 운영팀 검토가 진행됩니다.</p>
+            <button type="button" onClick={onBackClick} className="register-back-button">
+              메인으로 돌아가기
+            </button>
+          </section>
+        </form>
       </div>
     </div>
   );
 }
 
-function CheckboxGroup({ title, options, values, onToggle }) {
+function FormSectionCard({ eyebrow, title, children }) {
   return (
-    <div style={styles.fullWidth}>
-      <p style={styles.groupLabel}>{title}</p>
-      <div style={styles.checkGrid}>
+    <section className="register-section-card">
+      <div className="register-section-head">
+        <p>{eyebrow}</p>
+        <h2>{title}</h2>
+      </div>
+      <div className="register-section-grid">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, children, className = "", ...inputProps }) {
+  return (
+    <label className={`register-field ${className}`.trim()}>
+      <span>{label}</span>
+      {children || <input {...inputProps} />}
+    </label>
+  );
+}
+
+function ChipGroup({ title, description, options, values, onToggle }) {
+  return (
+    <div className="register-chip-group">
+      <div className="register-chip-head">
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+        <SelectedSummary values={values} />
+      </div>
+      <div className="register-chip-list">
         {options.map((option) => (
-          <button
+          <SelectChip
             key={option}
-            type="button"
+            label={option}
+            selected={values.includes(option)}
             onClick={() => onToggle(option)}
-            style={{
-              ...styles.checkLabel,
-              ...(values.includes(option) ? styles.checkLabelActive : {}),
-            }}
-          >
-            {option}
-          </button>
+          />
         ))}
       </div>
     </div>
   );
 }
 
-const styles = {
-  page: {
-    minHeight: "100vh",
-    width: "100vw",
-    background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #ffffff 100%)",
-    color: "#111827",
-    padding: "44px 16px",
-    boxSizing: "border-box",
-  },
-  container: {
-    maxWidth: "760px",
-    margin: "0 auto",
-  },
-  header: {
-    textAlign: "center",
-    marginBottom: "28px",
-  },
-  badge: {
-    display: "inline-block",
-    padding: "8px 16px",
-    borderRadius: "999px",
-    background: "#eef2ff",
-    color: "#000000",
-    fontSize: "13px",
-    fontWeight: "700",
-    marginBottom: "14px",
-  },
-  title: {
-    margin: 0,
-    fontSize: "34px",
-    fontWeight: "800",
-    color: "#111827",
-  },
-  description: {
-    marginTop: "12px",
-    color: "#484c55",
-    fontSize: "15px",
-    lineHeight: "1.7",
-  },
-  card: {
-    background: "rgba(255, 255, 255, 0.88)",
-    backdropFilter: "blur(16px)",
-    padding: "24px",
-    borderRadius: "18px",
-    border: "1px solid rgba(255, 255, 255, 0.8)",
-    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
-  },
-  form: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-    gap: "12px",
-  },
-  fullWidth: {
-    gridColumn: "1 / -1",
-  },
-  groupLabel: {
-    margin: "4px 0 10px",
-    color: "#374151",
-    fontSize: "14px",
-    fontWeight: "800",
-    textAlign: "left",
-  },
-  checkGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-    gap: "10px",
-  },
-  checkLabel: {
-    padding: "11px 12px",
-    borderRadius: "14px",
-    border: "1px solid #d1d5db",
-    background: "#f9fafb",
-    color: "#111827",
-    fontSize: "14px",
-    fontWeight: "700",
-    cursor: "pointer",
-    textAlign: "center",
-  },
-  checkLabelActive: {
-    background: "#eef2ff",
-    borderColor: "#4f46e5",
-    color: "#4f46e5",
-  },
-  errorMessage: {
-    gridColumn: "1 / -1",
-    margin: "0",
-    color: "#dc2626",
-    fontSize: "14px",
-    fontWeight: "800",
-    textAlign: "left",
-  },
-  successMessage: {
-    gridColumn: "1 / -1",
-    margin: "0",
-    color: "#047857",
-    fontSize: "14px",
-    fontWeight: "800",
-    textAlign: "left",
-  },
-};
+function SelectChip({ label, selected, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`register-chip${selected ? " is-selected" : ""}`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SelectedSummary({ values }) {
+  return (
+    <p className="register-selected-summary">
+      {values.length > 0 ? values.join(" · ") : "아직 선택 전"}
+    </p>
+  );
+}
+
+function StepIndicator() {
+  const steps = ["기본 정보", "활동 정보", "전문 분야", "등록 완료"];
+  return (
+    <nav className="register-steps" aria-label="등록 단계">
+      {steps.map((step, index) => (
+        <div key={step} className="register-step">
+          <span>{index + 1}</span>
+          <strong>{step}</strong>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function TrustMetric({ value, label }) {
+  return (
+    <div>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function TrustCard({ title, text }) {
+  return (
+    <div className="register-trust-card">
+      <strong>{title}</strong>
+      <span>{text}</span>
+    </div>
+  );
+}
 
 export default RegisterInterpreter;
