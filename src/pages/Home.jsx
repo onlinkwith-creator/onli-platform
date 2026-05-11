@@ -205,7 +205,7 @@ function Home({
           <h2>진행 프로세스</h2>
         </div>
 
-        <div className="home-process-grid">
+        <div className="home-process-timeline">
           <Step
             number="1"
             title="기업 의뢰 접수"
@@ -388,8 +388,8 @@ function Feature({ symbol, title, text }) {
 function Step({ number, title, text }) {
   return (
     <div className="home-step">
-      <span>{number}</span>
-      <div>
+      <span className="home-step-number">{number}</span>
+      <div className="home-step-copy">
         <strong>{title}</strong>
         <small>{text}</small>
       </div>
