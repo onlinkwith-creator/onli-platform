@@ -24,24 +24,9 @@ function Home({
   const [jobsLoading, setJobsLoading] = useState(true);
   const [interpreterErrorMessage, setInterpreterErrorMessage] = useState("");
   const [jobsErrorMessage, setJobsErrorMessage] = useState("");
-  const jobsCarouselRef = useRef(null);
 
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const scrollJobsCarousel = (direction) => {
-    const carousel = jobsCarouselRef.current;
-    if (!carousel) return;
-
-    const firstCard = carousel.querySelector(".home-job-card");
-    const cardWidth = firstCard?.getBoundingClientRect().width || 280;
-    const gap = 14;
-
-    carousel.scrollBy({
-      left: direction * (cardWidth + gap),
-      behavior: "smooth",
-    });
   };
 
   const fetchFeaturedInterpreters = useCallback(async () => {
@@ -247,20 +232,12 @@ function Home({
         ) : featuredJobs.length === 0 ? (
           <div className="home-empty">현재 표시할 공고가 없습니다.</div>
         ) : (
-          <div className="home-job-carousel-wrap">
-            <button
-              type="button"
-              className="home-job-carousel-button"
-              onClick={() => scrollJobsCarousel(-1)}
-              aria-label="이전 공고 보기"
-            >
-              ‹
-            </button>
-            <div
-              className="home-job-carousel"
-              ref={jobsCarouselRef}
-              aria-label="현재 모집 중인 통역 공고"
-            >
+          <HomeCarousel
+            railClassName="home-job-carousel"
+            ariaLabel="현재 모집 중인 통역 공고"
+            previousLabel="이전 공고 보기"
+            nextLabel="다음 공고 보기"
+          >
               {featuredJobs.slice(0, 7).map((job) => (
                 <JobCard
                   key={job.id}
@@ -268,16 +245,7 @@ function Home({
                   onApplyClick={() => onJobApplyClick(job)}
                 />
               ))}
-            </div>
-            <button
-              type="button"
-              className="home-job-carousel-button"
-              onClick={() => scrollJobsCarousel(1)}
-              aria-label="다음 공고 보기"
-            >
-              ›
-            </button>
-          </div>
+          </HomeCarousel>
         )}
       </section>
 
@@ -299,7 +267,12 @@ function Home({
         ) : featuredInterpreters.length === 0 ? (
           <div className="home-empty">현재 승인된 통역사가 없습니다.</div>
         ) : (
-          <div className="home-interpreter-grid">
+          <HomeCarousel
+            railClassName="home-interpreter-grid"
+            ariaLabel="등록된 통역사"
+            previousLabel="이전 통역사 보기"
+            nextLabel="다음 통역사 보기"
+          >
             {featuredInterpreters.map((interpreter) => (
               <InterpreterCard
                 key={interpreter.id}
@@ -307,7 +280,7 @@ function Home({
                 onProfileClick={() => onInterpreterClick(interpreter)}
               />
             ))}
-          </div>
+          </HomeCarousel>
         )}
       </section>
 
@@ -324,6 +297,58 @@ function Home({
         </button>
         <span>Copyright ON-LI. All rights reserved.</span>
       </footer>
+    </div>
+  );
+}
+
+function HomeCarousel({
+  children,
+  railClassName = "",
+  ariaLabel,
+  previousLabel,
+  nextLabel,
+}) {
+  const carouselRef = useRef(null);
+
+  const scrollCarousel = (direction) => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const firstCard = carousel.firstElementChild;
+    const cardWidth = firstCard?.getBoundingClientRect().width || 280;
+    const gap = Number.parseFloat(getComputedStyle(carousel).columnGap) || 14;
+
+    carousel.scrollBy({
+      left: direction * (cardWidth + gap),
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <div className="home-carousel-wrap">
+      <button
+        type="button"
+        className="home-carousel-button"
+        onClick={() => scrollCarousel(-1)}
+        aria-label={previousLabel}
+      >
+        ‹
+      </button>
+      <div
+        className={`home-carousel ${railClassName}`.trim()}
+        ref={carouselRef}
+        aria-label={ariaLabel}
+      >
+        {children}
+      </div>
+      <button
+        type="button"
+        className="home-carousel-button"
+        onClick={() => scrollCarousel(1)}
+        aria-label={nextLabel}
+      >
+        ›
+      </button>
     </div>
   );
 }
