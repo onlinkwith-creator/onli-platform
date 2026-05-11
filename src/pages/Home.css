@@ -1,5 +1,8 @@
 .home-page {
+  --home-container-max: 1100px;
   --home-carousel-edge-offset: 54px;
+  --home-section-gap: 48px;
+  --home-section-padding-x: 24px;
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
@@ -11,6 +14,12 @@
   padding: 0 0 56px;
   box-sizing: border-box;
   text-align: left;
+}
+
+.home-page *,
+.home-page *::before,
+.home-page *::after {
+  box-sizing: border-box;
 }
 
 .home-bg-glow {
@@ -33,7 +42,7 @@
 .home-interpreters,
 .home-footer {
   position: relative;
-  max-width: 1100px;
+  max-width: var(--home-container-max);
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
@@ -45,7 +54,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 28px;
-  padding: 48px 24px 32px;
+  padding: 48px var(--home-section-padding-x) 32px;
 }
 
 .home-logo-area {
@@ -114,7 +123,7 @@
 
 .home-main {
   margin-top: 0;
-  padding: 48px 24px 52px;
+  padding: 56px var(--home-section-padding-x) var(--home-section-gap);
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
   gap: 64px;
@@ -297,8 +306,8 @@
 }
 
 .home-process {
-  max-width: 1040px;
-  margin-top: 46px;
+  margin-top: var(--home-section-gap);
+  padding: 0 var(--home-section-padding-x);
 }
 
 .home-process-head {
@@ -316,7 +325,7 @@
 .home-process-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px;
 }
 
 .home-step {
@@ -324,6 +333,7 @@
   align-items: flex-start;
   gap: 10px;
   min-height: 82px;
+  min-width: 0;
   padding: 15px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.86);
@@ -364,20 +374,21 @@
 }
 
 .home-interpreters {
-  margin-top: 46px;
+  margin-top: var(--home-section-gap);
+  padding: 0 var(--home-section-padding-x);
 }
 
 .home-jobs-preview {
-  margin-top: 46px;
+  margin-top: var(--home-section-gap);
+  padding: 0 var(--home-section-padding-x);
 }
 
 .home-cta-stack {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
-  max-width: 1040px;
   margin-top: 0;
-  padding: 0;
+  padding: 0 var(--home-section-padding-x);
 }
 
 .home-company-cta,
@@ -417,10 +428,10 @@
   height: 44px;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
+  border-radius: 999px;
   background: #eef2ff;
   color: #4f46e5;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 900;
 }
 
@@ -845,8 +856,8 @@
   justify-content: space-between;
   align-items: center;
   gap: 18px;
-  margin-top: 46px;
-  padding-top: 24px;
+  margin-top: var(--home-section-gap);
+  padding: 24px var(--home-section-padding-x) 0;
   border-top: 1px solid rgba(209, 213, 219, 0.9);
   color: #6b7280;
   font-size: 13px;
@@ -896,6 +907,10 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .home-cta-stack {
+    gap: 18px;
+  }
+
   .home-job-card,
   .home-interpreter-card {
     flex-basis: calc((100% - 14px) / 2);
@@ -911,11 +926,13 @@
 
 @media (max-width: 768px) {
   .home-page {
+    --home-section-gap: 42px;
+    --home-section-padding-x: 16px;
     padding: 0 0 42px;
   }
 
   .home-header {
-    padding: 32px 20px 24px;
+    padding: 32px var(--home-section-padding-x) 24px;
     flex-direction: column;
     gap: 24px;
     align-items: flex-start;
@@ -929,7 +946,7 @@
   .home-main {
     grid-template-columns: 1fr;
     gap: 28px;
-    padding: 24px 16px 42px;
+    padding: 32px var(--home-section-padding-x) var(--home-section-gap);
     text-align: left;
   }
 
@@ -957,19 +974,9 @@
     line-height: 1.72;
   }
 
-  .home-feature-card,
-  .home-cta-stack,
-  .home-process,
-  .home-jobs-preview,
-  .home-interpreters,
-  .home-company-cta,
-  .home-interpreter-cta {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
   .home-cta-stack {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .home-carousel-wrap {
@@ -1014,7 +1021,7 @@
   }
 
   .home-process {
-    margin-top: 42px;
+    margin-top: var(--home-section-gap);
   }
 
   .home-process-grid {
@@ -1045,7 +1052,7 @@
   }
 
   .home-interpreters {
-    margin-top: 42px;
+    margin-top: var(--home-section-gap);
   }
 
   .home-footer {

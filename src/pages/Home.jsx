@@ -158,7 +158,7 @@ function Home({
       <section className="home-cta-stack" aria-label="ON-LI 이용 안내">
         <div className="home-company-cta">
           <div className="home-cta-icon" aria-hidden="true">
-            <span>▣</span>
+            <span>C</span>
           </div>
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR COMPANIES</p>
@@ -174,7 +174,7 @@ function Home({
 
         <div className="home-interpreter-cta">
           <div className="home-cta-icon" aria-hidden="true">
-            <span>✓</span>
+            <span>I</span>
           </div>
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR INTERPRETERS</p>
