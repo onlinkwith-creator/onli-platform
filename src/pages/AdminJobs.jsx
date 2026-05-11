@@ -10,6 +10,11 @@ import {
 } from "../utils/jobStatus";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications } from "../utils/jobsApi";
+import {
+  getDesignatedInterpreterName,
+  getRequestTypeLabel,
+  isDesignatedRequest,
+} from "../utils/designatedRequest";
 import "./Admin.css";
 
 const emptyForm = {
@@ -43,6 +48,8 @@ function AdminJobs({
   onBackClick,
   embedded = false,
   jobs: controlledJobs,
+  requests = [],
+  interpreters = [],
   applications: controlledApplications,
   onDataChanged,
   updateApplicationStatus: sharedUpdateApplicationStatus,
@@ -60,6 +67,10 @@ function AdminJobs({
   const visibleApplications = isControlled
     ? controlledApplications || []
     : applications;
+  const requestsByJobId = requests.reduce((map, request) => {
+    if (request.job_id) map.set(String(request.job_id), request);
+    return map;
+  }, new Map());
 
   const fetchJobs = useCallback(async () => {
     if (isControlled) {
@@ -459,8 +470,12 @@ function AdminJobs({
                     const jobApplications = getApplicationsForJob(job.id);
                     const matchedCount = getMatchedCount(job.id);
                     const expanded = String(expandedJobId) === String(job.id);
-                    const requestType = getDesignatedJobType(job);
-                    const interpreterName = getDesignatedInterpreterName(job);
+                    const request = requestsByJobId.get(String(job.id));
+                    const requestType = getDesignatedJobType(job, request);
+                    const interpreterName = getDesignatedInterpreterName(
+                      [job, request],
+                      interpreters
+                    );
 
                     return (
                       <Fragment key={job.id}>
@@ -784,28 +799,12 @@ function getVisibilityBadgeClass(visibility) {
   return getStatusBadgeClass(visibility === "public" ? "공개" : "비공개");
 }
 
-function getDesignatedJobType(job = {}) {
-  const isDesignated = Boolean(
-    job.selected_interpreter_id ||
-      job.selected_interpreter_name ||
-      job.interpreter_id ||
-      job.interpreter_name
-  );
-
+function getDesignatedJobType(...items) {
+  const isDesignated = isDesignatedRequest(...items);
   return {
     isDesignated,
-    label: isDesignated ? "지정의뢰" : "일반의뢰",
+    label: getRequestTypeLabel(...items),
   };
-}
-
-function getDesignatedInterpreterName(job = {}) {
-  return (
-    job.selected_interpreter_name ||
-    job.interpreter_name ||
-    (job.selected_interpreter_id || job.interpreter_id
-      ? `#${job.selected_interpreter_id || job.interpreter_id}`
-      : "-")
-  );
 }
 
 function formatDate(value) {

@@ -86,41 +86,52 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     const requestDetails = form.requestDetails;
     const contact = form.contactEmailOrPhone;
 
-    const { error } = await supabase.from("requests").insert([
-      {
-        interpreter_id: interpreter?.id || null,
-        interpreter_name: interpreter?.name || "",
-        company_name: form.companyName,
-        contact_name: form.contactName,
-        contact_email_or_phone: contact,
-        manager_name: form.contactName,
-        email: contact,
-        phone: contact,
-        event_name: form.eventName,
-        event_date: form.startDate,
-        start_date: form.startDate,
-        end_date: form.endDate,
-        event_location: form.eventLocation,
-        work_hours: 0,
-        requested_level: form.requestedLevel,
-        requested_people_count: Number(form.requestedPeopleCount || 1),
-        preferred_gender: form.preferredGender,
-        interpretation_field: form.interpretationField,
-        urgency,
-        estimated_price: estimatedPrice,
-        interpreter_pay: interpreterPay,
-        request_details: requestDetails,
-        request_detail: requestDetails,
-        status: "pending",
-        is_public: false,
-        job_description: requestDetails,
-        job_field: form.interpretationField,
-        required_level:
-          form.requestedLevel === "운영팀 추천받기" ? null : form.requestedLevel,
-        required_count: Number(form.requestedPeopleCount || 1),
-        interpreter_fee: interpreterPay,
-      },
-    ]);
+    const requestPayload = {
+      interpreter_id: interpreter?.id || null,
+      interpreter_name: interpreter?.name || "",
+      company_name: form.companyName,
+      contact_name: form.contactName,
+      contact_email_or_phone: contact,
+      manager_name: form.contactName,
+      email: contact,
+      phone: contact,
+      event_name: form.eventName,
+      event_date: form.startDate,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      event_location: form.eventLocation,
+      work_hours: 0,
+      requested_level: form.requestedLevel,
+      requested_people_count: Number(form.requestedPeopleCount || 1),
+      preferred_gender: form.preferredGender,
+      interpretation_field: form.interpretationField,
+      urgency,
+      estimated_price: estimatedPrice,
+      interpreter_pay: interpreterPay,
+      request_details: requestDetails,
+      request_detail: requestDetails,
+      status: "pending",
+      is_public: false,
+      job_description: requestDetails,
+      job_field: form.interpretationField,
+      required_level:
+        form.requestedLevel === "운영팀 추천받기" ? null : form.requestedLevel,
+      required_count: Number(form.requestedPeopleCount || 1),
+      interpreter_fee: interpreterPay,
+    };
+    const designatedPayload = {
+      ...requestPayload,
+      request_type: interpreter ? "지정의뢰" : "일반의뢰",
+      selected_interpreter_id: interpreter?.id || null,
+      selected_interpreter_name: interpreter?.name || "",
+    };
+
+    let { error } = await supabase.from("requests").insert([designatedPayload]);
+
+    if (error && isMissingColumnError(error)) {
+      const fallbackResult = await supabase.from("requests").insert([requestPayload]);
+      error = fallbackResult.error;
+    }
 
     setIsSubmitting(false);
 
@@ -239,6 +250,14 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function isMissingColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column|schema cache/i.test(error?.message || "")
   );
 }
 

@@ -5,6 +5,11 @@ import { normalizeJobVisibility } from "../utils/jobStatus";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
+import {
+  getDesignatedInterpreterName,
+  getRequestTypeLabel,
+  isDesignatedRequest,
+} from "../utils/designatedRequest";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
@@ -201,7 +206,23 @@ function Admin() {
     () => groupByStringKey(jobApplications, "job_id"),
     [jobApplications]
   );
-  const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
+  const jobsById = useMemo(
+    () =>
+      jobs.reduce((map, job) => {
+        map.set(job.id, job);
+        map.set(String(job.id), job);
+        return map;
+      }, new Map()),
+    [jobs]
+  );
+  const requestsByJobId = useMemo(
+    () =>
+      requests.reduce((map, request) => {
+        if (request.job_id) map.set(String(request.job_id), request);
+        return map;
+      }, new Map()),
+    [requests]
+  );
   const matchedApplications = useMemo(
     () =>
       jobApplications.filter(
@@ -598,15 +619,15 @@ function Admin() {
 
     if (!applicationId) {
       alert("지원자 정보를 확인할 수 없습니다.");
-      return;
+      return false;
     }
 
     if (!supabase) {
       alert(supabaseConfigError.message);
-      return;
+      return false;
     }
 
-    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    if (confirmMessage && !window.confirm(confirmMessage)) return false;
 
     setSavingKey(`job-application-${applicationId}`);
 
@@ -619,7 +640,7 @@ function Admin() {
       if (error) {
         console.error("지원자 상태 변경 실패:", error);
         alert(error.message);
-        return;
+        return false;
       }
 
       if (askAssignJob && status === "매칭완료" && jobId) {
@@ -641,6 +662,7 @@ function Admin() {
       }
 
       await fetchAdminData();
+      return true;
     } finally {
       setSavingKey("");
     }
@@ -669,9 +691,7 @@ function Admin() {
       return;
     }
 
-    setJobApplications((current) =>
-      current.filter((item) => item.id !== application.id)
-    );
+    await fetchAdminData();
   };
 
   const deleteRequest = async (request) => {
@@ -818,6 +838,7 @@ function Admin() {
                 requests={filteredRequests}
                 savingKey={savingKey}
                 jobsById={jobsById}
+                requestsByJobId={requestsByJobId}
                 jobApplicationsByJob={jobApplicationsByJob}
                 onJobsAdminClick={switchToJobsTab}
                 setAssignmentDrafts={setAssignmentDrafts}
@@ -851,6 +872,8 @@ function Admin() {
               <AdminJobs
                 embedded
                 jobs={jobs}
+                requests={requests}
+                interpreters={interpreters}
                 applications={jobApplications}
                 onDataChanged={fetchAdminData}
                 updateApplicationStatus={updateJobApplicationStatus}
@@ -871,6 +894,8 @@ function Admin() {
               <MatchingManagement
                 applications={matchedApplications}
                 jobsById={jobsById}
+                requestsByJobId={requestsByJobId}
+                interpreters={interpreters}
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
               />
@@ -890,6 +915,7 @@ function RequestManagement({
   filters,
   interpreters,
   jobsById,
+  requestsByJobId,
   jobApplicationsByJob,
   onJobsAdminClick,
   requests,
@@ -986,6 +1012,8 @@ function RequestManagement({
                       : []
                   }
                   jobsById={jobsById}
+                  requestsByJobId={requestsByJobId}
+                  interpreters={interpreters}
                   onJobsAdminClick={onJobsAdminClick}
                   request={request}
                   savingKey={savingKey}
@@ -1017,6 +1045,7 @@ function FragmentRequestRow({
   interpreters,
   jobApplications,
   jobsById,
+  requestsByJobId,
   onJobsAdminClick,
   request,
   savingKey,
@@ -1032,9 +1061,13 @@ function FragmentRequestRow({
   toggleRequestJobPublic,
 }) {
   const job = request.job_id ? jobsById.get(request.job_id) : null;
+  const linkedRequest = request.job_id ? requestsByJobId.get(String(request.job_id)) : null;
   const jobPublicState = getRequestJobPublicState(request, job);
-  const requestType = getDesignatedRequestType(request, job);
-  const designatedInterpreterName = getDesignatedInterpreterName(request, job);
+  const requestType = getDesignatedRequestType(request, job, linkedRequest);
+  const designatedInterpreterName = getDesignatedInterpreterName(
+    [request, job, linkedRequest],
+    interpreters
+  );
 
   return (
     <>
@@ -1198,7 +1231,7 @@ function RequestDetailPanel({
   updateApplicationStatus,
 }) {
   const requestType = getDesignatedRequestType(request);
-  const designatedInterpreterName = getDesignatedInterpreterName(request);
+  const designatedInterpreterName = getDesignatedInterpreterName([request], interpreters);
 
   return (
     <div className="admin-detail-panel">
@@ -1798,6 +1831,8 @@ function ApplicationManagement({
 function MatchingManagement({
   applications,
   jobsById,
+  requestsByJobId,
+  interpreters,
   savingKey,
   updateApplicationStatus,
 }) {
@@ -1811,19 +1846,31 @@ function MatchingManagement({
               <th className="admin-col-title">공고</th>
               <th className="admin-col-company">기업/행사</th>
               <th className="admin-col-date">날짜</th>
+              <th className="admin-col-location">장소</th>
               <th className="admin-col-company">지원자</th>
               <th>연락처</th>
+              <th>이메일</th>
               <th className="admin-col-language">언어</th>
+              <th className="admin-col-status">의뢰 유형</th>
+              <th className="admin-col-company">지정 통역사</th>
               <th className="admin-col-status">상태</th>
               <th className="admin-col-actions">관리</th>
             </tr>
           </thead>
           <tbody>
             {applications.length === 0 ? (
-              <EmptyTableRow colSpan="8" text="아직 매칭완료된 지원자가 없습니다." />
+              <EmptyTableRow colSpan="12" text="아직 매칭완료된 지원자가 없습니다." />
             ) : (
               applications.map((application) => {
-                const job = application.jobs || jobsById.get(application.job_id);
+                const job = jobsById.get(application.job_id) || application.jobs;
+                const request = application.job_id
+                  ? requestsByJobId.get(String(application.job_id))
+                  : null;
+                const requestType = getDesignatedRequestType(request, job);
+                const designatedInterpreterName = getDesignatedInterpreterName(
+                  [request, job],
+                  interpreters
+                );
 
                 return (
                   <tr key={application.id}>
@@ -1849,6 +1896,12 @@ function MatchingManagement({
                       )}
                     </td>
                     <td
+                      className="admin-col-location"
+                      title={job?.event_location || job?.location || ""}
+                    >
+                      {job?.event_location || job?.location || "-"}
+                    </td>
+                    <td
                       className="admin-col-company"
                       title={application.applicant_name || ""}
                     >
@@ -1856,10 +1909,20 @@ function MatchingManagement({
                     </td>
                     <td title={`${application.phone || ""} ${application.email || ""}`}>
                       {application.phone || "연락처 미입력"}
-                      <span className="admin-muted-inline">{application.email || ""}</span>
+                    </td>
+                    <td title={application.email || ""}>
+                      {application.email || "-"}
                     </td>
                     <td className="admin-col-language">
                       {getApplicationLanguage(application, job)}
+                    </td>
+                    <td className="admin-col-status">
+                      <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
+                        {requestType.label}
+                      </span>
+                    </td>
+                    <td className="admin-col-company" title={designatedInterpreterName}>
+                      {designatedInterpreterName}
                     </td>
                     <td className="admin-col-status">
                       <StatusBadge status={application.status || "매칭완료"} />
@@ -2105,38 +2168,12 @@ function isRequestWithinDays(request, days) {
   return diffDays >= 0 && diffDays <= days;
 }
 
-function getDesignatedRequestType(request = {}, job = {}) {
-  const isDesignated = Boolean(
-    request.selected_interpreter_id ||
-      request.selected_interpreter_name ||
-      request.interpreter_id ||
-      request.interpreter_name ||
-      job?.selected_interpreter_id ||
-      job?.selected_interpreter_name ||
-      job?.interpreter_id ||
-      job?.interpreter_name
-  );
-
+function getDesignatedRequestType(...items) {
+  const isDesignated = isDesignatedRequest(...items);
   return {
     isDesignated,
-    label: isDesignated ? "지정의뢰" : "일반의뢰",
+    label: getRequestTypeLabel(...items),
   };
-}
-
-function getDesignatedInterpreterName(request = {}, job = {}) {
-  return (
-    request.selected_interpreter_name ||
-    request.interpreter_name ||
-    job?.selected_interpreter_name ||
-    job?.interpreter_name ||
-    (request.selected_interpreter_id || request.interpreter_id
-      ? `#${request.selected_interpreter_id || request.interpreter_id}`
-      : "") ||
-    (job?.selected_interpreter_id || job?.interpreter_id
-      ? `#${job.selected_interpreter_id || job.interpreter_id}`
-      : "") ||
-    "-"
-  );
 }
 
 function getStatusBadgeClass(status) {

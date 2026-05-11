@@ -82,13 +82,13 @@ const styles = {
     minHeight: "100vh",
     width: "100vw",
     boxSizing: "border-box",
-    padding: "60px 24px",
+    padding: "48px 24px",
     background:
       "radial-gradient(circle at 80% 18%, rgba(99, 102, 241, 0.1), transparent 30%), linear-gradient(135deg, #f8fafc, #eef2ff)",
     color: "#111827",
   },
   shell: {
-    maxWidth: "1100px",
+    maxWidth: "1120px",
     margin: "0 auto",
   },
   backButton: {
@@ -104,8 +104,8 @@ const styles = {
   hero: {
     background: "rgba(255, 255, 255, 0.94)",
     border: "1px solid rgba(255, 255, 255, 0.85)",
-    borderRadius: "24px",
-    boxShadow: "0 20px 50px rgba(15, 23, 42, 0.12)",
+    borderRadius: "18px",
+    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
     padding: "34px",
   },
   kicker: {
@@ -118,7 +118,7 @@ const styles = {
   title: {
     margin: 0,
     color: "#111827",
-    fontSize: "42px",
+    fontSize: "40px",
     fontWeight: "900",
   },
   body: {
@@ -172,8 +172,8 @@ const styles = {
   featureCard: {
     background: "rgba(255, 255, 255, 0.94)",
     border: "1px solid rgba(255, 255, 255, 0.85)",
-    borderRadius: "24px",
-    boxShadow: "0 20px 50px rgba(15, 23, 42, 0.12)",
+    borderRadius: "18px",
+    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
     padding: "24px",
   },
   featureNumber: {

@@ -339,10 +339,10 @@ const styles = {
   card: {
     background: "rgba(255, 255, 255, 0.88)",
     backdropFilter: "blur(16px)",
-    padding: "28px",
+    padding: "24px",
     borderRadius: "18px",
     border: "1px solid rgba(255, 255, 255, 0.8)",
-    boxShadow: "0 30px 80px rgba(15, 23, 42, 0.14)",
+    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
   },
   form: {
     display: "grid",
