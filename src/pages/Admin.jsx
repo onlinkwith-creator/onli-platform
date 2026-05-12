@@ -1203,6 +1203,7 @@ function RequestManagement({
               updateApplicationStatus={updateApplicationStatus}
               deleteRequest={deleteRequest}
               toggleRequestJobPublic={toggleRequestJobPublic}
+              setSelectedRequest={setSelectedRequest}
             />
           ))}
         </div>
@@ -1233,6 +1234,7 @@ function AdminRequestCard({
   updateApplicationStatus,
   deleteRequest,
   toggleRequestJobPublic,
+  setSelectedRequest,
 }) {
   const job = request.job_id ? jobsById.get(request.job_id) : null;
   const linkedRequest = request.job_id ? requestsByJobId.get(String(request.job_id)) : null;
@@ -1329,7 +1331,7 @@ function AdminRequestCard({
         <button
           type="button"
           className="admin-link-button"
-          onClick={() => setExpandedRequestId(request)}
+          onClick={() => setExpandedRequest(request)}
         >
           {expanded ? "닫기" : "상세 보기"}
         </button>
