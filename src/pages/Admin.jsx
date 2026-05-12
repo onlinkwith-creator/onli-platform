@@ -116,6 +116,7 @@ function Admin() {
   const [savingKey, setSavingKey] = useState("");
   const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [applicationsRequestId, setApplicationsRequestId] = useState(null);
+  const [selectedRequest, setSelectedRequest] = useState(null);
   const [selectedInterpreter, setSelectedInterpreter] = useState(null);
   const [interpreterModalType, setInterpreterModalType] = useState(null);
   const [interpreterEditDraft, setInterpreterEditDraft] = useState(null);
@@ -1024,7 +1025,77 @@ function Admin() {
               onChangeDraft={updateInterpreterEditDraft}
               onClose={closeInterpreterModal}
               onSave={saveInterpreterEditDraft}
-            />
+            />{selectedRequest && (
+      <div
+        className="admin-modal-backdrop"
+        onClick={() => setSelectedRequest(null)}
+      >
+        <div
+          className="admin-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="admin-modal-header">
+            <h2>의뢰 상세</h2>
+
+            <button
+              type="button"
+              className="admin-modal-close"
+              onClick={() => setSelectedRequest(null)}
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="admin-modal-body">
+            <p>
+              <strong>제목</strong>
+              <br />
+              {selectedRequest.title || "-"}
+            </p>
+
+            <p>
+              <strong>장소</strong>
+              <br />
+              {selectedRequest.location || "-"}
+            </p>
+
+            <p>
+              <strong>일정</strong>
+              <br />
+              {selectedRequest.start_date || "-"} ~{" "}
+              {selectedRequest.end_date || "-"}
+            </p>
+
+            <p>
+              <strong>인원</strong>
+              <br />
+              {selectedRequest.people || "-"}
+            </p>
+
+            <p>
+              <strong>레벨</strong>
+              <br />
+              {selectedRequest.level || "-"}
+            </p>
+
+            <p>
+              <strong>상태</strong>
+              <br />
+              {selectedRequest.status || "-"}
+            </p>
+
+            <p>
+              <strong>의뢰 내용</strong>
+              <br />
+              {selectedRequest.description ||
+                selectedRequest.preference ||
+                "-"}
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+          
           </>
         )}
       </div>
@@ -1266,7 +1337,7 @@ function AdminRequestCard({
           type="button"
           className="admin-link-button danger"
           disabled={savingKey === `request-delete-${request.id}`}
-          onClick={() => deleteRequest(request)}
+          onClick={() => setSelectedRequest(job)}
         >
           삭제
         </button>
