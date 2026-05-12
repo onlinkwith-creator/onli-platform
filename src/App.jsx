@@ -209,7 +209,7 @@ function App() {
       {page === "detail" && selectedInterpreter && (
         <InterpreterDetail
           interpreter={selectedInterpreter}
-          onBackClick={() => navigate("list", null)}
+          onBackClick={() => navigate("home", null, null)}
           onRequestClick={(person) => {
             navigate("request", person);
           }}

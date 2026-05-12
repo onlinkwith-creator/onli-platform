@@ -76,7 +76,7 @@ function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
             이 통역사 지정해서 의뢰하기
           </button>
           <button onClick={onBackClick} style={styles.backButton}>
-            뒤로가기
+            ← 메인으로 돌아가기
           </button>
         </div>
       </div>
