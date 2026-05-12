@@ -16,6 +16,14 @@ export function getJobLevelSummary(job) {
   return "레벨 협의 · 운영팀 검토 후 배정";
 }
 
+export function getJobActivityFeeLabel(job) {
+  const level = getJobLevel(job);
+
+  if (level === "LV 협의") return "레벨 협의 후 활동비 안내";
+
+  return `${level} 기준 활동비`;
+}
+
 export function getJobSpecialty(job) {
   return (
     job?.field ||

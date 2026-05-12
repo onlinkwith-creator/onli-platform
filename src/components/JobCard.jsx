@@ -1,6 +1,6 @@
 import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
-import { getJobLevelSummary, getJobSpecialty } from "../utils/jobDisplay";
+import { getJobActivityFeeLabel, getJobSpecialty } from "../utils/jobDisplay";
 
 function JobCard({ job, onApplyClick, onDetailClick }) {
   const status = normalizeJobStatus(job);
@@ -41,7 +41,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
           )}
         />
         <JobInfo label="장소" value={job.location || job.event_location} />
-        <JobInfo label="레벨" value={getJobLevelSummary(job)} />
+        <JobInfo label="레벨 기준 활동비" value={<ActivityFee value={getJobActivityFeeLabel(job)} />} />
         <JobInfo label="분야" value={getJobSpecialty(job)} />
       </dl>
 
@@ -67,6 +67,17 @@ function JobInfo({ label, value }) {
       <dt>{label}</dt>
       <dd>{value || "-"}</dd>
     </div>
+  );
+}
+
+function ActivityFee({ value }) {
+  const [level, ...description] = String(value || "").split(" ");
+
+  return (
+    <span className="home-job-activity-fee">
+      <strong>{level}</strong>
+      <small>{description.join(" ")}</small>
+    </span>
   );
 }
 

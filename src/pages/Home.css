@@ -733,6 +733,35 @@
   text-align: left;
 }
 
+.home-job-activity-fee {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.home-job-activity-fee strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.home-job-activity-fee small {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
 .home-job-level-note {
   margin: -4px 0 14px;
   padding: 10px 12px;
