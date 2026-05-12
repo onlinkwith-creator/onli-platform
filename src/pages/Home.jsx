@@ -311,13 +311,16 @@ function Home({
       </section>
 
       <footer className="home-footer" id="contact">
-        <div className="home-footer-brand">
-          <div className="home-footer-logo-row">
-            <img className="home-footer-logo" src="/favicon.svg" alt="ON-LI" />
-            <strong>ON-LI</strong>
+        <div className="home-footer-content">
+          <div className="home-footer-brand">
+            <div className="home-footer-logo-row">
+              <img className="home-footer-logo" src="/favicon.svg" alt="ON-LI" />
+              <strong>ON-LI</strong>
+            </div>
+            <span>한일 비즈니스 통역 매칭 플랫폼</span>
+            <small>레벨 기반 매칭 · 현장 중심 운영</small>
+            <small>한일 비즈니스 특화</small>
           </div>
-          <span>한일 비즈니스 통역 매칭 플랫폼</span>
-          <small>레벨 기반 매칭 · 현장 중심 운영 · 한일 비즈니스 특화</small>
           <div className="home-footer-links" aria-label="운영 문의">
             <span className="home-footer-links-title">운영 문의</span>
             <a
@@ -328,19 +331,31 @@ function Home({
             >
               Instagram
             </a>
-            <span className="home-footer-contact-label">Email</span>
-            <div className="home-footer-email-list">
-              <a className="home-footer-link" href="mailto:onlinkwith@gmail.com">
-                onlinkwith@gmail.com
-              </a>
-              <a className="home-footer-link" href="mailto:onlinkcp@gmail.com">
-                onlinkcp@gmail.com
-              </a>
+            <a className="home-footer-link" href="mailto:onlinkwith@gmail.com">
+              onlinkwith@gmail.com
+            </a>
+            <a className="home-footer-link" href="mailto:onlinkcp@gmail.com">
+              onlinkcp@gmail.com
+            </a>
+            <span className="home-footer-hours">평일 10:00-18:00</span>
+          </div>
+          <div className="home-footer-trust" aria-label="서비스 신뢰 포인트">
+            <div className="home-footer-trust-item">
+              <strong>검증된 통역사</strong>
+              <span>엄격한 심사를 거친 전문 통역사만 활동</span>
             </div>
-            <span className="home-footer-hours">운영시간 평일 10:00-18:00</span>
+            <div className="home-footer-trust-item">
+              <strong>직접 매칭</strong>
+              <span>ON-LI가 직접 검토 후 최적의 통역사 매칭</span>
+            </div>
+            <div className="home-footer-trust-item">
+              <strong>안심 서비스</strong>
+              <span>개인정보 보호 및 안전한 서비스 제공</span>
+            </div>
           </div>
         </div>
-        <span className="home-footer-copy">Copyright ON-LI. All rights reserved.</span>
+        <div className="home-footer-divider" aria-hidden="true" />
+        <span className="home-footer-copy">© 2025 ON-LI. All rights reserved.</span>
       </footer>
     </div>
   );
