@@ -16,14 +16,6 @@ export function getJobLevelSummary(job) {
   return "레벨 협의 · 운영팀 검토 후 배정";
 }
 
-export function getJobActivityFeeLabel(job) {
-  const level = getJobLevel(job);
-
-  if (level === "LV 협의") return "레벨 협의 후 활동비 안내";
-
-  return `${level} 기준 활동비`;
-}
-
 export function getJobSpecialty(job) {
   return (
     job?.field ||
@@ -31,5 +23,16 @@ export function getJobSpecialty(job) {
     job?.category ||
     job?.preference ||
     "한일 비즈니스 통역"
+  );
+}
+
+export function getJobPayDisplay(job) {
+  return (
+    job?.pay ||
+    job?.dailyPay ||
+    job?.daily_pay ||
+    job?.wage ||
+    job?.price ||
+    "협의"
   );
 }

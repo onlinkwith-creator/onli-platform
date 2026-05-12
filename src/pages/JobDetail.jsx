@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
-import { getJobActivityFeeLabel, getJobLevelSummary, getJobSpecialty } from "../utils/jobDisplay";
+import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import "./Jobs.css";
 
 const initialForm = {
@@ -152,12 +152,16 @@ function JobDetail({ jobId, onBackClick, onApplyClick }) {
                 <Info label="장소" value={job.location || job.event_location} />
                 <Info label="언어" value={job.language || "한국어/일본어"} />
                 <Info label="필요 레벨" value={getJobLevelSummary(job)} />
-                <Info label="레벨 기준 활동비" value={getJobActivityFeeLabel(job)} />
+                <Info label="일급" value={getJobPayDisplay(job)} />
                 <Info label="모집 인원" value={job.people || job.people_count} />
                 <Info label="전문 분야" value={getJobSpecialty(job)} />
                 <Info label="지원 마감일" value={job.deadline || "상시"} />
                 <Info label="상태" value={getJobStatusLabel(job)} />
               </div>
+
+              <p className="job-detail-level-note">
+                요구 레벨에 맞는 일급 기준이 적용됩니다.
+              </p>
 
               <section>
                 <h2>행사 설명</h2>

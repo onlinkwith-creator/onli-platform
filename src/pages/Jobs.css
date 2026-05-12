@@ -265,6 +265,19 @@
   line-height: 1.7;
 }
 
+.job-detail-level-note {
+  margin: -8px 0 24px;
+  padding: 12px 14px;
+  border: 1px solid #e0e7ff;
+  border-radius: 14px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
 .job-detail-process div {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
