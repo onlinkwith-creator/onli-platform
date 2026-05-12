@@ -100,6 +100,7 @@ function App() {
           onListClick={() => navigate("list", null)}
           onInterpreterClick={(person) => navigate("detail", person)}
           onJobsClick={() => navigate("jobs", null, null)}
+          onJobDetailClick={(job) => navigate("jobDetail", null, job.id)}
           onJobApplyClick={(job) => navigate("jobApply", null, job.id)}
           onRequestClick={() => navigate("jobCreate", null, null)}
         />
@@ -127,6 +128,7 @@ function App() {
       {page === "jobs" && (
         <JobList
           onBackClick={() => navigate("home", null, null)}
+          onDetailClick={(job) => navigate("jobDetail", null, job.id)}
           onApplyClick={(job) => navigate("jobApply", null, job.id)}
         />
       )}
@@ -143,6 +145,7 @@ function App() {
         <JobDetail
           jobId={selectedJobId}
           onBackClick={() => navigate("jobs", null, null)}
+          onApplyClick={(job) => navigate("jobApply", null, job.id)}
         />
       )}
 

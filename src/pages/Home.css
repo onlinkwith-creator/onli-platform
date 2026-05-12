@@ -3,6 +3,11 @@
   --home-carousel-edge-offset: 54px;
   --home-section-gap: 48px;
   --home-section-padding-x: 24px;
+  --onli-card-radius: 20px;
+  --onli-card-shadow: 0 14px 34px rgba(15, 23, 42, 0.09);
+  --onli-card-shadow-hover: 0 24px 52px rgba(15, 23, 42, 0.14);
+  --onli-border: #e5e7eb;
+  --onli-border-hover: #c7d2fe;
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
@@ -446,9 +451,9 @@
 
 .home-company-cta:hover,
 .home-interpreter-cta:hover {
-  transform: translateY(-2px);
-  border-color: #d1d5db;
-  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.1);
+  transform: translateY(-4px);
+  border-color: var(--onli-border-hover);
+  box-shadow: var(--onli-card-shadow-hover);
 }
 
 .home-cta-icon {
@@ -614,10 +619,11 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 20px;
-  border-radius: 18px;
+  border-radius: var(--onli-card-radius);
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--onli-border);
+  box-shadow: var(--onli-card-shadow);
+  cursor: pointer;
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
@@ -628,9 +634,15 @@
 
 .home-job-card:hover,
 .home-interpreter-card:hover {
-  transform: translateY(-2px);
-  border-color: #d1d5db;
-  box-shadow: 0 20px 46px rgba(15, 23, 42, 0.11);
+  transform: translateY(-4px);
+  border-color: var(--onli-border-hover);
+  box-shadow: var(--onli-card-shadow-hover);
+}
+
+.home-job-card:focus-visible,
+.home-interpreter-card:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.26);
+  outline-offset: 3px;
 }
 
 .home-job-status {
@@ -719,6 +731,19 @@
   font-weight: 800;
   line-height: 1.45;
   text-align: left;
+}
+
+.home-job-level-note {
+  margin: -4px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #e0e7ff;
+  border-radius: 14px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.45;
+  word-break: keep-all;
 }
 
 .home-job-card button {
@@ -843,6 +868,21 @@
   text-align: left;
 }
 
+.home-activity-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid #bbf7d0;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .home-interpreter-intro {
   display: -webkit-box;
   overflow: hidden;
@@ -881,32 +921,42 @@
 }
 
 .home-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr) auto;
+  align-items: start;
   gap: 18px;
   margin-top: var(--home-section-gap);
-  padding: 24px var(--home-section-padding-x) 0;
-  border-top: 1px solid rgba(209, 213, 219, 0.9);
-  color: #6b7280;
+  padding: 28px var(--home-section-padding-x);
+  border: 1px solid rgba(209, 213, 219, 0.9);
+  border-radius: 24px 24px 0 0;
+  background: rgba(17, 24, 39, 0.96);
+  color: #d1d5db;
   font-size: 13px;
   text-align: left;
 }
 
-.home-footer div {
+.home-footer-brand,
+.home-footer-links {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .home-footer strong {
-  color: #111827;
-  font-size: 15px;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.home-footer small {
+  color: #9ca3af;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 .home-footer a {
-  color: #374151;
-  font-weight: 700;
+  color: #ffffff;
+  font-weight: 800;
   text-decoration: none;
 }
 
@@ -914,12 +964,10 @@
   text-decoration: underline;
 }
 
-.home-footer button {
-  padding: 10px 14px;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-  background: rgba(255, 255, 255, 0.7);
-  color: #374151;
+.home-footer-copy {
+  color: #9ca3af;
+  font-weight: 800;
+  text-align: right;
 }
 
 @media (max-width: 900px) {
@@ -1116,8 +1164,13 @@
   }
 
   .home-footer {
+    grid-template-columns: 1fr;
     align-items: flex-start;
-    flex-direction: column;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .home-footer-copy {
+    text-align: left;
   }
 
   .home-company-cta,

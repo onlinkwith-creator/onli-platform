@@ -15,6 +15,7 @@ function Home({
   onListClick,
   onInterpreterClick,
   onJobsClick,
+  onJobDetailClick,
   onJobApplyClick,
   onRequestClick,
 }) {
@@ -262,6 +263,7 @@ function Home({
                 <JobCard
                   key={job.id}
                   job={job}
+                  onDetailClick={() => onJobDetailClick(job)}
                   onApplyClick={() => onJobApplyClick(job)}
                 />
               ))}
@@ -305,17 +307,18 @@ function Home({
       </section>
 
       <footer className="home-footer" id="contact">
-        <div>
+        <div className="home-footer-brand">
           <strong>ON-LI</strong>
-          <span>Korea-Japan Interpretation Platform</span>
-          <span>
-            Email: <a href="mailto:onlinkcp@gmail.com">onlinkcp@gmail.com</a>
-          </span>
+          <span>한일 비즈니스 통역 매칭 플랫폼</span>
+          <small>레벨 기반 매칭 · 현장 중심 운영 · 한일 비즈니스 특화</small>
         </div>
-        <button type="button" onClick={onListClick}>
-          Contact
-        </button>
-        <span>Copyright ON-LI. All rights reserved.</span>
+        <div className="home-footer-links" aria-label="운영 문의">
+          <span>운영 문의</span>
+          <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram</a>
+          <a href="mailto:onlinkcp@gmail.com">Email</a>
+          <span>운영시간 평일 10:00-18:00</span>
+        </div>
+        <span className="home-footer-copy">Copyright ON-LI. All rights reserved.</span>
       </footer>
     </div>
   );
@@ -404,6 +407,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
   const specialtyBadges = specialties.length > 0 ? specialties : ["일반 비즈니스"];
   const availableRegionLabel = getAvailableRegionLabel(interpreter);
   const experience = getExperienceLabel(interpreter);
+  const statusLabel = getInterpreterStatusLabel(interpreter);
 
   return (
     <article className="home-interpreter-card">
@@ -429,8 +433,16 @@ function InterpreterCard({ interpreter, onProfileClick }) {
           <dd>{specialtyBadges.join(", ")}</dd>
         </div>
         <div>
+          <dt>가능 언어</dt>
+          <dd>{interpreter.language_level || interpreter.jlpt || "한국어 · 일본어"}</dd>
+        </div>
+        <div>
           <dt>통역 경험</dt>
           <dd>{experience}</dd>
+        </div>
+        <div>
+          <dt>활동 상태</dt>
+          <dd><span className="home-activity-badge">{statusLabel}</span></dd>
         </div>
       </dl>
 
@@ -458,6 +470,13 @@ function getAvailableRegionLabel(interpreter) {
 
 function getExperienceLabel(interpreter) {
   return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
+}
+
+function getInterpreterStatusLabel(interpreter) {
+  if (interpreter.status === "warning") return "운영팀 확인";
+  if (interpreter.status === "inactive") return "휴식중";
+  if (interpreter.approved === false) return "검토중";
+  return "활동중";
 }
 
 export default Home;

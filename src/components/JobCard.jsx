@@ -1,13 +1,28 @@
 import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
+import { getJobLevelSummary, getJobSpecialty } from "../utils/jobDisplay";
 
-function JobCard({ job, onApplyClick }) {
+function JobCard({ job, onApplyClick, onDetailClick }) {
   const status = normalizeJobStatus(job);
   const canApply = canApplyToJob(job);
   const badge = getJobStatusLabel(job);
+  const openDetail = () => onDetailClick?.(job);
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openDetail();
+    }
+  };
 
   return (
-    <article className="home-job-card">
+    <article
+      className="home-job-card"
+      role={onDetailClick ? "link" : undefined}
+      tabIndex={onDetailClick ? 0 : undefined}
+      onClick={openDetail}
+      onKeyDown={onDetailClick ? handleKeyDown : undefined}
+      aria-label={`${job.event_name || job.title || "통역 공고"} 상세 보기`}
+    >
       <div>
         <span className={`home-job-status ${status}`}>
           {badge}
@@ -26,11 +41,20 @@ function JobCard({ job, onApplyClick }) {
           )}
         />
         <JobInfo label="장소" value={job.location || job.event_location} />
-        <JobInfo label="언어" value={job.language} />
-        <JobInfo label="일급" value={job.pay} />
+        <JobInfo label="레벨" value={getJobLevelSummary(job)} />
+        <JobInfo label="분야" value={getJobSpecialty(job)} />
       </dl>
 
-      <button type="button" onClick={onApplyClick} disabled={!canApply}>
+      <p className="home-job-level-note">레벨에 따라 프로젝트와 활동 조건이 달라집니다.</p>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onApplyClick?.(job);
+        }}
+        disabled={!canApply}
+      >
         {canApply ? "지원하기" : badge}
       </button>
     </article>

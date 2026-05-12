@@ -271,16 +271,15 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                   </span>
                 </div>
 
-                <Info label="성별" value={person.gender} />
-                <Info label="나이" value={person.age} />
-                <Info label="거주 지역" value={person.region} />
+                <Info label="활동 상태" value={getInterpreterStatusLabel(person)} />
                 <Info label="활동 가능 지역" value={formatList(person.available_regions)} />
-                <Info label="학교/전공" value={person.school} />
-                <Info label="일본 거주 기간" value={person.stay_period} />
+                <Info label="전문 분야" value={formatList(person.specialties)} />
+                <Info label="가능 언어" value={person.language_level || person.jlpt || "한국어 · 일본어"} />
                 <Info
                   label="통역 경험"
                   value={getExperienceLabel(person)}
                 />
+                <Info label="최근 활동 분야" value={getRecentActivityLabel(person)} />
 
                 <button
   onClick={() => onDetailClick(person)}
@@ -494,6 +493,23 @@ function getSearchText(person) {
 
 function getExperienceLabel(person) {
   return person.has_experience ? "통역 경험 있음" : "통역 경험 없음";
+}
+
+function getInterpreterStatusLabel(person) {
+  if (person.status === "warning") return "운영팀 확인";
+  if (person.status === "inactive") return "휴식중";
+  return "활동중";
+}
+
+function getRecentActivityLabel(person) {
+  const tasks = person.available_tasks || "";
+  if (tasks) return tasks;
+
+  const specialties = Array.isArray(person.specialties)
+    ? person.specialties.filter(Boolean)
+    : [];
+
+  return specialties[0] || "현장 중심 매칭";
 }
 
 const styles = {

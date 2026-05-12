@@ -9,7 +9,7 @@ function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
 
-function JobList({ onBackClick, onApplyClick }) {
+function JobList({ onBackClick, onApplyClick, onDetailClick }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -61,7 +61,12 @@ function JobList({ onBackClick, onApplyClick }) {
         ) : (
           <div className="home-job-grid jobs-card-grid">
             {jobs.map((job) => (
-              <JobCard key={job.id} job={job} onApplyClick={() => onApplyClick(job)} />
+              <JobCard
+                key={job.id}
+                job={job}
+                onDetailClick={() => onDetailClick(job)}
+                onApplyClick={() => onApplyClick(job)}
+              />
             ))}
           </div>
         )}

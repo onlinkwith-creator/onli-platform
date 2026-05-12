@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
+import { getJobLevelSummary, getJobSpecialty } from "../utils/jobDisplay";
 import "./Jobs.css";
 
 const initialForm = {
@@ -13,7 +14,7 @@ const initialForm = {
 
 // TODO: 실서비스 전에는 Supabase Auth 기반으로 통역사 본인 계정만 지원 가능하게 해야 함.
 
-function JobDetail({ jobId, onBackClick }) {
+function JobDetail({ jobId, onBackClick, onApplyClick }) {
   const [job, setJob] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
@@ -128,16 +129,20 @@ function JobDetail({ jobId, onBackClick }) {
         ) : (
           <div className="job-detail-layout">
             <article className="job-detail-card">
-              <p className="jobs-kicker">JOB DETAIL</p>
-              <h1>{job.title || job.event_name || "공고 제목 미입력"}</h1>
+              <div className="job-detail-title-row">
+                <p className="jobs-kicker">JOB DETAIL</p>
+                <span className="job-detail-status">{getJobStatusLabel(job)}</span>
+              </div>
+              <h1>{job.event_name || job.title || "공고 제목 미입력"}</h1>
               <p className="job-detail-lead">
-                {job.location || job.event_location || "장소 협의"} ·{" "}
-                {job.language || job.field || "한일 비즈니스 통역"}
+                {job.company_name || "기업명 확인 중"} ·{" "}
+                {job.language || "한국어/일본어"} · {getJobLevelSummary(job)}
               </p>
 
               <div className="job-detail-grid">
+                <Info label="기업명" value={job.company_name} />
                 <Info
-                  label="일정"
+                  label="날짜"
                   value={formatDateRange(
                     job.start_date,
                     job.end_date,
@@ -145,25 +150,60 @@ function JobDetail({ jobId, onBackClick }) {
                   )}
                 />
                 <Info label="장소" value={job.location || job.event_location} />
-                <Info label="일급" value={job.pay} />
-                <Info label="필요 인원" value={job.people || job.people_count} />
-                <Info label="통역 레벨" value={job.level || job.requested_level || "협의"} />
+                <Info label="언어" value={job.language || "한국어/일본어"} />
+                <Info label="필요 레벨" value={getJobLevelSummary(job)} />
+                <Info label="모집 인원" value={job.people || job.people_count} />
+                <Info label="전문 분야" value={getJobSpecialty(job)} />
                 <Info label="지원 마감일" value={job.deadline || "상시"} />
                 <Info label="상태" value={getJobStatusLabel(job)} />
               </div>
 
               <section>
-                <h2>업무 내용</h2>
-                <p>{job.job_description || job.preference || "업무 내용 협의"}</p>
+                <h2>행사 설명</h2>
+                <p>
+                  {job.description ||
+                    job.job_description ||
+                    "ON-LI 운영팀이 행사 목적과 현장 난이도를 확인한 뒤 적합한 통역사를 매칭합니다."}
+                </p>
               </section>
 
               <section>
-                <h2>복장/주의사항</h2>
-                <p>{job.dress_code || job.preferred_gender || "추후 안내"}</p>
+                <h2>이런 통역사를 찾고 있습니다</h2>
+                <p>
+                  {job.preference ||
+                    `${getJobLevelSummary(job)} 역량을 바탕으로 한일 비즈니스 현장에서 안정적으로 소통할 수 있는 분을 찾고 있습니다.`}
+                </p>
+              </section>
+
+              <section className="job-detail-process">
+                <h2>진행 일정</h2>
+                <div>
+                  <span>공고 확인</span>
+                  <span>운영팀 검토</span>
+                  <span>최종 배정</span>
+                  <span>현장 안내</span>
+                </div>
+              </section>
+
+              <section>
+                <h2>우대 사항 및 안내</h2>
+                <p>{job.dress_code || job.preferred_gender || "상세 안내는 매칭 확정 후 운영팀을 통해 전달됩니다."}</p>
               </section>
             </article>
 
             <aside className="job-apply-card">
+              <div className="job-apply-summary">
+                <p className="jobs-kicker">ON-LI MATCHING</p>
+                <h2>{canApplyToJob(job) ? "지원 가능한 공고입니다" : getJobStatusLabel(job)}</h2>
+                <p>레벨에 따라 프로젝트와 활동 조건이 달라지며, 지원 내용은 ON-LI 운영팀 검토 후 매칭에 반영됩니다.</p>
+                <button
+                  type="button"
+                  onClick={() => onApplyClick?.(job)}
+                  disabled={!canApplyToJob(job)}
+                >
+                  {canApplyToJob(job) ? "지원 페이지로 이동" : getJobStatusLabel(job)}
+                </button>
+              </div>
               {submitted ? (
                 <div className="jobs-success-inline">
                   <h2>지원 완료</h2>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
+import { getJobLevelSummary, getJobSpecialty } from "../utils/jobDisplay";
 import "./Jobs.css";
 
 const initialForm = {
@@ -182,9 +183,9 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
               </p>
 
               <div className="job-detail-grid">
-                <Info label="일급" value={job.pay} />
+                <Info label="레벨 기준" value={getJobLevelSummary(job)} />
                 <Info label="언어" value={job.language} />
-                <Info label="레벨" value={job.level} />
+                <Info label="전문 분야" value={getJobSpecialty(job)} />
                 <Info label="모집 인원" value={job.people} />
                 <Info label="우대" value={job.preference} />
                 <Info

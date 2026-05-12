@@ -23,6 +23,16 @@
   color: #111827;
   cursor: pointer;
   font-weight: 700;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.jobs-back:hover {
+  transform: translateY(-2px);
+  border-color: #c7d2fe;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
 }
 
 .jobs-header {
@@ -65,9 +75,23 @@
 .jobs-message,
 .jobs-success-box {
   background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.09);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.job-card:hover,
+.job-detail-card:hover,
+.job-apply-card:hover,
+.jobs-message:hover,
+.jobs-success-box:hover {
+  transform: translateY(-4px);
+  border-color: #c7d2fe;
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.14);
 }
 
 .jobs-card-grid {
@@ -187,6 +211,28 @@
   align-items: start;
 }
 
+.job-detail-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.job-detail-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid #bbf7d0;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .job-detail-card,
 .job-apply-card,
 .jobs-message,
@@ -217,6 +263,44 @@
   margin: 0;
   color: #4b5563;
   line-height: 1.7;
+}
+
+.job-detail-process div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.job-detail-process span {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 10px;
+  border: 1px solid #e0e7ff;
+  border-radius: 14px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.job-apply-summary {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.job-apply-summary p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.6;
 }
 
 .job-apply-card form {
@@ -344,8 +428,13 @@
   }
 
   .job-detail-layout,
-  .job-detail-grid {
+  .job-detail-grid,
+  .job-detail-process div {
     grid-template-columns: 1fr;
+  }
+
+  .job-detail-title-row {
+    flex-direction: column;
   }
 
   .job-detail-card,
