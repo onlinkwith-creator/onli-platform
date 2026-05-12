@@ -8,7 +8,7 @@ import {
   getPrimaryPublicInterpreterInfo,
 } from "../utils/publicInterpreter";
 import "./Home.css";
-import { Building2, Languages } from "lucide-react";
+import { Building2, UserRound } from "lucide-react";
 
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
@@ -164,7 +164,7 @@ function Home({
       <section className="home-cta-stack" aria-label="ON-LI 이용 안내">
         <div className="home-company-cta">
           <div className="home-cta-icon" aria-hidden="true">
-             <Languages size={28} strokeWidth={1.8} />
+             <Building2 size={28} strokeWidth={1.8} />
           </div>
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR COMPANIES</p>
@@ -180,7 +180,7 @@ function Home({
 
         <div className="home-interpreter-cta">
           <div className="home-cta-icon" aria-hidden="true">
-             <Building2 size={28} strokeWidth={1.8} />
+             <UserRound size={28} strokeWidth={1.8} />
           </div>
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR INTERPRETERS</p>
