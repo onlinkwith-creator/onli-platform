@@ -4,7 +4,7 @@ import AdminJobs from "./AdminJobs";
 import { normalizeJobVisibility } from "../utils/jobStatus";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
-import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
+import { normalizeLevel } from "../utils/levelBadge";
 import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
@@ -116,7 +116,9 @@ function Admin() {
   const [savingKey, setSavingKey] = useState("");
   const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [applicationsRequestId, setApplicationsRequestId] = useState(null);
-  const [expandedInterpreterId, setExpandedInterpreterId] = useState(null);
+  const [selectedInterpreter, setSelectedInterpreter] = useState(null);
+  const [interpreterModalType, setInterpreterModalType] = useState(null);
+  const [interpreterEditDraft, setInterpreterEditDraft] = useState(null);
   const [assignmentDrafts, setAssignmentDrafts] = useState({});
   const [interpreterFilters, setInterpreterFilters] = useState({
     search: "",
@@ -198,6 +200,23 @@ function Admin() {
   useEffect(() => {
     queueMicrotask(fetchAdminData);
   }, [fetchAdminData]);
+
+  const closeInterpreterModal = useCallback(() => {
+    setSelectedInterpreter(null);
+    setInterpreterModalType(null);
+    setInterpreterEditDraft(null);
+  }, []);
+
+  useEffect(() => {
+    if (!interpreterModalType) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") closeInterpreterModal();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [closeInterpreterModal, interpreterModalType]);
 
   const assignmentsByRequest = useMemo(() => groupBy(assignments, "request_id"), [
     assignments,
@@ -396,6 +415,9 @@ function Admin() {
     setInterpreters((current) =>
       current.map((item) => (item.id === id ? { ...item, ...changes } : item))
     );
+    setSelectedInterpreter((current) =>
+      current?.id === id ? { ...current, ...changes } : current
+    );
   };
 
   const deleteInterpreter = async (id) => {
@@ -417,6 +439,32 @@ function Admin() {
     }
 
     setInterpreters((current) => current.filter((item) => item.id !== id));
+    if (selectedInterpreter?.id === id) closeInterpreterModal();
+  };
+
+  const openInterpreterModal = (interpreter, modalType) => {
+    setSelectedInterpreter(interpreter);
+    setInterpreterModalType(modalType);
+    setInterpreterEditDraft(
+      modalType === "edit" ? createInterpreterEditDraft(interpreter) : null
+    );
+  };
+
+  const updateInterpreterEditDraft = (name, value) => {
+    setInterpreterEditDraft((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const saveInterpreterEditDraft = async () => {
+    if (!selectedInterpreter || !interpreterEditDraft) return;
+
+    await updateInterpreter(
+      selectedInterpreter.id,
+      getInterpreterChangesFromDraft(interpreterEditDraft)
+    );
+    closeInterpreterModal();
   };
 
   const updateRequest = async (id, changes) => {
@@ -921,13 +969,11 @@ function Admin() {
 
             {activeTab === "interpreters" && (
               <InterpreterManagement
-                expandedInterpreterId={expandedInterpreterId}
                 filters={interpreterFilters}
                 interpreters={filteredInterpreters}
                 savingKey={savingKey}
-                setExpandedInterpreterId={setExpandedInterpreterId}
                 setFilters={setInterpreterFilters}
-                setInterpreters={setInterpreters}
+                onOpenModal={openInterpreterModal}
                 updateInterpreter={updateInterpreter}
                 deleteInterpreter={deleteInterpreter}
               />
@@ -965,6 +1011,20 @@ function Admin() {
                 updateApplicationStatus={updateJobApplicationStatus}
               />
             )}
+
+            <InterpreterModal
+              draft={interpreterEditDraft}
+              interpreter={selectedInterpreter}
+              modalType={interpreterModalType}
+              saving={
+                selectedInterpreter
+                  ? savingKey === `interpreter-${selectedInterpreter.id}`
+                  : false
+              }
+              onChangeDraft={updateInterpreterEditDraft}
+              onClose={closeInterpreterModal}
+              onSave={saveInterpreterEditDraft}
+            />
           </>
         )}
       </div>
@@ -1491,13 +1551,11 @@ function JobApplicationsPanel({ applications, onStatusChange }) {
 }
 
 function InterpreterManagement({
-  expandedInterpreterId,
   filters,
   interpreters,
   savingKey,
-  setExpandedInterpreterId,
   setFilters,
-  setInterpreters,
+  onOpenModal,
   updateInterpreter,
   deleteInterpreter,
 }) {
@@ -1553,15 +1611,13 @@ function InterpreterManagement({
       {interpreters.length === 0 ? (
         <MessageBox text="조건에 맞는 통역사가 없습니다." />
       ) : (
-        <div className="admin-management-card-grid">
+        <div className="admin-management-card-grid admin-interpreter-grid">
           {interpreters.map((interpreter) => (
             <InterpreterCard
               key={interpreter.id}
-              expanded={expandedInterpreterId === interpreter.id}
               interpreter={interpreter}
               savingKey={savingKey}
-              setExpandedInterpreterId={setExpandedInterpreterId}
-              setInterpreters={setInterpreters}
+              onOpenModal={onOpenModal}
               updateInterpreter={updateInterpreter}
               deleteInterpreter={deleteInterpreter}
             />
@@ -1573,11 +1629,9 @@ function InterpreterManagement({
 }
 
 function InterpreterCard({
-  expanded,
   interpreter,
   savingKey,
-  setExpandedInterpreterId,
-  setInterpreters,
+  onOpenModal,
   updateInterpreter,
   deleteInterpreter,
 }) {
@@ -1585,7 +1639,7 @@ function InterpreterCard({
   const isSaving = savingKey === `interpreter-${interpreter.id}`;
 
   return (
-    <article className="admin-list-card">
+    <article className="admin-list-card admin-interpreter-card">
       <div className="admin-list-card-head">
         <div>
           <span className="admin-card-meta">통역사</span>
@@ -1595,79 +1649,33 @@ function InterpreterCard({
       </div>
 
       <dl className="admin-card-summary">
-        <Info label="승인 상태" value={approvalLabel} />
-        <Info label="성별" value={interpreter.gender} />
-        <Info label="일본어 수준" value={interpreter.jlpt} />
-        <Info label="활동 지역" value={formatList(interpreter.available_regions)} />
-        <Info label="전문 분야" value={formatList(interpreter.specialties)} />
+        <Info label="레벨" value={normalizeLevel(interpreter.level)} />
+        <Info label="승인 상태" value={interpreter.approved ? "승인 완료" : "승인 대기"} />
+        <Info label="활동 상태" value={approvalLabel} />
+        <Info label="활동 지역" value={formatListOrMissing(interpreter.available_regions)} />
+        <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
         <Info label="통역 경험" value={getExperienceLabel(interpreter)} />
         <Info label="경고" value={`${interpreter.warning_count || 0}회`} />
       </dl>
 
-      <div className="admin-card-controls-grid">
-        <FieldControl label="레벨">
-          <span style={getLevelBadgeStyle(interpreter.level)}>
-            {normalizeLevel(interpreter.level)}
-          </span>
-          <InlineSelect
-            options={LEVELS}
-            value={interpreter.level || "Lv1"}
-            onChange={(value) => updateInterpreter(interpreter.id, { level: value })}
-          />
-        </FieldControl>
-        <FieldControl label="승인 상태">
-          <InlineSelect
-            options={[
-              { label: "승인 대기", value: "false" },
-              { label: "승인 완료", value: "true" },
-            ]}
-            value={String(Boolean(interpreter.approved))}
-            onChange={(value) =>
-              updateInterpreter(interpreter.id, {
-                approved: value === "true",
-                status: value === "true" ? "active" : "pending",
-              })
-            }
-          />
-        </FieldControl>
-        <FieldControl label="활동 상태">
-          <InlineSelect
-            options={INTERPRETER_STATUSES.map((status) => ({
-              value: status,
-              label: getInterpreterStatusLabel({
-                status,
-                approved: status === "active",
-              }),
-            }))}
-            value={getInterpreterFilterStatus(interpreter)}
-            onChange={(value) =>
-              updateInterpreter(interpreter.id, {
-                status: value,
-                approved:
-                  value === "active"
-                    ? true
-                    : value === "pending" || value === "rejected"
-                      ? false
-                      : interpreter.approved,
-              })
-            }
-          />
-        </FieldControl>
-      </div>
-
-      <div className="admin-card-actions">
+      <div className="admin-card-actions admin-interpreter-actions">
         <button
           type="button"
-          className="admin-link-button"
-          onClick={() =>
-            setExpandedInterpreterId(expanded ? null : interpreter.id)
-          }
+          className="admin-link-button admin-detail-action"
+          onClick={() => onOpenModal(interpreter, "detail")}
         >
-          {expanded ? "닫기" : "수정"}
+          상세보기
         </button>
         <button
           type="button"
-          className="admin-save"
+          className="admin-link-button admin-edit-action"
+          onClick={() => onOpenModal(interpreter, "edit")}
+        >
+          수정
+        </button>
+        <button
+          type="button"
+          className="admin-save admin-approve-action"
           disabled={isSaving}
           onClick={() =>
             updateInterpreter(interpreter.id, {
@@ -1680,7 +1688,7 @@ function InterpreterCard({
         </button>
         <button
           type="button"
-          className="admin-save orange"
+          className="admin-save orange admin-reject-action"
           disabled={isSaving}
           onClick={() =>
             updateInterpreter(interpreter.id, {
@@ -1693,93 +1701,250 @@ function InterpreterCard({
         </button>
         <button
           type="button"
-          className="admin-save danger"
+          className="admin-save danger admin-delete-action"
           disabled={isSaving}
           onClick={() => deleteInterpreter(interpreter.id)}
         >
           삭제
         </button>
       </div>
-
-      {expanded && (
-        <InterpreterDetailPanel
-          interpreter={interpreter}
-          savingKey={savingKey}
-          setInterpreters={setInterpreters}
-          updateInterpreter={updateInterpreter}
-        />
-      )}
     </article>
   );
 }
 
-function InterpreterDetailPanel({
+function InterpreterModal({
+  draft,
   interpreter,
-  savingKey,
-  setInterpreters,
-  updateInterpreter,
+  modalType,
+  saving,
+  onChangeDraft,
+  onClose,
+  onSave,
 }) {
-  return (
-    <div className="admin-detail-panel interpreter-detail">
-      <dl className="admin-detail-list">
-        <Info label="연락처" value={interpreter.phone} />
-        <Info label="이메일" value={interpreter.email} />
-        <Info label="카카오/라인" value={interpreter.kakao_or_line} />
-        <Info label="학교/전공" value={interpreter.school} />
-        <Info label="거주 지역" value={interpreter.region} />
-        <Info label="가능 지역" value={formatList(interpreter.available_regions)} />
-        <Info label="전문 분야" value={formatList(interpreter.specialties)} />
-        <Info label="가능 업무" value={interpreter.available_tasks} />
-      </dl>
+  if (!interpreter || !modalType) return null;
 
-      <div>
-        <h3>운영 상태</h3>
-        <div className="admin-settlement">
-          <NumberControl
-            label="경고 횟수"
-            value={interpreter.warning_count || 0}
-            onChange={(value) =>
-              setInterpreters((current) =>
-                current.map((item) =>
-                  item.id === interpreter.id
-                    ? { ...item, warning_count: Math.max(0, Number(value || 0)) }
-                    : item
-                )
-              )
-            }
-          />
-          <button
-            type="button"
-            className="admin-save"
-            disabled={savingKey === `interpreter-${interpreter.id}`}
-            onClick={() =>
-              updateInterpreter(interpreter.id, {
-                warning_count: Number(interpreter.warning_count || 0),
-                status:
-                  Number(interpreter.warning_count || 0) > 0
-                    ? "warning"
-                    : interpreter.status,
-              })
-            }
-          >
-            경고 저장
-          </button>
-          <button
-            type="button"
-            className="admin-save dark"
-            disabled={savingKey === `interpreter-${interpreter.id}`}
-            onClick={() =>
-              updateInterpreter(interpreter.id, {
-                approved: !interpreter.approved,
-                status: interpreter.approved ? "pending" : "active",
-              })
-            }
-          >
-            {interpreter.approved ? "승인 대기로 변경" : "승인하기"}
+  const approvalLabel = getInterpreterStatusLabel(interpreter);
+  const managementMemo =
+    interpreter.admin_memo ||
+    interpreter.management_memo ||
+    interpreter.memo ||
+    interpreter.note ||
+    "";
+
+  return (
+    <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
+      <section
+        className="admin-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="interpreter-modal-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <div>
+            <span className="admin-card-meta">INTERPRETER</span>
+            <h2 id="interpreter-modal-title">
+              {modalType === "detail" ? "통역사 상세 정보" : "통역사 정보 수정"}
+            </h2>
+          </div>
+          <button type="button" className="admin-modal-close" onClick={onClose}>
+            닫기
           </button>
         </div>
-      </div>
+
+        {modalType === "detail" ? (
+          <div className="admin-modal-sections">
+            <ModalInfoSection title="기본 정보">
+              <Info label="이름" value={interpreter.name || "미입력"} />
+              <Info label="성별" value={interpreter.gender || "미입력"} />
+              <Info label="나이" value={interpreter.age || "미입력"} />
+              <Info label="레벨" value={normalizeLevel(interpreter.level)} />
+              <Info label="승인 상태" value={interpreter.approved ? "승인 완료" : "승인 대기"} />
+              <Info label="활동 상태" value={approvalLabel} />
+            </ModalInfoSection>
+
+            <ModalInfoSection title="프로필 정보" twoColumn>
+              <Info label="언어 수준" value={interpreter.language_level || interpreter.level || "미입력"} />
+              <Info label="JLPT 여부" value={interpreter.jlpt || "미입력"} />
+              <Info label="통역 경험 여부" value={getExperienceLabel(interpreter)} />
+              <Info
+                label="통역 경험 횟수"
+                value={
+                  interpreter.experience_count || interpreter.experience_count === 0
+                    ? `${interpreter.experience_count}회`
+                    : "미입력"
+                }
+              />
+              <Info label="가능 업무" value={interpreter.available_tasks || "미입력"} />
+              <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
+              <Info label="활동 가능 지역" value={formatListOrMissing(interpreter.available_regions)} />
+              <Info label="일본 체류 기간" value={interpreter.stay_period || "미입력"} />
+              <Info label="학교/전공" value={interpreter.school || "미입력"} />
+            </ModalInfoSection>
+
+            <section className="admin-private-info admin-modal-private-info" aria-label="관리자 전용 정보">
+              <div className="admin-private-info-head">
+                <h3>관리자 전용 정보</h3>
+                <span>관리자 전용</span>
+              </div>
+              <dl className="admin-info-section">
+                <Info label="이메일" value={interpreter.email || "미입력"} />
+                <Info label="전화번호" value={interpreter.phone || "미입력"} />
+                <Info label="Kakao/LINE" value={interpreter.kakao_or_line || "미입력"} />
+              </dl>
+            </section>
+
+            <ModalInfoSection title="운영 상태">
+              <Info label="경고 횟수" value={`${interpreter.warning_count || 0}회`} />
+              <Info label="메모" value={managementMemo || "미입력"} />
+            </ModalInfoSection>
+          </div>
+        ) : (
+          <form
+            className="admin-modal-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSave();
+            }}
+          >
+            <div className="admin-modal-edit-grid">
+              <FieldControl label="레벨">
+                <InlineSelect
+                  options={LEVELS}
+                  value={draft?.level || "Lv1"}
+                  onChange={(value) => onChangeDraft("level", value)}
+                />
+              </FieldControl>
+              <FieldControl label="승인 상태">
+                <InlineSelect
+                  options={[
+                    { label: "승인 대기", value: "false" },
+                    { label: "승인 완료", value: "true" },
+                  ]}
+                  value={draft?.approved || "false"}
+                  onChange={(value) => onChangeDraft("approved", value)}
+                />
+              </FieldControl>
+              <FieldControl label="활동 상태">
+                <InlineSelect
+                  options={INTERPRETER_STATUSES.map((status) => ({
+                    value: status,
+                    label: getInterpreterStatusLabel({
+                      status,
+                      approved: status === "active",
+                    }),
+                  }))}
+                  value={draft?.status || "pending"}
+                  onChange={(value) => onChangeDraft("status", value)}
+                />
+              </FieldControl>
+              <FieldControl label="경고 횟수">
+                <input
+                  type="number"
+                  min="0"
+                  value={draft?.warning_count || 0}
+                  onChange={(event) => onChangeDraft("warning_count", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="이름">
+                <input
+                  value={draft?.name || ""}
+                  onChange={(event) => onChangeDraft("name", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="성별">
+                <input
+                  value={draft?.gender || ""}
+                  onChange={(event) => onChangeDraft("gender", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="나이">
+                <input
+                  value={draft?.age || ""}
+                  onChange={(event) => onChangeDraft("age", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="거주 지역">
+                <input
+                  value={draft?.region || ""}
+                  onChange={(event) => onChangeDraft("region", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="JLPT 여부">
+                <input
+                  value={draft?.jlpt || ""}
+                  onChange={(event) => onChangeDraft("jlpt", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="일본 체류 기간">
+                <input
+                  value={draft?.stay_period || ""}
+                  onChange={(event) => onChangeDraft("stay_period", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="학교/전공">
+                <input
+                  value={draft?.school || ""}
+                  onChange={(event) => onChangeDraft("school", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="통역 경험 여부">
+                <InlineSelect
+                  options={[
+                    { label: "통역 경험 있음", value: "true" },
+                    { label: "통역 경험 없음", value: "false" },
+                  ]}
+                  value={draft?.has_experience || "false"}
+                  onChange={(value) => onChangeDraft("has_experience", value)}
+                />
+              </FieldControl>
+              <FieldControl label="가능 업무">
+                <textarea
+                  rows={3}
+                  value={draft?.available_tasks || ""}
+                  onChange={(event) => onChangeDraft("available_tasks", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="전문 분야">
+                <textarea
+                  rows={3}
+                  value={draft?.specialties || ""}
+                  onChange={(event) => onChangeDraft("specialties", event.target.value)}
+                  placeholder="쉼표로 구분"
+                />
+              </FieldControl>
+              <FieldControl label="활동 가능 지역">
+                <textarea
+                  rows={3}
+                  value={draft?.available_regions || ""}
+                  onChange={(event) => onChangeDraft("available_regions", event.target.value)}
+                  placeholder="쉼표로 구분"
+                />
+              </FieldControl>
+            </div>
+            <div className="admin-modal-actions">
+              <button type="button" className="admin-link-button" onClick={onClose}>
+                취소
+              </button>
+              <button type="submit" className="admin-save" disabled={saving}>
+                저장
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
     </div>
+  );
+}
+
+function ModalInfoSection({ children, title, twoColumn = false }) {
+  return (
+    <section className="admin-info-block">
+      <h3>{title}</h3>
+      <dl className={`admin-info-section${twoColumn ? " two-column" : ""}`}>
+        {children}
+      </dl>
+    </section>
   );
 }
 
@@ -2267,6 +2432,67 @@ function formatDate(value) {
 function formatList(value) {
   if (Array.isArray(value) && value.length > 0) return value.join(", ");
   return value || "-";
+}
+
+function formatListOrMissing(value) {
+  if (Array.isArray(value)) {
+    const list = value.filter(Boolean);
+    return list.length > 0 ? list.join(", ") : "미입력";
+  }
+
+  return value || "미입력";
+}
+
+function createInterpreterEditDraft(interpreter = {}) {
+  return {
+    name: interpreter.name || "",
+    gender: interpreter.gender || "",
+    age: interpreter.age || "",
+    region: interpreter.region || "",
+    level: interpreter.level || "Lv1",
+    approved: String(Boolean(interpreter.approved)),
+    status: getInterpreterFilterStatus(interpreter),
+    warning_count: interpreter.warning_count || 0,
+    jlpt: interpreter.jlpt || "",
+    stay_period: interpreter.stay_period || "",
+    school: interpreter.school || "",
+    has_experience: String(Boolean(interpreter.has_experience)),
+    available_tasks: interpreter.available_tasks || "",
+    specialties: listToDraftText(interpreter.specialties),
+    available_regions: listToDraftText(interpreter.available_regions),
+  };
+}
+
+function getInterpreterChangesFromDraft(draft = {}) {
+  return {
+    name: draft.name,
+    gender: draft.gender,
+    age: draft.age,
+    region: draft.region,
+    level: draft.level,
+    approved: draft.approved === "true",
+    status: draft.status,
+    warning_count: Math.max(0, Number(draft.warning_count || 0)),
+    jlpt: draft.jlpt,
+    stay_period: draft.stay_period,
+    school: draft.school,
+    has_experience: draft.has_experience === "true",
+    available_tasks: draft.available_tasks,
+    specialties: draftTextToList(draft.specialties),
+    available_regions: draftTextToList(draft.available_regions),
+  };
+}
+
+function listToDraftText(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(", ");
+  return value || "";
+}
+
+function draftTextToList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function getJobDisplayTitle(job, jobId) {

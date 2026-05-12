@@ -3,6 +3,10 @@ import JobCard from "../components/JobCard";
 import { supabase, supabaseConfigError } from "../supabase";
 import { fetchPublicJobs } from "../utils/jobsApi";
 import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
+import {
+  PUBLIC_INTERPRETER_SELECT,
+  getPrimaryPublicInterpreterInfo,
+} from "../utils/publicInterpreter";
 import "./Home.css";
 
 function getSupabaseErrorMessage(error, fallback) {
@@ -39,7 +43,7 @@ function Home({
 
       const { data, error } = await supabase
         .from("interpreters")
-        .select("*")
+        .select(PUBLIC_INTERPRETER_SELECT)
         .eq("approved", true)
         .in("status", ["active", "warning"])
         .order("id", { ascending: false })
@@ -408,6 +412,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
   const availableRegionLabel = getAvailableRegionLabel(interpreter);
   const experience = getExperienceLabel(interpreter);
   const statusLabel = getInterpreterStatusLabel(interpreter);
+  const publicInfo = getPrimaryPublicInterpreterInfo(interpreter);
 
   return (
     <article className="home-interpreter-card">
@@ -441,8 +446,14 @@ function InterpreterCard({ interpreter, onProfileClick }) {
           <dd>{experience}</dd>
         </div>
         <div>
+          <dt>{publicInfo.label}</dt>
+          <dd>{publicInfo.value}</dd>
+        </div>
+        <div>
           <dt>활동 상태</dt>
-          <dd><span className="home-activity-badge">{statusLabel}</span></dd>
+          <dd>
+            <span className="home-activity-badge">{statusLabel}</span>
+          </dd>
         </div>
       </dl>
 

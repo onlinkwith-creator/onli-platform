@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
+import {
+  PUBLIC_INTERPRETER_SELECT,
+  getPrimaryPublicInterpreterInfo,
+} from "../utils/publicInterpreter";
 
 const initialFilters = {
   gender: "전체",
@@ -71,7 +75,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
 
       const { data, error } = await supabase
         .from("interpreters")
-        .select("*")
+        .select(PUBLIC_INTERPRETER_SELECT)
         .eq("approved", true)
         .in("status", ["active", "warning"])
         .order("id", { ascending: false });
@@ -279,7 +283,10 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                   label="통역 경험"
                   value={getExperienceLabel(person)}
                 />
-                <Info label="최근 활동 분야" value={getRecentActivityLabel(person)} />
+                <Info
+                  label={getPrimaryPublicInterpreterInfo(person).label}
+                  value={getPrimaryPublicInterpreterInfo(person).value}
+                />
 
                 <button
   onClick={() => onDetailClick(person)}
@@ -499,17 +506,6 @@ function getInterpreterStatusLabel(person) {
   if (person.status === "warning") return "운영팀 확인";
   if (person.status === "inactive") return "휴식중";
   return "활동중";
-}
-
-function getRecentActivityLabel(person) {
-  const tasks = person.available_tasks || "";
-  if (tasks) return tasks;
-
-  const specialties = Array.isArray(person.specialties)
-    ? person.specialties.filter(Boolean)
-    : [];
-
-  return specialties[0] || "현장 중심 매칭";
 }
 
 const styles = {

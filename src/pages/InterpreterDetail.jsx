@@ -58,13 +58,16 @@ function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
           </section>
 
           <section style={styles.card}>
-            <h2 style={styles.sectionTitle}>Contact</h2>
-            <Info label="이메일" value={interpreter.email} />
-            <Info label="전화번호" value={interpreter.phone} />
-            <Info label="Kakao/LINE" value={interpreter.kakao_or_line} />
-            <p style={styles.notice}>
-              연락처는 의뢰 검토와 매칭 확정 과정에서 운영팀 기준에 따라 활용됩니다.
-            </p>
+            <h2 style={styles.sectionTitle}>About Interpreter</h2>
+            <Info
+              label="소개"
+              value={
+                interpreter.intro ||
+                interpreter.profile_intro ||
+                interpreter.description ||
+                "자세한 내용은 상담 후 안내드리겠습니다."
+              }
+            />
           </section>
         </div>
 

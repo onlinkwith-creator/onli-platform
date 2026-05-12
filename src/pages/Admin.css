@@ -175,6 +175,12 @@
   gap: 14px;
 }
 
+.admin-interpreter-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
 .admin-request-card,
 .admin-list-card,
 .admin-card {
@@ -203,6 +209,23 @@
   min-width: 0;
   flex-direction: column;
   gap: 14px;
+}
+
+.admin-interpreter-card {
+  width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  padding: 24px;
+  gap: 18px;
+  overflow: visible;
+}
+
+.admin-interpreter-card .admin-list-card-head h3 {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .admin-request-card-head,
@@ -291,6 +314,20 @@
   grid-template-columns: 1fr;
 }
 
+.admin-interpreter-control-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.admin-interpreter-control-grid .admin-field-control {
+  gap: 8px;
+}
+
+.admin-interpreter-control-grid .admin-inline-select {
+  width: 100%;
+  min-height: 44px;
+}
+
 .admin-request-actions,
 .admin-card-actions {
   display: flex;
@@ -305,6 +342,28 @@
   flex: 1 1 120px;
   min-height: 34px;
   white-space: normal;
+}
+
+.admin-interpreter-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 0;
+}
+
+.admin-interpreter-actions .admin-edit-action,
+.admin-interpreter-actions .admin-delete-action {
+  grid-column: 1 / -1;
+}
+
+.admin-interpreter-actions .admin-link-button,
+.admin-interpreter-actions .admin-save {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  font-size: 13px;
+  text-align: center;
 }
 
 .admin-card-chip-row {
@@ -1205,6 +1264,183 @@
   overflow-wrap: anywhere;
 }
 
+.admin-info-block {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-info-block h4 {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.admin-info-section {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 0;
+}
+
+.admin-info-section div {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.45fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.admin-info-section dt {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-info-section dd {
+  min-width: 0;
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.admin-private-info {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  background: #fffbeb;
+}
+
+.admin-interpreter-private-info {
+  margin-top: 0;
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+}
+
+.admin-private-info-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.admin-private-info-head h3 {
+  margin: 0;
+}
+
+.admin-private-info-head span {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #6d28d9;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.admin-modal-card {
+  width: calc(100% - 32px);
+  max-width: 720px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 24px;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.3);
+}
+
+.admin-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.admin-modal-head h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.admin-modal-close {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-modal-sections,
+.admin-modal-form {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-modal-private-info {
+  margin-top: 0;
+}
+
+.admin-modal-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-modal-edit-grid .admin-field-control {
+  min-width: 0;
+}
+
+.admin-modal-edit-grid .admin-field-control select,
+.admin-modal-edit-grid .admin-field-control input,
+.admin-modal-edit-grid .admin-field-control textarea,
+.admin-modal-edit-grid .admin-inline-select {
+  width: 100%;
+  min-height: 44px;
+}
+
+.admin-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.admin-modal-actions button {
+  min-height: 44px;
+}
+
+@media (min-width: 900px) {
+  .admin-info-section.two-column {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .admin-approval-cell {
   display: grid;
   grid-template-columns: auto minmax(96px, 1fr);
@@ -1327,6 +1563,10 @@
   .admin-detail-panel.interpreter-detail {
     grid-template-columns: 1fr 1fr;
   }
+
+  .admin-interpreter-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -1366,6 +1606,15 @@
   .admin-detail-list,
   .admin-button-row,
   .admin-warning-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-interpreter-grid,
+  .admin-info-section.two-column,
+  .admin-interpreter-control-grid,
+  .admin-interpreter-actions,
+  .admin-modal-edit-grid,
+  .admin-modal-actions {
     grid-template-columns: 1fr;
   }
 

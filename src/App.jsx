@@ -9,6 +9,8 @@ import Admin from "./pages/Admin";
 import JobList from "./pages/JobList";
 import JobDetail from "./pages/JobDetail";
 import JobApply from "./pages/JobApply";
+import { supabase } from "./supabase";
+import { PUBLIC_INTERPRETER_SELECT } from "./utils/publicInterpreter";
 
 function getInitialPage() {
   const path = window.location.pathname;
@@ -26,8 +28,14 @@ function getInitialPage() {
   if (path.startsWith("/interpreters/") && path.endsWith("/request")) {
     return "missingInterpreterRequest";
   }
-  if (path.startsWith("/interpreters/")) return "missingInterpreterDetail";
+  if (path.startsWith("/interpreters/")) return "detail";
   return "home";
+}
+
+function getInitialInterpreterId() {
+  const path = window.location.pathname;
+  if (!path.startsWith("/interpreters/") || path.endsWith("/request")) return null;
+  return path.split("/")[2] || null;
 }
 
 function getInitialJobId() {
@@ -57,6 +65,7 @@ function getPath(page, interpreter, jobId) {
 function App() {
   const [page, setPage] = useState(getInitialPage);
   const [selectedInterpreter, setSelectedInterpreter] = useState(null);
+  const [selectedInterpreterId, setSelectedInterpreterId] = useState(getInitialInterpreterId);
   const [selectedJobId, setSelectedJobId] = useState(getInitialJobId);
 
   const navigate = (
@@ -65,6 +74,7 @@ function App() {
     jobId = selectedJobId
   ) => {
     setSelectedInterpreter(interpreter);
+    setSelectedInterpreterId(interpreter?.id || null);
     setSelectedJobId(jobId);
     setPage(nextPage);
     window.history.pushState(
@@ -80,6 +90,9 @@ function App() {
       const statePage = event.state?.page || getInitialPage();
       setPage(statePage);
       setSelectedInterpreter(event.state?.interpreter || null);
+      setSelectedInterpreterId(
+        event.state?.interpreter?.id || getInitialInterpreterId()
+      );
       setSelectedJobId(event.state?.jobId || getInitialJobId());
       window.scrollTo({ top: 0, behavior: "instant" });
     };
@@ -90,6 +103,31 @@ function App() {
       window.removeEventListener("popstate", handlePopState);
     };
   }, []);
+
+  useEffect(() => {
+    const fetchInterpreter = async () => {
+      if (page !== "detail" || selectedInterpreter || !selectedInterpreterId || !supabase) {
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("interpreters")
+        .select(PUBLIC_INTERPRETER_SELECT)
+        .eq("id", selectedInterpreterId)
+        .eq("approved", true)
+        .in("status", ["active", "warning"])
+        .single();
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      setSelectedInterpreter(data || null);
+    };
+
+    queueMicrotask(fetchInterpreter);
+  }, [page, selectedInterpreter, selectedInterpreterId]);
 
   return (
     <>
