@@ -341,14 +341,17 @@ function Home({
           </div>
           <div className="home-footer-trust" aria-label="서비스 신뢰 포인트">
             <div className="home-footer-trust-item">
+              <span className="home-footer-trust-icon home-footer-trust-icon-shield" aria-hidden="true" />
               <strong>검증된 통역사</strong>
               <span>엄격한 심사를 거친 전문 통역사만 활동</span>
             </div>
             <div className="home-footer-trust-item">
+              <span className="home-footer-trust-icon home-footer-trust-icon-match" aria-hidden="true" />
               <strong>직접 매칭</strong>
               <span>ON-LI가 직접 검토 후 최적의 통역사 매칭</span>
             </div>
             <div className="home-footer-trust-item">
+              <span className="home-footer-trust-icon home-footer-trust-icon-lock" aria-hidden="true" />
               <strong>안심 서비스</strong>
               <span>개인정보 보호 및 안전한 서비스 제공</span>
             </div>
