@@ -922,9 +922,10 @@
 
 .home-footer {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr) minmax(180px, auto);
+  grid-template-columns: minmax(260px, 360px) minmax(200px, 280px) minmax(0, 1fr);
   align-items: stretch;
-  gap: 32px;
+  column-gap: 28px;
+  row-gap: 32px;
   width: min(calc(100% - 48px), var(--home-container-max));
   margin: 80px auto 40px;
   padding: 32px;
