@@ -957,6 +957,7 @@ function Admin() {
                 setAssignmentDrafts={setAssignmentDrafts}
                 setApplicationsRequestId={setApplicationsRequestId}
                 setExpandedRequestId={setExpandedRequestId}
+                setSelectedRequest={setSelectedRequest}
                 setFilters={setRequestFilters}
                 assignInterpreter={assignInterpreter}
                 handlePriceDraft={handlePriceDraft}
@@ -1119,6 +1120,7 @@ function RequestManagement({
   setAssignmentDrafts,
   setApplicationsRequestId,
   setExpandedRequestId,
+  setSelectedRequest,
   setFilters,
   assignInterpreter,
   handlePriceDraft,
@@ -1332,15 +1334,15 @@ function AdminRequestCard({
         <button
           type="button"
           className="admin-link-button"
-          onClick={() => setExpandedRequest(request)}
+          onClick={() => setSelectedRequest(request)}
         >
-          {expanded ? "닫기" : "상세 보기"}
+          상세 보기
         </button>
         <button
           type="button"
           className="admin-link-button danger"
           disabled={savingKey === `request-delete-${request.id}`}
-          onClick={() => setSelectedRequest(job)}
+          onClick={() => deleteRequest(request)}
         >
           삭제
         </button>
