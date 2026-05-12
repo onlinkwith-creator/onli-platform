@@ -1329,7 +1329,7 @@ function AdminRequestCard({
         <button
           type="button"
           className="admin-link-button"
-          onClick={() => setExpandedRequestId(expanded ? null : request.id)}
+          onClick={() => setExpandedRequestId(request)}
         >
           {expanded ? "닫기" : "상세 보기"}
         </button>
@@ -1349,22 +1349,7 @@ function AdminRequestCard({
           onStatusChange={updateApplicationStatus}
         />
       )}
-      {expanded && (
-        <RequestDetailPanel
-          applications={jobApplications}
-          assignmentDrafts={assignmentDrafts}
-          assignments={assignments}
-          interpreters={interpreters}
-          request={request}
-          savingKey={savingKey}
-          setAssignmentDrafts={setAssignmentDrafts}
-          assignInterpreter={assignInterpreter}
-          handlePriceDraft={handlePriceDraft}
-          removeAssignment={removeAssignment}
-          updateRequest={updateRequest}
-          updateApplicationStatus={updateApplicationStatus}
-        />
-      )}
+      
     </article>
   );
 }
