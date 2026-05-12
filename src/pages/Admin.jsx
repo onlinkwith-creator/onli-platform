@@ -21,7 +21,7 @@ const TABS = [
   { id: "applications", label: "지원자 관리" },
   { id: "matching", label: "매칭 관리" },
 ];
-const INTERPRETER_STATUSES = ["active", "warning", "suspended"];
+const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const REQUEST_STATUSES = [
   "pending",
@@ -40,10 +40,10 @@ const PAYMENT_STATUSES = ["unpaid", "paid"];
 const JOB_APPLICATION_STATUSES = ["지원완료", "검토중", "매칭완료", "보류", "불합격"];
 const ONGOING_REQUEST_STATUSES = ["pending", "matching", "confirmed"];
 const STATUS_LABELS = {
+  pending: "대기",
   active: "활동중",
   warning: "경고",
   suspended: "정지",
-  pending: "대기",
   matching: "매칭중",
   confirmed: "확정",
   completed: "완료",
@@ -284,13 +284,13 @@ function Admin() {
         interpreter.level === interpreterFilters.level;
       const matchesStatus =
         interpreterFilters.status === "all" ||
-        interpreter.status === interpreterFilters.status;
+        getInterpreterFilterStatus(interpreter) === interpreterFilters.status;
       const matchesApproved =
         interpreterFilters.approved === "all" ||
         String(Boolean(interpreter.approved)) === interpreterFilters.approved;
 
       return matchesSearch && matchesLevel && matchesStatus && matchesApproved;
-    });
+    }).sort(sortInterpretersForAdmin);
   }, [interpreterFilters, interpreters]);
 
   const dashboard = useMemo(
@@ -313,9 +313,10 @@ function Admin() {
           ONGOING_REQUEST_STATUSES.includes(request.status || "pending")
         ).length,
         urgentRequests: requests.filter((request) => isRequestWithinDays(request, 7)).length,
+        newInterpreterApplications: interpreters.filter(isPendingInterpreter).length,
       };
     },
-    [jobApplications, requests]
+    [interpreters, jobApplications, requests]
   );
 
   const metricCards = [
@@ -333,6 +334,13 @@ function Admin() {
       label: "미확인 지원",
       value: `${dashboard.uncheckedApplications}건`,
       targetTab: "applications",
+    },
+    {
+      label: "신규 통역사 신청",
+      value: `${dashboard.newInterpreterApplications}명`,
+      description: "검토가 필요한 통역사",
+      targetTab: "interpreters",
+      pendingInterpretersOnly: true,
     },
     {
       label: "오늘 매칭 완료",
@@ -353,6 +361,17 @@ function Admin() {
 
   const switchToJobsTab = () => {
     setActiveTab("jobs");
+  };
+
+  const handleMetricCardClick = (card) => {
+    if (card.pendingInterpretersOnly) {
+      setInterpreterFilters((current) => ({
+        ...current,
+        status: "pending",
+        approved: "false",
+      }));
+    }
+    setActiveTab(card.targetTab);
   };
 
   const updateInterpreter = async (id, changes) => {
@@ -377,6 +396,27 @@ function Admin() {
     setInterpreters((current) =>
       current.map((item) => (item.id === id ? { ...item, ...changes } : item))
     );
+  };
+
+  const deleteInterpreter = async (id) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    if (!window.confirm("이 통역사 정보를 삭제할까요?")) return;
+
+    setSavingKey(`interpreter-${id}`);
+    const { error } = await supabase.from("interpreters").delete().eq("id", id);
+    setSavingKey("");
+
+    if (error) {
+      console.error(error);
+      alert("통역사 삭제에 실패했습니다.");
+      return;
+    }
+
+    setInterpreters((current) => current.filter((item) => item.id !== id));
   };
 
   const updateRequest = async (id, changes) => {
@@ -832,7 +872,8 @@ function Admin() {
                   key={card.label}
                   label={card.label}
                   value={card.value}
-                  onClick={() => setActiveTab(card.targetTab)}
+                  description={card.description}
+                  onClick={() => handleMetricCardClick(card)}
                 />
               ))}
             </section>
@@ -888,6 +929,7 @@ function Admin() {
                 setFilters={setInterpreterFilters}
                 setInterpreters={setInterpreters}
                 updateInterpreter={updateInterpreter}
+                deleteInterpreter={deleteInterpreter}
               />
             )}
 
@@ -1457,6 +1499,7 @@ function InterpreterManagement({
   setFilters,
   setInterpreters,
   updateInterpreter,
+  deleteInterpreter,
 }) {
   return (
     <section className="admin-section">
@@ -1491,7 +1534,7 @@ function InterpreterManagement({
           <option value="all">전체 상태</option>
           {INTERPRETER_STATUSES.map((status) => (
             <option key={status} value={status}>
-              {getStatusLabel(status)}
+              {getInterpreterStatusLabel({ status, approved: status === "active" })}
             </option>
           ))}
         </select>
@@ -1502,8 +1545,8 @@ function InterpreterManagement({
           }
         >
           <option value="all">전체 승인</option>
-          <option value="true">승인</option>
-          <option value="false">미승인</option>
+          <option value="false">승인 대기</option>
+          <option value="true">승인 완료</option>
         </select>
       </div>
 
@@ -1520,6 +1563,7 @@ function InterpreterManagement({
               setExpandedInterpreterId={setExpandedInterpreterId}
               setInterpreters={setInterpreters}
               updateInterpreter={updateInterpreter}
+              deleteInterpreter={deleteInterpreter}
             />
           ))}
         </div>
@@ -1535,7 +1579,11 @@ function InterpreterCard({
   setExpandedInterpreterId,
   setInterpreters,
   updateInterpreter,
+  deleteInterpreter,
 }) {
+  const approvalLabel = getInterpreterStatusLabel(interpreter);
+  const isSaving = savingKey === `interpreter-${interpreter.id}`;
+
   return (
     <article className="admin-list-card">
       <div className="admin-list-card-head">
@@ -1543,12 +1591,11 @@ function InterpreterCard({
           <span className="admin-card-meta">통역사</span>
           <h3>{interpreter.name || "이름 미입력"}</h3>
         </div>
-        <span className={interpreter.approved ? "admin-approved" : "admin-pending"}>
-          {interpreter.approved ? "승인" : "미승인"}
-        </span>
+        <StatusBadge status={approvalLabel} />
       </div>
 
       <dl className="admin-card-summary">
+        <Info label="승인 상태" value={approvalLabel} />
         <Info label="성별" value={interpreter.gender} />
         <Info label="일본어 수준" value={interpreter.jlpt} />
         <Info label="활동 지역" value={formatList(interpreter.available_regions)} />
@@ -1571,20 +1618,39 @@ function InterpreterCard({
         <FieldControl label="승인 상태">
           <InlineSelect
             options={[
-              { label: "미승인", value: "false" },
-              { label: "승인", value: "true" },
+              { label: "승인 대기", value: "false" },
+              { label: "승인 완료", value: "true" },
             ]}
             value={String(Boolean(interpreter.approved))}
             onChange={(value) =>
-              updateInterpreter(interpreter.id, { approved: value === "true" })
+              updateInterpreter(interpreter.id, {
+                approved: value === "true",
+                status: value === "true" ? "active" : "pending",
+              })
             }
           />
         </FieldControl>
         <FieldControl label="활동 상태">
           <InlineSelect
-            options={INTERPRETER_STATUSES}
-            value={interpreter.status || "active"}
-            onChange={(value) => updateInterpreter(interpreter.id, { status: value })}
+            options={INTERPRETER_STATUSES.map((status) => ({
+              value: status,
+              label: getInterpreterStatusLabel({
+                status,
+                approved: status === "active",
+              }),
+            }))}
+            value={getInterpreterFilterStatus(interpreter)}
+            onChange={(value) =>
+              updateInterpreter(interpreter.id, {
+                status: value,
+                approved:
+                  value === "active"
+                    ? true
+                    : value === "pending" || value === "rejected"
+                      ? false
+                      : interpreter.approved,
+              })
+            }
           />
         </FieldControl>
       </div>
@@ -1597,7 +1663,41 @@ function InterpreterCard({
             setExpandedInterpreterId(expanded ? null : interpreter.id)
           }
         >
-          {expanded ? "닫기" : "상세 보기"}
+          {expanded ? "닫기" : "수정"}
+        </button>
+        <button
+          type="button"
+          className="admin-save"
+          disabled={isSaving}
+          onClick={() =>
+            updateInterpreter(interpreter.id, {
+              approved: true,
+              status: "active",
+            })
+          }
+        >
+          승인
+        </button>
+        <button
+          type="button"
+          className="admin-save orange"
+          disabled={isSaving}
+          onClick={() =>
+            updateInterpreter(interpreter.id, {
+              approved: false,
+              status: "rejected",
+            })
+          }
+        >
+          반려
+        </button>
+        <button
+          type="button"
+          className="admin-save danger"
+          disabled={isSaving}
+          onClick={() => deleteInterpreter(interpreter.id)}
+        >
+          삭제
         </button>
       </div>
 
@@ -1671,10 +1771,11 @@ function InterpreterDetailPanel({
             onClick={() =>
               updateInterpreter(interpreter.id, {
                 approved: !interpreter.approved,
+                status: interpreter.approved ? "pending" : "active",
               })
             }
           >
-            {interpreter.approved ? "미승인으로 변경" : "승인하기"}
+            {interpreter.approved ? "승인 대기로 변경" : "승인하기"}
           </button>
         </div>
       </div>
@@ -1882,11 +1983,12 @@ function MatchingCard({
   );
 }
 
-function MetricCard({ label, value, onClick }) {
+function MetricCard({ label, value, description, onClick }) {
   return (
     <button type="button" className="admin-metric-card" onClick={onClick}>
       <span>{label}</span>
       <strong>{value}</strong>
+      {description && <small>{description}</small>}
     </button>
   );
 }
@@ -1975,16 +2077,6 @@ function Info({ label, value }) {
       <dt>{label}</dt>
       <dd>{value || "-"}</dd>
     </div>
-  );
-}
-
-function EmptyTableRow({ colSpan, text }) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="admin-empty-row">
-        {text}
-      </td>
-    </tr>
   );
 }
 
@@ -2120,7 +2212,7 @@ function getDesignatedRequestType(...items) {
 }
 
 function getStatusBadgeClass(status) {
-  if (["모집중", "open", "공개", "public", "매칭완료", "completed"].includes(status)) {
+  if (["모집중", "open", "공개", "public", "매칭완료", "completed", "승인 완료"].includes(status)) {
     return "badge-green";
   }
   if (["배정완료", "assigned", "지원완료"].includes(status)) {
@@ -2129,9 +2221,9 @@ function getStatusBadgeClass(status) {
   if (["모집마감", "closed", "비공개", "private", "일반의뢰"].includes(status)) {
     return "badge-gray";
   }
-  if (["검토중"].includes(status)) return "badge-yellow";
+  if (["검토중", "승인 대기"].includes(status)) return "badge-yellow";
   if (["보류"].includes(status)) return "badge-orange";
-  if (["불합격", "cancelled", "suspended"].includes(status)) return "badge-red";
+  if (["불합격", "cancelled", "suspended", "반려", "rejected"].includes(status)) return "badge-red";
   if (["지정의뢰"].includes(status)) return "badge-purple";
   return "badge-blue";
 }
@@ -2187,6 +2279,31 @@ function getJobOrganizationLabel(job) {
 
 function getExperienceLabel(interpreter) {
   return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
+}
+
+function getInterpreterFilterStatus(interpreter = {}) {
+  if (interpreter.status === "rejected") return "rejected";
+  if (interpreter.approved) return interpreter.status || "active";
+  return "pending";
+}
+
+function isPendingInterpreter(interpreter = {}) {
+  const status = String(interpreter.status || "").toLowerCase();
+  return !interpreter.approved && !["rejected", "suspended", "반려"].includes(status);
+}
+
+function getInterpreterStatusLabel(interpreter = {}) {
+  if (interpreter.status === "rejected") return "반려";
+  if (isPendingInterpreter(interpreter)) return "승인 대기";
+  if (interpreter.approved) return "승인 완료";
+  return getStatusLabel(interpreter.status) || "승인 대기";
+}
+
+function sortInterpretersForAdmin(a, b) {
+  const aPending = isPendingInterpreter(a) ? 0 : 1;
+  const bPending = isPendingInterpreter(b) ? 0 : 1;
+  if (aPending !== bPending) return aPending - bPending;
+  return Number(b.id || 0) - Number(a.id || 0);
 }
 
 function groupBy(items, key) {

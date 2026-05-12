@@ -132,6 +132,8 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
         specialties: form.specialties,
         available_regions: form.availableRegions,
         available_tasks: form.availableTasks,
+        approved: false,
+        status: "pending",
       },
     ]);
 

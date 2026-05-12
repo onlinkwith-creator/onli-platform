@@ -76,15 +76,15 @@
 
 .admin-metrics {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 14px;
 }
 
 .admin-metric-card {
-  min-height: 62px;
+  min-height: 78px;
   padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
@@ -99,9 +99,9 @@
 }
 
 .admin-metric-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(79, 70, 229, 0.22);
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+  transform: translateY(-4px);
+  border-color: #c7d2fe;
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.14);
 }
 
 .admin-metric-card:focus-visible {
@@ -122,6 +122,15 @@
   color: #111827;
   font-size: 24px;
   font-weight: 900;
+}
+
+.admin-metric-card small {
+  display: block;
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .admin-section {
@@ -1284,6 +1293,14 @@
 .admin-chip:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.admin-save.orange {
+  background: #f97316;
+}
+
+.admin-save.danger {
+  background: #dc2626;
 }
 
 .admin-message {
