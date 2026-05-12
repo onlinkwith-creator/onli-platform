@@ -942,6 +942,18 @@
   gap: 6px;
 }
 
+.home-footer-contact-label {
+  color: #d1d5db;
+  font-weight: 800;
+}
+
+.home-footer-email-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .home-footer strong {
   color: #ffffff;
   font-size: 22px;
@@ -958,6 +970,7 @@
   color: #ffffff;
   font-weight: 800;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .home-footer a:hover {
