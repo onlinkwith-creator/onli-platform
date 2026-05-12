@@ -317,8 +317,9 @@ function Home({
           <small>레벨 기반 매칭 · 현장 중심 운영 · 한일 비즈니스 특화</small>
         </div>
         <div className="home-footer-links" aria-label="운영 문의">
-          <span>운영 문의</span>
+          <span className="home-footer-links-title">운영 문의</span>
           <a
+            className="home-footer-link"
             href="https://www.instagram.com/onlink_official?igsh=NjZkb3ZkN3NtZG1y&utm_source=qr"
             target="_blank"
             rel="noopener noreferrer"
@@ -327,10 +328,14 @@ function Home({
           </a>
           <span className="home-footer-contact-label">Email</span>
           <div className="home-footer-email-list">
-            <a href="mailto:onlinkwith@gmail.com">onlinkwith@gmail.com</a>
-            <a href="mailto:onlinkcp@gmail.com">onlinkcp@gmail.com</a>
+            <a className="home-footer-link" href="mailto:onlinkwith@gmail.com">
+              onlinkwith@gmail.com
+            </a>
+            <a className="home-footer-link" href="mailto:onlinkcp@gmail.com">
+              onlinkcp@gmail.com
+            </a>
           </div>
-          <span>운영시간 평일 10:00-18:00</span>
+          <span className="home-footer-hours">운영시간 평일 10:00-18:00</span>
         </div>
         <span className="home-footer-copy">Copyright ON-LI. All rights reserved.</span>
       </footer>

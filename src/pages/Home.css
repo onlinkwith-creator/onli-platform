@@ -942,16 +942,31 @@
   gap: 6px;
 }
 
-.home-footer-contact-label {
-  color: #d1d5db;
+.home-footer-links-title {
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 800;
+}
+
+.home-footer-contact-label {
+  margin-top: 2px;
+  color: #d1d5db;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .home-footer-email-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
+}
+
+.home-footer-hours {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .home-footer strong {
@@ -966,15 +981,27 @@
   line-height: 1.5;
 }
 
-.home-footer a {
-  color: #ffffff;
-  font-weight: 800;
+.home-footer-link {
+  width: fit-content;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.7;
   text-decoration: none;
   overflow-wrap: anywhere;
 }
 
-.home-footer a:hover {
+.home-footer-link:hover {
   text-decoration: underline;
+}
+
+.home-footer-link:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 .home-footer-copy {
