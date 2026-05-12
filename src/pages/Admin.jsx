@@ -1332,7 +1332,7 @@ function AdminRequestCard({
         <button
           type="button"
           className="admin-link-button"
-          onClick={() => setSelectedRequest(request)}
+          onClick={() => setExpandedRequest(request)}
         >
           {expanded ? "닫기" : "상세 보기"}
         </button>
