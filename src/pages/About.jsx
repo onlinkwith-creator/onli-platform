@@ -115,8 +115,9 @@ const styles = {
   title: {
     margin: 0,
     color: "#111827",
-    fontSize: "40px",
-    fontWeight: "900",
+    fontSize: "56px",
+    fontWeight: "800",
+    marginBottom: "28px",
   },
   body: {
     maxWidth: "720px",
