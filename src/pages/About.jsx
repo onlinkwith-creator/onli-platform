@@ -119,11 +119,13 @@ const styles = {
     fontWeight: "900",
   },
   body: {
-    maxWidth: "850px",
-    marginTop: "20px",
-    color: "#4b5563",
+    maxWidth: "720px",
+    margin: "0 auto",
+    textAlign: "center",
+    lineHeight: 1.9,
     fontSize: "16px",
-    lineHeight: 1.8,
+    color: "#4b5563",
+    wordBreak: "keep-all",
   },
   actions: {
     display: "flex",
