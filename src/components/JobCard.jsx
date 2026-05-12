@@ -1,6 +1,6 @@
 import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
-import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
+import { getJobSpecialty } from "../utils/jobDisplay";
 
 function JobCard({ job, onApplyClick, onDetailClick }) {
   const status = normalizeJobStatus(job);
@@ -41,7 +41,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
           )}
         />
         <JobInfo label="장소" value={job.location || job.event_location} />
-        <JobInfo label="일급" value={getJobPayDisplay(job)} />
+        <JobInfo label="모집 인원" value={getRecruitmentCountDisplay(job)} />
         <JobInfo label="분야" value={getJobSpecialty(job)} />
       </dl>
 
@@ -68,6 +68,32 @@ function JobInfo({ label, value }) {
       <dd>{value || "-"}</dd>
     </div>
   );
+}
+
+function getRecruitmentCountDisplay(job) {
+  return `${getMatchedCount(job)}/${getTotalPeopleCount(job)}`;
+}
+
+function getMatchedCount(job) {
+  return getPositiveInteger(
+    job.matched_count ?? job.matchedCount ?? job.matched_applications_count,
+    0
+  );
+}
+
+function getTotalPeopleCount(job) {
+  return getPositiveInteger(job.people_count ?? job.people, 1);
+}
+
+function getPositiveInteger(value, fallback) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value)) || fallback;
+  }
+
+  const parsed = String(value ?? "").match(/\d+/)?.[0];
+  if (!parsed) return fallback;
+
+  return Math.max(0, Number.parseInt(parsed, 10)) || fallback;
 }
 
 export default JobCard;

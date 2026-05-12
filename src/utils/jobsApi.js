@@ -39,8 +39,10 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
   const result = await query;
 
   if (!result.error) {
+    const jobs = (result.data || []).filter(isPublicJob).slice(0, limit || undefined);
+
     return {
-      data: (result.data || []).filter(isPublicJob).slice(0, limit || undefined),
+      data: await attachMatchedCounts(supabase, jobs),
       error: null,
     };
   }
@@ -61,10 +63,41 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
     return fallbackResult;
   }
 
+  const jobs = (fallbackResult.data || []).filter(isPublicJob).slice(0, limit || undefined);
+
   return {
-    data: (fallbackResult.data || []).filter(isPublicJob).slice(0, limit || undefined),
+    data: await attachMatchedCounts(supabase, jobs),
     error: null,
   };
+}
+
+async function attachMatchedCounts(supabase, jobs) {
+  if (!jobs.length) return jobs;
+
+  const jobIds = jobs.map((job) => job.id).filter(Boolean);
+  if (!jobIds.length) return jobs;
+
+  const { data, error } = await supabase
+    .from("job_applications")
+    .select("job_id")
+    .in("job_id", jobIds)
+    .eq("status", "매칭완료");
+
+  if (error) {
+    console.error("matched applications fetch error:", error);
+    return jobs.map((job) => ({ ...job, matched_count: 0 }));
+  }
+
+  const matchedCounts = (data || []).reduce((counts, application) => {
+    const jobId = String(application.job_id || "");
+    counts.set(jobId, (counts.get(jobId) || 0) + 1);
+    return counts;
+  }, new Map());
+
+  return jobs.map((job) => ({
+    ...job,
+    matched_count: matchedCounts.get(String(job.id)) || 0,
+  }));
 }
 
 export async function fetchJobApplications(supabase = defaultSupabase) {
