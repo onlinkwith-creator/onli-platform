@@ -144,17 +144,17 @@ function Home({
           <div className="home-feature-list">
             <Feature
               symbol="01"
-              title="레벨제 운영"
+              title="검증된 레벨제"
               text="경험과 역량에 따른 Lv1~Lv4 매칭 구조"
             />
             <Feature
               symbol="02"
-              title="현장 중심 매칭"
+              title="현장 최적화 매칭"
               text="전시회, 상담회, 미팅 목적에 맞춘 인재 연결"
             />
             <Feature
               symbol="03"
-              title="한일 비즈니스 특화"
+              title="한일 비즈니스 전문"
               text="한국 기업의 일본 진출 현장에 최적화"
             />
           </div>
