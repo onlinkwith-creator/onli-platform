@@ -11,7 +11,6 @@ export const PUBLIC_INTERPRETER_SELECT = [
   "specialties",
   "available_regions",
   "available_tasks",
-  "language_level",
   "level",
   "approved",
   "status",
