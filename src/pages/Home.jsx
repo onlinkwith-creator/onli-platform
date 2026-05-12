@@ -312,7 +312,10 @@ function Home({
 
       <footer className="home-footer" id="contact">
         <div className="home-footer-brand">
-          <strong>ON-LI</strong>
+          <div className="home-footer-logo-row">
+            <img className="home-footer-logo" src="/favicon.svg" alt="ON-LI" />
+            <strong>ON-LI</strong>
+          </div>
           <span>한일 비즈니스 통역 매칭 플랫폼</span>
           <small>레벨 기반 매칭 · 현장 중심 운영 · 한일 비즈니스 특화</small>
         </div>
