@@ -922,9 +922,9 @@
 
 .home-footer {
   display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(200px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
   align-items: stretch;
-  column-gap: 28px;
+  column-gap: 32px;
   row-gap: 32px;
   width: min(calc(100% - 48px), var(--home-container-max));
   margin: 80px auto 40px;
@@ -944,6 +944,10 @@
   align-items: flex-start;
   gap: 6px;
   min-width: 0;
+}
+
+.home-footer-links {
+  margin-top: 22px;
 }
 
 .home-footer-logo-row {
