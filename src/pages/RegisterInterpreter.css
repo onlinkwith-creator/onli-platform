@@ -82,42 +82,157 @@
 .register-hero-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
   padding: 30px;
   border-radius: 28px;
 }
 
-.register-hero-panel > div:first-child span {
+.register-level-head span {
   display: block;
-  color: #6b7280;
+  color: #4f46e5;
   font-size: 12px;
   font-weight: 900;
+  letter-spacing: 3px;
 }
 
-.register-hero-panel > div:first-child strong {
+.register-level-head strong {
   display: block;
-  margin-top: 4px;
+  margin-top: 6px;
   color: #111827;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 900;
+  line-height: 1.2;
+  word-break: keep-all;
 }
 
-.register-hero-panel ul {
+.register-level-head p {
+  margin: 10px 0 0;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.register-level-flow {
   display: grid;
   gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  position: relative;
 }
 
-.register-hero-panel li {
-  padding: 13px 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  background: #f8fafc;
+.register-level-flow::before {
+  position: absolute;
+  top: 22px;
+  bottom: 22px;
+  left: 19px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d1d5db, #bbf7d0 36%, #bfdbfe 68%, #ddd6fe);
+  content: "";
+}
+
+.register-level-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 14px 15px 14px 52px;
+  border: 1px solid var(--level-border);
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffffff, var(--level-bg));
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
   color: #111827;
+  transition:
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    border-color 180ms ease;
+}
+
+.register-level-card::before {
+  position: absolute;
+  left: 10px;
+  width: 20px;
+  height: 20px;
+  border: 5px solid #ffffff;
+  border-radius: 999px;
+  background: var(--level-accent);
+  box-shadow: 0 0 0 1px var(--level-border);
+  content: "";
+}
+
+.register-level-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--level-accent);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.1);
+}
+
+.register-level-card strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  padding: 7px 10px;
+  border: 1px solid var(--level-border);
+  border-radius: 999px;
+  background: var(--level-bg);
+  color: var(--level-text);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.register-level-card p {
+  min-width: 0;
+  margin: 0;
+  color: #1f2937;
   font-size: 14px;
   font-weight: 900;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.register-level-card.is-gray {
+  --level-bg: #f3f4f6;
+  --level-border: #e5e7eb;
+  --level-accent: #6b7280;
+  --level-text: #4b5563;
+}
+
+.register-level-card.is-green {
+  --level-bg: #ecfdf5;
+  --level-border: #bbf7d0;
+  --level-accent: #10b981;
+  --level-text: #047857;
+}
+
+.register-level-card.is-blue {
+  --level-bg: #eff6ff;
+  --level-border: #bfdbfe;
+  --level-accent: #3b82f6;
+  --level-text: #1d4ed8;
+}
+
+.register-level-card.is-purple {
+  --level-bg: #f5f3ff;
+  --level-border: #ddd6fe;
+  --level-accent: #7c3aed;
+  --level-text: #6d28d9;
+}
+
+.register-level-note {
+  margin: 0;
+  padding: 14px 15px;
+  border: 1px solid #e0e7ff;
+  border-radius: 18px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.6;
+  word-break: keep-all;
 }
 
 .register-trust-grid {
@@ -473,6 +588,19 @@
 
   .register-hero-copy > p:last-child {
     font-size: 15px;
+  }
+
+  .register-level-head strong {
+    font-size: 23px;
+  }
+
+  .register-level-card {
+    gap: 10px;
+    padding: 13px 13px 13px 48px;
+  }
+
+  .register-level-card p {
+    font-size: 13px;
   }
 
   .register-steps {

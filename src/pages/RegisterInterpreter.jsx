@@ -27,6 +27,29 @@ const regionOptions = [
   "기타",
 ];
 
+const levelSystemCards = [
+  {
+    level: "LV1",
+    text: "일반 행사 및 운영 통역 대응",
+    tone: "gray",
+  },
+  {
+    level: "LV2",
+    text: "비즈니스 상담 및 현장 대응 가능",
+    tone: "green",
+  },
+  {
+    level: "LV3",
+    text: "전문 분야 통역 및 기업 미팅 대응",
+    tone: "blue",
+  },
+  {
+    level: "LV4",
+    text: "고난도 비즈니스 및 VIP 대응",
+    tone: "purple",
+  },
+];
+
 function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -138,17 +161,23 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
             </p>
           </div>
 
-          <div className="register-hero-panel" aria-label="활동 예시">
-            <div>
-              <span>주요 활동 예시</span>
-              <strong>Business Field</strong>
+          <div className="register-hero-panel" aria-label="레벨 기반 성장 시스템">
+            <div className="register-level-head">
+              <span>LEVEL SYSTEM</span>
+              <strong>레벨 기반 성장 시스템</strong>
+              <p>실력과 경험에 따라 더 높은 프로젝트와 활동 기회를 제공합니다.</p>
             </div>
-            <ul>
-              <li>Beautyworld Japan</li>
-              <li>KCON</li>
-              <li>스타트업 전시회</li>
-              <li>바이어 미팅</li>
-            </ul>
+            <div className="register-level-flow" aria-label="LV1부터 LV4까지 성장 단계">
+              {levelSystemCards.map((item) => (
+                <article key={item.level} className={`register-level-card is-${item.tone}`}>
+                  <strong>{item.level}</strong>
+                  <p>{item.text}</p>
+                </article>
+              ))}
+            </div>
+            <p className="register-level-note">
+              실력과 경험이 쌓일수록 더 높은 수준의 프로젝트에 참여할 수 있습니다.
+            </p>
             <div className="register-trust-grid">
               <TrustMetric value="120+" label="활동 통역사" />
               <TrustMetric value="300+" label="누적 매칭" />
