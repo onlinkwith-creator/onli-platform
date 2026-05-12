@@ -1169,6 +1169,38 @@
   }
 }
 
+@media (min-width: 769px) and (max-width: 1024px) {
+  .home-footer {
+    width: calc(100% - 48px);
+    padding: 34px 32px 26px;
+  }
+
+  .home-footer-content {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  .home-footer-links {
+    padding-left: 28px;
+  }
+
+  .home-footer-trust {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+    padding-top: 24px;
+    padding-left: 0;
+  }
+
+  .home-footer-trust::before {
+    top: 0;
+    right: 0;
+    bottom: auto;
+    width: auto;
+    height: 1px;
+  }
+}
+
 @media (max-width: 768px) {
   .home-page {
     --home-section-gap: 42px;
@@ -1336,22 +1368,32 @@
   }
 
   .home-footer {
-    gap: 22px;
-    width: min(calc(100% - 32px), 1200px);
-    margin: 56px auto 40px;
-    padding: 24px 22px;
-    border-radius: 20px;
+    gap: 0;
+    width: calc(100% - 32px);
+    margin: 56px auto 32px;
+    padding: 28px 22px;
+    border-radius: 24px;
   }
 
   .home-footer-content {
-    grid-template-columns: 1fr;
-    row-gap: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    width: 100%;
+    min-width: 0;
   }
 
+  .home-footer-brand,
   .home-footer-links,
   .home-footer-trust {
+    width: 100%;
     height: auto;
     padding-left: 0;
+    text-align: left;
+  }
+
+  .home-footer-links {
+    align-items: flex-start;
   }
 
   .home-footer-links::before,
@@ -1361,7 +1403,7 @@
 
   .home-footer-trust {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 20px;
   }
 
   .home-footer-trust-item {
@@ -1369,13 +1411,29 @@
     text-align: left;
   }
 
+  .home-footer-trust-icon {
+    margin-bottom: 8px;
+  }
+
+  .home-footer-divider {
+    margin: 24px 0 18px;
+  }
+
+  .home-footer a,
+  .home-footer-links a {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
   .home-footer-logo {
     height: 30px;
   }
 
   .home-footer-copy {
-    align-self: center;
-    text-align: center;
+    align-self: flex-start;
+    font-size: 12px;
+    line-height: 1.6;
+    text-align: left;
   }
 
   .home-company-cta,
