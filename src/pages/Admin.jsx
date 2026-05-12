@@ -1204,6 +1204,7 @@ function RequestManagement({
               deleteRequest={deleteRequest}
               toggleRequestJobPublic={toggleRequestJobPublic}
               setSelectedRequest={setSelectedRequest}
+            
             />
           ))}
         </div>
@@ -1331,7 +1332,7 @@ function AdminRequestCard({
         <button
           type="button"
           className="admin-link-button"
-          onClick={() => setExpandedRequest(request)}
+          onClick={() => setSelectedRequest(request)}
         >
           {expanded ? "닫기" : "상세 보기"}
         </button>
