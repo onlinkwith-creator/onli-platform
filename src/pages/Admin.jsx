@@ -130,6 +130,8 @@ function Admin() {
   const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [applicationsRequestId, setApplicationsRequestId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [activeRequestModal, setActiveRequestModal] = useState(null);
+  const [requestEditDraft, setRequestEditDraft] = useState(null);
   const [selectedInterpreter, setSelectedInterpreter] = useState(null);
   const [interpreterModalType, setInterpreterModalType] = useState(null);
   const [interpreterEditDraft, setInterpreterEditDraft] = useState(null);
@@ -221,6 +223,12 @@ function Admin() {
     setInterpreterEditDraft(null);
   }, []);
 
+  const closeRequestModal = useCallback(() => {
+    setActiveRequestModal(null);
+    setRequestEditDraft(null);
+    setSelectedRequest(null);
+  }, []);
+
   useEffect(() => {
     if (!interpreterModalType) return undefined;
 
@@ -231,6 +239,17 @@ function Admin() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closeInterpreterModal, interpreterModalType]);
+
+  useEffect(() => {
+    if (!activeRequestModal) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") closeRequestModal();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeRequestModal, closeRequestModal]);
 
   const assignmentsByRequest = useMemo(() => groupBy(assignments, "request_id"), [
     assignments,
@@ -273,6 +292,17 @@ function Admin() {
       ),
     [assignmentsByRequest, requests]
   );
+  const activeRequest = useMemo(() => {
+    if (!activeRequestModal?.requestId) return null;
+    return (
+      requests.find((request) => request.id === activeRequestModal.requestId) ||
+      activeRequestModal.request ||
+      null
+    );
+  }, [activeRequestModal, requests]);
+  const activeRequestJob = activeRequest?.job_id
+    ? jobsById.get(String(activeRequest.job_id)) || jobsById.get(activeRequest.job_id)
+    : null;
 
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
@@ -481,6 +511,23 @@ function Admin() {
     }));
   };
 
+  const openRequestModal = (type, request) => {
+    setActiveRequestModal({ type, requestId: request.id, request });
+    setSelectedRequest(type === "detail" ? request : null);
+    setRequestEditDraft(
+      type === "edit"
+        ? createRequestEditDraft(request, request.job_id ? jobsById.get(String(request.job_id)) : null)
+        : null
+    );
+  };
+
+  const updateRequestEditDraft = (name, value) => {
+    setRequestEditDraft((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
   const saveInterpreterEditDraft = async () => {
     if (!selectedInterpreter || !interpreterEditDraft) return;
 
@@ -601,7 +648,7 @@ function Admin() {
             item.id === request.id ? { ...item, ...requestChanges, ...updatedRequest } : item
           )
         );
-        return;
+        return true;
       }
 
       if (request.job_id) {
@@ -625,9 +672,111 @@ function Admin() {
           item.id === request.id ? { ...item, ...requestChanges, ...updatedRequest } : item
         )
       );
+      return true;
     } catch (error) {
       console.error("request job visibility error:", error);
       alert("공고 공개 처리에 실패했습니다.");
+      return false;
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const saveRequestEditDraft = async () => {
+    if (!activeRequest || !requestEditDraft) return;
+
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const peopleCount = Number(requestEditDraft.people_count || 1);
+    const requestPayload = {
+      event_name: requestEditDraft.event_name,
+      company_name: requestEditDraft.company_name,
+      request_type: requestEditDraft.request_type,
+      start_date: requestEditDraft.start_date,
+      end_date: requestEditDraft.end_date,
+      event_date: requestEditDraft.start_date,
+      event_location: requestEditDraft.event_location,
+      requested_people_count: peopleCount,
+      required_count: peopleCount,
+      requested_level: requestEditDraft.requested_level,
+      required_level: requestEditDraft.requested_level,
+      preferred_gender: requestEditDraft.preferred_gender,
+      status: requestEditDraft.status,
+      contact_status: requestEditDraft.contact_status,
+      payment_status: requestEditDraft.payment_status,
+      is_public: requestEditDraft.is_public === "true",
+      is_job_public: requestEditDraft.is_public === "true",
+    };
+    const jobPayload = {
+      event_name: requestEditDraft.event_name,
+      title: requestEditDraft.event_name
+        ? `${requestEditDraft.event_name} 통역 모집`
+        : "통역 모집",
+      company_name: requestEditDraft.company_name,
+      start_date: requestEditDraft.start_date,
+      end_date: requestEditDraft.end_date,
+      event_date: requestEditDraft.start_date,
+      date: formatDateRange(
+        requestEditDraft.start_date,
+        requestEditDraft.end_date,
+        requestEditDraft.start_date
+      ),
+      location: requestEditDraft.event_location,
+      event_location: requestEditDraft.event_location,
+      people_count: peopleCount,
+      people: `${peopleCount}명`,
+      requested_level: requestEditDraft.requested_level,
+      level: requestEditDraft.requested_level,
+      preferred_gender: requestEditDraft.preferred_gender,
+      visibility: requestEditDraft.is_public === "true" ? "public" : "private",
+    };
+
+    setSavingKey(`request-edit-${activeRequest.id}`);
+    try {
+      const { data: updatedRequest, error: requestError } =
+        await updateRequestWithFallback(activeRequest.id, requestPayload);
+      if (requestError) throw requestError;
+
+      let updatedJob = null;
+      if (activeRequest.job_id) {
+        const { data, error } = await supabase
+          .from("jobs")
+          .update(jobPayload)
+          .eq("id", activeRequest.job_id)
+          .select("*")
+          .single();
+        if (error) throw error;
+        updatedJob = data;
+      }
+
+      setRequests((current) =>
+        current.map((request) =>
+          request.id === activeRequest.id
+            ? { ...request, ...requestPayload, ...(updatedRequest || {}) }
+            : request
+        )
+      );
+      setJobs((current) =>
+        updatedJob
+          ? current.map((job) =>
+              job.id === activeRequest.job_id ? { ...job, ...updatedJob } : job
+            )
+          : current
+      );
+      closeRequestModal();
+      alert("공고 정보가 저장되었습니다.");
+    } catch (error) {
+      console.error("공고 수정 실패:", {
+        requestId: activeRequest.id,
+        jobId: activeRequest.job_id,
+        requestPayload,
+        jobPayload,
+        error,
+      });
+      alert("공고 수정에 실패했습니다.");
     } finally {
       setSavingKey("");
     }
@@ -1210,14 +1359,14 @@ function Admin() {
       return;
     }
 
-    const ok = window.confirm(
-      "정말 이 의뢰를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다."
-    );
-    if (!ok) return;
-
     setSavingKey(`request-delete-${request.id}`);
 
     try {
+      console.info("의뢰/공고 삭제 대상:", {
+        requestId: request.id,
+        jobId: request.job_id || null,
+      });
+
       if (request.job_id) {
         const { error: applicationError } = await supabase
           .from("job_applications")
@@ -1263,6 +1412,7 @@ function Admin() {
       );
       setExpandedRequestId((current) => (current === request.id ? null : current));
       setApplicationsRequestId((current) => (current === request.id ? null : current));
+      closeRequestModal();
       alert("삭제되었습니다.");
     } catch (error) {
       console.error("의뢰 삭제 실패:", error);
@@ -1345,7 +1495,7 @@ function Admin() {
                 setAssignmentDrafts={setAssignmentDrafts}
                 setApplicationsRequestId={setApplicationsRequestId}
                 setExpandedRequestId={setExpandedRequestId}
-                setSelectedRequest={setSelectedRequest}
+                openRequestModal={openRequestModal}
                 setFilters={setRequestFilters}
                 assignInterpreter={assignInterpreter}
                 handlePriceDraft={handlePriceDraft}
@@ -1417,61 +1567,314 @@ function Admin() {
               onChangeDraft={updateInterpreterEditDraft}
               onClose={closeInterpreterModal}
               onSave={saveInterpreterEditDraft}
-            />{selectedRequest && (
-  <div
-    className="admin-modal-overlay"
-    role="presentation"
-    onMouseDown={() => setSelectedRequest(null)}
-  >
-    <section
-      className="admin-modal-card"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="request-modal-title"
-      onMouseDown={(event) => event.stopPropagation()}
-    >
-      <div className="admin-modal-head">
-        <div>
-          <span className="admin-card-meta">REQUEST</span>
-          <h2 id="request-modal-title">의뢰 상세 정보</h2>
-        </div>
-
-        <button
-          type="button"
-          className="admin-modal-close"
-          onClick={() => setSelectedRequest(null)}
-        >
-          닫기
-        </button>
-      </div>
-
-      <RequestDetailPanel
-        request={selectedRequest}
-        applications={
-          selectedRequest.job_id
-            ? jobApplicationsByJob.get(String(selectedRequest.job_id)) || []
-            : []
-        }
-        assignmentDrafts={assignmentDrafts}
-        assignments={assignmentsByRequest.get(selectedRequest.id) || []}
-        interpreters={interpreters}
-        savingKey={savingKey}
-        setAssignmentDrafts={setAssignmentDrafts}
-        assignInterpreter={assignInterpreter}
-        handlePriceDraft={handlePriceDraft}
-        saveSettlement={saveSettlement}
-        removeAssignment={removeAssignment}
-        updateRequest={updateRequest}
-        updateApplicationStatus={updateJobApplicationStatus}
-      />
-    </section>
-  </div>
-)}
+            />
+            {activeRequest && (
+              <RequestActionModal
+                activeModal={activeRequestModal}
+                applications={
+                  activeRequest.job_id
+                    ? jobApplicationsByJob.get(String(activeRequest.job_id)) || []
+                    : []
+                }
+                assignments={assignmentsByRequest.get(activeRequest.id) || []}
+                assignmentDrafts={assignmentDrafts}
+                draft={requestEditDraft}
+                interpreters={interpreters}
+                job={activeRequestJob}
+                request={activeRequest}
+                savingKey={savingKey}
+                setAssignmentDrafts={setAssignmentDrafts}
+                assignInterpreter={assignInterpreter}
+                deleteRequest={deleteRequest}
+                handlePriceDraft={handlePriceDraft}
+                onChangeDraft={updateRequestEditDraft}
+                onClose={closeRequestModal}
+                onRemoveAssignment={removeAssignment}
+                onSaveEdit={saveRequestEditDraft}
+                saveSettlement={saveSettlement}
+                toggleRequestJobPublic={toggleRequestJobPublic}
+                updateApplicationStatus={updateJobApplicationStatus}
+                updateRequest={updateRequest}
+              />
+            )}
           
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function RequestActionModal({
+  activeModal,
+  applications,
+  assignments,
+  assignmentDrafts,
+  draft,
+  interpreters,
+  job,
+  request,
+  savingKey,
+  setAssignmentDrafts,
+  assignInterpreter,
+  deleteRequest,
+  handlePriceDraft,
+  onChangeDraft,
+  onClose,
+  onRemoveAssignment,
+  onSaveEdit,
+  saveSettlement,
+  toggleRequestJobPublic,
+  updateApplicationStatus,
+  updateRequest,
+}) {
+  if (!activeModal || !request) return null;
+
+  const titleMap = {
+    applicants: "지원자 확인",
+    detail: "의뢰 상세 정보",
+    edit: "공고 수정",
+    visibility: "공개 상태 변경",
+    delete: "의뢰/공고 삭제",
+  };
+  const modalTitle = titleMap[activeModal.type] || "의뢰 관리";
+  const modalId = `request-${activeModal.type}-modal-title`;
+  const jobPublicState = getRequestJobPublicState(request, job);
+  const shouldBePublic = jobPublicState.type !== "public";
+
+  return (
+    <AdminModal title={modalTitle} titleId={modalId} onClose={onClose}>
+      {activeModal.type === "detail" && (
+        <RequestDetailPanel
+          request={request}
+          applications={applications}
+          assignmentDrafts={assignmentDrafts}
+          assignments={assignments}
+          interpreters={interpreters}
+          savingKey={savingKey}
+          setAssignmentDrafts={setAssignmentDrafts}
+          assignInterpreter={assignInterpreter}
+          handlePriceDraft={handlePriceDraft}
+          saveSettlement={saveSettlement}
+          removeAssignment={onRemoveAssignment}
+          updateRequest={updateRequest}
+          updateApplicationStatus={updateApplicationStatus}
+        />
+      )}
+
+      {activeModal.type === "applicants" && (
+        <div className="admin-modal-form">
+          <JobApplicationsPanel
+            applications={applications}
+            assignments={assignments}
+            interpreters={interpreters}
+            request={request}
+            onRemoveAssignment={onRemoveAssignment}
+            onStatusChange={updateApplicationStatus}
+          />
+        </div>
+      )}
+
+      {activeModal.type === "visibility" && (
+        <ConfirmPanel
+          tone="primary"
+          message={`이 공고를 ${shouldBePublic ? "공개" : "비공개"}로 전환하시겠습니까?`}
+          confirmText={shouldBePublic ? "공개 전환" : "비공개 전환"}
+          saving={savingKey === `request-job-${request.id}`}
+          onCancel={onClose}
+          onConfirm={async () => {
+            const ok = await toggleRequestJobPublic(request, shouldBePublic);
+            if (ok) onClose();
+          }}
+        />
+      )}
+
+      {activeModal.type === "delete" && (
+        <ConfirmPanel
+          tone="danger"
+          message="정말 이 의뢰/공고를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다."
+          confirmText="삭제"
+          saving={savingKey === `request-delete-${request.id}`}
+          onCancel={onClose}
+          onConfirm={() => deleteRequest(request)}
+        />
+      )}
+
+      {activeModal.type === "edit" && (
+        <RequestEditForm
+          draft={draft}
+          saving={savingKey === `request-edit-${request.id}`}
+          onCancel={onClose}
+          onChange={onChangeDraft}
+          onSave={onSaveEdit}
+        />
+      )}
+    </AdminModal>
+  );
+}
+
+function AdminModal({ children, onClose, title, titleId }) {
+  return (
+    <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
+      <section
+        className="admin-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <div>
+            <span className="admin-card-meta">REQUEST</span>
+            <h2 id={titleId}>{title}</h2>
+          </div>
+          <button type="button" className="admin-modal-close" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function ConfirmPanel({
+  confirmText,
+  message,
+  onCancel,
+  onConfirm,
+  saving,
+  tone = "primary",
+}) {
+  return (
+    <div className="admin-modal-form">
+      <p className="admin-confirm-text">{message}</p>
+      <div className="admin-modal-actions">
+        <button type="button" className="admin-link-button" onClick={onCancel}>
+          취소
+        </button>
+        <button
+          type="button"
+          className={`admin-save${tone === "danger" ? " danger" : ""}`}
+          disabled={saving}
+          onClick={onConfirm}
+        >
+          {confirmText}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
+  if (!draft) return null;
+
+  return (
+    <form
+      className="admin-modal-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave();
+      }}
+    >
+      <div className="admin-modal-edit-grid">
+        <FieldControl label="행사명">
+          <input
+            value={draft.event_name || ""}
+            onChange={(event) => onChange("event_name", event.target.value)}
+          />
+        </FieldControl>
+        <FieldControl label="기업명">
+          <input
+            value={draft.company_name || ""}
+            onChange={(event) => onChange("company_name", event.target.value)}
+          />
+        </FieldControl>
+        <FieldControl label="의뢰 유형">
+          <InlineSelect
+            options={[
+              { label: "일반의뢰", value: "일반의뢰" },
+              { label: "지정의뢰", value: "지정의뢰" },
+            ]}
+            value={draft.request_type || "일반의뢰"}
+            onChange={(value) => onChange("request_type", value)}
+          />
+        </FieldControl>
+        <DateControl
+          label="행사 시작일"
+          value={draft.start_date || ""}
+          onChange={(value) => onChange("start_date", value)}
+        />
+        <DateControl
+          label="행사 종료일"
+          value={draft.end_date || ""}
+          onChange={(value) => onChange("end_date", value)}
+        />
+        <FieldControl label="장소">
+          <input
+            value={draft.event_location || ""}
+            onChange={(event) => onChange("event_location", event.target.value)}
+          />
+        </FieldControl>
+        <NumberControl
+          label="필요 인원 수"
+          value={draft.people_count || 1}
+          onChange={(value) => onChange("people_count", value)}
+        />
+        <FieldControl label="희망 통역 레벨">
+          <InlineSelect
+            options={LEVELS}
+            value={draft.requested_level || "Lv1"}
+            onChange={(value) => onChange("requested_level", value)}
+          />
+        </FieldControl>
+        <FieldControl label="희망 성별">
+          <input
+            value={draft.preferred_gender || ""}
+            onChange={(event) => onChange("preferred_gender", event.target.value)}
+          />
+        </FieldControl>
+        <FieldControl label="공개 여부">
+          <InlineSelect
+            options={[
+              { label: "공개", value: "true" },
+              { label: "비공개", value: "false" },
+            ]}
+            value={draft.is_public || "false"}
+            onChange={(value) => onChange("is_public", value)}
+          />
+        </FieldControl>
+        <FieldControl label="의뢰 상태">
+          <InlineSelect
+            options={REQUEST_STATUSES}
+            value={draft.status || "pending"}
+            onChange={(value) => onChange("status", value)}
+          />
+        </FieldControl>
+        <FieldControl label="연락 상태">
+          <InlineSelect
+            options={CONTACT_STATUSES}
+            value={draft.contact_status || "not_contacted"}
+            onChange={(value) => onChange("contact_status", value)}
+          />
+        </FieldControl>
+        <FieldControl label="결제 상태">
+          <InlineSelect
+            options={PAYMENT_STATUSES}
+            value={draft.payment_status || "unpaid"}
+            onChange={(value) => onChange("payment_status", value)}
+          />
+        </FieldControl>
+      </div>
+      <div className="admin-modal-actions">
+        <button type="button" className="admin-link-button" onClick={onCancel}>
+          취소
+        </button>
+        <button type="submit" className="admin-save" disabled={saving}>
+          저장
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -1491,7 +1894,7 @@ function RequestManagement({
   setAssignmentDrafts,
   setApplicationsRequestId,
   setExpandedRequestId,
-  setSelectedRequest,
+  openRequestModal,
   setFilters,
   assignInterpreter,
   handlePriceDraft,
@@ -1578,7 +1981,7 @@ function RequestManagement({
               updateApplicationStatus={updateApplicationStatus}
               deleteRequest={deleteRequest}
               toggleRequestJobPublic={toggleRequestJobPublic}
-              setSelectedRequest={setSelectedRequest}
+              openRequestModal={openRequestModal}
             
             />
           ))}
@@ -1611,7 +2014,7 @@ function AdminRequestCard({
   updateApplicationStatus,
   deleteRequest,
   toggleRequestJobPublic,
-  setSelectedRequest,
+  openRequestModal,
 }) {
   const job = request.job_id ? jobsById.get(request.job_id) : null;
   const linkedRequest = request.job_id ? requestsByJobId.get(String(request.job_id)) : null;
@@ -1686,9 +2089,7 @@ function AdminRequestCard({
         <button
           type="button"
           className="admin-link-button"
-          onClick={() =>
-            setApplicationsRequestId(applicationsExpanded ? null : request.id)
-          }
+          onClick={() => openRequestModal("applicants", request)}
         >
           지원자 확인 ({jobApplications.length}명)
         </button>
@@ -1696,9 +2097,7 @@ function AdminRequestCard({
           type="button"
           className="admin-link-button"
           disabled={savingKey === `request-job-${request.id}`}
-          onClick={() =>
-            toggleRequestJobPublic(request, jobPublicState.type !== "public")
-          }
+          onClick={() => openRequestModal("visibility", request)}
         >
           {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
         </button>
@@ -1706,7 +2105,7 @@ function AdminRequestCard({
           <button
             type="button"
             className="admin-link-button"
-            onClick={onJobsAdminClick}
+            onClick={() => openRequestModal("edit", request)}
           >
             공고 수정
           </button>
@@ -1714,7 +2113,7 @@ function AdminRequestCard({
         <button
           type="button"
           className="admin-link-button"
-          onClick={() => setSelectedRequest(request)}
+          onClick={() => openRequestModal("detail", request)}
         >
           상세 보기
         </button>
@@ -1722,23 +2121,11 @@ function AdminRequestCard({
           type="button"
           className="admin-link-button danger"
           disabled={savingKey === `request-delete-${request.id}`}
-          onClick={() => deleteRequest(request)}
+          onClick={() => openRequestModal("delete", request)}
         >
           삭제
         </button>
       </div>
-
-      {applicationsExpanded && (
-        <JobApplicationsPanel
-          applications={jobApplications}
-          assignments={assignments}
-          interpreters={interpreters}
-          request={request}
-          onRemoveAssignment={removeAssignment}
-          onStatusChange={updateApplicationStatus}
-        />
-      )}
-      
     </article>
   );
 }
@@ -2889,6 +3276,24 @@ function buildJobPayloadFromRequest(request) {
       request.selected_interpreter_name || request.interpreter_name || "",
     interpreter_id: request.interpreter_id || request.selected_interpreter_id || null,
     interpreter_name: request.interpreter_name || request.selected_interpreter_name || "",
+  };
+}
+
+function createRequestEditDraft(request = {}, job = {}) {
+  return {
+    event_name: request.event_name || job?.event_name || "",
+    company_name: request.company_name || job?.company_name || "",
+    request_type: request.request_type || getDesignatedRequestType(request, job).label,
+    start_date: getDateRangeStart(request.start_date || job?.start_date, request.event_date || job?.event_date),
+    end_date: getDateRangeEnd(request.end_date || job?.end_date, request.event_date || job?.event_date),
+    event_location: request.event_location || job?.event_location || job?.location || "",
+    people_count: request.requested_people_count || request.required_count || job?.people_count || 1,
+    requested_level: request.requested_level || request.required_level || job?.requested_level || job?.level || "Lv1",
+    preferred_gender: request.preferred_gender || job?.preferred_gender || "",
+    is_public: String(Boolean(request.is_job_public || request.is_public || normalizeJobVisibility(job) === "public")),
+    status: request.status || "pending",
+    contact_status: request.contact_status || "not_contacted",
+    payment_status: request.payment_status || "unpaid",
   };
 }
 

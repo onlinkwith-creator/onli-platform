@@ -1435,6 +1435,14 @@
   min-height: 44px;
 }
 
+.admin-confirm-text {
+  margin: 0;
+  color: #374151;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.7;
+}
+
 @media (min-width: 900px) {
   .admin-info-section.two-column {
     grid-template-columns: 1fr 1fr;
