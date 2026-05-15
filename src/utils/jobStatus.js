@@ -1,3 +1,5 @@
+import { isJobFullyAssigned } from "./jobRecruitment";
+
 export const JOB_STATUS_OPTIONS = [
   { value: "open", label: "모집중" },
   { value: "closed", label: "모집마감" },
@@ -10,6 +12,7 @@ export const JOB_VISIBILITY_OPTIONS = [
 ];
 
 export function normalizeJobStatus(job = {}) {
+  if (isJobFullyAssigned(job)) return "assigned";
   if (job.status === "마감" || job.status === "모집마감" || job.status === "closed") {
     return "closed";
   }

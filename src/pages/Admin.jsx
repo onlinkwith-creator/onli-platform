@@ -759,8 +759,13 @@ function Admin() {
     setSavingKey("");
 
     if (error) {
-      console.error(error);
-      alert("정산 저장에 실패했습니다.");
+      console.error("정산 저장 디버그:", {
+        table: "requests",
+        id: request.id,
+        payload,
+        error,
+      });
+      alert(`정산 저장에 실패했습니다: ${error.message || "원인을 확인해주세요."}`);
       return;
     }
 
@@ -786,7 +791,12 @@ function Admin() {
     if (!error) return { data, error: null };
     if (!isMissingColumnError(error)) return { data: null, error };
 
-    console.error("request settlement column fallback:", error);
+    console.error("request settlement column fallback:", {
+      table: "requests",
+      id: requestId,
+      payload,
+      error,
+    });
     const legacyPayload = {
       client_price: payload.company_amount,
       interpreter_price: payload.interpreter_payment,
@@ -795,12 +805,34 @@ function Admin() {
       settlement_status: payload.settlement_status,
     };
 
-    const { data: fallbackData, error: fallbackError } = await supabase
+    let { data: fallbackData, error: fallbackError } = await supabase
       .from("requests")
       .update(legacyPayload)
       .eq("id", requestId)
       .select("*")
       .single();
+
+    if (fallbackError && isMissingColumnError(fallbackError)) {
+      console.error("request settlement status fallback:", {
+        table: "requests",
+        id: requestId,
+        payload: legacyPayload,
+        error: fallbackError,
+      });
+      const minimumPayload = {
+        client_price: payload.company_amount,
+        interpreter_price: payload.interpreter_payment,
+        profit: payload.platform_profit,
+      };
+      const minimumResult = await supabase
+        .from("requests")
+        .update(minimumPayload)
+        .eq("id", requestId)
+        .select("*")
+        .single();
+      fallbackData = minimumResult.data;
+      fallbackError = minimumResult.error;
+    }
 
     return { data: fallbackData, error: fallbackError };
   };
@@ -818,44 +850,37 @@ function Admin() {
       return;
     }
 
+    await assignInterpreterToRequest(requestId, interpreterId);
+  };
+
+  const assignInterpreterToRequest = async (
+    requestId,
+    interpreterId,
+    { successAlert = true } = {}
+  ) => {
+    const request = requests.find((item) => item.id === requestId);
+    const currentAssignments = assignmentsByRequest.get(requestId) || [];
+    const requiredCount = getRequestRequiredCount(request);
+
+    if (
+      currentAssignments.some(
+        (assignment) => Number(assignment.interpreter_id) === interpreterId
+      )
+    ) {
+      alert("이미 배정된 통역사입니다.");
+      return false;
+    }
+
+    if (currentAssignments.length >= requiredCount) {
+      alert("필요 인원이 모두 배정되었습니다.");
+      return false;
+    }
+
     const interpreter = interpreters.find(
       (item) => Number(item.id) === interpreterId
     );
-    const interpreterName = interpreter?.name || "이름 미입력";
-    const requestChanges = {
-      status: "매칭완료",
-      matching_status: "matched",
-      assigned_interpreter_id: interpreterId,
-      assigned_interpreter_name: interpreterName,
-      matched_interpreter_id: interpreterId,
-      matched_interpreter_name: interpreterName,
-    };
 
     setSavingKey(`assign-${requestId}`);
-    const { data: requestData, error: requestError } =
-      await updateRequestAssignmentRow(requestId, requestChanges, {
-        status: "매칭완료",
-      });
-
-    if (requestError) {
-      setSavingKey("");
-      console.error(requestError);
-      alert("통역사 배정에 실패했습니다.");
-      return;
-    }
-
-    const { error: deleteExistingError } = await supabase
-      .from("request_interpreters")
-      .delete()
-      .eq("request_id", requestId);
-
-    if (deleteExistingError) {
-      setSavingKey("");
-      console.error(deleteExistingError);
-      alert("통역사 배정에 실패했습니다.");
-      return;
-    }
-
     const { data: assignmentData, error } = await supabase
       .from("request_interpreters")
       .insert(
@@ -870,22 +895,48 @@ function Admin() {
         "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
       )
       .single();
-    setSavingKey("");
 
     if (error) {
+      setSavingKey("");
       console.error(error);
       alert(
         error.code === "23505"
           ? "이미 배정된 통역사입니다."
           : "통역사 배정에 실패했습니다."
       );
-      return;
+      return false;
     }
 
-    const nextRequest = {
-      ...requestChanges,
-      ...(requestData || {}),
+    const nextAssignment = {
+      ...(assignmentData || {
+        id: `${requestId}-${interpreterId}`,
+        request_id: requestId,
+        interpreter_id: interpreterId,
+        assigned_at: new Date().toISOString(),
+        interpreter,
+      }),
+      interpreter: assignmentData?.interpreter || interpreter,
     };
+    const nextAssignments = [...currentAssignments, nextAssignment];
+    const requestChanges = buildAssignmentRequestChanges(nextAssignments, requiredCount);
+    const { data: requestData, error: requestError } =
+      await updateRequestAssignmentRow(requestId, requestChanges, {
+        status: requestChanges.status,
+      });
+
+    if (!requestError) {
+      await updateLinkedJobAssignmentStatus(request, nextAssignments.length, requiredCount);
+    }
+
+    setSavingKey("");
+
+    if (requestError) {
+      console.error(requestError);
+      alert("통역사 배정에 실패했습니다.");
+      return false;
+    }
+
+    const nextRequest = { ...requestChanges, ...(requestData || {}) };
     setRequests((current) =>
       current.map((request) =>
         request.id === requestId ? { ...request, ...nextRequest } : request
@@ -895,19 +946,12 @@ function Admin() {
       current?.id === requestId ? { ...current, ...nextRequest } : current
     );
     setAssignments((current) =>
-      upsertAssignment(current.filter((item) => item.request_id !== requestId), {
-        ...(assignmentData || {
-          id: `${requestId}-${interpreterId}`,
-          request_id: requestId,
-          interpreter_id: interpreterId,
-          assigned_at: new Date().toISOString(),
-          interpreter,
-        }),
-        interpreter: assignmentData?.interpreter || interpreter,
-      })
+      upsertAssignment(current, nextAssignment)
     );
     setAssignmentDrafts((current) => ({ ...current, [requestId]: "" }));
-    alert("통역사 배정이 완료되었습니다.");
+    await updateMatchingApplicationStatus(request, interpreter, "매칭완료");
+    if (successAlert) alert("통역사 배정이 완료되었습니다.");
+    return true;
   };
 
   const removeAssignment = async (assignment) => {
@@ -928,20 +972,32 @@ function Admin() {
       .eq("id", assignmentId);
 
     let requestError = null;
+    let nextRequestChanges = null;
     if (!error && requestId) {
+      const request = requests.find((item) => item.id === requestId);
+      const remainingAssignments = (assignmentsByRequest.get(requestId) || []).filter(
+        (assignment) => assignment.id !== assignmentId
+      );
+      const requiredCount = getRequestRequiredCount(request);
+      nextRequestChanges = buildAssignmentRequestChanges(
+        remainingAssignments,
+        requiredCount
+      );
       const result = await updateRequestAssignmentRow(
         requestId,
-        {
-          status: "pending",
-          matching_status: "pending",
-          assigned_interpreter_id: null,
-          assigned_interpreter_name: null,
-          matched_interpreter_id: null,
-          matched_interpreter_name: null,
-        },
-        { status: "pending" }
+        nextRequestChanges,
+        { status: nextRequestChanges.status }
       );
       requestError = result.error;
+      if (!requestError) {
+        await updateLinkedJobAssignmentStatus(
+          request,
+          remainingAssignments.length,
+          requiredCount
+        );
+        const interpreter = getAssignmentInterpreter(assignment, interpreters);
+        await updateMatchingApplicationStatus(request, interpreter, "지원완료");
+      }
     }
     setSavingKey("");
 
@@ -954,24 +1010,69 @@ function Admin() {
     setAssignments((current) =>
       current.filter((assignment) => assignment.id !== assignmentId)
     );
-    if (requestId) {
-      const clearedRequest = {
-        status: "pending",
-        matching_status: "pending",
-        assigned_interpreter_id: null,
-        assigned_interpreter_name: null,
-        matched_interpreter_id: null,
-        matched_interpreter_name: null,
-      };
+    if (requestId && nextRequestChanges) {
       setRequests((current) =>
         current.map((request) =>
-          request.id === requestId ? { ...request, ...clearedRequest } : request
+          request.id === requestId ? { ...request, ...nextRequestChanges } : request
         )
       );
       setSelectedRequest((current) =>
-        current?.id === requestId ? { ...current, ...clearedRequest } : current
+        current?.id === requestId ? { ...current, ...nextRequestChanges } : current
       );
     }
+  };
+
+  const updateMatchingApplicationStatus = async (request, interpreter, status) => {
+    if (!request?.job_id || !interpreter) return;
+
+    const application = findApplicationForInterpreter(
+      jobApplicationsByJob.get(String(request.job_id)) || [],
+      interpreter
+    );
+
+    if (!application?.id) return;
+
+    const { error } = await supabase
+      .from("job_applications")
+      .update({ status })
+      .eq("id", application.id);
+
+    if (error) {
+      console.error("지원자 배정 상태 동기화 실패:", {
+        table: "job_applications",
+        id: application.id,
+        payload: { status },
+        error,
+      });
+      return;
+    }
+
+    setJobApplications((current) =>
+      current.map((item) =>
+        item.id === application.id ? { ...item, status } : item
+      )
+    );
+  };
+
+  const updateLinkedJobAssignmentStatus = async (request, assignedCount, requiredCount) => {
+    if (!request?.job_id) return;
+
+    const status = assignedCount >= requiredCount ? "assigned" : "open";
+    const { data, error } = await supabase
+      .from("jobs")
+      .update({ status })
+      .eq("id", request.job_id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("linked job assignment status update error:", error);
+      return;
+    }
+
+    setJobs((current) =>
+      current.map((job) => (job.id === request.job_id ? { ...job, ...(data || {}), status } : job))
+    );
   };
 
   const updateRequestAssignmentRow = async (
@@ -1033,6 +1134,23 @@ function Admin() {
         console.error("지원자 상태 변경 실패:", error);
         alert(error.message);
         return false;
+      }
+
+      if (status === "매칭완료" && jobId) {
+        const request = requestsByJobId.get(String(jobId));
+        const interpreter = findInterpreterForApplication(application, interpreters);
+
+        if (request && interpreter) {
+          await assignInterpreterToRequest(request.id, interpreter.id, {
+            successAlert: false,
+          });
+        } else {
+          console.warn("지원자와 연결할 통역사 정보를 찾지 못했습니다.", {
+            application,
+            jobId,
+            requestId: request?.id,
+          });
+        }
       }
 
       if (askAssignJob && status === "매칭완료" && jobId) {
@@ -1613,6 +1731,10 @@ function AdminRequestCard({
       {applicationsExpanded && (
         <JobApplicationsPanel
           applications={jobApplications}
+          assignments={assignments}
+          interpreters={interpreters}
+          request={request}
+          onRemoveAssignment={removeAssignment}
           onStatusChange={updateApplicationStatus}
         />
       )}
@@ -1813,6 +1935,10 @@ function RequestDetailPanel({
         <h3>지원자 목록</h3>
         <JobApplicationsPanel
           applications={applications}
+          assignments={assignments}
+          interpreters={interpreters}
+          request={request}
+          onRemoveAssignment={removeAssignment}
           onStatusChange={updateApplicationStatus}
         />
       </div>
@@ -1820,21 +1946,37 @@ function RequestDetailPanel({
   );
 }
 
-function JobApplicationsPanel({ applications, onStatusChange }) {
-  if (applications.length === 0) {
+function JobApplicationsPanel({
+  applications,
+  assignments = [],
+  interpreters = [],
+  onRemoveAssignment,
+  onStatusChange,
+}) {
+  const rows = buildApplicationAssignmentRows(applications, assignments, interpreters);
+
+  if (rows.length === 0) {
     return <span className="admin-empty-chip">이 공고에는 아직 지원자가 없습니다.</span>;
   }
 
   return (
     <div className="admin-nested-card-list">
-      {applications.map((application) => (
-        <article key={application.id} className="admin-nested-card">
+      {rows.map((application) => {
+        const isAssigned = Boolean(application.assigned);
+        const isDirectAssignment = application.source === "direct-assignment";
+
+        return (
+        <article key={application.rowId} className="admin-nested-card">
           <div className="admin-list-card-head compact">
             <div>
-              <span className="admin-card-meta">{formatDate(application.created_at)}</span>
+              <span className="admin-card-meta">
+                {isDirectAssignment
+                  ? "관리자 직접 배정"
+                  : `지원자 · ${formatDate(application.created_at)}`}
+              </span>
               <h3>{application.applicant_name || "이름 미입력"}</h3>
             </div>
-            <StatusBadge status={application.status || "지원완료"} />
+            <StatusBadge status={isAssigned ? "배정완료" : application.status || "지원완료"} />
           </div>
 
           <dl className="admin-card-summary compact">
@@ -1843,13 +1985,28 @@ function JobApplicationsPanel({ applications, onStatusChange }) {
             <Info label="경력" value={application.experience || application.career || "-"} />
             <Info label="연락처" value={application.phone || "연락처 미입력"} />
             <Info label="이메일" value={application.email || "-"} />
+            <Info
+              label="구분"
+              value={isDirectAssignment ? "관리자 직접 배정" : "지원자"}
+            />
             <Info label="메모" value={application.message || "지원 메모 없음"} />
           </dl>
 
           {onStatusChange ? (
             <div className="admin-card-actions">
-              {application.status === "매칭완료" ? (
-                <StatusBadge status="매칭완료" />
+              {isAssigned ? (
+                <>
+                  <StatusBadge status="배정완료" />
+                  {application.assignment && onRemoveAssignment ? (
+                    <button
+                      type="button"
+                      className="admin-link-button danger"
+                      onClick={() => onRemoveAssignment(application.assignment)}
+                    >
+                      배정 취소
+                    </button>
+                  ) : null}
+                </>
               ) : (
                 <button
                   type="button"
@@ -1867,7 +2024,7 @@ function JobApplicationsPanel({ applications, onStatusChange }) {
               <button
                 type="button"
                 className="admin-link-button warning"
-                disabled={application.status === "보류"}
+                disabled={isAssigned || application.status === "보류" || isDirectAssignment}
                 onClick={() =>
                   onStatusChange(application, "보류", {
                     confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
@@ -1879,7 +2036,7 @@ function JobApplicationsPanel({ applications, onStatusChange }) {
               <button
                 type="button"
                 className="admin-link-button danger"
-                disabled={application.status === "불합격"}
+                disabled={isAssigned || application.status === "불합격" || isDirectAssignment}
                 onClick={() =>
                   onStatusChange(application, "불합격", {
                     confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
@@ -1891,7 +2048,8 @@ function JobApplicationsPanel({ applications, onStatusChange }) {
             </div>
           ) : null}
         </article>
-      ))}
+      );
+      })}
     </div>
   );
 }
@@ -2806,6 +2964,13 @@ function isRequestVisibleInMatching(request, assignments = []) {
 }
 
 function getAssignedInterpreterName(request = {}, assignments = [], interpreters = []) {
+  if (assignments.length > 0) {
+    return assignments
+      .map((assignment) => assignment.interpreter?.name)
+      .filter(Boolean)
+      .join(", ");
+  }
+
   const storedName =
     request.assigned_interpreter_name || request.matched_interpreter_name || "";
   if (storedName) return storedName;
@@ -2820,6 +2985,153 @@ function getAssignedInterpreterName(request = {}, assignments = [], interpreters
 
   const assignment = assignments.find(Boolean);
   return assignment?.interpreter?.name || "";
+}
+
+function buildApplicationAssignmentRows(applications = [], assignments = [], interpreters = []) {
+  const usedApplicationIds = new Set();
+  const assignmentRows = [];
+
+  assignments.forEach((assignment) => {
+    const interpreter = getAssignmentInterpreter(assignment, interpreters);
+    const matchedApplication = interpreter
+      ? applications.find(
+          (application) =>
+            !usedApplicationIds.has(application.id) &&
+            applicationMatchesInterpreter(application, interpreter)
+        )
+      : null;
+
+    if (matchedApplication) {
+      usedApplicationIds.add(matchedApplication.id);
+      assignmentRows.push({
+        ...matchedApplication,
+        rowId: `application-${matchedApplication.id}`,
+        assigned: true,
+        assignment,
+        source: "application",
+      });
+      return;
+    }
+
+    assignmentRows.push({
+      id: `assignment-${assignment.id}`,
+      rowId: `assignment-${assignment.id}`,
+      applicant_name: interpreter?.name || assignment.interpreter?.name || "이름 미입력",
+      phone: interpreter?.phone || "",
+      email: interpreter?.email || "",
+      gender: interpreter?.gender || "",
+      language: interpreter?.language_level || interpreter?.jlpt || interpreter?.level || "",
+      experience: getExperienceLabel(interpreter || {}),
+      message: "관리자가 직접 배정한 통역사입니다.",
+      status: "배정완료",
+      created_at: assignment.assigned_at,
+      assigned: true,
+      assignment,
+      source: "direct-assignment",
+    });
+  });
+
+  const applicationRows = applications
+    .filter((application) => !usedApplicationIds.has(application.id))
+    .map((application) => ({
+      ...application,
+      rowId: `application-${application.id}`,
+      assigned: false,
+      source: "application",
+    }));
+
+  return [...assignmentRows, ...applicationRows].sort(sortApplicationRows);
+}
+
+function sortApplicationRows(a, b) {
+  const priority = {
+    "배정완료": 0,
+    "매칭완료": 0,
+    "보류": 2,
+    "지원완료": 1,
+    "검토중": 1,
+    "불합격": 3,
+  };
+  const aStatus = a.assigned ? "배정완료" : a.status || "지원완료";
+  const bStatus = b.assigned ? "배정완료" : b.status || "지원완료";
+  const statusDiff = (priority[aStatus] ?? 1) - (priority[bStatus] ?? 1);
+  if (statusDiff !== 0) return statusDiff;
+  return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+}
+
+function findInterpreterForApplication(application = {}, interpreters = []) {
+  return interpreters.find((interpreter) =>
+    applicationMatchesInterpreter(application, interpreter)
+  );
+}
+
+function findApplicationForInterpreter(applications = [], interpreter = {}) {
+  return applications.find((application) =>
+    applicationMatchesInterpreter(application, interpreter)
+  );
+}
+
+function applicationMatchesInterpreter(application = {}, interpreter = {}) {
+  if (!application || !interpreter) return false;
+  if (
+    application.interpreter_id &&
+    Number(application.interpreter_id) === Number(interpreter.id)
+  ) {
+    return true;
+  }
+
+  const appEmail = normalizeText(application.email);
+  const appPhone = normalizePhone(application.phone || application.applicant_contact);
+  const appName = normalizeText(application.applicant_name || application.name);
+  const interpreterEmail = normalizeText(interpreter.email);
+  const interpreterPhone = normalizePhone(interpreter.phone);
+  const interpreterName = normalizeText(interpreter.name);
+
+  return Boolean(
+    (appEmail && interpreterEmail && appEmail === interpreterEmail) ||
+      (appPhone && interpreterPhone && appPhone === interpreterPhone) ||
+      (appName && interpreterName && appName === interpreterName)
+  );
+}
+
+function getAssignmentInterpreter(assignment = {}, interpreters = []) {
+  return (
+    assignment.interpreter ||
+    interpreters.find((interpreter) => Number(interpreter.id) === Number(assignment.interpreter_id)) ||
+    null
+  );
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizePhone(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function getRequestRequiredCount(request = {}) {
+  return getPositiveInteger(
+    request.requested_people_count || request.required_count || request.people_count,
+    1
+  );
+}
+
+function buildAssignmentRequestChanges(assignments = [], requiredCount = 1) {
+  const primaryAssignment = assignments[assignments.length - 1] || null;
+  const interpreterId = primaryAssignment?.interpreter_id || null;
+  const interpreterName = primaryAssignment?.interpreter?.name || null;
+  const hasAssignments = assignments.length > 0;
+  const isFullyAssigned = hasAssignments && assignments.length >= requiredCount;
+
+  return {
+    status: hasAssignments ? (isFullyAssigned ? "배정완료" : "매칭완료") : "pending",
+    matching_status: hasAssignments ? (isFullyAssigned ? "assigned" : "matched") : "pending",
+    assigned_interpreter_id: interpreterId,
+    assigned_interpreter_name: interpreterName,
+    matched_interpreter_id: interpreterId,
+    matched_interpreter_name: interpreterName,
+  };
 }
 
 function upsertAssignment(items, nextAssignment) {

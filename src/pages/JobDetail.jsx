@@ -3,6 +3,8 @@ import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
+import { attachPublicJobCounts } from "../utils/jobsApi";
+import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import "./Jobs.css";
 
 const initialForm = {
@@ -58,7 +60,8 @@ function JobDetail({ jobId, onBackClick, onApplyClick }) {
       return;
     }
 
-    setJob(data);
+    const [jobWithCounts] = await attachPublicJobCounts(supabase, [data]);
+    setJob(jobWithCounts || data);
     setLoading(false);
   }, [jobId]);
 
@@ -153,7 +156,7 @@ function JobDetail({ jobId, onBackClick, onApplyClick }) {
                 <Info label="언어" value={job.language || "한국어/일본어"} />
                 <Info label="필요 레벨" value={getJobLevelSummary(job)} />
                 <Info label="일급" value={getJobPayDisplay(job)} />
-                <Info label="모집 인원" value={job.people || job.people_count} />
+                <Info label="모집 인원" value={getRecruitmentCountDisplay(job)} />
                 <Info label="전문 분야" value={getJobSpecialty(job)} />
                 <Info label="지원 마감일" value={job.deadline || "상시"} />
                 <Info label="상태" value={getJobStatusLabel(job)} />
