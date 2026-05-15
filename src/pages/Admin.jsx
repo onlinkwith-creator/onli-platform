@@ -26,6 +26,8 @@ const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const REQUEST_STATUSES = [
   "pending",
   "matching",
+  "매칭완료",
+  "배정완료",
   "confirmed",
   "completed",
   "cancelled",
@@ -45,6 +47,10 @@ const STATUS_LABELS = {
   warning: "경고",
   suspended: "정지",
   matching: "매칭중",
+  assigned: "배정완료",
+  matched: "매칭완료",
+  "매칭완료": "매칭완료",
+  "배정완료": "배정완료",
   confirmed: "확정",
   completed: "완료",
   cancelled: "취소",
@@ -249,6 +255,16 @@ function Admin() {
         (application) => application.status === "매칭완료"
       ),
     [jobApplications]
+  );
+  const matchedRequests = useMemo(
+    () =>
+      requests.filter((request) =>
+        isRequestVisibleInMatching(
+          request,
+          assignmentsByRequest.get(request.id) || []
+        )
+      ),
+    [assignmentsByRequest, requests]
   );
 
   const filteredRequests = useMemo(() => {
@@ -489,10 +505,12 @@ function Admin() {
     };
 
     setSavingKey(`request-${id}`);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("requests")
       .update(payload)
-      .eq("id", id);
+      .eq("id", id)
+      .select("*")
+      .single();
     setSavingKey("");
 
     if (error) {
@@ -502,7 +520,12 @@ function Admin() {
     }
 
     setRequests((current) =>
-      current.map((item) => (item.id === id ? { ...item, ...payload } : item))
+      current.map((item) =>
+        item.id === id ? { ...item, ...payload, ...(data || {}) } : item
+      )
+    );
+    setSelectedRequest((current) =>
+      current?.id === id ? { ...current, ...payload, ...(data || {}) } : current
     );
   };
 
@@ -658,15 +681,19 @@ function Admin() {
   };
 
   const handlePriceDraft = (requestId, field, value) => {
+    const updatePrice = (request) => {
+      const nextRequest = { ...request, [field]: value };
+      nextRequest.profit =
+        Number(nextRequest.client_price || 0) -
+        Number(nextRequest.interpreter_price || 0);
+      return nextRequest;
+    };
+
     setRequests((current) =>
-      current.map((request) => {
-        if (request.id !== requestId) return request;
-        const nextRequest = { ...request, [field]: value };
-        nextRequest.profit =
-          Number(nextRequest.client_price || 0) -
-          Number(nextRequest.interpreter_price || 0);
-        return nextRequest;
-      })
+      current.map((request) => (request.id === requestId ? updatePrice(request) : request))
+    );
+    setSelectedRequest((current) =>
+      current?.id === requestId ? updatePrice(current) : current
     );
   };
 
@@ -679,17 +706,62 @@ function Admin() {
     const interpreterId = Number(assignmentDrafts[requestId]);
 
     if (!interpreterId) {
-      alert("배정할 통역사를 선택해주세요.");
+      alert("통역사를 선택해주세요.");
       return;
     }
 
+    const interpreter = interpreters.find(
+      (item) => Number(item.id) === interpreterId
+    );
+    const interpreterName = interpreter?.name || "이름 미입력";
+    const requestChanges = {
+      status: "매칭완료",
+      matching_status: "matched",
+      assigned_interpreter_id: interpreterId,
+      assigned_interpreter_name: interpreterName,
+      matched_interpreter_id: interpreterId,
+      matched_interpreter_name: interpreterName,
+    };
+
     setSavingKey(`assign-${requestId}`);
-    const { error } = await supabase.from("request_interpreters").insert([
-      {
-        request_id: requestId,
-        interpreter_id: interpreterId,
-      },
-    ]);
+    const { data: requestData, error: requestError } =
+      await updateRequestAssignmentRow(requestId, requestChanges, {
+        status: "매칭완료",
+      });
+
+    if (requestError) {
+      setSavingKey("");
+      console.error(requestError);
+      alert("통역사 배정에 실패했습니다.");
+      return;
+    }
+
+    const { error: deleteExistingError } = await supabase
+      .from("request_interpreters")
+      .delete()
+      .eq("request_id", requestId);
+
+    if (deleteExistingError) {
+      setSavingKey("");
+      console.error(deleteExistingError);
+      alert("통역사 배정에 실패했습니다.");
+      return;
+    }
+
+    const { data: assignmentData, error } = await supabase
+      .from("request_interpreters")
+      .insert(
+        [
+          {
+            request_id: requestId,
+            interpreter_id: interpreterId,
+          },
+        ]
+      )
+      .select(
+        "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
+      )
+      .single();
     setSavingKey("");
 
     if (error) {
@@ -702,25 +774,71 @@ function Admin() {
       return;
     }
 
+    const nextRequest = {
+      ...requestChanges,
+      ...(requestData || {}),
+    };
+    setRequests((current) =>
+      current.map((request) =>
+        request.id === requestId ? { ...request, ...nextRequest } : request
+      )
+    );
+    setSelectedRequest((current) =>
+      current?.id === requestId ? { ...current, ...nextRequest } : current
+    );
+    setAssignments((current) =>
+      upsertAssignment(current.filter((item) => item.request_id !== requestId), {
+        ...(assignmentData || {
+          id: `${requestId}-${interpreterId}`,
+          request_id: requestId,
+          interpreter_id: interpreterId,
+          assigned_at: new Date().toISOString(),
+          interpreter,
+        }),
+        interpreter: assignmentData?.interpreter || interpreter,
+      })
+    );
     setAssignmentDrafts((current) => ({ ...current, [requestId]: "" }));
-    fetchAdminData();
+    alert("통역사 배정이 완료되었습니다.");
   };
 
-  const removeAssignment = async (assignmentId) => {
+  const removeAssignment = async (assignment) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
       return;
     }
+
+    const assignmentId =
+      typeof assignment === "object" ? assignment?.id : assignment;
+    const requestId =
+      typeof assignment === "object" ? assignment?.request_id : null;
 
     setSavingKey(`assignment-${assignmentId}`);
     const { error } = await supabase
       .from("request_interpreters")
       .delete()
       .eq("id", assignmentId);
+
+    let requestError = null;
+    if (!error && requestId) {
+      const result = await updateRequestAssignmentRow(
+        requestId,
+        {
+          status: "pending",
+          matching_status: "pending",
+          assigned_interpreter_id: null,
+          assigned_interpreter_name: null,
+          matched_interpreter_id: null,
+          matched_interpreter_name: null,
+        },
+        { status: "pending" }
+      );
+      requestError = result.error;
+    }
     setSavingKey("");
 
-    if (error) {
-      console.error(error);
+    if (error || requestError) {
+      console.error(error || requestError);
       alert("배정 해제에 실패했습니다.");
       return;
     }
@@ -728,6 +846,50 @@ function Admin() {
     setAssignments((current) =>
       current.filter((assignment) => assignment.id !== assignmentId)
     );
+    if (requestId) {
+      const clearedRequest = {
+        status: "pending",
+        matching_status: "pending",
+        assigned_interpreter_id: null,
+        assigned_interpreter_name: null,
+        matched_interpreter_id: null,
+        matched_interpreter_name: null,
+      };
+      setRequests((current) =>
+        current.map((request) =>
+          request.id === requestId ? { ...request, ...clearedRequest } : request
+        )
+      );
+      setSelectedRequest((current) =>
+        current?.id === requestId ? { ...current, ...clearedRequest } : current
+      );
+    }
+  };
+
+  const updateRequestAssignmentRow = async (
+    requestId,
+    changes,
+    fallbackChanges
+  ) => {
+    const { data, error } = await supabase
+      .from("requests")
+      .update(changes)
+      .eq("id", requestId)
+      .select("*")
+      .single();
+
+    if (!error) return { data, error: null };
+    if (!isMissingColumnError(error)) return { data: null, error };
+
+    console.error("request assignment column fallback:", error);
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("requests")
+      .update(fallbackChanges)
+      .eq("id", requestId)
+      .select("*")
+      .single();
+
+    return { data: fallbackData, error: fallbackError };
   };
 
   const updateJobApplicationStatus = async (
@@ -1006,6 +1168,8 @@ function Admin() {
             {activeTab === "matching" && (
               <MatchingManagement
                 applications={matchedApplications}
+                requests={matchedRequests}
+                assignmentsByRequest={assignmentsByRequest}
                 jobsById={jobsById}
                 requestsByJobId={requestsByJobId}
                 interpreters={interpreters}
@@ -1226,6 +1390,11 @@ function AdminRequestCard({
     [request, job, linkedRequest],
     interpreters
   );
+  const assignedInterpreterName = getAssignedInterpreterName(
+    request,
+    assignments,
+    interpreters
+  );
 
   return (
     <article className="admin-request-card">
@@ -1241,6 +1410,7 @@ function AdminRequestCard({
         <Info label="기업명" value={request.company_name || "-"} />
         <Info label="의뢰 유형" value={requestType.label} />
         <Info label="지정 통역사" value={designatedInterpreterName} />
+        <Info label="배정 통역사" value={assignedInterpreterName} />
         <Info
           label="날짜"
           value={formatDateRange(
@@ -1354,6 +1524,11 @@ function RequestDetailPanel({
 }) {
   const requestType = getDesignatedRequestType(request);
   const designatedInterpreterName = getDesignatedInterpreterName([request], interpreters);
+  const assignedInterpreterName = getAssignedInterpreterName(
+    request,
+    assignments,
+    interpreters
+  );
 
   return (
     <div className="admin-detail-panel">
@@ -1363,6 +1538,7 @@ function RequestDetailPanel({
           <Info label="담당자" value={request.manager_name} />
           <Info label="의뢰 유형" value={requestType.label} />
           <Info label="지정 통역사" value={designatedInterpreterName} />
+          <Info label="배정 통역사" value={assignedInterpreterName} />
           <Info label="이메일" value={request.email} />
           <Info label="연락처" value={request.phone} />
           <Info
@@ -1471,6 +1647,7 @@ function RequestDetailPanel({
           emptyText="미배정"
           items={assignments.map((assignment) => ({
             id: assignment.id,
+            assignment,
             label: assignment.interpreter?.name || "이름 미입력",
           }))}
           onRemove={removeAssignment}
@@ -2093,19 +2270,31 @@ function ApplicationCard({
 
 function MatchingManagement({
   applications,
+  requests,
+  assignmentsByRequest,
   jobsById,
   requestsByJobId,
   interpreters,
   savingKey,
   updateApplicationStatus,
 }) {
+  const totalCount = applications.length + requests.length;
+
   return (
     <section className="admin-section">
-      <SectionTitle count={`${applications.length}건`} title="매칭 관리" />
-      {applications.length === 0 ? (
-        <MessageBox text="아직 매칭완료된 지원자가 없습니다." />
+      <SectionTitle count={`${totalCount}건`} title="매칭 관리" />
+      {totalCount === 0 ? (
+        <MessageBox text="아직 매칭완료된 의뢰가 없습니다." />
       ) : (
         <div className="admin-management-card-grid">
+          {requests.map((request) => (
+            <MatchingRequestCard
+              key={`request-${request.id}`}
+              request={request}
+              assignments={assignmentsByRequest.get(request.id) || []}
+              interpreters={interpreters}
+            />
+          ))}
           {applications.map((application) => {
             const job = jobsById.get(application.job_id) || application.jobs;
             const request = application.job_id
@@ -2122,6 +2311,7 @@ function MatchingManagement({
                 key={application.id}
                 application={application}
                 job={job}
+                request={request}
                 requestType={requestType}
                 designatedInterpreterName={designatedInterpreterName}
                 savingKey={savingKey}
@@ -2135,14 +2325,78 @@ function MatchingManagement({
   );
 }
 
+function MatchingRequestCard({ request, assignments, interpreters }) {
+  const assignedInterpreterName = getAssignedInterpreterName(
+    request,
+    assignments,
+    interpreters
+  );
+  const peopleCount = request.requested_people_count || request.required_count;
+  const clientPrice = Number(request.client_price || 0);
+  const interpreterPrice = Number(request.interpreter_price || 0);
+  const platformProfit =
+    request.profit !== undefined && request.profit !== null
+      ? Number(request.profit || 0)
+      : clientPrice - interpreterPrice;
+
+  return (
+    <article className="admin-list-card">
+      <div className="admin-list-card-head">
+        <div>
+          <span className="admin-card-meta">의뢰 매칭</span>
+          <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
+        </div>
+        <StatusBadge status={request.status || request.matching_status || "매칭완료"} />
+      </div>
+
+      <dl className="admin-card-summary">
+        <Info label="기업명" value={request.company_name || "-"} />
+        <Info label="행사명" value={request.event_name || "-"} />
+        <Info
+          label="행사 기간"
+          value={formatDateRange(
+            request.start_date,
+            request.end_date,
+            request.event_date
+          )}
+        />
+        <Info label="장소" value={request.event_location || request.location || "-"} />
+        <Info label="배정 통역사" value={assignedInterpreterName} />
+        <Info label="필요 인원 수" value={peopleCount ? `${peopleCount}명` : "-"} />
+        <Info label="기업 금액" value={formatKRW(clientPrice)} />
+        <Info label="통역사 지급액" value={formatKRW(interpreterPrice)} />
+        <Info label="플랫폼 수익" value={formatKRW(platformProfit)} />
+        <Info label="결제 상태" value={getStatusLabel(request.payment_status || "unpaid")} />
+        <Info
+          label="정산 상태"
+          value={getStatusLabel(request.settlement_status || "미정산")}
+        />
+      </dl>
+    </article>
+  );
+}
+
 function MatchingCard({
   application,
   job,
+  request,
   requestType,
   designatedInterpreterName,
   savingKey,
   updateApplicationStatus,
 }) {
+  const peopleCount =
+    request?.requested_people_count ||
+    request?.required_count ||
+    job?.people_count ||
+    job?.people;
+  const clientPrice = Number(request?.client_price || 0);
+  const interpreterPrice = Number(request?.interpreter_price || 0);
+  const platformProfit =
+    request?.profit !== undefined && request?.profit !== null
+      ? Number(request.profit || 0)
+      : clientPrice - interpreterPrice;
+
   return (
     <article className="admin-list-card">
       <div className="admin-list-card-head">
@@ -2156,21 +2410,27 @@ function MatchingCard({
       </div>
 
       <dl className="admin-card-summary">
-        <Info label="기업/행사" value={getJobOrganizationLabel(job)} />
-        <Info label="통역사명" value={application.applicant_name || "이름 미입력"} />
+        <Info label="기업명" value={request?.company_name || job?.company_name || "-"} />
+        <Info label="행사명" value={job?.event_name || request?.event_name || "-"} />
         <Info
-          label="날짜"
+          label="행사 기간"
           value={formatDateRange(job?.start_date, job?.end_date, job?.event_date || job?.date)}
         />
         <Info label="장소" value={job?.event_location || job?.location || "-"} />
-        <Info label="언어" value={getApplicationLanguage(application, job)} />
-        <Info label="지정 통역사" value={designatedInterpreterName} />
+        <Info label="배정 통역사" value={application.applicant_name || "이름 미입력"} />
+        <Info label="필요 인원 수" value={peopleCount ? `${peopleCount}`.replace(/명$/, "") + "명" : "-"} />
+        <Info label="기업 금액" value={formatKRW(clientPrice)} />
+        <Info label="통역사 지급액" value={formatKRW(interpreterPrice)} />
+        <Info label="플랫폼 수익" value={formatKRW(platformProfit)} />
+        <Info label="결제 상태" value={getStatusLabel(request?.payment_status || "unpaid")} />
+        <Info label="정산 상태" value={getStatusLabel(request?.settlement_status || "미정산")} />
       </dl>
 
       <div className="admin-card-chip-row">
         <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
           {requestType.label}
         </span>
+        <span className="admin-empty-chip">지정 통역사: {designatedInterpreterName || "-"}</span>
         <span className="admin-empty-chip">{application.phone || "연락처 미입력"}</span>
       </div>
 
@@ -2297,9 +2557,9 @@ function ChipList({ emptyText, items, onRemove }) {
           key={item.id}
           type="button"
           className="admin-chip"
-          onClick={() => onRemove(item.id)}
+          onClick={() => onRemove(item.assignment || item.id)}
         >
-          {item.label} ×
+          {item.label} · 배정 취소
         </button>
       ))}
     </div>
@@ -2406,6 +2666,48 @@ function isRequestWithinDays(request, days) {
 
   const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
   return diffDays >= 0 && diffDays <= days;
+}
+
+function isRequestVisibleInMatching(request, assignments = []) {
+  return (
+    ["matched", "assigned"].includes(request.matching_status) ||
+    ["매칭완료", "배정완료", "assigned", "matched"].includes(request.status) ||
+    Boolean(
+      request.assigned_interpreter_id ||
+        request.assigned_interpreter_name ||
+        request.matched_interpreter_id ||
+        request.matched_interpreter_name
+    ) ||
+    assignments.length > 0
+  );
+}
+
+function getAssignedInterpreterName(request = {}, assignments = [], interpreters = []) {
+  const storedName =
+    request.assigned_interpreter_name || request.matched_interpreter_name || "";
+  if (storedName) return storedName;
+
+  const assignedId = request.assigned_interpreter_id || request.matched_interpreter_id;
+  if (assignedId) {
+    const interpreter = interpreters.find(
+      (item) => Number(item.id) === Number(assignedId)
+    );
+    if (interpreter?.name) return interpreter.name;
+  }
+
+  const assignment = assignments.find(Boolean);
+  return assignment?.interpreter?.name || "";
+}
+
+function upsertAssignment(items, nextAssignment) {
+  if (!nextAssignment?.id) return items;
+  const exists = items.some((item) => item.id === nextAssignment.id);
+  if (exists) {
+    return items.map((item) =>
+      item.id === nextAssignment.id ? { ...item, ...nextAssignment } : item
+    );
+  }
+  return [nextAssignment, ...items];
 }
 
 function getDesignatedRequestType(...items) {
