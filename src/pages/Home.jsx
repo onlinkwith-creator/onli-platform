@@ -340,6 +340,30 @@ function Home({
             </a>
             <span className="home-footer-hours">평일 10:00-18:00</span>
           </div>
+          <nav className="home-footer-policies" aria-label="약관 및 정책">
+            <span className="home-footer-links-title">약관 및 정책</span>
+            <a className="home-footer-link" href="/privacy">
+              개인정보 처리방침
+            </a>
+            <a className="home-footer-link" href="/terms">
+              이용약관
+            </a>
+            <a className="home-footer-link" href="/interpreter-policy">
+              통역사 활동 약관
+            </a>
+            <a className="home-footer-link" href="/client-policy">
+              기업 의뢰 약관
+            </a>
+            <a className="home-footer-link" href="/refund-policy">
+              취소/환불 규정
+            </a>
+            <a className="home-footer-link" href="/disclaimer">
+              면책 조항
+            </a>
+            <a className="home-footer-link" href="/anti-poaching">
+              통역사 스카우트 금지 조항
+            </a>
+          </nav>
           <div className="home-footer-trust" aria-label="서비스 신뢰 포인트">
             <div className="home-footer-trust-item">
               <span className="home-footer-trust-icon home-footer-trust-icon-shield" aria-hidden="true" />

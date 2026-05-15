@@ -9,12 +9,18 @@ import Admin from "./pages/Admin";
 import JobList from "./pages/JobList";
 import JobDetail from "./pages/JobDetail";
 import JobApply from "./pages/JobApply";
+import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
 import { supabase } from "./supabase";
 import { PUBLIC_INTERPRETER_SELECT } from "./utils/publicInterpreter";
+
+const POLICY_PATH_TO_KEY = Object.fromEntries(
+  Object.entries(POLICY_PAGES).map(([key, policy]) => [policy.path, key])
+);
 
 function getInitialPage() {
   const path = window.location.pathname;
 
+  if (POLICY_PATH_TO_KEY[path]) return "policy";
   if (path === "/about") return "about";
   if (path === "/register") return "register";
   if (path === "/admin/jobs") return "admin";
@@ -44,7 +50,14 @@ function getInitialJobId() {
   return path.split("/")[2] || null;
 }
 
-function getPath(page, interpreter, jobId) {
+function getInitialPolicyKey() {
+  return POLICY_PATH_TO_KEY[window.location.pathname] || null;
+}
+
+function getPath(page, interpreter, jobId, policyKey) {
+  if (page === "policy" && policyKey) {
+    return POLICY_PAGES[policyKey]?.path || "/";
+  }
   if (page === "about") return "/about";
   if (page === "register") return "/register";
   if (page === "admin") return "/admin";
@@ -67,20 +80,23 @@ function App() {
   const [selectedInterpreter, setSelectedInterpreter] = useState(null);
   const [selectedInterpreterId, setSelectedInterpreterId] = useState(getInitialInterpreterId);
   const [selectedJobId, setSelectedJobId] = useState(getInitialJobId);
+  const [selectedPolicyKey, setSelectedPolicyKey] = useState(getInitialPolicyKey);
 
   const navigate = (
     nextPage,
     interpreter = selectedInterpreter,
-    jobId = selectedJobId
+    jobId = selectedJobId,
+    policyKey = selectedPolicyKey
   ) => {
     setSelectedInterpreter(interpreter);
     setSelectedInterpreterId(interpreter?.id || null);
     setSelectedJobId(jobId);
+    setSelectedPolicyKey(policyKey || null);
     setPage(nextPage);
     window.history.pushState(
-      { page: nextPage, interpreter, jobId },
+      { page: nextPage, interpreter, jobId, policyKey },
       "",
-      getPath(nextPage, interpreter, jobId)
+      getPath(nextPage, interpreter, jobId, policyKey)
     );
     window.scrollTo({ top: 0, behavior: "instant" });
   };
@@ -94,6 +110,7 @@ function App() {
         event.state?.interpreter?.id || getInitialInterpreterId()
       );
       setSelectedJobId(event.state?.jobId || getInitialJobId());
+      setSelectedPolicyKey(event.state?.policyKey || getInitialPolicyKey());
       window.scrollTo({ top: 0, behavior: "instant" });
     };
 
@@ -161,6 +178,10 @@ function App() {
 
       {page === "admin" && (
         <Admin onBackClick={() => navigate("home", null)} />
+      )}
+
+      {page === "policy" && selectedPolicyKey && (
+        <PolicyPage policyKey={selectedPolicyKey} />
       )}
 
       {page === "jobs" && (

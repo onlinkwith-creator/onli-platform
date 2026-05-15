@@ -39,6 +39,7 @@ const CONTACT_STATUSES = [
   "meeting_done",
 ];
 const PAYMENT_STATUSES = ["unpaid", "paid"];
+const SETTLEMENT_STATUSES = ["unsettled", "settled"];
 const JOB_APPLICATION_STATUSES = ["지원완료", "검토중", "매칭완료", "보류", "불합격"];
 const ONGOING_REQUEST_STATUSES = ["pending", "matching", "confirmed"];
 const STATUS_LABELS = {
@@ -60,6 +61,12 @@ const STATUS_LABELS = {
   meeting_done: "미팅완료",
   unpaid: "미결제",
   paid: "결제완료",
+  "미결제": "미결제",
+  "결제완료": "결제완료",
+  unsettled: "미정산",
+  settled: "정산완료",
+  "미정산": "미정산",
+  "정산완료": "정산완료",
   accepted: "수락",
   rejected: "거절",
 };
@@ -491,26 +498,49 @@ function Admin() {
     }
 
     const request = requests.find((item) => item.id === id);
-    const nextClientPrice =
-      changes.client_price !== undefined
-        ? Number(changes.client_price || 0)
-        : Number(request?.client_price || 0);
-    const nextInterpreterPrice =
-      changes.interpreter_price !== undefined
-        ? Number(changes.interpreter_price || 0)
-        : Number(request?.interpreter_price || 0);
+    const nextClientPrice = getCompanyAmount({ ...request, ...changes });
+    const nextInterpreterPrice = getInterpreterPayment({ ...request, ...changes });
     const payload = {
       ...changes,
+      company_amount: nextClientPrice,
+      interpreter_payment: nextInterpreterPrice,
+      platform_profit: nextClientPrice - nextInterpreterPrice,
+      client_price: nextClientPrice,
+      interpreter_price: nextInterpreterPrice,
       profit: nextClientPrice - nextInterpreterPrice,
     };
 
     setSavingKey(`request-${id}`);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("requests")
       .update(payload)
       .eq("id", id)
       .select("*")
       .single();
+
+    if (error && isMissingColumnError(error)) {
+      console.error("request update column fallback:", error);
+      const legacyPayload = {
+        ...changes,
+        client_price: nextClientPrice,
+        interpreter_price: nextInterpreterPrice,
+        profit: nextClientPrice - nextInterpreterPrice,
+      };
+      delete legacyPayload.company_amount;
+      delete legacyPayload.interpreter_payment;
+      delete legacyPayload.platform_profit;
+      delete legacyPayload.settlement_status;
+
+      const fallbackResult = await supabase
+        .from("requests")
+        .update(legacyPayload)
+        .eq("id", id)
+        .select("*")
+        .single();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
+
     setSavingKey("");
 
     if (error) {
@@ -682,10 +712,17 @@ function Admin() {
 
   const handlePriceDraft = (requestId, field, value) => {
     const updatePrice = (request) => {
-      const nextRequest = { ...request, [field]: value };
-      nextRequest.profit =
-        Number(nextRequest.client_price || 0) -
-        Number(nextRequest.interpreter_price || 0);
+      const numericValue = normalizeMoneyInput(value);
+      const mirrorField =
+        field === "company_amount" ? "client_price" : "interpreter_price";
+      const nextRequest = {
+        ...request,
+        [field]: numericValue,
+        [mirrorField]: numericValue,
+      };
+      nextRequest.platform_profit =
+        getCompanyAmount(nextRequest) - getInterpreterPayment(nextRequest);
+      nextRequest.profit = nextRequest.platform_profit;
       return nextRequest;
     };
 
@@ -695,6 +732,77 @@ function Admin() {
     setSelectedRequest((current) =>
       current?.id === requestId ? updatePrice(current) : current
     );
+  };
+
+  const saveSettlement = async (request) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const companyAmount = getCompanyAmount(request);
+    const interpreterPayment = getInterpreterPayment(request);
+    const platformProfit = companyAmount - interpreterPayment;
+    const payload = {
+      company_amount: companyAmount,
+      interpreter_payment: interpreterPayment,
+      platform_profit: platformProfit,
+      client_price: companyAmount,
+      interpreter_price: interpreterPayment,
+      profit: platformProfit,
+      payment_status: request.payment_status || "unpaid",
+      settlement_status: request.settlement_status || "unsettled",
+    };
+
+    setSavingKey(`request-${request.id}`);
+    const { data, error } = await updateRequestSettlementRow(request.id, payload);
+    setSavingKey("");
+
+    if (error) {
+      console.error(error);
+      alert("정산 저장에 실패했습니다.");
+      return;
+    }
+
+    setRequests((current) =>
+      current.map((item) =>
+        item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
+      )
+    );
+    setSelectedRequest((current) =>
+      current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
+    );
+    alert("정산 정보가 저장되었습니다.");
+  };
+
+  const updateRequestSettlementRow = async (requestId, payload) => {
+    const { data, error } = await supabase
+      .from("requests")
+      .update(payload)
+      .eq("id", requestId)
+      .select("*")
+      .single();
+
+    if (!error) return { data, error: null };
+    if (!isMissingColumnError(error)) return { data: null, error };
+
+    console.error("request settlement column fallback:", error);
+    const legacyPayload = {
+      client_price: payload.company_amount,
+      interpreter_price: payload.interpreter_payment,
+      profit: payload.platform_profit,
+      payment_status: payload.payment_status,
+      settlement_status: payload.settlement_status,
+    };
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("requests")
+      .update(legacyPayload)
+      .eq("id", requestId)
+      .select("*")
+      .single();
+
+    return { data: fallbackData, error: fallbackError };
   };
 
   const assignInterpreter = async (requestId) => {
@@ -1123,6 +1231,7 @@ function Admin() {
                 setFilters={setRequestFilters}
                 assignInterpreter={assignInterpreter}
                 handlePriceDraft={handlePriceDraft}
+                saveSettlement={saveSettlement}
                 removeAssignment={removeAssignment}
                 updateRequest={updateRequest}
                 updateApplicationStatus={updateJobApplicationStatus}
@@ -1232,6 +1341,7 @@ function Admin() {
         setAssignmentDrafts={setAssignmentDrafts}
         assignInterpreter={assignInterpreter}
         handlePriceDraft={handlePriceDraft}
+        saveSettlement={saveSettlement}
         removeAssignment={removeAssignment}
         updateRequest={updateRequest}
         updateApplicationStatus={updateJobApplicationStatus}
@@ -1267,6 +1377,7 @@ function RequestManagement({
   setFilters,
   assignInterpreter,
   handlePriceDraft,
+  saveSettlement,
   removeAssignment,
   updateRequest,
   updateApplicationStatus,
@@ -1343,6 +1454,7 @@ function RequestManagement({
               setExpandedRequestId={setExpandedRequestId}
               assignInterpreter={assignInterpreter}
               handlePriceDraft={handlePriceDraft}
+              saveSettlement={saveSettlement}
               removeAssignment={removeAssignment}
               updateRequest={updateRequest}
               updateApplicationStatus={updateApplicationStatus}
@@ -1375,6 +1487,7 @@ function AdminRequestCard({
   setExpandedRequestId,
   assignInterpreter,
   handlePriceDraft,
+  saveSettlement,
   removeAssignment,
   updateRequest,
   updateApplicationStatus,
@@ -1518,6 +1631,7 @@ function RequestDetailPanel({
   setAssignmentDrafts,
   assignInterpreter,
   handlePriceDraft,
+  saveSettlement,
   removeAssignment,
   updateRequest,
   updateApplicationStatus,
@@ -1611,30 +1725,45 @@ function RequestDetailPanel({
         <div className="admin-settlement">
           <NumberControl
             label="기업 금액"
-            value={request.client_price || 0}
-            onChange={(value) => handlePriceDraft(request.id, "client_price", value)}
+            value={getCompanyAmount(request)}
+            onChange={(value) => handlePriceDraft(request.id, "company_amount", value)}
           />
           <NumberControl
-            label="통역사 지급"
-            value={request.interpreter_price || 0}
+            label="통역사 지급액"
+            value={getInterpreterPayment(request)}
             onChange={(value) =>
-              handlePriceDraft(request.id, "interpreter_price", value)
+              handlePriceDraft(request.id, "interpreter_payment", value)
             }
           />
           <div className="admin-profit">
             <span>플랫폼 수익</span>
-            <strong>{formatKRW(request.profit || 0)}</strong>
+            <strong>{formatJPY(getPlatformProfit(request))}</strong>
           </div>
+          <FieldControl label="결제 상태">
+            <InlineSelect
+              options={PAYMENT_STATUSES}
+              value={request.payment_status || "unpaid"}
+              disabled={savingKey === `request-${request.id}`}
+              onChange={(value) =>
+                updateRequest(request.id, { payment_status: value })
+              }
+            />
+          </FieldControl>
+          <FieldControl label="정산 상태">
+            <InlineSelect
+              options={SETTLEMENT_STATUSES}
+              value={request.settlement_status || "unsettled"}
+              disabled={savingKey === `request-${request.id}`}
+              onChange={(value) =>
+                updateRequest(request.id, { settlement_status: value })
+              }
+            />
+          </FieldControl>
           <button
             type="button"
             className="admin-save"
             disabled={savingKey === `request-${request.id}`}
-            onClick={() =>
-              updateRequest(request.id, {
-                client_price: Number(request.client_price || 0),
-                interpreter_price: Number(request.interpreter_price || 0),
-              })
-            }
+            onClick={() => saveSettlement(request)}
           >
             정산 저장
           </button>
@@ -2332,12 +2461,9 @@ function MatchingRequestCard({ request, assignments, interpreters }) {
     interpreters
   );
   const peopleCount = request.requested_people_count || request.required_count;
-  const clientPrice = Number(request.client_price || 0);
-  const interpreterPrice = Number(request.interpreter_price || 0);
-  const platformProfit =
-    request.profit !== undefined && request.profit !== null
-      ? Number(request.profit || 0)
-      : clientPrice - interpreterPrice;
+  const clientPrice = getCompanyAmount(request);
+  const interpreterPrice = getInterpreterPayment(request);
+  const platformProfit = getPlatformProfit(request);
 
   return (
     <article className="admin-list-card">
@@ -2363,9 +2489,9 @@ function MatchingRequestCard({ request, assignments, interpreters }) {
         <Info label="장소" value={request.event_location || request.location || "-"} />
         <Info label="배정 통역사" value={assignedInterpreterName} />
         <Info label="필요 인원 수" value={peopleCount ? `${peopleCount}명` : "-"} />
-        <Info label="기업 금액" value={formatKRW(clientPrice)} />
-        <Info label="통역사 지급액" value={formatKRW(interpreterPrice)} />
-        <Info label="플랫폼 수익" value={formatKRW(platformProfit)} />
+        <Info label="기업 금액" value={formatJPY(clientPrice)} />
+        <Info label="통역사 지급액" value={formatJPY(interpreterPrice)} />
+        <Info label="플랫폼 수익" value={formatJPY(platformProfit)} />
         <Info label="결제 상태" value={getStatusLabel(request.payment_status || "unpaid")} />
         <Info
           label="정산 상태"
@@ -2390,12 +2516,9 @@ function MatchingCard({
     request?.required_count ||
     job?.people_count ||
     job?.people;
-  const clientPrice = Number(request?.client_price || 0);
-  const interpreterPrice = Number(request?.interpreter_price || 0);
-  const platformProfit =
-    request?.profit !== undefined && request?.profit !== null
-      ? Number(request.profit || 0)
-      : clientPrice - interpreterPrice;
+  const clientPrice = getCompanyAmount(request);
+  const interpreterPrice = getInterpreterPayment(request);
+  const platformProfit = getPlatformProfit(request);
 
   return (
     <article className="admin-list-card">
@@ -2419,9 +2542,9 @@ function MatchingCard({
         <Info label="장소" value={job?.event_location || job?.location || "-"} />
         <Info label="배정 통역사" value={application.applicant_name || "이름 미입력"} />
         <Info label="필요 인원 수" value={peopleCount ? `${peopleCount}`.replace(/명$/, "") + "명" : "-"} />
-        <Info label="기업 금액" value={formatKRW(clientPrice)} />
-        <Info label="통역사 지급액" value={formatKRW(interpreterPrice)} />
-        <Info label="플랫폼 수익" value={formatKRW(platformProfit)} />
+        <Info label="기업 금액" value={formatJPY(clientPrice)} />
+        <Info label="통역사 지급액" value={formatJPY(interpreterPrice)} />
+        <Info label="플랫폼 수익" value={formatJPY(platformProfit)} />
         <Info label="결제 상태" value={getStatusLabel(request?.payment_status || "unpaid")} />
         <Info label="정산 상태" value={getStatusLabel(request?.settlement_status || "미정산")} />
       </dl>
@@ -2710,6 +2833,31 @@ function upsertAssignment(items, nextAssignment) {
   return [nextAssignment, ...items];
 }
 
+function normalizeMoneyInput(value) {
+  const numericValue = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function getCompanyAmount(request = {}) {
+  return normalizeMoneyInput(request.company_amount ?? request.client_price);
+}
+
+function getInterpreterPayment(request = {}) {
+  return normalizeMoneyInput(
+    request.interpreter_payment ?? request.interpreter_price
+  );
+}
+
+function getPlatformProfit(request = {}) {
+  if (request.platform_profit !== undefined && request.platform_profit !== null) {
+    return normalizeMoneyInput(request.platform_profit);
+  }
+  if (request.profit !== undefined && request.profit !== null) {
+    return normalizeMoneyInput(request.profit);
+  }
+  return getCompanyAmount(request) - getInterpreterPayment(request);
+}
+
 function getDesignatedRequestType(...items) {
   const isDesignated = isDesignatedRequest(...items);
   return {
@@ -2764,6 +2912,10 @@ function upsertById(items, nextItem) {
 
 function formatKRW(value) {
   return `₩${Number(value || 0).toLocaleString()}`;
+}
+
+function formatJPY(value) {
+  return `¥${Number(value || 0).toLocaleString()}`;
 }
 
 function formatDate(value) {
