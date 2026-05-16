@@ -2397,18 +2397,10 @@ function JobApplicationsPanel({
   onRemoveAssignment,
   onStatusChange,
 }) {
-  const [expandedRows, setExpandedRows] = useState(() => new Set());
+  const [openApplicantId, setOpenApplicantId] = useState(null);
   const rows = buildApplicationAssignmentRows(applications, assignments, interpreters);
   const toggleRow = (rowId) => {
-    setExpandedRows((current) => {
-      const next = new Set(current);
-      if (next.has(rowId)) {
-        next.delete(rowId);
-      } else {
-        next.add(rowId);
-      }
-      return next;
-    });
+    setOpenApplicantId((current) => (current === rowId ? null : rowId));
   };
 
   if (rows.length === 0) {
@@ -2421,7 +2413,7 @@ function JobApplicationsPanel({
         const isAssigned = Boolean(application.assigned);
         const isDirectAssignment = application.source === "direct-assignment";
         const status = isAssigned ? "배정완료" : application.status || "지원완료";
-        const expanded = expandedRows.has(application.rowId);
+        const expanded = openApplicantId === application.rowId;
         const sourceLabel = isDirectAssignment ? "관리자 직접 배정" : "지원자";
 
         return (
@@ -2433,13 +2425,11 @@ function JobApplicationsPanel({
               onClick={() => toggleRow(application.rowId)}
             >
               <StatusBadge status={status} />
-              <span className="admin-applicant-summary-name">
-                {application.applicant_name || "이름 미입력"}
+              <span className="admin-applicant-summary-text">
+                <strong>{application.applicant_name || "이름 미입력"}</strong>
+                <span>{getApplicationLanguage(application)}</span>
+                <span>{sourceLabel}</span>
               </span>
-              <span className="admin-applicant-summary-meta">
-                {getApplicationLanguage(application)}
-              </span>
-              <span className="admin-applicant-summary-source">{sourceLabel}</span>
               <span className="admin-applicant-summary-toggle">
                 {expanded ? "▲" : "▼"}
               </span>

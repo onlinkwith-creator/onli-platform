@@ -782,9 +782,10 @@
 
 .admin-applicant-accordion-list {
   display: grid;
-  gap: 8px;
-  max-height: 420px;
+  gap: 10px;
+  max-height: 520px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 3px;
 }
 
@@ -796,13 +797,13 @@
 }
 
 .admin-applicant-summary {
-  display: grid;
-  grid-template-columns: auto minmax(80px, 1fr) minmax(70px, 0.8fr) minmax(86px, 0.9fr) auto;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   width: 100%;
-  min-height: 42px;
-  padding: 8px 10px;
+  min-height: 46px;
+  padding: 10px 12px;
   border: 0;
   background: #f8f7ff;
   color: #111827;
@@ -817,36 +818,95 @@
   outline: none;
 }
 
-.admin-applicant-summary-name,
-.admin-applicant-summary-meta,
-.admin-applicant-summary-source {
+.admin-applicant-summary-text {
+  display: flex;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.admin-applicant-summary-text strong,
+.admin-applicant-summary-text span {
+  min-width: 0;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.admin-applicant-summary-text strong {
+  color: #111827;
   font-size: 12px;
   font-weight: 900;
 }
 
-.admin-applicant-summary-name {
-  color: #111827;
-}
-
-.admin-applicant-summary-meta,
-.admin-applicant-summary-source {
-  color: #6b7280;
+.admin-applicant-summary-text span::before {
+  color: #c4b5fd;
+  content: "·";
+  margin-right: 8px;
 }
 
 .admin-applicant-summary-toggle {
+  flex: 0 0 auto;
   color: #4f46e5;
   font-size: 12px;
   font-weight: 900;
+  line-height: 1;
 }
 
 .admin-applicant-detail {
   display: grid;
-  gap: 10px;
-  padding: 10px;
+  gap: 12px;
+  padding: 12px;
+  animation: adminApplicantDetailIn 140ms ease-out;
+}
+
+.admin-applicant-detail .admin-card-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.admin-applicant-detail .admin-card-summary div {
+  min-width: 0;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.admin-applicant-detail .admin-card-summary dt,
+.admin-applicant-detail .admin-card-summary dd {
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.admin-applicant-detail .admin-card-summary dt {
+  flex: 0 0 72px;
+}
+
+.admin-applicant-detail .admin-card-summary dd {
+  min-width: 0;
+  text-align: left;
+}
+
+@keyframes adminApplicantDetailIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .admin-empty-chip {
@@ -1783,19 +1843,31 @@
   }
 
   .admin-applicant-summary {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 7px;
+    align-items: flex-start;
+    gap: 8px;
   }
 
-  .admin-applicant-summary-meta,
-  .admin-applicant-summary-source {
-    grid-column: 2 / 3;
-    white-space: normal;
+  .admin-applicant-summary-text {
+    display: grid;
+    gap: 2px;
   }
 
-  .admin-applicant-summary-toggle {
-    grid-column: 3 / 4;
-    grid-row: 1 / 3;
+  .admin-applicant-summary-text span::before {
+    content: "";
+    margin: 0;
+  }
+
+  .admin-applicant-detail .admin-card-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-applicant-detail .admin-card-summary div {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .admin-applicant-detail .admin-card-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-approval-cell {
