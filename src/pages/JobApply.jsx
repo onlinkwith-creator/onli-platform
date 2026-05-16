@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import TermsAgreement, {
+  areTermsAgreed,
+  initialTermsAgreement,
+} from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
@@ -22,6 +26,7 @@ function getSupabaseErrorMessage(error, fallback) {
 function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
   const [job, setJob] = useState(null);
   const [form, setForm] = useState(initialForm);
+  const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -75,12 +80,23 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
     setForm((current) => ({ ...current, [name]: value }));
   };
 
+  const handleAgreementChange = (name, checked) => {
+    setAgreements((current) => ({ ...current, [name]: checked }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (submitting || submitted) return;
     if (!job) return;
     if (!canApplyToJob(job)) {
       setErrorMessage("지원할 수 없는 공고입니다.");
+      return;
+    }
+
+    if (!areTermsAgreed(agreements)) {
+      const message = "약관 동의 후 제출 가능합니다.";
+      setErrorMessage(message);
+      alert(message);
       return;
     }
 
@@ -107,23 +123,30 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
         .filter(Boolean)
         .join("\n\n"),
       status: "지원완료",
+      agreed_terms: true,
+      agreed_policy: true,
+      agreed_at: new Date().toISOString(),
     };
 
     try {
       const { error } = await supabase.from("job_applications").insert([application]);
 
       if (error) {
+        if (isAgreementColumnError(error)) {
+          console.error("약관 동의 저장 실패:", error);
+        }
         console.error("지원 실패:", error);
         throw error;
       }
 
       setSubmitted(true);
       setForm(initialForm);
+      setAgreements(initialTermsAgreement);
     } catch (error) {
       console.error("지원 실패:", error);
       const message = error?.message || "지원서 제출에 실패했습니다. 입력값을 확인해주세요.";
       setErrorMessage(message);
-      alert(message);
+      alert("제출에 실패했습니다.");
       setSubmitting(false);
       return;
     } finally {
@@ -269,11 +292,25 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
 
                 {errorMessage && <p className="jobs-error">{errorMessage}</p>}
 
+                <TermsAgreement
+                  agreements={agreements}
+                  onChange={handleAgreementChange}
+                  role="interpreter"
+                />
+
                 <p className="jobs-notice">
                   제출된 지원서는 ON-LI 운영팀 검토 후 공고 담당자에게 전달됩니다.
                 </p>
 
-                <button type="submit" disabled={submitting || submitted || !canApplyToJob(job)}>
+                <button
+                  type="submit"
+                  disabled={
+                    submitting ||
+                    submitted ||
+                    !canApplyToJob(job) ||
+                    !areTermsAgreed(agreements)
+                  }
+                >
                   {!canApplyToJob(job)
                     ? "마감됨"
                     : submitting
@@ -300,6 +337,14 @@ function Info({ label, value }) {
 
 function MessageBox({ text }) {
   return <div className="jobs-message">{text}</div>;
+}
+
+function isAgreementColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /agreed_|column|schema cache/i.test(error?.message || "")
+  );
 }
 
 export default JobApply;

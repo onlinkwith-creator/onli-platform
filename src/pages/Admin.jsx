@@ -2092,6 +2092,8 @@ function AdminRequestCard({
         <Info label="의뢰 유형" value={requestType.label} />
         <Info label="지정 통역사" value={designatedInterpreterName} />
         <Info label="배정 통역사" value={assignedInterpreterName} />
+        <Info label="약관 동의" value={getAgreementStatusLabel(request)} />
+        <Info label="동의 시간" value={formatDateTime(request.agreed_at)} />
         <Info
           label="날짜"
           value={formatDateRange(
@@ -2218,6 +2220,8 @@ function RequestDetailPanel({
           <Info label="의뢰 유형" value={requestType.label} />
           <Info label="지정 통역사" value={designatedInterpreterName} />
           <Info label="배정 통역사" value={assignedInterpreterName} />
+          <Info label="약관 동의" value={getAgreementStatusLabel(request)} />
+          <Info label="동의 시간" value={formatDateTime(request.agreed_at)} />
           <Info label="이메일" value={request.email} />
           <Info label="연락처" value={request.phone} />
           <Info
@@ -2430,6 +2434,8 @@ function JobApplicationsPanel({
               value={isDirectAssignment ? "관리자 직접 배정" : "지원자"}
             />
             <Info label="메모" value={application.message || "지원 메모 없음"} />
+            <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
+            <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
           </dl>
 
           {onStatusChange ? (
@@ -2742,6 +2748,11 @@ function InterpreterModal({
               <Info label="경고 횟수" value={`${interpreter.warning_count || 0}회`} />
               <Info label="메모" value={managementMemo || "미입력"} />
             </ModalInfoSection>
+
+            <ModalInfoSection title="약관 동의">
+              <Info label="약관 동의" value={getAgreementStatusLabel(interpreter)} />
+              <Info label="동의 시간" value={formatDateTime(interpreter.agreed_at)} />
+            </ModalInfoSection>
           </div>
         ) : (
           <form
@@ -2950,6 +2961,8 @@ function ApplicationCard({
         <Info label="기업/행사" value={getJobOrganizationLabel(job)} />
         <Info label="언어" value={getApplicationLanguage(application, job)} />
         <Info label="지원일" value={formatDate(application.created_at)} />
+        <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
+        <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
         <Info label="메모" value={application.message || "지원 메모 없음"} />
       </dl>
 
@@ -3737,6 +3750,24 @@ function formatJPY(value) {
 function formatDate(value) {
   if (!value) return "-";
   return String(value).slice(0, 10);
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function getAgreementStatusLabel(item = {}) {
+  return item.agreed_terms && item.agreed_policy ? "완료" : "미동의";
 }
 
 function formatList(value) {

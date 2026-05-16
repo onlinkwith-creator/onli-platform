@@ -1,4 +1,8 @@
 import { useState } from "react";
+import TermsAgreement, {
+  areTermsAgreed,
+  initialTermsAgreement,
+} from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
 import "./RegisterInterpreter.css";
 
@@ -53,6 +57,7 @@ const levelSystemCards = [
 function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [form, setForm] = useState({
     name: "",
     gender: "",
@@ -91,10 +96,21 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
     });
   };
 
+  const handleAgreementChange = (name, checked) => {
+    setAgreements((current) => ({ ...current, [name]: checked }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
+
+    if (!areTermsAgreed(agreements)) {
+      const message = "약관 동의 후 제출 가능합니다.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
 
     if (!form.gender) {
       setErrorMessage("성별을 선택해주세요.");
@@ -134,15 +150,22 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
         available_tasks: form.availableTasks,
         approved: false,
         status: "pending",
+        agreed_terms: true,
+        agreed_policy: true,
+        agreed_at: new Date().toISOString(),
       },
     ]);
 
     if (error) {
+      if (isAgreementColumnError(error)) {
+        console.error("약관 동의 저장 실패:", error);
+      }
       console.error("등록 실패 원인:", error.message);
-      alert(error.message);
+      alert("제출에 실패했습니다.");
       return;
     }
 
+    setAgreements(initialTermsAgreement);
     setSuccessMessage("등록이 완료되었습니다. 메인 페이지로 이동합니다.");
     setTimeout(() => {
       onSubmitSuccess?.();
@@ -264,7 +287,16 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
           <section className="register-submit-card">
             {errorMessage && <p className="register-message is-error">{errorMessage}</p>}
             {successMessage && <p className="register-message is-success">{successMessage}</p>}
-            <button type="submit" className="register-submit-button">
+            <TermsAgreement
+              agreements={agreements}
+              onChange={handleAgreementChange}
+              role="interpreter"
+            />
+            <button
+              type="submit"
+              className="register-submit-button"
+              disabled={!areTermsAgreed(agreements)}
+            >
               통역사 등록 신청하기
             </button>
             <p>등록 후 운영팀 검토가 진행됩니다.</p>
@@ -275,6 +307,14 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
         </form>
       </div>
     </div>
+  );
+}
+
+function isAgreementColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /agreed_|column|schema cache/i.test(error?.message || "")
   );
 }
 

@@ -1,4 +1,8 @@
 import { useState } from "react";
+import TermsAgreement, {
+  areTermsAgreed,
+  initialTermsAgreement,
+} from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
 import {
   calculateEstimatedPrice,
@@ -37,6 +41,7 @@ const fieldOptions = [
 function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const isGeneralRequest = !interpreter;
   const [form, setForm] = useState(initialForm);
+  const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -55,11 +60,23 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     }));
   };
 
+  const handleAgreementChange = (name, checked) => {
+    setAgreements((current) => ({ ...current, [name]: checked }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    setIsSubmitting(true);
     setErrorMessage("");
+
+    if (!areTermsAgreed(agreements)) {
+      const message = "약관 동의 후 제출 가능합니다.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
@@ -118,6 +135,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         form.requestedLevel === "운영팀 추천받기" ? null : form.requestedLevel,
       required_count: Number(form.requestedPeopleCount || 1),
       interpreter_fee: interpreterPay,
+      agreed_terms: true,
+      agreed_policy: true,
+      agreed_at: new Date().toISOString(),
     };
     const designatedPayload = {
       ...requestPayload,
@@ -136,18 +156,22 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     setIsSubmitting(false);
 
     if (error) {
+      if (isAgreementColumnError(error)) {
+        console.error("약관 동의 저장 실패:", error);
+      }
       console.error("request insert error:", error);
       const message =
         error.code === "42501"
           ? "의뢰 저장 권한 설정이 필요합니다. Supabase requests 테이블의 insert 정책을 확인해주세요."
           : `의뢰저장 실패: ${error.message || "입력값을 확인한 뒤 다시 시도해주세요."}`;
       setErrorMessage(message);
-      alert(message);
+      alert("제출에 실패했습니다.");
       return;
     }
 
     alert("의뢰 문의가 접수되었습니다.");
     setForm(initialForm);
+    setAgreements(initialTermsAgreement);
     onSubmitSuccess();
   };
 
@@ -235,13 +259,23 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
             {errorMessage && <p style={styles.error}>{errorMessage}</p>}
 
+            <TermsAgreement
+              agreements={agreements}
+              className="request-terms-agreement"
+              onChange={handleAgreementChange}
+              role="client"
+            />
+
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !areTermsAgreed(agreements)}
               style={{
                 ...styles.submitButton,
-                opacity: isSubmitting ? 0.65 : 1,
-                cursor: isSubmitting ? "not-allowed" : "pointer",
+                opacity: isSubmitting || !areTermsAgreed(agreements) ? 0.65 : 1,
+                cursor:
+                  isSubmitting || !areTermsAgreed(agreements)
+                    ? "not-allowed"
+                    : "pointer",
               }}
             >
               {isSubmitting ? "접수 중..." : "의뢰 문의 제출하기"}
@@ -258,6 +292,14 @@ function isMissingColumnError(error) {
     error?.code === "42703" ||
     error?.code === "PGRST204" ||
     /column|schema cache/i.test(error?.message || "")
+  );
+}
+
+function isAgreementColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /agreed_|column|schema cache/i.test(error?.message || "")
   );
 }
 
@@ -310,6 +352,9 @@ const styles = {
     padding: "48px 20px",
     boxSizing: "border-box",
     color: "#111827",
+  },
+  requestTermsAgreement: {
+    gridColumn: "1 / -1",
   },
   container: {
     maxWidth: "860px",

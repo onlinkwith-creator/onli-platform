@@ -1,0 +1,65 @@
+.terms-agreement {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin: 8px 0 4px;
+  padding: 14px;
+  border: 1px solid #e0e7ff;
+  border-radius: 14px;
+  background: #f8faff;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.request-terms-agreement {
+  grid-column: 1 / -1;
+}
+
+.terms-agreement-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 28px;
+  color: #374151;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.terms-agreement-row input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: #4f46e5;
+  cursor: pointer;
+}
+
+.terms-agreement-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.terms-agreement-row a {
+  color: #4f46e5;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.terms-agreement-row a:hover {
+  color: #3730a3;
+}
+
+@media (max-width: 640px) {
+  .terms-agreement {
+    padding: 12px;
+  }
+
+  .terms-agreement-row {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
