@@ -869,32 +869,79 @@
   animation: adminApplicantDetailIn 140ms ease-out;
 }
 
-.admin-applicant-detail .admin-card-summary {
+.admin-applicant-detail-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-applicant-detail-head strong {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.admin-applicant-detail-head > span:not(.status-badge) {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.5;
+}
+
+.admin-applicant-detail-grid {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 12px;
+  align-items: start;
 }
 
-.admin-applicant-detail .admin-card-summary div {
+.admin-applicant-detail-item {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
   min-width: 0;
-  align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
+  align-items: start;
+  padding: 9px 10px;
+  border: 1px solid #eef2ff;
+  border-radius: 9px;
+  background: #fbfdff;
 }
 
-.admin-applicant-detail .admin-card-summary dt,
-.admin-applicant-detail .admin-card-summary dd {
+.admin-applicant-detail-item.is-full {
+  grid-column: 1 / -1;
+}
+
+.admin-applicant-detail-item span,
+.admin-applicant-detail-item p {
+  min-width: 0;
+  margin: 0;
   line-height: 1.5;
   white-space: normal;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
-.admin-applicant-detail .admin-card-summary dt {
-  flex: 0 0 72px;
+.admin-applicant-detail-item span {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
 }
 
-.admin-applicant-detail .admin-card-summary dd {
-  min-width: 0;
-  text-align: left;
+.admin-applicant-detail-item p {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-applicant-detail-item.is-multiline p {
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 @keyframes adminApplicantDetailIn {
@@ -1857,12 +1904,11 @@
     margin: 0;
   }
 
-  .admin-applicant-detail .admin-card-summary {
+  .admin-applicant-detail-grid {
     grid-template-columns: 1fr;
   }
 
-  .admin-applicant-detail .admin-card-summary div {
-    display: grid;
+  .admin-applicant-detail-item {
     grid-template-columns: 72px minmax(0, 1fr);
   }
 

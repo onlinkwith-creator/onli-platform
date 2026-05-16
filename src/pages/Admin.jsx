@@ -2437,17 +2437,48 @@ function JobApplicationsPanel({
 
             {expanded && (
               <div className="admin-applicant-detail">
-                <dl className="admin-card-summary compact">
-                  <Info label="성별" value={application.gender || "-"} />
-                  <Info label="언어" value={getApplicationLanguage(application)} />
-                  <Info label="경력" value={application.experience || application.career || "-"} />
-                  <Info label="연락처" value={application.phone || "연락처 미입력"} />
-                  <Info label="이메일" value={application.email || "-"} />
-                  <Info label="구분" value={sourceLabel} />
-                  <Info label="메모" value={application.message || "지원 메모 없음"} />
-                  <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
-                  <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
-                </dl>
+                <div className="admin-applicant-detail-head">
+                  <strong>{application.applicant_name || "이름 미입력"}</strong>
+                  <StatusBadge status={status} />
+                  <span>{sourceLabel}</span>
+                </div>
+
+                <div className="admin-applicant-detail-grid">
+                  <ApplicantDetailItem label="성별" value={application.gender || "-"} />
+                  <ApplicantDetailItem
+                    label="언어/레벨"
+                    value={getApplicationLanguage(application)}
+                  />
+                  <ApplicantDetailItem
+                    label="경력"
+                    value={application.experience || application.career || "-"}
+                  />
+                  <ApplicantDetailItem label="구분" value={sourceLabel} />
+                  <ApplicantDetailItem
+                    full
+                    label="연락처"
+                    value={application.phone || "연락처 미입력"}
+                  />
+                  <ApplicantDetailItem
+                    full
+                    label="이메일"
+                    value={application.email || "-"}
+                  />
+                  <ApplicantDetailItem
+                    full
+                    multiline
+                    label="메모"
+                    value={application.message || "지원 메모 없음"}
+                  />
+                  <ApplicantDetailItem
+                    label="약관 동의"
+                    value={getAgreementStatusLabel(application)}
+                  />
+                  <ApplicantDetailItem
+                    label="동의 시간"
+                    value={formatDateTime(application.agreed_at)}
+                  />
+                </div>
 
                 {onStatusChange ? (
                   <div className="admin-card-actions">
@@ -2509,6 +2540,17 @@ function JobApplicationsPanel({
           </article>
         );
       })}
+    </div>
+  );
+}
+
+function ApplicantDetailItem({ full = false, label, multiline = false, value }) {
+  return (
+    <div
+      className={`admin-applicant-detail-item${full ? " is-full" : ""}${multiline ? " is-multiline" : ""}`}
+    >
+      <span>{label}</span>
+      <p>{value || "-"}</p>
     </div>
   );
 }
