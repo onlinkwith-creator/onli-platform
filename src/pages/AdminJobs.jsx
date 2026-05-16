@@ -50,6 +50,7 @@ function AdminJobs({
   jobs: controlledJobs,
   requests = [],
   interpreters = [],
+  assignments = [],
   applications: controlledApplications,
   onDataChanged,
   updateApplicationStatus: sharedUpdateApplicationStatus,
@@ -69,6 +70,14 @@ function AdminJobs({
     : applications;
   const requestsByJobId = requests.reduce((map, request) => {
     if (request.job_id) map.set(String(request.job_id), request);
+    return map;
+  }, new Map());
+  const assignmentsByRequestId = assignments.reduce((map, assignment) => {
+    const requestId = String(assignment.request_id || "");
+    if (!requestId) return map;
+    const list = map.get(requestId) || [];
+    list.push(assignment);
+    map.set(requestId, list);
     return map;
   }, new Map());
 
@@ -266,12 +275,19 @@ function AdminJobs({
       (application) => String(application.job_id) === String(jobId)
     );
 
-  const getMatchedCount = (jobId) =>
-    visibleApplications.filter(
+  const getMatchedCount = (jobId) => {
+    const request = requestsByJobId.get(String(jobId));
+    const assignmentCount = request
+      ? (assignmentsByRequestId.get(String(request.id)) || []).length
+      : 0;
+    const applicationCount = visibleApplications.filter(
       (application) =>
         String(application.job_id) === String(jobId) &&
         application.status === "매칭완료"
     ).length;
+
+    return Math.max(assignmentCount, applicationCount);
+  };
 
   const refreshApplications = async () => {
     const applicationData = await fetchJobApplications();
@@ -450,9 +466,16 @@ function AdminJobs({
                 const matchedCount = getMatchedCount(job.id);
                 const expanded = String(expandedJobId) === String(job.id);
                 const request = requestsByJobId.get(String(job.id));
+                const requestAssignments = request
+                  ? assignmentsByRequestId.get(String(request.id)) || []
+                  : [];
                 const requestType = getDesignatedJobType(job, request);
                 const interpreterName = getDesignatedInterpreterName(
                   [job, request],
+                  interpreters
+                );
+                const assignedInterpreterName = getAssignedInterpreterName(
+                  requestAssignments,
                   interpreters
                 );
 
@@ -460,6 +483,7 @@ function AdminJobs({
                   <JobManagementCard
                     key={job.id}
                     expanded={expanded}
+                    assignedInterpreterName={assignedInterpreterName}
                     interpreterName={interpreterName}
                     job={job}
                     jobApplications={jobApplications}
@@ -505,6 +529,7 @@ function AdminJobs({
 }
 
 function JobManagementCard({
+  assignedInterpreterName,
   expanded,
   interpreterName,
   job,
@@ -550,6 +575,9 @@ function JobManagementCard({
         </span>
         {requestType.isDesignated && (
           <span className="admin-empty-chip">지정: {interpreterName}</span>
+        )}
+        {assignedInterpreterName && (
+          <span className="admin-empty-chip">배정: {assignedInterpreterName}</span>
         )}
       </div>
 
@@ -780,6 +808,19 @@ function getDesignatedJobType(...items) {
     isDesignated,
     label: getRequestTypeLabel(...items),
   };
+}
+
+function getAssignedInterpreterName(assignments = [], interpreters = []) {
+  return assignments
+    .map((assignment) => {
+      if (assignment.interpreter?.name) return assignment.interpreter.name;
+      const interpreter = interpreters.find(
+        (item) => Number(item.id) === Number(assignment.interpreter_id)
+      );
+      return interpreter?.name || "";
+    })
+    .filter(Boolean)
+    .join(", ");
 }
 
 function formatDate(value) {

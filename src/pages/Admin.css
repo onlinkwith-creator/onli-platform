@@ -751,6 +751,35 @@
   color: #4f46e5;
 }
 
+.admin-assignment-list {
+  display: grid;
+  gap: 6px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.admin-assignment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid #e0e7ff;
+  border-radius: 9px;
+  background: #f8f7ff;
+}
+
+.admin-assignment-row span {
+  min-width: 0;
+  color: #312e81;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: keep-all;
+}
+
 .admin-empty-chip {
   background: #f8fafc;
   color: #6b7280;
@@ -1677,6 +1706,11 @@
 
   .admin-detail-panel > div {
     padding: 16px;
+  }
+
+  .admin-assign-row,
+  .admin-assignment-row {
+    grid-template-columns: 1fr;
   }
 
   .admin-approval-cell {
