@@ -780,6 +780,75 @@
   word-break: keep-all;
 }
 
+.admin-applicant-accordion-list {
+  display: grid;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.admin-applicant-accordion-item {
+  border: 1px solid #e0e7ff;
+  border-radius: 10px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.admin-applicant-summary {
+  display: grid;
+  grid-template-columns: auto minmax(80px, 1fr) minmax(70px, 0.8fr) minmax(86px, 0.9fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 0;
+  background: #f8f7ff;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.admin-applicant-summary:hover,
+.admin-applicant-summary:focus-visible {
+  background: #eef2ff;
+  outline: none;
+}
+
+.admin-applicant-summary-name,
+.admin-applicant-summary-meta,
+.admin-applicant-summary-source {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-applicant-summary-name {
+  color: #111827;
+}
+
+.admin-applicant-summary-meta,
+.admin-applicant-summary-source {
+  color: #6b7280;
+}
+
+.admin-applicant-summary-toggle {
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-applicant-detail {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
 .admin-empty-chip {
   background: #f8fafc;
   color: #6b7280;
@@ -1711,6 +1780,22 @@
   .admin-assign-row,
   .admin-assignment-row {
     grid-template-columns: 1fr;
+  }
+
+  .admin-applicant-summary {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 7px;
+  }
+
+  .admin-applicant-summary-meta,
+  .admin-applicant-summary-source {
+    grid-column: 2 / 3;
+    white-space: normal;
+  }
+
+  .admin-applicant-summary-toggle {
+    grid-column: 3 / 4;
+    grid-row: 1 / 3;
   }
 
   .admin-approval-cell {

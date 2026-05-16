@@ -2397,104 +2397,127 @@ function JobApplicationsPanel({
   onRemoveAssignment,
   onStatusChange,
 }) {
+  const [expandedRows, setExpandedRows] = useState(() => new Set());
   const rows = buildApplicationAssignmentRows(applications, assignments, interpreters);
+  const toggleRow = (rowId) => {
+    setExpandedRows((current) => {
+      const next = new Set(current);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  };
 
   if (rows.length === 0) {
     return <span className="admin-empty-chip">이 공고에는 아직 지원자가 없습니다.</span>;
   }
 
   return (
-    <div className="admin-nested-card-list">
+    <div className="admin-applicant-accordion-list">
       {rows.map((application) => {
         const isAssigned = Boolean(application.assigned);
         const isDirectAssignment = application.source === "direct-assignment";
+        const status = isAssigned ? "배정완료" : application.status || "지원완료";
+        const expanded = expandedRows.has(application.rowId);
+        const sourceLabel = isDirectAssignment ? "관리자 직접 배정" : "지원자";
 
         return (
-        <article key={application.rowId} className="admin-nested-card">
-          <div className="admin-list-card-head compact">
-            <div>
-              <span className="admin-card-meta">
-                {isDirectAssignment
-                  ? "관리자 직접 배정"
-                  : `지원자 · ${formatDate(application.created_at)}`}
+          <article key={application.rowId} className="admin-applicant-accordion-item">
+            <button
+              type="button"
+              className="admin-applicant-summary"
+              aria-expanded={expanded}
+              onClick={() => toggleRow(application.rowId)}
+            >
+              <StatusBadge status={status} />
+              <span className="admin-applicant-summary-name">
+                {application.applicant_name || "이름 미입력"}
               </span>
-              <h3>{application.applicant_name || "이름 미입력"}</h3>
-            </div>
-            <StatusBadge status={isAssigned ? "배정완료" : application.status || "지원완료"} />
-          </div>
+              <span className="admin-applicant-summary-meta">
+                {getApplicationLanguage(application)}
+              </span>
+              <span className="admin-applicant-summary-source">{sourceLabel}</span>
+              <span className="admin-applicant-summary-toggle">
+                {expanded ? "▲" : "▼"}
+              </span>
+            </button>
 
-          <dl className="admin-card-summary compact">
-            <Info label="성별" value={application.gender || "-"} />
-            <Info label="언어" value={getApplicationLanguage(application)} />
-            <Info label="경력" value={application.experience || application.career || "-"} />
-            <Info label="연락처" value={application.phone || "연락처 미입력"} />
-            <Info label="이메일" value={application.email || "-"} />
-            <Info
-              label="구분"
-              value={isDirectAssignment ? "관리자 직접 배정" : "지원자"}
-            />
-            <Info label="메모" value={application.message || "지원 메모 없음"} />
-            <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
-            <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
-          </dl>
+            {expanded && (
+              <div className="admin-applicant-detail">
+                <dl className="admin-card-summary compact">
+                  <Info label="성별" value={application.gender || "-"} />
+                  <Info label="언어" value={getApplicationLanguage(application)} />
+                  <Info label="경력" value={application.experience || application.career || "-"} />
+                  <Info label="연락처" value={application.phone || "연락처 미입력"} />
+                  <Info label="이메일" value={application.email || "-"} />
+                  <Info label="구분" value={sourceLabel} />
+                  <Info label="메모" value={application.message || "지원 메모 없음"} />
+                  <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
+                  <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
+                </dl>
 
-          {onStatusChange ? (
-            <div className="admin-card-actions">
-              {isAssigned ? (
-                <>
-                  <StatusBadge status="배정완료" />
-                  {application.assignment && onRemoveAssignment ? (
+                {onStatusChange ? (
+                  <div className="admin-card-actions">
+                    {isAssigned ? (
+                      <>
+                        <StatusBadge status="배정완료" />
+                        {application.assignment && onRemoveAssignment ? (
+                          <button
+                            type="button"
+                            className="admin-link-button danger"
+                            onClick={() => onRemoveAssignment(application.assignment)}
+                          >
+                            매칭 취소
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="admin-link-button primary"
+                        onClick={() =>
+                          onStatusChange(application, "매칭완료", {
+                            confirmMessage: "이 지원자를 매칭완료로 변경하시겠습니까?",
+                            askAssignJob: true,
+                          })
+                        }
+                      >
+                        매칭하기
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="admin-link-button warning"
+                      disabled={isAssigned || application.status === "보류" || isDirectAssignment}
+                      onClick={() =>
+                        onStatusChange(application, "보류", {
+                          confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
+                        })
+                      }
+                    >
+                      보류
+                    </button>
                     <button
                       type="button"
                       className="admin-link-button danger"
-                      onClick={() => onRemoveAssignment(application.assignment)}
+                      disabled={isAssigned || application.status === "불합격" || isDirectAssignment}
+                      onClick={() =>
+                        onStatusChange(application, "불합격", {
+                          confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
+                        })
+                      }
                     >
-                      매칭 취소
+                      불합격
                     </button>
-                  ) : null}
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="admin-link-button primary"
-                  onClick={() =>
-                    onStatusChange(application, "매칭완료", {
-                      confirmMessage: "이 지원자를 매칭완료로 변경하시겠습니까?",
-                      askAssignJob: true,
-                    })
-                  }
-                >
-                  매칭하기
-                </button>
-              )}
-              <button
-                type="button"
-                className="admin-link-button warning"
-                disabled={isAssigned || application.status === "보류" || isDirectAssignment}
-                onClick={() =>
-                  onStatusChange(application, "보류", {
-                    confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
-                  })
-                }
-              >
-                보류
-              </button>
-              <button
-                type="button"
-                className="admin-link-button danger"
-                disabled={isAssigned || application.status === "불합격" || isDirectAssignment}
-                onClick={() =>
-                  onStatusChange(application, "불합격", {
-                    confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
-                  })
-                }
-              >
-                불합격
-              </button>
-            </div>
-          ) : null}
-        </article>
-      );
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </article>
+        );
       })}
     </div>
   );
