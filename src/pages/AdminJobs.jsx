@@ -58,7 +58,7 @@ function AdminJobs({
   const isControlled = embedded && Array.isArray(controlledJobs);
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
-  const [expandedJobId, setExpandedJobId] = useState(null);
+  const [activeApplicantsJobId, setActiveApplicantsJobId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -260,7 +260,7 @@ function AdminJobs({
           current.filter((application) => String(application.job_id) !== String(job.id))
         );
       }
-      setExpandedJobId((current) =>
+      setActiveApplicantsJobId((current) =>
         String(current) === String(job.id) ? null : current
       );
       if (editingId === job.id) resetForm();
@@ -294,6 +294,21 @@ function AdminJobs({
     setApplications(applicationData);
     return applicationData;
   };
+
+  const closeApplicantsModal = useCallback(() => {
+    setActiveApplicantsJobId(null);
+  }, []);
+
+  useEffect(() => {
+    if (!activeApplicantsJobId) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") closeApplicantsModal();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeApplicantsJobId, closeApplicantsModal]);
 
   const updateApplicationStatus = async (
     application,
@@ -464,7 +479,6 @@ function AdminJobs({
               {visibleJobs.map((job) => {
                 const jobApplications = getApplicationsForJob(job.id);
                 const matchedCount = getMatchedCount(job.id);
-                const expanded = String(expandedJobId) === String(job.id);
                 const request = requestsByJobId.get(String(job.id));
                 const requestAssignments = request
                   ? assignmentsByRequestId.get(String(request.id)) || []
@@ -482,7 +496,6 @@ function AdminJobs({
                 return (
                   <JobManagementCard
                     key={job.id}
-                    expanded={expanded}
                     assignedInterpreterName={assignedInterpreterName}
                     interpreterName={interpreterName}
                     job={job}
@@ -490,9 +503,8 @@ function AdminJobs({
                     matchedCount={matchedCount}
                     requestType={requestType}
                     deleteJob={deleteJob}
-                    setExpandedJobId={setExpandedJobId}
+                    openApplicantsModal={setActiveApplicantsJobId}
                     startEdit={startEdit}
-                    updateApplicationStatus={updateApplicationStatus}
                     updateJob={updateJob}
                   />
                 );
@@ -501,6 +513,17 @@ function AdminJobs({
           )
         )}
       </section>
+
+      {activeApplicantsJobId && (
+        <JobApplicantsModal
+          applications={getApplicationsForJob(activeApplicantsJobId)}
+          job={visibleJobs.find(
+            (job) => String(job.id) === String(activeApplicantsJobId)
+          )}
+          onClose={closeApplicantsModal}
+          onStatusChange={updateApplicationStatus}
+        />
+      )}
     </>
   );
 
@@ -530,16 +553,14 @@ function AdminJobs({
 
 function JobManagementCard({
   assignedInterpreterName,
-  expanded,
   interpreterName,
   job,
   jobApplications,
   matchedCount,
   requestType,
   deleteJob,
-  setExpandedJobId,
+  openApplicantsModal,
   startEdit,
-  updateApplicationStatus,
   updateJob,
 }) {
   return (
@@ -619,11 +640,7 @@ function JobManagementCard({
         <button
           type="button"
           className="admin-link-button primary"
-          onClick={() =>
-            setExpandedJobId((current) =>
-              String(current) === String(job.id) ? null : job.id
-            )
-          }
+          onClick={() => openApplicantsModal(job.id)}
         >
           지원자 {jobApplications.length}명
         </button>
@@ -635,13 +652,6 @@ function JobManagementCard({
         </button>
       </div>
 
-      {expanded && (
-        <JobApplicationsPanel
-          applications={jobApplications}
-          job={job}
-          onStatusChange={updateApplicationStatus}
-        />
-      )}
     </article>
   );
 }
@@ -680,88 +690,180 @@ function MessageBox({ text }) {
   return <div className="admin-message">{text}</div>;
 }
 
+function JobApplicantsModal({ applications, job, onClose, onStatusChange }) {
+  return (
+    <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
+      <section
+        className="admin-modal-card admin-jobs-applicant-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="job-applicants-modal-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <div>
+            <p className="admin-kicker">APPLICANTS</p>
+            <h2 id="job-applicants-modal-title">
+              지원자 목록 - {job?.event_name || job?.title || "공고"}
+            </h2>
+          </div>
+          <button type="button" className="admin-modal-close" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+        <JobApplicationsPanel
+          applications={applications}
+          job={job || {}}
+          onStatusChange={onStatusChange}
+        />
+      </section>
+    </div>
+  );
+}
+
 function JobApplicationsPanel({ applications, job, onStatusChange }) {
+  const [openApplicationId, setOpenApplicationId] = useState(null);
+  const toggleApplication = (applicationId) => {
+    setOpenApplicationId((current) =>
+      String(current) === String(applicationId) ? null : applicationId
+    );
+  };
+
   return (
     <div className="admin-applications-panel">
-      <h4 title={job.title || ""}>{job.title || "공고"} 지원자 확인</h4>
       {applications.length === 0 ? (
         <span className="admin-empty-chip">이 공고에는 아직 지원자가 없습니다.</span>
       ) : (
-        <div className="admin-nested-card-list">
-          {applications.map((application) => (
-            <article key={application.id} className="admin-nested-card">
-              <div className="admin-list-card-head compact">
-                <div>
-                  <span className="admin-card-meta">
-                    {formatDate(application.created_at)}
+        <div className="admin-applicant-accordion-list">
+          {applications.map((application) => {
+            const status = application.status || "지원완료";
+            const language =
+              application.language || application.japanese_level || job.language || "-";
+            const expanded = String(openApplicationId) === String(application.id);
+
+            return (
+              <article key={application.id} className="admin-applicant-accordion-item">
+                <button
+                  type="button"
+                  className="admin-applicant-summary"
+                  aria-expanded={expanded}
+                  onClick={() => toggleApplication(application.id)}
+                >
+                  <StatusBadge status={status} />
+                  <span className="admin-applicant-summary-text">
+                    <strong>{application.applicant_name || "이름 미입력"}</strong>
+                    <span>{language}</span>
+                    <span>지원자</span>
                   </span>
-                  <h3 title={application.applicant_name || ""}>
-                    {application.applicant_name || "이름 미입력"}
-                  </h3>
-                </div>
-                <StatusBadge status={application.status || "지원완료"} />
-              </div>
+                  <span className="admin-applicant-summary-toggle">
+                    {expanded ? "▲" : "▼"}
+                  </span>
+                </button>
 
-              <dl className="admin-card-summary compact">
-                <JobInfo label="성별" value={application.gender || "-"} />
-                <JobInfo
-                  label="언어"
-                  value={application.language || application.japanese_level || job.language || "-"}
-                />
-                <JobInfo label="경력" value={application.experience || application.career || "-"} />
-                <JobInfo label="연락처" value={application.phone || "연락처 미입력"} />
-                <JobInfo label="이메일" value={application.email || "-"} />
-                <JobInfo label="메모" value={application.message || "지원 메모 없음"} />
-              </dl>
+                {expanded && (
+                  <div className="admin-applicant-detail">
+                    <div className="admin-applicant-detail-head">
+                      <strong>{application.applicant_name || "이름 미입력"}</strong>
+                      <StatusBadge status={status} />
+                      <span>지원자</span>
+                    </div>
 
-              <div className="admin-card-actions">
-                {application.status === "매칭완료" ? (
-                  <StatusBadge status="매칭완료" />
-                ) : (
-                  <button
-                    type="button"
-                    className="admin-link-button primary"
-                    onClick={() =>
-                      onStatusChange(application, "매칭완료", {
-                        confirmMessage: "이 지원자를 해당 공고에 매칭하시겠습니까?",
-                        askAssignJob: true,
-                      })
-                    }
-                  >
-                    매칭하기
-                  </button>
+                    <div className="admin-applicant-detail-grid">
+                      <JobApplicantDetailItem label="성별" value={application.gender || "-"} />
+                      <JobApplicantDetailItem label="언어/레벨" value={language} />
+                      <JobApplicantDetailItem
+                        label="경력"
+                        value={application.experience || application.career || "-"}
+                      />
+                      <JobApplicantDetailItem
+                        full
+                        label="연락처"
+                        value={application.phone || "연락처 미입력"}
+                      />
+                      <JobApplicantDetailItem full label="이메일" value={application.email || "-"} />
+                      <JobApplicantDetailItem
+                        full
+                        multiline
+                        label="메모"
+                        value={application.message || "지원 메모 없음"}
+                      />
+                    </div>
+
+                    <div className="admin-card-actions">
+                      {application.status === "매칭완료" ? (
+                        <>
+                          <StatusBadge status="매칭완료" />
+                          <button
+                            type="button"
+                            className="admin-link-button warning"
+                            onClick={() =>
+                              onStatusChange(application, "지원완료", {
+                                confirmMessage: "이 지원자의 매칭을 취소하시겠습니까?",
+                              })
+                            }
+                          >
+                            매칭 취소
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="admin-link-button primary"
+                          onClick={() =>
+                            onStatusChange(application, "매칭완료", {
+                              confirmMessage: "이 지원자를 해당 공고에 매칭하시겠습니까?",
+                              askAssignJob: true,
+                            })
+                          }
+                        >
+                          매칭하기
+                        </button>
+                      )}
+                      {application.status !== "보류" && (
+                        <button
+                          type="button"
+                          className="admin-link-button warning"
+                          onClick={() =>
+                            onStatusChange(application, "보류", {
+                              confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
+                            })
+                          }
+                        >
+                          보류
+                        </button>
+                      )}
+                      {application.status !== "불합격" && (
+                        <button
+                          type="button"
+                          className="admin-link-button danger"
+                          onClick={() =>
+                            onStatusChange(application, "불합격", {
+                              confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
+                            })
+                          }
+                        >
+                          불합격
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
-                {application.status !== "보류" && (
-                  <button
-                    type="button"
-                    className="admin-link-button warning"
-                    onClick={() =>
-                      onStatusChange(application, "보류", {
-                        confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
-                      })
-                    }
-                  >
-                    보류
-                  </button>
-                )}
-                {application.status !== "불합격" && (
-                  <button
-                    type="button"
-                    className="admin-link-button danger"
-                    onClick={() =>
-                      onStatusChange(application, "불합격", {
-                        confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
-                      })
-                    }
-                  >
-                    불합격
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+}
+
+function JobApplicantDetailItem({ full = false, label, multiline = false, value }) {
+  return (
+    <div
+      className={`admin-applicant-detail-item${full ? " is-full" : ""}${multiline ? " is-multiline" : ""}`}
+    >
+      <span>{label}</span>
+      <p>{value || "-"}</p>
     </div>
   );
 }
