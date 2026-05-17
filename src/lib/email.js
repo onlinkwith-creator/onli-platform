@@ -24,6 +24,7 @@ export async function sendAutoEmail(type, to, payload = {}) {
     to,
     payload,
   });
+  console.log("EMAIL TARGET", to);
 
   const recipients = normalizeRecipients(to);
   if (!supabase) {
@@ -33,6 +34,7 @@ export async function sendAutoEmail(type, to, payload = {}) {
   }
 
   if (recipients.length === 0) {
+    console.warn("EMAIL SKIPPED: NO TARGET");
     console.warn("EMAIL SKIP", { type, to, reason: "No valid email recipient." });
     return { ok: false, skipped: true };
   }

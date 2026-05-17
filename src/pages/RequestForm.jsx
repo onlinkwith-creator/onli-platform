@@ -190,10 +190,28 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       interpretationField: requestPayload.interpretation_field,
     };
 
-    void Promise.all([
-      sendAutoEmail("company_request_received_user", companyEmail, emailPayload),
-      sendAdminAutoEmail("company_request_received_admin", emailPayload),
-    ]);
+    void (async () => {
+      try {
+        const result = await sendAutoEmail(
+          "company_request_received_user",
+          companyEmail,
+          emailPayload
+        );
+        if (!result.ok) console.error("Company email failed", result.error || result);
+      } catch (error) {
+        console.error("Company email failed", error);
+      }
+
+      try {
+        const result = await sendAdminAutoEmail(
+          "company_request_received_admin",
+          emailPayload
+        );
+        if (!result.ok) console.error("Company admin email failed", result.error || result);
+      } catch (error) {
+        console.error("Company admin email failed", error);
+      }
+    })();
 
     alert("의뢰 문의가 접수되었습니다.");
     setForm(initialForm);

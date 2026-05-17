@@ -151,10 +151,27 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
           .join(" / "),
       };
 
-      void Promise.all([
-        sendAutoEmail("job_applied_user", form.email, emailPayload),
-        sendAdminAutoEmail("job_applied_admin", emailPayload),
-      ]);
+      void (async () => {
+        try {
+          const result = await sendAutoEmail(
+            "job_applied_user",
+            form.email,
+            emailPayload
+          );
+          if (!result.ok) console.error("Applicant email failed", result.error || result);
+        } catch (error) {
+          console.error("Applicant email failed", error);
+        }
+
+        try {
+          const result = await sendAdminAutoEmail("job_applied_admin", emailPayload);
+          if (!result.ok) {
+            console.error("Job application admin email failed", result.error || result);
+          }
+        } catch (error) {
+          console.error("Job application admin email failed", error);
+        }
+      })();
 
       setSubmitted(true);
       setForm(initialForm);

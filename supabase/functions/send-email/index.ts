@@ -312,6 +312,7 @@ Deno.serve(async (request) => {
       to,
       payload,
     });
+    console.log("TO:", to);
     console.log("HAS API KEY", !!resendApiKey);
 
     if (!resendApiKey) {

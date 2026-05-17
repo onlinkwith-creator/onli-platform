@@ -182,10 +182,29 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       createdAt: new Date().toISOString(),
     };
 
-    void Promise.all([
-      sendAutoEmail("interpreter_registered_user", form.email, emailPayload),
-      sendAutoEmail("interpreter_registered_admin", ADMIN_EMAILS, emailPayload),
-    ]);
+    void (async () => {
+      try {
+        const result = await sendAutoEmail(
+          "interpreter_registered_user",
+          form.email,
+          emailPayload
+        );
+        if (!result.ok) console.error("Interpreter user email failed", result.error || result);
+      } catch (error) {
+        console.error("Interpreter user email failed", error);
+      }
+
+      try {
+        const result = await sendAutoEmail(
+          "interpreter_registered_admin",
+          ADMIN_EMAILS,
+          emailPayload
+        );
+        if (!result.ok) console.error("Interpreter admin email failed", result.error || result);
+      } catch (error) {
+        console.error("Interpreter admin email failed", error);
+      }
+    })();
 
     setAgreements(initialTermsAgreement);
     setSuccessMessage("등록이 완료되었습니다. 메인 페이지로 이동합니다.");
