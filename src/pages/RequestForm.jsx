@@ -67,6 +67,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    console.log("COMPANY REQUEST SUBMIT START");
+    console.log("COMPANY REQUEST FORM DATA", form);
 
     setErrorMessage("");
 
@@ -147,11 +149,23 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       selected_interpreter_name: interpreter?.name || "",
     };
 
-    let { error } = await supabase.from("requests").insert([designatedPayload]);
+    console.log("COMPANY REQUEST BEFORE DB INSERT");
+
+    let { data, error } = await supabase.from("requests").insert([designatedPayload]);
+
+    console.log("COMPANY REQUEST DB INSERT RESULT", {
+      data,
+      error,
+    });
 
     if (error && isMissingColumnError(error)) {
       const fallbackResult = await supabase.from("requests").insert([requestPayload]);
+      data = fallbackResult.data;
       error = fallbackResult.error;
+      console.log("COMPANY REQUEST DB INSERT FALLBACK RESULT", {
+        data,
+        error,
+      });
     }
 
     setIsSubmitting(false);
@@ -160,6 +174,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       if (isAgreementColumnError(error)) {
         console.error("약관 동의 저장 실패:", error);
       }
+      console.error("COMPANY REQUEST DB INSERT ERROR", error);
       console.error("request insert error:", error);
       const message =
         error.code === "42501"
@@ -196,6 +211,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     };
 
     void (async () => {
+      console.log("COMPANY REQUEST START EMAIL FLOW");
       console.log("COMPANY EMAIL TARGET:", companyEmail);
 
       try {
@@ -222,6 +238,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       }
 
       try {
+        console.log("COMPANY ADMIN EMAIL START");
         const result = await sendAdminAutoEmail(
           "company_request_received_admin",
           emailPayload

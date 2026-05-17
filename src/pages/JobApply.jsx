@@ -87,6 +87,9 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    console.log("JOB APPLY SUBMIT START");
+    console.log("JOB APPLY FORM DATA", form);
+
     if (submitting || submitted) return;
     if (!job) return;
     if (!canApplyToJob(job)) {
@@ -130,12 +133,19 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
     };
 
     try {
-      const { error } = await supabase.from("job_applications").insert([application]);
+      console.log("JOB APPLY BEFORE DB INSERT");
+      const { data, error } = await supabase.from("job_applications").insert([application]);
+
+      console.log("JOB APPLY DB INSERT RESULT", {
+        data,
+        error,
+      });
 
       if (error) {
         if (isAgreementColumnError(error)) {
           console.error("약관 동의 저장 실패:", error);
         }
+        console.error("JOB APPLY DB INSERT ERROR", error);
         console.error("지원 실패:", error);
         throw error;
       }
@@ -159,6 +169,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
       ).trim();
 
       void (async () => {
+        console.log("JOB APPLY START EMAIL FLOW");
         console.log("APPLICANT EMAIL TARGET:", applicantEmail);
 
         try {
@@ -181,6 +192,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
         }
 
         try {
+          console.log("JOB APPLY ADMIN EMAIL START");
           const result = await sendAdminAutoEmail("job_applied_admin", emailPayload);
           if (!result.ok) {
             console.error("Job application admin email failed", result.error || result);

@@ -40,12 +40,19 @@ export async function sendAutoEmail(type, to, payload = {}) {
   }
 
   try {
+    console.log("EMAIL INVOKE START");
+
     const { data, error } = await supabase.functions.invoke("send-email", {
       body: {
         type,
         to: Array.isArray(to) ? recipients : recipients[0],
         payload,
       },
+    });
+
+    console.log("EMAIL INVOKE RESULT", {
+      data,
+      error,
     });
 
     console.log("EMAIL RESULT", {

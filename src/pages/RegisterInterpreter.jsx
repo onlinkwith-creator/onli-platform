@@ -103,6 +103,9 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    console.log("REGISTER SUBMIT START");
+    console.log("REGISTER FORM DATA", form);
+
     setErrorMessage("");
     setSuccessMessage("");
 
@@ -133,7 +136,9 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       return;
     }
 
-    const { error } = await supabase.from("interpreters").insert([
+    console.log("BEFORE DB INSERT");
+
+    const { data, error } = await supabase.from("interpreters").insert([
       {
         name: form.name,
         gender: form.gender,
@@ -157,10 +162,16 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       },
     ]);
 
+    console.log("DB INSERT RESULT", {
+      data,
+      error,
+    });
+
     if (error) {
       if (isAgreementColumnError(error)) {
         console.error("약관 동의 저장 실패:", error);
       }
+      console.error("DB INSERT ERROR", error);
       console.error("등록 실패 원인:", error.message);
       alert("제출에 실패했습니다.");
       return;
@@ -189,6 +200,8 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
     ).trim();
 
     void (async () => {
+      console.log("START EMAIL FLOW");
+      console.log("USER EMAIL START", interpreterEmail);
       console.log("INTERPRETER EMAIL TARGET:", interpreterEmail);
 
       try {
@@ -208,6 +221,7 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       }
 
       try {
+        console.log("ADMIN EMAIL START");
         const result = await sendAutoEmail(
           "interpreter_registered_admin",
           ADMIN_EMAILS,
