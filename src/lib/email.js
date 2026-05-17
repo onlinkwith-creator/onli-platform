@@ -1,7 +1,10 @@
 import { supabase } from "../supabase";
 
-// TODO: 운영 관리자 수신 이메일을 Vercel 환경변수 VITE_ADMIN_EMAIL에 설정해주세요.
-export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || "";
+// TODO: 추후 .env 또는 Supabase secrets 기반 관리로 이동해주세요.
+export const ADMIN_EMAILS = [
+  "onlinkwith@gmail.com",
+  "Onlinkcp@gmail.com",
+];
 
 export async function sendAutoEmail(type, to, payload = {}) {
   if (!supabase || !to) return { ok: false };
@@ -20,10 +23,10 @@ export async function sendAutoEmail(type, to, payload = {}) {
 }
 
 export async function sendAdminAutoEmail(type, payload = {}) {
-  if (!ADMIN_EMAIL) {
+  if (ADMIN_EMAILS.length === 0) {
     console.error("관리자 이메일이 설정되지 않아 관리자 알림 메일을 건너뜁니다.");
     return { ok: false };
   }
 
-  return sendAutoEmail(type, ADMIN_EMAIL, payload);
+  return sendAutoEmail(type, ADMIN_EMAILS, payload);
 }

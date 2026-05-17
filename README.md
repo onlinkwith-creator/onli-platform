@@ -49,11 +49,8 @@ curl -i --request POST 'http://127.0.0.1:54321/functions/v1/send-email' \
   }'
 ```
 
-Frontend admin notification recipient:
-
-```bash
-VITE_ADMIN_EMAIL=admin@example.com
-```
+Frontend admin notification recipients are currently managed in `src/lib/email.js` as `ADMIN_EMAILS`.
+TODO: move these recipients to `.env` or Supabase secrets when the production configuration is finalized.
 
 Security notes:
 
