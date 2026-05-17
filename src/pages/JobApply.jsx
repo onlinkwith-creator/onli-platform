@@ -150,15 +150,25 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
           .filter(Boolean)
           .join(" / "),
       };
+      const applicantEmail = form.email?.trim();
 
       void (async () => {
+        console.log("APPLICANT EMAIL TARGET", applicantEmail);
+
         try {
-          const result = await sendAutoEmail(
-            "job_applied_user",
-            form.email,
-            emailPayload
-          );
-          if (!result.ok) console.error("Applicant email failed", result.error || result);
+          if (applicantEmail) {
+            const result = await sendAutoEmail(
+              "job_applied_user",
+              applicantEmail,
+              emailPayload
+            );
+            if (!result.ok) console.error("Applicant email failed", result.error || result);
+          } else {
+            console.warn("EMAIL SKIPPED: SKIP APPLICANT EMAIL: form.email is empty", {
+              form,
+              application,
+            });
+          }
         } catch (error) {
           console.error("Applicant email failed", error);
         }

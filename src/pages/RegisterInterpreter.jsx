@@ -181,15 +181,22 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       availableRegions: form.availableRegions.join(", "),
       createdAt: new Date().toISOString(),
     };
+    const interpreterEmail = form.email?.trim();
 
     void (async () => {
+      console.log("USER EMAIL TARGET", interpreterEmail);
+
       try {
-        const result = await sendAutoEmail(
-          "interpreter_registered_user",
-          form.email,
-          emailPayload
-        );
-        if (!result.ok) console.error("Interpreter user email failed", result.error || result);
+        if (interpreterEmail) {
+          const result = await sendAutoEmail(
+            "interpreter_registered_user",
+            interpreterEmail,
+            emailPayload
+          );
+          if (!result.ok) console.error("Interpreter user email failed", result.error || result);
+        } else {
+          console.warn("EMAIL SKIPPED: SKIP USER EMAIL: form.email is empty", form);
+        }
       } catch (error) {
         console.error("Interpreter user email failed", error);
       }

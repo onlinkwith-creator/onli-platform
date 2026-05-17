@@ -191,13 +191,26 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     };
 
     void (async () => {
+      console.log("COMPANY EMAIL TARGET", companyEmail);
+
       try {
-        const result = await sendAutoEmail(
-          "company_request_received_user",
-          companyEmail,
-          emailPayload
-        );
-        if (!result.ok) console.error("Company email failed", result.error || result);
+        if (companyEmail) {
+          const result = await sendAutoEmail(
+            "company_request_received_user",
+            companyEmail,
+            emailPayload
+          );
+          if (!result.ok) console.error("Company email failed", result.error || result);
+        } else {
+          console.warn(
+            "EMAIL SKIPPED: SKIP COMPANY EMAIL: company email is empty",
+            {
+              form,
+              requestPayload,
+              companyEmail,
+            }
+          );
+        }
       } catch (error) {
         console.error("Company email failed", error);
       }
