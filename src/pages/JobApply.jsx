@@ -7,7 +7,7 @@ import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
-import { sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
+import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import "./Jobs.css";
 
 const initialForm = {
@@ -168,39 +168,45 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
         ""
       ).trim();
 
-      void (async () => {
-        console.log("JOB APPLY START EMAIL FLOW");
-        console.log("APPLICANT EMAIL TARGET:", applicantEmail);
+      console.log("JOB APPLICATION SUCCESS - START EMAILS", applicantEmail);
+      console.log("JOB APPLY START EMAIL FLOW");
+      console.log("APPLICANT EMAIL TARGET:", applicantEmail);
 
-        try {
-          if (applicantEmail) {
-            const result = await sendAutoEmail(
-              "job_applied_user",
-              applicantEmail,
-              emailPayload
-            );
-            if (!result.ok) console.error("Applicant email failed", result.error || result);
-          } else {
-            console.warn("SKIP job_applied_user: no email", { form, application });
-            console.warn("EMAIL SKIPPED: SKIP APPLICANT EMAIL: form.email is empty", {
-              form,
-              application,
-            });
-          }
-        } catch (error) {
-          console.error("Applicant email failed", error);
+      try {
+        if (applicantEmail) {
+          const result = await sendAutoEmail(
+            "job_applied_user",
+            applicantEmail,
+            emailPayload
+          );
+          if (!result.ok) console.error("Applicant email failed", result.error || result);
+        } else {
+          console.warn("SKIP job_applied_user: no email", { form, application });
+          console.warn("EMAIL SKIPPED: SKIP APPLICANT EMAIL: form.email is empty", {
+            form,
+            application,
+          });
         }
+      } catch (error) {
+        console.error("USER EMAIL FAILED", error);
+        console.error("Applicant email failed", error);
+      }
 
-        try {
-          console.log("JOB APPLY ADMIN EMAIL START");
-          const result = await sendAdminAutoEmail("job_applied_admin", emailPayload);
-          if (!result.ok) {
-            console.error("Job application admin email failed", result.error || result);
-          }
-        } catch (error) {
-          console.error("Job application admin email failed", error);
+      try {
+        console.log("JOB APPLY ADMIN EMAIL START");
+        const result = await sendAutoEmail("job_applied_admin", ADMIN_EMAILS, {
+          ...emailPayload,
+          name: form.name,
+          email: applicantEmail,
+          jobTitle: job.title || "공고 제목 미입력",
+        });
+        if (!result.ok) {
+          console.error("Job application admin email failed", result.error || result);
         }
-      })();
+      } catch (error) {
+        console.error("ADMIN EMAIL FAILED", error);
+        console.error("Job application admin email failed", error);
+      }
 
       setSubmitted(true);
       setForm(initialForm);

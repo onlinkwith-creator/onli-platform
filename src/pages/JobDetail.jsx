@@ -9,6 +9,7 @@ import { formatDateRange } from "../utils/dateRange";
 import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import { attachPublicJobCounts } from "../utils/jobsApi";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
+import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import "./Jobs.css";
 
 const initialForm = {
@@ -88,6 +89,9 @@ function JobDetail({ jobId, onBackClick }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    console.log("JOB DETAIL APPLY SUBMIT START");
+    console.log("JOB DETAIL APPLY FORM DATA", form);
+
     if (submitting || submitted) return;
 
     if (!job) return;
@@ -132,14 +136,79 @@ function JobDetail({ jobId, onBackClick }) {
     };
 
     try {
-      const { error } = await supabase.from("job_applications").insert([application]);
+      console.log("JOB DETAIL APPLY BEFORE DB INSERT");
+      const { data, error } = await supabase.from("job_applications").insert([application]);
+
+      console.log("JOB DETAIL APPLY DB INSERT RESULT", {
+        data,
+        error,
+      });
 
       if (error) {
         if (isAgreementColumnError(error)) {
           console.error("약관 동의 저장 실패:", error);
         }
+        console.error("JOB DETAIL APPLY DB INSERT ERROR", error);
         console.error("지원 실패:", error);
         throw error;
+      }
+
+      const applicantEmail = (
+        form.email ||
+        form.applicant_email ||
+        form.mail ||
+        application.email ||
+        ""
+      ).trim();
+      const emailPayload = {
+        name: form.name,
+        jobTitle: job.title || job.event_name || "공고 제목 미입력",
+        date: formatDateRange(job.start_date, job.end_date, job.event_date || job.date),
+        email: applicantEmail,
+        phone: form.phone,
+        levelOrExperience: [form.japaneseLevel, form.experience]
+          .filter(Boolean)
+          .join(" / "),
+      };
+
+      console.log("JOB APPLICATION SUCCESS - START EMAILS", applicantEmail);
+      console.log("JOB DETAIL APPLY START EMAIL FLOW");
+      console.log("APPLICANT EMAIL TARGET:", applicantEmail);
+
+      try {
+        if (applicantEmail) {
+          const result = await sendAutoEmail(
+            "job_applied_user",
+            applicantEmail,
+            emailPayload
+          );
+          if (!result.ok) console.error("Applicant email failed", result.error || result);
+        } else {
+          console.warn("SKIP job_applied_user: no email", { form, application });
+          console.warn("EMAIL SKIPPED: SKIP APPLICANT EMAIL: form.email is empty", {
+            form,
+            application,
+          });
+        }
+      } catch (error) {
+        console.error("USER EMAIL FAILED", error);
+        console.error("Applicant email failed", error);
+      }
+
+      try {
+        console.log("JOB DETAIL APPLY ADMIN EMAIL START");
+        const result = await sendAutoEmail("job_applied_admin", ADMIN_EMAILS, {
+          ...emailPayload,
+          name: form.name,
+          email: applicantEmail,
+          jobTitle: job.title || job.event_name || "공고 제목 미입력",
+        });
+        if (!result.ok) {
+          console.error("Job application admin email failed", result.error || result);
+        }
+      } catch (error) {
+        console.error("ADMIN EMAIL FAILED", error);
+        console.error("Job application admin email failed", error);
       }
 
       setSubmitted(true);

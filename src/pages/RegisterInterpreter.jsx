@@ -199,39 +199,46 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       ""
     ).trim();
 
-    void (async () => {
-      console.log("START EMAIL FLOW");
-      console.log("USER EMAIL START", interpreterEmail);
-      console.log("INTERPRETER EMAIL TARGET:", interpreterEmail);
+    console.log("INTERPRETER REGISTER SUCCESS - START EMAILS");
+    console.log("START EMAIL FLOW");
+    console.log("USER EMAIL START", interpreterEmail);
+    console.log("INTERPRETER EMAIL TARGET:", interpreterEmail);
 
-      try {
-        if (interpreterEmail) {
-          const result = await sendAutoEmail(
-            "interpreter_registered_user",
-            interpreterEmail,
-            emailPayload
-          );
-          if (!result.ok) console.error("Interpreter user email failed", result.error || result);
-        } else {
-          console.warn("Interpreter email missing", form);
-          console.warn("SKIP interpreter_registered_user: no email", form);
-        }
-      } catch (error) {
-        console.error("Interpreter user email failed", error);
-      }
-
-      try {
-        console.log("ADMIN EMAIL START");
+    try {
+      if (interpreterEmail) {
         const result = await sendAutoEmail(
-          "interpreter_registered_admin",
-          ADMIN_EMAILS,
+          "interpreter_registered_user",
+          interpreterEmail,
           emailPayload
         );
-        if (!result.ok) console.error("Interpreter admin email failed", result.error || result);
-      } catch (error) {
-        console.error("Interpreter admin email failed", error);
+        if (!result.ok) console.error("Interpreter user email failed", result.error || result);
+      } else {
+        console.warn("NO INTERPRETER EMAIL FOUND", form);
+        console.warn("Interpreter email missing", form);
+        console.warn("SKIP interpreter_registered_user: no email", form);
       }
-    })();
+    } catch (error) {
+      console.error("USER EMAIL FAILED", error);
+      console.error("Interpreter user email failed", error);
+    }
+
+    try {
+      console.log("ADMIN EMAIL START");
+      const result = await sendAutoEmail(
+        "interpreter_registered_admin",
+        ADMIN_EMAILS,
+        {
+          ...emailPayload,
+          name: form.name,
+          email: interpreterEmail,
+          phone: form.phone,
+        }
+      );
+      if (!result.ok) console.error("Interpreter admin email failed", result.error || result);
+    } catch (error) {
+      console.error("ADMIN EMAIL FAILED", error);
+      console.error("Interpreter admin email failed", error);
+    }
 
     setAgreements(initialTermsAgreement);
     setSuccessMessage("등록이 완료되었습니다. 메인 페이지로 이동합니다.");

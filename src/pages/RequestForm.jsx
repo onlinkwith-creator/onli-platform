@@ -4,7 +4,7 @@ import TermsAgreement, {
   initialTermsAgreement,
 } from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
-import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
+import { ADMIN_EMAILS, getEmailRecipient, sendAutoEmail } from "../lib/email";
 import {
   calculateEstimatedPrice,
   calculateInterpreterPay,
@@ -210,44 +210,50 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       interpretationField: requestPayload.interpretation_field,
     };
 
-    void (async () => {
-      console.log("COMPANY REQUEST START EMAIL FLOW");
-      console.log("COMPANY EMAIL TARGET:", companyEmail);
+    console.log("COMPANY REQUEST SUCCESS - START EMAILS", companyEmail);
+    console.log("COMPANY REQUEST START EMAIL FLOW");
+    console.log("COMPANY EMAIL TARGET:", companyEmail);
 
-      try {
-        if (companyEmail) {
-          const result = await sendAutoEmail(
-            "company_request_received_user",
-            companyEmail,
-            emailPayload
-          );
-          if (!result.ok) console.error("Company email failed", result.error || result);
-        } else {
-          console.warn("SKIP company_request_received_user: no email", form);
-          console.warn(
-            "EMAIL SKIPPED: SKIP COMPANY EMAIL: company email is empty",
-            {
-              form,
-              requestPayload,
-              companyEmail,
-            }
-          );
-        }
-      } catch (error) {
-        console.error("Company email failed", error);
-      }
-
-      try {
-        console.log("COMPANY ADMIN EMAIL START");
-        const result = await sendAdminAutoEmail(
-          "company_request_received_admin",
+    try {
+      if (companyEmail) {
+        const result = await sendAutoEmail(
+          "company_request_received_user",
+          companyEmail,
           emailPayload
         );
-        if (!result.ok) console.error("Company admin email failed", result.error || result);
-      } catch (error) {
-        console.error("Company admin email failed", error);
+        if (!result.ok) console.error("Company email failed", result.error || result);
+      } else {
+        console.warn("SKIP company_request_received_user: no email", form);
+        console.warn(
+          "EMAIL SKIPPED: SKIP COMPANY EMAIL: company email is empty",
+          {
+            form,
+            requestPayload,
+            companyEmail,
+          }
+        );
       }
-    })();
+    } catch (error) {
+      console.error("USER EMAIL FAILED", error);
+      console.error("Company email failed", error);
+    }
+
+    try {
+      console.log("COMPANY ADMIN EMAIL START");
+      const result = await sendAutoEmail(
+        "company_request_received_admin",
+        ADMIN_EMAILS,
+        {
+          ...emailPayload,
+          companyName: form.companyName,
+          email: companyEmail,
+        }
+      );
+      if (!result.ok) console.error("Company admin email failed", result.error || result);
+    } catch (error) {
+      console.error("ADMIN EMAIL FAILED", error);
+      console.error("Company admin email failed", error);
+    }
 
     alert("의뢰 문의가 접수되었습니다.");
     setForm(initialForm);
