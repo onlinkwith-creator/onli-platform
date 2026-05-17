@@ -171,6 +171,11 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     }
 
     const companyEmail = getEmailRecipient(
+      form.company_email,
+      form.contact_email,
+      form.email,
+      form.manager_email,
+      form.contactEmailOrPhone,
       requestPayload.email,
       requestPayload.contact_email_or_phone
     );
@@ -191,7 +196,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     };
 
     void (async () => {
-      console.log("COMPANY EMAIL TARGET", companyEmail);
+      console.log("COMPANY EMAIL TARGET:", companyEmail);
 
       try {
         if (companyEmail) {
@@ -202,6 +207,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
           );
           if (!result.ok) console.error("Company email failed", result.error || result);
         } else {
+          console.warn("SKIP company_request_received_user: no email", form);
           console.warn(
             "EMAIL SKIPPED: SKIP COMPANY EMAIL: company email is empty",
             {

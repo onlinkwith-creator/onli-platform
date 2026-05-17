@@ -150,10 +150,16 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
           .filter(Boolean)
           .join(" / "),
       };
-      const applicantEmail = form.email?.trim();
+      const applicantEmail = (
+        form.email ||
+        form.applicant_email ||
+        form.mail ||
+        application.email ||
+        ""
+      ).trim();
 
       void (async () => {
-        console.log("APPLICANT EMAIL TARGET", applicantEmail);
+        console.log("APPLICANT EMAIL TARGET:", applicantEmail);
 
         try {
           if (applicantEmail) {
@@ -164,6 +170,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
             );
             if (!result.ok) console.error("Applicant email failed", result.error || result);
           } else {
+            console.warn("SKIP job_applied_user: no email", { form, application });
             console.warn("EMAIL SKIPPED: SKIP APPLICANT EMAIL: form.email is empty", {
               form,
               application,

@@ -181,10 +181,15 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       availableRegions: form.availableRegions.join(", "),
       createdAt: new Date().toISOString(),
     };
-    const interpreterEmail = form.email?.trim();
+    const interpreterEmail = (
+      form.email ||
+      form.contact_email ||
+      form.mail ||
+      ""
+    ).trim();
 
     void (async () => {
-      console.log("USER EMAIL TARGET", interpreterEmail);
+      console.log("INTERPRETER EMAIL TARGET:", interpreterEmail);
 
       try {
         if (interpreterEmail) {
@@ -195,7 +200,8 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
           );
           if (!result.ok) console.error("Interpreter user email failed", result.error || result);
         } else {
-          console.warn("EMAIL SKIPPED: SKIP USER EMAIL: form.email is empty", form);
+          console.warn("Interpreter email missing", form);
+          console.warn("SKIP interpreter_registered_user: no email", form);
         }
       } catch (error) {
         console.error("Interpreter user email failed", error);
