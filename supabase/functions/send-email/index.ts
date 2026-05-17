@@ -37,6 +37,46 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+async function readJsonOrText(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch (_error) {
+    return { message: text };
+  }
+}
+
+async function sendWithResend(
+  apiKey: string,
+  to: string,
+  subject: string,
+  html: string
+) {
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html,
+    }),
+  });
+  const result = await readJsonOrText(response);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    to,
+    result,
+  };
+}
+
 function escapeHtml(value: unknown) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -316,52 +356,74 @@ Deno.serve(async (request) => {
     console.log("HAS API KEY", !!resendApiKey);
 
     if (!resendApiKey) {
-      return jsonResponse({ error: "RESEND_API_KEY is not configured" }, 500);
+      console.error("SEND EMAIL FUNCTION ERROR", "Missing RESEND_API_KEY");
+      return jsonResponse({ error: "Missing RESEND_API_KEY" }, 500);
     }
 
-    if (!type || !(type in subjects)) {
-      return jsonResponse({ error: "Invalid email type" }, 400);
+    if (!type) {
+      return jsonResponse({ error: "Missing type" }, 400);
+    }
+
+    if (!(type in subjects)) {
+      return jsonResponse({ error: `Unknown email type: ${type}` }, 400);
     }
 
     if (!to || (Array.isArray(to) && to.length === 0)) {
       console.warn("EMAIL SKIP", { type, reason: "Recipient email is empty." });
-      return jsonResponse({ skipped: true, reason: "Recipient email is empty." });
+      return jsonResponse({ error: "Missing to" }, 400);
     }
 
-    const resendResponse = await fetch(RESEND_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to,
-        subject: subjects[type],
-        html: buildHtml(type, payload),
-      }),
-    });
+    const html = buildHtml(type, payload);
+    const subject = subjects[type];
 
-    const resendBody = await resendResponse.json().catch(() => ({}));
-    const result = {
-      ok: resendResponse.ok,
-      status: resendResponse.status,
-      body: resendBody,
-    };
-    console.log("RESEND RESULT", result);
+    const recipients = Array.isArray(to) ? to : [to];
+    const results = [];
 
-    if (!resendResponse.ok) {
-      return jsonResponse(
-        { error: resendBody?.message || "Failed to send email" },
-        500
+    for (const recipient of recipients) {
+      const resendResult = await sendWithResend(
+        resendApiKey,
+        recipient,
+        subject,
+        html
       );
+      results.push(resendResult);
+      console.log("RESEND RESULT", resendResult);
+      console.log("RESEND RESPONSE", {
+        to: recipient,
+        status: resendResult.status,
+        result: resendResult.result,
+      });
     }
 
-    return jsonResponse({ id: resendBody?.id });
+    const successes = results.filter((result) => result.ok);
+    const failures = results.filter((result) => !result.ok);
+
+    if (failures.length > 0) {
+      console.error("RESEND SEND FAILED", failures);
+    }
+
+    if (successes.length === 0) {
+      const firstFailure = failures[0];
+      return jsonResponse({
+        error: "Resend send failed",
+        detail: firstFailure?.result || failures,
+      }, firstFailure?.status || 500);
+    }
+
+    return jsonResponse({
+      ok: failures.length === 0,
+      result: Array.isArray(to) ? results : results[0]?.result,
+      id: successes[0]?.result?.id,
+      failures,
+    }, failures.length > 0 ? 207 : 200);
   } catch (error) {
     console.error("FUNCTION ERROR", error);
+    console.error("SEND EMAIL FUNCTION ERROR", error);
     return jsonResponse(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      {
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : String(error),
+      },
       500
     );
   }
