@@ -4,7 +4,7 @@ import TermsAgreement, {
   initialTermsAgreement,
 } from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
-import { sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
+import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import "./RegisterInterpreter.css";
 
 const specialtyOptions = [
@@ -168,18 +168,23 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
 
     const emailPayload = {
       name: form.name,
+      gender: form.gender,
+      age: form.age,
       email: form.email,
       phone: form.phone,
       region: form.region,
+      regions: form.availableRegions.join(", "),
       jlpt: form.jlpt,
+      experience: form.has_experience ? "통역 경험 있음" : "통역 경험 없음",
       hasExperience: form.has_experience ? "통역 경험 있음" : "통역 경험 없음",
       specialties: form.specialties.join(", "),
       availableRegions: form.availableRegions.join(", "),
+      createdAt: new Date().toISOString(),
     };
 
     void Promise.all([
       sendAutoEmail("interpreter_registered_user", form.email, emailPayload),
-      sendAdminAutoEmail("interpreter_registered_admin", emailPayload),
+      sendAutoEmail("interpreter_registered_admin", ADMIN_EMAILS, emailPayload),
     ]);
 
     setAgreements(initialTermsAgreement);

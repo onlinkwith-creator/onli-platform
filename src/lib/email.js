@@ -19,10 +19,23 @@ export function getEmailRecipient(...values) {
 }
 
 export async function sendAutoEmail(type, to, payload = {}) {
-  const recipients = normalizeRecipients(to);
-  if (!supabase || recipients.length === 0) return { ok: false };
+  console.log("EMAIL START", {
+    type,
+    to,
+    payload,
+  });
 
-  console.log("sendAutoEmail called", { type, to: recipients, payload });
+  const recipients = normalizeRecipients(to);
+  if (!supabase) {
+    const error = new Error("Supabase client is not configured.");
+    console.error("EMAIL ERROR", error);
+    return { ok: false, error };
+  }
+
+  if (recipients.length === 0) {
+    console.warn("EMAIL SKIP", { type, to, reason: "No valid email recipient." });
+    return { ok: false, skipped: true };
+  }
 
   try {
     const { data, error } = await supabase.functions.invoke("send-email", {
@@ -33,12 +46,19 @@ export async function sendAutoEmail(type, to, payload = {}) {
       },
     });
 
-    console.log("email result", { data, error });
+    console.log("EMAIL RESULT", {
+      data,
+      error,
+    });
 
-    if (error) throw error;
+    if (error) {
+      console.error("EMAIL INVOKE ERROR", error);
+      throw error;
+    }
+
     return { ok: true, data };
   } catch (error) {
-    console.error("자동 메일 발송 실패:", { type, to, error });
+    console.error("EMAIL ERROR", error);
     return { ok: false, error };
   }
 }

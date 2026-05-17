@@ -56,6 +56,12 @@
   font-size: 13px;
 }
 
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .admin-kicker {
   margin: 0 0 5px;
   font-size: 11px;
@@ -65,6 +71,7 @@
 }
 
 .admin-refresh,
+.admin-email-test,
 .admin-save,
 .admin-assign-row button {
   padding: 7px 11px;
@@ -72,6 +79,13 @@
   background: #4f46e5;
   color: #ffffff;
   white-space: nowrap;
+}
+
+.admin-email-test {
+  border: 1px dashed #9ca3af;
+  background: #ffffff;
+  color: #374151;
+  font-size: 12px;
 }
 
 .admin-metrics {

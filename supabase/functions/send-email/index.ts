@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 const subjects = {
-  test: "[ON-LI] 자동 메일 테스트",
+  test: "[ON-LI] 메일 테스트",
   interpreter_registered_user: "[ON-LI] 통역사 등록이 접수되었습니다",
   interpreter_registered_admin: "[ON-LI 관리자 알림] 신규 통역사 등록",
   job_applied_user: "[ON-LI] 통역 공고 지원이 접수되었습니다",
@@ -105,8 +105,8 @@ function buildHtml(type: EmailType, payload: Payload) {
       return layout(
         "자동 메일 테스트",
         `
-          <p>${field(payload, "name", "ON-LI 테스트")} 메일입니다.</p>
-          <p>Supabase Edge Function과 Resend 연동 상태를 확인하기 위한 테스트 발송입니다.</p>
+          <p>${field(payload, "name", "ON-LI TEST")}</p>
+          <p>메일 시스템 정상 동작 테스트입니다.</p>
         `
       );
     case "interpreter_registered_user":
@@ -131,12 +131,15 @@ function buildHtml(type: EmailType, payload: Payload) {
           <p>ON-LI에 신규 통역사 등록이 접수되었습니다. 관리자 페이지에서 상세 정보를 확인해주세요.</p>
           ${infoTable([
             ["이름", field(payload, "name")],
+            ["성별", field(payload, "gender")],
+            ["나이", field(payload, "age")],
             ["이메일", field(payload, "email")],
             ["연락처", field(payload, "phone")],
-            ["거주 지역", field(payload, "region")],
+            ["활동 가능 지역", fieldFrom(payload, ["availableRegions", "regions", "region"])],
             ["JLPT", field(payload, "jlpt")],
-            ["통역 경험", field(payload, "hasExperience")],
+            ["통역 경험", fieldFrom(payload, ["experience", "hasExperience"])],
             ["전문 분야", field(payload, "specialties")],
+            ["등록 시각", field(payload, "createdAt")],
           ])}
         `
       );
@@ -277,6 +280,8 @@ function buildHtml(type: EmailType, payload: Payload) {
 }
 
 Deno.serve(async (request) => {
+  console.log("FUNCTION START");
+
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -286,11 +291,6 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      return jsonResponse({ error: "RESEND_API_KEY is not configured" }, 500);
-    }
-
     const body = await request.json().catch(() => ({}));
     const type = body?.type as EmailType;
     const to =
@@ -305,16 +305,26 @@ Deno.serve(async (request) => {
     const payload = body?.payload && typeof body.payload === "object"
       ? (body.payload as Payload)
       : {};
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
-    console.log("Received email request:", { type, to, payload });
-    console.log("Resend API Key exists:", !!resendApiKey);
+    console.log("REQUEST BODY", {
+      type,
+      to,
+      payload,
+    });
+    console.log("HAS API KEY", !!resendApiKey);
+
+    if (!resendApiKey) {
+      return jsonResponse({ error: "RESEND_API_KEY is not configured" }, 500);
+    }
 
     if (!type || !(type in subjects)) {
       return jsonResponse({ error: "Invalid email type" }, 400);
     }
 
     if (!to || (Array.isArray(to) && to.length === 0)) {
-      return jsonResponse({ error: "Recipient email is required" }, 400);
+      console.warn("EMAIL SKIP", { type, reason: "Recipient email is empty." });
+      return jsonResponse({ skipped: true, reason: "Recipient email is empty." });
     }
 
     const resendResponse = await fetch(RESEND_API_URL, {
@@ -332,11 +342,12 @@ Deno.serve(async (request) => {
     });
 
     const resendBody = await resendResponse.json().catch(() => ({}));
-    console.log("Resend result:", {
+    const result = {
       ok: resendResponse.ok,
       status: resendResponse.status,
       body: resendBody,
-    });
+    };
+    console.log("RESEND RESULT", result);
 
     if (!resendResponse.ok) {
       return jsonResponse(
@@ -347,7 +358,7 @@ Deno.serve(async (request) => {
 
     return jsonResponse({ id: resendBody?.id });
   } catch (error) {
-    console.error("Email send error:", error);
+    console.error("FUNCTION ERROR", error);
     return jsonResponse(
       { error: error instanceof Error ? error.message : "Unknown error" },
       500
