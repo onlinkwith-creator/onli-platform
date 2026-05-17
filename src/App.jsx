@@ -8,7 +8,6 @@ import RequestForm from "./pages/RequestForm";
 import Admin from "./pages/Admin";
 import JobList from "./pages/JobList";
 import JobDetail from "./pages/JobDetail";
-import JobApply from "./pages/JobApply";
 import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
 import { supabase } from "./supabase";
 import { PUBLIC_INTERPRETER_SELECT } from "./utils/publicInterpreter";
@@ -28,7 +27,14 @@ function getInitialPage() {
   if (path === "/request") return "jobCreate";
   if (path === "/jobs") return "jobs";
   if (path === "/jobs/create") return "jobCreate";
-  if (path.startsWith("/jobs/") && path.endsWith("/apply")) return "jobApply";
+  if (path.startsWith("/jobs/") && path.endsWith("/apply")) {
+    // /jobs/:id/apply를 /jobs/:id#apply로 리다이렉트
+    const jobId = path.split("/")[2];
+    if (jobId) {
+      window.history.replaceState({}, "", `/jobs/${jobId}#apply`);
+    }
+    return "jobDetail";
+  }
   if (path.startsWith("/jobs/")) return "jobDetail";
   if (path === "/interpreters") return "list";
   if (path.startsWith("/interpreters/") && path.endsWith("/request")) {
@@ -63,7 +69,6 @@ function getPath(page, interpreter, jobId, policyKey) {
   if (page === "admin") return "/admin";
   if (page === "jobs") return "/jobs";
   if (page === "jobCreate") return "/request";
-  if (page === "jobApply" && jobId) return `/jobs/${jobId}/apply`;
   if (page === "jobDetail" && jobId) return `/jobs/${jobId}`;
   if (page === "list") return "/interpreters";
   if (page === "detail" && interpreter?.id) {
@@ -156,7 +161,15 @@ function App() {
           onInterpreterClick={(person) => navigate("detail", person)}
           onJobsClick={() => navigate("jobs", null, null)}
           onJobDetailClick={(job) => navigate("jobDetail", null, job.id)}
-          onJobApplyClick={(job) => navigate("jobApply", null, job.id)}
+          onJobApplyClick={(job) => {
+            navigate("jobDetail", null, job.id);
+            setTimeout(() => {
+              const applySection = document.getElementById("apply");
+              if (applySection) {
+                applySection.scrollIntoView({ behavior: "smooth" });
+              }
+            }, 0);
+          }}
           onRequestClick={() => navigate("jobCreate", null, null)}
         />
       )}
@@ -188,7 +201,15 @@ function App() {
         <JobList
           onBackClick={() => navigate("home", null, null)}
           onDetailClick={(job) => navigate("jobDetail", null, job.id)}
-          onApplyClick={(job) => navigate("jobApply", null, job.id)}
+          onApplyClick={(job) => {
+            navigate("jobDetail", null, job.id);
+            setTimeout(() => {
+              const applySection = document.getElementById("apply");
+              if (applySection) {
+                applySection.scrollIntoView({ behavior: "smooth" });
+              }
+            }, 0);
+          }}
         />
       )}
 
@@ -204,16 +225,6 @@ function App() {
         <JobDetail
           jobId={selectedJobId}
           onBackClick={() => navigate("jobs", null, null)}
-          onApplyClick={(job) => navigate("jobApply", null, job.id)}
-        />
-      )}
-
-      {page === "jobApply" && (
-        <JobApply
-          jobId={selectedJobId}
-          onBackClick={() => navigate("jobs", null, null)}
-          onSubmitSuccess={() => navigate("jobs", null, null)}
-          onHomeClick={() => navigate("home", null, null)}
         />
       )}
 

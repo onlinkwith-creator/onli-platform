@@ -12,15 +12,18 @@ import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import "./Jobs.css";
 
 const initialForm = {
-  applicantName: "",
-  applicantPhone: "",
-  applicantEmail: "",
+  name: "",
+  phone: "",
+  email: "",
+  gender: "",
+  japaneseLevel: "",
+  experience: "",
   message: "",
 };
 
 // TODO: 실서비스 전에는 Supabase Auth 기반으로 통역사 본인 계정만 지원 가능하게 해야 함.
 
-function JobDetail({ jobId, onBackClick, onApplyClick }) {
+function JobDetail({ jobId, onBackClick }) {
   const [job, setJob] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [agreements, setAgreements] = useState(initialTermsAgreement);
@@ -109,25 +112,33 @@ function JobDetail({ jobId, onBackClick, onApplyClick }) {
       return;
     }
 
+    const application = {
+      job_id: job.id,
+      applicant_name: form.name,
+      phone: form.phone,
+      email: form.email,
+      message: [
+        form.message,
+        form.gender ? `성별: ${form.gender}` : "",
+        form.japaneseLevel ? `일본어 수준: ${form.japaneseLevel}` : "",
+        form.experience ? `통역 경험: ${form.experience}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      status: "지원완료",
+      agreed_terms: true,
+      agreed_policy: true,
+      agreed_at: new Date().toISOString(),
+    };
+
     try {
-      const { error } = await supabase.from("job_applications").insert([
-        {
-          job_id: job.id,
-          applicant_name: form.applicantName,
-          phone: form.applicantPhone,
-          email: form.applicantEmail,
-          message: form.message,
-          status: "지원완료",
-          agreed_terms: true,
-          agreed_policy: true,
-          agreed_at: new Date().toISOString(),
-        },
-      ]);
+      const { error } = await supabase.from("job_applications").insert([application]);
 
       if (error) {
         if (isAgreementColumnError(error)) {
           console.error("약관 동의 저장 실패:", error);
         }
+        console.error("지원 실패:", error);
         throw error;
       }
 
@@ -229,13 +240,6 @@ function JobDetail({ jobId, onBackClick, onApplyClick }) {
                 <p className="jobs-kicker">ON-LI MATCHING</p>
                 <h2>{canApplyToJob(job) ? "지원 가능한 공고입니다" : getJobStatusLabel(job)}</h2>
                 <p>레벨에 따라 프로젝트와 활동 조건이 달라지며, 지원 내용은 ON-LI 운영팀 검토 후 매칭에 반영됩니다.</p>
-                <button
-                  type="button"
-                  onClick={() => onApplyClick?.(job)}
-                  disabled={!canApplyToJob(job)}
-                >
-                  {canApplyToJob(job) ? "지원 페이지로 이동" : getJobStatusLabel(job)}
-                </button>
               </div>
               {submitted ? (
                 <div className="jobs-success-inline">
@@ -247,13 +251,13 @@ function JobDetail({ jobId, onBackClick, onApplyClick }) {
                 </div>
               ) : (
                 <>
-                  <h2>{canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}</h2>
+                  <h2 id="apply">{canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}</h2>
                   <form onSubmit={handleSubmit}>
                     <label>
                       <span>이름</span>
                       <input
-                        name="applicantName"
-                        value={form.applicantName}
+                        name="name"
+                        value={form.name}
                         onChange={handleChange}
                         required
                       />
@@ -261,23 +265,63 @@ function JobDetail({ jobId, onBackClick, onApplyClick }) {
                     <label>
                       <span>연락처</span>
                       <input
-                        name="applicantPhone"
-                        value={form.applicantPhone}
+                        name="phone"
+                        value={form.phone}
                         onChange={handleChange}
                         required
                       />
                     </label>
                     <label>
-                      <span>이메일(optional)</span>
+                      <span>이메일</span>
                       <input
-                        name="applicantEmail"
+                        name="email"
                         type="email"
-                        value={form.applicantEmail}
+                        value={form.email}
                         onChange={handleChange}
+                        required
                       />
                     </label>
                     <label>
-                      <span>지원 메시지</span>
+                      <span>성별</span>
+                      <select
+                        name="gender"
+                        value={form.gender}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">선택해주세요</option>
+                        <option value="여성">여성</option>
+                        <option value="남성">남성</option>
+                        <option value="기타/응답 안 함">기타/응답 안 함</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>일본어 수준</span>
+                      <select
+                        name="japaneseLevel"
+                        value={form.japaneseLevel}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">선택해주세요</option>
+                        <option value="LV1">LV1</option>
+                        <option value="LV2">LV2</option>
+                        <option value="LV3">LV3</option>
+                        <option value="LV4">LV4</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>통역 경험</span>
+                      <textarea
+                        name="experience"
+                        value={form.experience}
+                        onChange={handleChange}
+                        rows={4}
+                        required
+                      />
+                    </label>
+                    <label>
+                      <span>지원 메모</span>
                       <textarea
                         name="message"
                         value={form.message}
@@ -312,7 +356,7 @@ function JobDetail({ jobId, onBackClick, onApplyClick }) {
                           ? "지원 중..."
                           : "지원하기"
                         : getJobStatusLabel(job)}
-                </button>
+                    </button>
                   </form>
                 </>
               )}
