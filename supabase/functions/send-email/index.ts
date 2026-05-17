@@ -14,6 +14,13 @@ const subjects = {
   job_applied_user: "[ON-LI] 통역 공고 지원이 접수되었습니다",
   job_applied_admin: "[ON-LI 관리자 알림] 신규 공고 지원",
   matching_confirmed_user: "[ON-LI] 통역 배정이 확정되었습니다",
+  company_request_received_user: "[ON-LI] 통역 의뢰가 접수되었습니다",
+  company_request_received_admin: "[ON-LI 관리자 알림] 신규 기업 의뢰",
+  company_request_under_review: "[ON-LI] 통역 의뢰 검토가 진행 중입니다",
+  company_matching_confirmed: "[ON-LI] 통역사 배정이 완료되었습니다",
+  interpreter_approved: "[ON-LI] 통역사 등록이 승인되었습니다",
+  interpreter_matching_confirmed: "[ON-LI] 통역 배정이 확정되었습니다",
+  interpreter_schedule_reminder: "[ON-LI] 통역 일정 안내드립니다",
 } as const;
 
 type EmailType = keyof typeof subjects;
@@ -43,6 +50,14 @@ function field(payload: Payload, key: string, fallback = "-") {
   return value === undefined || value === null || value === ""
     ? fallback
     : escapeHtml(value);
+}
+
+function fieldFrom(payload: Payload, keys: string[], fallback = "-") {
+  const key = keys.find((item) => {
+    const value = payload[item];
+    return value !== undefined && value !== null && value !== "";
+  });
+  return key ? field(payload, key, fallback) : fallback;
 }
 
 function layout(title: string, body: string) {
@@ -147,11 +162,100 @@ function buildHtml(type: EmailType, payload: Payload) {
         `
       );
     case "matching_confirmed_user":
+    case "interpreter_matching_confirmed":
       return layout(
         "통역 배정이 확정되었습니다",
         `
           <p>${field(payload, "name", "통역사")}님, ON-LI 통역 배정이 확정되었습니다.</p>
           <p>세부 진행 내용은 운영팀 안내에 따라 확인해주세요.</p>
+          ${infoTable([
+            ["의뢰/공고명", field(payload, "jobTitle")],
+            ["기업명", field(payload, "companyName")],
+            ["일정", field(payload, "date")],
+            ["장소", field(payload, "location")],
+          ])}
+        `
+      );
+    case "interpreter_approved":
+      return layout(
+        "통역사 등록이 승인되었습니다",
+        `
+          <p>${field(payload, "name", "통역사")}님, ON-LI 통역사 등록 검토가 완료되어 승인되었습니다.</p>
+          <p>앞으로 적합한 통역 공고와 매칭 건이 있을 때 ON-LI 운영팀에서 안내드리겠습니다.</p>
+          ${infoTable([
+            ["이름", field(payload, "name")],
+            ["이메일", field(payload, "email")],
+            ["활동 지역", field(payload, "availableRegions")],
+            ["전문 분야", field(payload, "specialties")],
+          ])}
+        `
+      );
+    case "company_request_received_user":
+      return layout(
+        "통역 의뢰가 접수되었습니다",
+        `
+          <p>${field(payload, "contactName", "담당자")}님, ON-LI 통역 의뢰가 정상 접수되었습니다.</p>
+          <p>운영팀이 의뢰 내용을 확인한 뒤 적합한 진행 방향을 안내드리겠습니다.</p>
+          ${infoTable([
+            ["회사명", field(payload, "companyName")],
+            ["행사명", field(payload, "eventName")],
+            ["일정", field(payload, "date")],
+            ["장소", field(payload, "location")],
+            ["요청 인원", field(payload, "requestedPeopleCount")],
+            ["희망 레벨", field(payload, "requestedLevel")],
+          ])}
+        `
+      );
+    case "company_request_received_admin":
+      return layout(
+        "신규 기업 의뢰 알림",
+        `
+          <p>ON-LI에 신규 기업 의뢰가 접수되었습니다. 관리자 페이지에서 의뢰 정보를 확인해주세요.</p>
+          ${infoTable([
+            ["회사명", field(payload, "companyName")],
+            ["담당자", field(payload, "contactName")],
+            ["담당자 연락처", fieldFrom(payload, ["contactEmail", "email", "contact"])],
+            ["행사명", field(payload, "eventName")],
+            ["일정", field(payload, "date")],
+            ["장소", field(payload, "location")],
+            ["요청 인원", field(payload, "requestedPeopleCount")],
+          ])}
+        `
+      );
+    case "company_request_under_review":
+      return layout(
+        "통역 의뢰 검토가 진행 중입니다",
+        `
+          <p>${field(payload, "contactName", "담당자")}님, 접수해주신 통역 의뢰를 ON-LI 운영팀이 검토 중입니다.</p>
+          <p>일정, 요청 인원, 통역 분야를 확인한 뒤 다음 절차를 안내드리겠습니다.</p>
+          ${infoTable([
+            ["회사명", field(payload, "companyName")],
+            ["행사명", field(payload, "eventName")],
+            ["일정", field(payload, "date")],
+          ])}
+        `
+      );
+    case "company_matching_confirmed":
+      return layout(
+        "통역사 배정이 완료되었습니다",
+        `
+          <p>${field(payload, "contactName", "담당자")}님, 요청하신 통역 의뢰의 통역사 배정이 완료되었습니다.</p>
+          <p>세부 진행 사항은 ON-LI 운영팀 안내에 따라 확인해주세요.</p>
+          ${infoTable([
+            ["회사명", field(payload, "companyName")],
+            ["행사명", fieldFrom(payload, ["eventName", "jobTitle"])],
+            ["배정 통역사", field(payload, "interpreterName")],
+            ["일정", field(payload, "date")],
+            ["장소", field(payload, "location")],
+          ])}
+        `
+      );
+    case "interpreter_schedule_reminder":
+      return layout(
+        "통역 일정 안내드립니다",
+        `
+          <p>${field(payload, "name", "통역사")}님, 배정된 통역 일정 안내드립니다.</p>
+          <p>현장 정보와 집합 시간은 운영팀의 최종 안내를 기준으로 확인해주세요.</p>
           ${infoTable([
             ["의뢰/공고명", field(payload, "jobTitle")],
             ["기업명", field(payload, "companyName")],
@@ -180,7 +284,15 @@ Deno.serve(async (request) => {
 
     const body = await request.json().catch(() => ({}));
     const type = body?.type as EmailType;
-    const to = typeof body?.to === "string" ? body.to.trim() : "";
+    const to =
+      typeof body?.to === "string"
+        ? body.to.trim()
+        : Array.isArray(body?.to)
+          ? body.to
+              .filter((recipient: unknown) => typeof recipient === "string")
+              .map((recipient: unknown) => String(recipient).trim())
+              .filter(Boolean)
+          : "";
     const payload = body?.payload && typeof body.payload === "object"
       ? (body.payload as Payload)
       : {};
@@ -189,7 +301,7 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: "Invalid email type" }, 400);
     }
 
-    if (!to) {
+    if (!to || (Array.isArray(to) && to.length === 0)) {
       return jsonResponse({ error: "Recipient email is required" }, 400);
     }
 

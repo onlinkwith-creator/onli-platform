@@ -6,7 +6,7 @@ import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/da
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
 import { normalizeLevel } from "../utils/levelBadge";
-import { sendAutoEmail } from "../lib/email";
+import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
@@ -468,12 +468,28 @@ function Admin() {
       return;
     }
 
+    const interpreter = interpreters.find((item) => item.id === id);
+    const isNewApproval =
+      changes.approved === true &&
+      changes.status === "active" &&
+      interpreter &&
+      !interpreter.approved;
+
     setInterpreters((current) =>
       current.map((item) => (item.id === id ? { ...item, ...changes } : item))
     );
     setSelectedInterpreter((current) =>
       current?.id === id ? { ...current, ...changes } : current
     );
+
+    if (isNewApproval) {
+      void sendAutoEmail("interpreter_approved", interpreter.email, {
+        name: interpreter.name,
+        email: interpreter.email,
+        availableRegions: formatListOrMissing(interpreter.available_regions),
+        specialties: formatListOrMissing(interpreter.specialties),
+      });
+    }
   };
 
   const deleteInterpreter = async (id) => {
@@ -606,6 +622,30 @@ function Admin() {
     setSelectedRequest((current) =>
       current?.id === id ? { ...current, ...payload, ...(data || {}) } : current
     );
+
+    const shouldSendUnderReviewEmail =
+      changes.contact_status === "contacted" &&
+      request?.contact_status !== "contacted";
+    const companyEmail = getEmailRecipient(
+      request?.company_email,
+      request?.contact_email,
+      request?.email,
+      request?.contact_email_or_phone
+    );
+
+    if (shouldSendUnderReviewEmail) {
+      void sendAutoEmail("company_request_under_review", companyEmail, {
+        companyName: request?.company_name || "",
+        contactName: request?.contact_name || request?.manager_name || "",
+        eventName: request?.event_name || "",
+        date: formatDateRange(
+          request?.start_date,
+          request?.end_date,
+          request?.event_date
+        ),
+        location: request?.event_location || "",
+      });
+    }
   };
 
   const toggleRequestJobPublic = async (request, shouldBePublic) => {
@@ -1125,27 +1165,48 @@ function Admin() {
     setAssignmentDrafts((current) => ({ ...current, [requestId]: "" }));
     await updateMatchingApplicationStatus(request, interpreter, "매칭완료");
 
-    if (interpreter?.email) {
-      void sendAutoEmail("matching_confirmed_user", interpreter.email, {
-        name: interpreter.name,
-        jobTitle:
-          selectedJob?.title ||
-          request?.event_name ||
-          request?.company_name ||
-          "ON-LI 통역 의뢰",
-        companyName: selectedJob?.company_name || request?.company_name || "",
-        date: formatDateRange(
-          request?.start_date || selectedJob?.start_date,
-          request?.end_date || selectedJob?.end_date,
-          request?.event_date || selectedJob?.event_date || selectedJob?.date
-        ),
-        location:
-          request?.event_location ||
-          selectedJob?.event_location ||
-          selectedJob?.location ||
-          "",
-      });
-    }
+    const matchingEmailPayload = {
+      name: interpreter?.name || "",
+      interpreterName: interpreter?.name || "",
+      jobTitle:
+        selectedJob?.title ||
+        request?.event_name ||
+        request?.company_name ||
+        "ON-LI 통역 의뢰",
+      eventName: request?.event_name || selectedJob?.event_name || selectedJob?.title || "",
+      companyName: selectedJob?.company_name || request?.company_name || "",
+      contactName: request?.contact_name || request?.manager_name || "",
+      date: formatDateRange(
+        request?.start_date || selectedJob?.start_date,
+        request?.end_date || selectedJob?.end_date,
+        request?.event_date || selectedJob?.event_date || selectedJob?.date
+      ),
+      location:
+        request?.event_location ||
+        selectedJob?.event_location ||
+        selectedJob?.location ||
+        "",
+    };
+    const companyEmail = getEmailRecipient(
+      request?.company_email,
+      request?.contact_email,
+      request?.email,
+      request?.contact_email_or_phone
+    );
+
+    void Promise.all([
+      sendAutoEmail(
+        "interpreter_matching_confirmed",
+        interpreter?.email,
+        matchingEmailPayload
+      ),
+      sendAutoEmail(
+        "company_matching_confirmed",
+        companyEmail,
+        matchingEmailPayload
+      ),
+      sendAdminAutoEmail("company_matching_confirmed", matchingEmailPayload),
+    ]);
 
     if (successAlert) alert("통역사 매칭이 완료되었습니다.");
     return true;

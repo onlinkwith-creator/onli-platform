@@ -6,12 +6,29 @@ export const ADMIN_EMAILS = [
   "Onlinkcp@gmail.com",
 ];
 
+function normalizeRecipients(to) {
+  const recipients = Array.isArray(to) ? to : [to];
+  return recipients
+    .filter((recipient) => typeof recipient === "string")
+    .map((recipient) => recipient.trim())
+    .filter((recipient) => recipient.includes("@"));
+}
+
+export function getEmailRecipient(...values) {
+  return normalizeRecipients(values).at(0) || "";
+}
+
 export async function sendAutoEmail(type, to, payload = {}) {
-  if (!supabase || !to) return { ok: false };
+  const recipients = normalizeRecipients(to);
+  if (!supabase || recipients.length === 0) return { ok: false };
 
   try {
     const { data, error } = await supabase.functions.invoke("send-email", {
-      body: { type, to, payload },
+      body: {
+        type,
+        to: Array.isArray(to) ? recipients : recipients[0],
+        payload,
+      },
     });
 
     if (error) throw error;

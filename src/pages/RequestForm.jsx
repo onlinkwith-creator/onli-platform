@@ -4,6 +4,7 @@ import TermsAgreement, {
   initialTermsAgreement,
 } from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
+import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import {
   calculateEstimatedPrice,
   calculateInterpreterPay,
@@ -168,6 +169,31 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       alert("제출에 실패했습니다.");
       return;
     }
+
+    const companyEmail = getEmailRecipient(
+      requestPayload.email,
+      requestPayload.contact_email_or_phone
+    );
+    const emailPayload = {
+      companyName: requestPayload.company_name,
+      contactName: requestPayload.contact_name,
+      contactEmail: companyEmail || requestPayload.contact_email_or_phone,
+      contact: requestPayload.contact_email_or_phone,
+      eventName: requestPayload.event_name,
+      date:
+        requestPayload.start_date === requestPayload.end_date
+          ? requestPayload.start_date
+          : `${requestPayload.start_date} ~ ${requestPayload.end_date}`,
+      location: requestPayload.event_location,
+      requestedLevel: requestPayload.requested_level,
+      requestedPeopleCount: requestPayload.requested_people_count,
+      interpretationField: requestPayload.interpretation_field,
+    };
+
+    void Promise.all([
+      sendAutoEmail("company_request_received_user", companyEmail, emailPayload),
+      sendAdminAutoEmail("company_request_received_admin", emailPayload),
+    ]);
 
     alert("의뢰 문의가 접수되었습니다.");
     setForm(initialForm);
