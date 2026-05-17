@@ -7,6 +7,7 @@ import { supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
+import { sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import "./Jobs.css";
 
 const initialForm = {
@@ -138,6 +139,22 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
         console.error("지원 실패:", error);
         throw error;
       }
+
+      const emailPayload = {
+        name: form.name,
+        jobTitle: job.title || "공고 제목 미입력",
+        date: formatDateRange(job.start_date, job.end_date, job.event_date || job.date),
+        email: form.email,
+        phone: form.phone,
+        levelOrExperience: [form.japaneseLevel, form.experience]
+          .filter(Boolean)
+          .join(" / "),
+      };
+
+      void Promise.all([
+        sendAutoEmail("job_applied_user", form.email, emailPayload),
+        sendAdminAutoEmail("job_applied_admin", emailPayload),
+      ]);
 
       setSubmitted(true);
       setForm(initialForm);

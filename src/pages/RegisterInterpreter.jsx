@@ -4,6 +4,7 @@ import TermsAgreement, {
   initialTermsAgreement,
 } from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
+import { sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import "./RegisterInterpreter.css";
 
 const specialtyOptions = [
@@ -164,6 +165,22 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       alert("제출에 실패했습니다.");
       return;
     }
+
+    const emailPayload = {
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      region: form.region,
+      jlpt: form.jlpt,
+      hasExperience: form.has_experience ? "통역 경험 있음" : "통역 경험 없음",
+      specialties: form.specialties.join(", "),
+      availableRegions: form.availableRegions.join(", "),
+    };
+
+    void Promise.all([
+      sendAutoEmail("interpreter_registered_user", form.email, emailPayload),
+      sendAdminAutoEmail("interpreter_registered_admin", emailPayload),
+    ]);
 
     setAgreements(initialTermsAgreement);
     setSuccessMessage("등록이 완료되었습니다. 메인 페이지로 이동합니다.");

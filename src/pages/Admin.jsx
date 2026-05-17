@@ -6,6 +6,7 @@ import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/da
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
 import { normalizeLevel } from "../utils/levelBadge";
+import { sendAutoEmail } from "../lib/email";
 import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
@@ -1123,6 +1124,29 @@ function Admin() {
     );
     setAssignmentDrafts((current) => ({ ...current, [requestId]: "" }));
     await updateMatchingApplicationStatus(request, interpreter, "매칭완료");
+
+    if (interpreter?.email) {
+      void sendAutoEmail("matching_confirmed_user", interpreter.email, {
+        name: interpreter.name,
+        jobTitle:
+          selectedJob?.title ||
+          request?.event_name ||
+          request?.company_name ||
+          "ON-LI 통역 의뢰",
+        companyName: selectedJob?.company_name || request?.company_name || "",
+        date: formatDateRange(
+          request?.start_date || selectedJob?.start_date,
+          request?.end_date || selectedJob?.end_date,
+          request?.event_date || selectedJob?.event_date || selectedJob?.date
+        ),
+        location:
+          request?.event_location ||
+          selectedJob?.event_location ||
+          selectedJob?.location ||
+          "",
+      });
+    }
+
     if (successAlert) alert("통역사 매칭이 완료되었습니다.");
     return true;
   };
