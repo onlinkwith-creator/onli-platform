@@ -9,6 +9,7 @@ const corsHeaders = {
 };
 
 const subjects = {
+  test: "[ON-LI] 자동 메일 테스트",
   interpreter_registered_user: "[ON-LI] 통역사 등록이 접수되었습니다",
   interpreter_registered_admin: "[ON-LI 관리자 알림] 신규 통역사 등록",
   job_applied_user: "[ON-LI] 통역 공고 지원이 접수되었습니다",
@@ -100,6 +101,14 @@ function infoTable(rows: Array<[string, string]>) {
 
 function buildHtml(type: EmailType, payload: Payload) {
   switch (type) {
+    case "test":
+      return layout(
+        "자동 메일 테스트",
+        `
+          <p>${field(payload, "name", "ON-LI 테스트")} 메일입니다.</p>
+          <p>Supabase Edge Function과 Resend 연동 상태를 확인하기 위한 테스트 발송입니다.</p>
+        `
+      );
     case "interpreter_registered_user":
       return layout(
         "통역사 등록이 접수되었습니다",
@@ -297,6 +306,9 @@ Deno.serve(async (request) => {
       ? (body.payload as Payload)
       : {};
 
+    console.log("Received email request:", { type, to, payload });
+    console.log("Resend API Key exists:", !!resendApiKey);
+
     if (!type || !(type in subjects)) {
       return jsonResponse({ error: "Invalid email type" }, 400);
     }
@@ -320,6 +332,12 @@ Deno.serve(async (request) => {
     });
 
     const resendBody = await resendResponse.json().catch(() => ({}));
+    console.log("Resend result:", {
+      ok: resendResponse.ok,
+      status: resendResponse.status,
+      body: resendBody,
+    });
+
     if (!resendResponse.ok) {
       return jsonResponse(
         { error: resendBody?.message || "Failed to send email" },
@@ -329,6 +347,7 @@ Deno.serve(async (request) => {
 
     return jsonResponse({ id: resendBody?.id });
   } catch (error) {
+    console.error("Email send error:", error);
     return jsonResponse(
       { error: error instanceof Error ? error.message : "Unknown error" },
       500

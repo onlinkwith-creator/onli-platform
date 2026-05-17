@@ -22,6 +22,8 @@ export async function sendAutoEmail(type, to, payload = {}) {
   const recipients = normalizeRecipients(to);
   if (!supabase || recipients.length === 0) return { ok: false };
 
+  console.log("sendAutoEmail called", { type, to: recipients, payload });
+
   try {
     const { data, error } = await supabase.functions.invoke("send-email", {
       body: {
@@ -30,6 +32,8 @@ export async function sendAutoEmail(type, to, payload = {}) {
         payload,
       },
     });
+
+    console.log("email result", { data, error });
 
     if (error) throw error;
     return { ok: true, data };

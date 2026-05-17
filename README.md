@@ -28,8 +28,10 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxxx
 Deploy the Edge Function:
 
 ```bash
-supabase functions deploy send-email
+supabase functions deploy send-email --no-verify-jwt
 ```
+
+`send-email` is called from public registration/request/application flows. The current Vercel key is a Supabase publishable key, not a JWT-format anon key, so the function is deployed with JWT verification disabled. This is also captured in `supabase/config.toml`.
 
 Local test example:
 
