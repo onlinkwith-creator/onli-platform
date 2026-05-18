@@ -1,10 +1,12 @@
 import { isJobFullyAssigned } from "./jobRecruitment";
+import {
+  JOB_STATUS,
+  JOB_STATUS_OPTIONS,
+  getJobStatusLabel as getStandardJobStatusLabel,
+  normalizeJobStatus as normalizeStandardJobStatus,
+} from "./status";
 
-export const JOB_STATUS_OPTIONS = [
-  { value: "open", label: "모집중" },
-  { value: "closed", label: "모집마감" },
-  { value: "assigned", label: "배정완료" },
-];
+export { JOB_STATUS, JOB_STATUS_OPTIONS };
 
 export const JOB_VISIBILITY_OPTIONS = [
   { value: "public", label: "공개" },
@@ -12,18 +14,12 @@ export const JOB_VISIBILITY_OPTIONS = [
 ];
 
 export function normalizeJobStatus(job = {}) {
-  if (isJobFullyAssigned(job)) return "assigned";
-  if (job.status === "마감" || job.status === "모집마감" || job.status === "closed") {
-    return "closed";
-  }
-  if (job.status === "마감임박" || job.status === "closing_soon") return "open";
-  if (job.status === "배정완료" || job.status === "assigned") return "assigned";
-  return "open";
+  if (isJobFullyAssigned(job)) return JOB_STATUS.ASSIGNED;
+  return normalizeStandardJobStatus(job.status);
 }
 
 export function getJobStatusLabel(job = {}) {
-  const status = normalizeJobStatus(job);
-  return JOB_STATUS_OPTIONS.find((option) => option.value === status)?.label || "모집중";
+  return getStandardJobStatusLabel(normalizeJobStatus(job));
 }
 
 export function normalizeJobVisibility(job = {}) {
@@ -46,9 +42,12 @@ export function getJobVisibilityLabel(job = {}) {
 }
 
 export function isPublicJob(job = {}) {
-  return normalizeJobVisibility(job) === "public";
+  return (
+    normalizeJobVisibility(job) === "public" &&
+    normalizeStandardJobStatus(job.status) === JOB_STATUS.OPEN
+  );
 }
 
 export function canApplyToJob(job = {}) {
-  return isPublicJob(job) && normalizeJobStatus(job) === "open";
+  return isPublicJob(job) && normalizeJobStatus(job) === JOB_STATUS.OPEN;
 }

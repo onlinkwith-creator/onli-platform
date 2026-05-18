@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import {
   JOB_STATUS_OPTIONS,
   JOB_VISIBILITY_OPTIONS,
+  JOB_STATUS,
   getJobStatusLabel,
   getJobVisibilityLabel,
   normalizeJobStatus,
   normalizeJobVisibility,
 } from "../utils/jobStatus";
+import {
+  APPLICATION_STATUS,
+  getApplicationStatusLabel,
+  getStatusBadgeClass as getStandardStatusBadgeClass,
+  normalizeApplicationStatus,
+} from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications } from "../utils/jobsApi";
 import {
@@ -28,21 +35,13 @@ const emptyForm = {
   preference: "",
   people: "",
   visibility: "public",
-  status: "open",
+  status: JOB_STATUS.OPEN,
   is_urgent: false,
 };
 
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
-
-const APPLICATION_STATUS_LABELS = {
-  지원완료: "지원완료",
-  검토중: "검토중",
-  매칭완료: "매칭완료",
-  보류: "보류",
-  불합격: "불합격",
-};
 
 function AdminJobs({
   onBackClick,
@@ -283,7 +282,7 @@ function AdminJobs({
     const applicationCount = visibleApplications.filter(
       (application) =>
         String(application.job_id) === String(jobId) &&
-        application.status === "매칭완료"
+        normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED
     ).length;
 
     return Math.max(assignmentCount, applicationCount);
@@ -368,7 +367,7 @@ function AdminJobs({
 
         const { error: jobError } = await supabase
           .from("jobs")
-          .update({ status: "assigned", is_urgent: false })
+          .update({ status: JOB_STATUS.ASSIGNED, is_urgent: false })
           .eq("id", application.job_id);
 
         if (jobError) {
@@ -378,7 +377,7 @@ function AdminJobs({
           setJobs((current) =>
             current.map((job) =>
               String(job.id) === String(application.job_id)
-                ? { ...job, status: "assigned", is_urgent: false }
+                ? { ...job, status: JOB_STATUS.ASSIGNED, is_urgent: false }
                 : job
             )
           );
@@ -584,7 +583,7 @@ function JobManagementCard({
         <JobInfo label="장소" value={job.location || job.event_location || "-"} />
         <JobInfo label="언어" value={job.language || "-"} />
         <JobInfo label="지원자 수" value={`${jobApplications.length}명`} />
-        <JobInfo label="매칭완료" value={`${matchedCount}명`} />
+        <JobInfo label="합격" value={`${matchedCount}명`} />
       </dl>
 
       <div className="admin-card-chip-row">
@@ -723,6 +722,10 @@ function JobApplicantsModal({ applications, job, onClose, onStatusChange }) {
 
 function JobApplicationsPanel({ applications, job, onStatusChange }) {
   const [openApplicationId, setOpenApplicationId] = useState(null);
+  const duplicateApplicationIds = useMemo(
+    () => getDuplicateSuspectedApplicationIds(applications),
+    [applications]
+  );
   const toggleApplication = (applicationId) => {
     setOpenApplicationId((current) =>
       String(current) === String(applicationId) ? null : applicationId
@@ -736,10 +739,11 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
       ) : (
         <div className="admin-applicant-accordion-list">
           {applications.map((application) => {
-            const status = application.status || "지원완료";
+            const status = normalizeApplicationStatus(application.status);
             const language =
               application.language || application.japanese_level || job.language || "-";
             const expanded = String(openApplicationId) === String(application.id);
+            const duplicateSuspected = duplicateApplicationIds.has(application.id);
 
             return (
               <article key={application.id} className="admin-applicant-accordion-item">
@@ -750,6 +754,9 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                   onClick={() => toggleApplication(application.id)}
                 >
                   <StatusBadge status={status} />
+                  {duplicateSuspected && (
+                    <span className="status-badge badge-orange">중복 의심</span>
+                  )}
                   <span className="admin-applicant-summary-text">
                     <strong>{application.applicant_name || "이름 미입력"}</strong>
                     <span>{language}</span>
@@ -764,7 +771,12 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                   <div className="admin-applicant-detail">
                     <div className="admin-applicant-detail-head">
                       <strong>{application.applicant_name || "이름 미입력"}</strong>
-                      <StatusBadge status={status} />
+                      <div className="admin-card-chip-row">
+                        {duplicateSuspected && (
+                          <span className="status-badge badge-orange">중복 의심</span>
+                        )}
+                        <StatusBadge status={status} />
+                      </div>
                       <span>지원자</span>
                     </div>
 
@@ -790,14 +802,14 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                     </div>
 
                     <div className="admin-card-actions">
-                      {application.status === "매칭완료" ? (
+                      {normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED ? (
                         <>
-                          <StatusBadge status="매칭완료" />
+                          <StatusBadge status={APPLICATION_STATUS.ACCEPTED} />
                           <button
                             type="button"
                             className="admin-link-button warning"
                             onClick={() =>
-                              onStatusChange(application, "지원완료", {
+                              onStatusChange(application, APPLICATION_STATUS.PENDING, {
                                 confirmMessage: "이 지원자의 매칭을 취소하시겠습니까?",
                               })
                             }
@@ -810,8 +822,8 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                           type="button"
                           className="admin-link-button primary"
                           onClick={() =>
-                            onStatusChange(application, "매칭완료", {
-                              confirmMessage: "이 지원자를 해당 공고에 매칭하시겠습니까?",
+                            onStatusChange(application, APPLICATION_STATUS.ACCEPTED, {
+                              confirmMessage: "이 지원자를 합격 처리하시겠습니까?",
                               askAssignJob: true,
                             })
                           }
@@ -819,25 +831,25 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                           매칭하기
                         </button>
                       )}
-                      {application.status !== "보류" && (
+                      {normalizeApplicationStatus(application.status) !== APPLICATION_STATUS.REVIEWING && (
                         <button
                           type="button"
                           className="admin-link-button warning"
                           onClick={() =>
-                            onStatusChange(application, "보류", {
-                              confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
+                            onStatusChange(application, APPLICATION_STATUS.REVIEWING, {
+                              confirmMessage: "이 지원자를 검토중 상태로 변경하시겠습니까?",
                             })
                           }
                         >
-                          보류
+                          검토중
                         </button>
                       )}
-                      {application.status !== "불합격" && (
+                      {normalizeApplicationStatus(application.status) !== APPLICATION_STATUS.REJECTED && (
                         <button
                           type="button"
                           className="admin-link-button danger"
                           onClick={() =>
-                            onStatusChange(application, "불합격", {
+                            onStatusChange(application, APPLICATION_STATUS.REJECTED, {
                               confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
                             })
                           }
@@ -869,35 +881,20 @@ function JobApplicantDetailItem({ full = false, label, multiline = false, value 
 }
 
 function StatusBadge({ status }) {
-  const normalized = APPLICATION_STATUS_LABELS[status] || status || "지원완료";
+  const normalized = normalizeApplicationStatus(status);
   return (
     <span className={`status-badge ${getStatusBadgeClass(normalized)}`}>
-      {normalized}
+      {getApplicationStatusLabel(normalized)}
     </span>
   );
 }
 
 function getStatusBadgeClass(status) {
-  if (["모집중", "open", "공개", "public", "매칭완료"].includes(status)) {
-    return "badge-green";
-  }
-  if (["배정완료", "assigned", "지원완료"].includes(status)) {
-    return "badge-blue";
-  }
-  if (["모집마감", "closed", "비공개", "private", "일반의뢰"].includes(status)) {
-    return "badge-gray";
-  }
-  if (status === "검토중") return "badge-yellow";
-  if (status === "보류") return "badge-orange";
-  if (status === "불합격") return "badge-red";
-  if (status === "지정의뢰") return "badge-purple";
-  return "badge-blue";
+  return getStandardStatusBadgeClass(status);
 }
 
 function getJobStatusBadgeClass(status) {
-  return getStatusBadgeClass(
-    { open: "모집중", assigned: "배정완료", closed: "모집마감" }[status] || status
-  );
+  return getStandardStatusBadgeClass(status);
 }
 
 function getVisibilityBadgeClass(visibility) {
@@ -928,6 +925,45 @@ function getAssignedInterpreterName(assignments = [], interpreters = []) {
 function formatDate(value) {
   if (!value) return "-";
   return String(value).slice(0, 10);
+}
+
+function getDuplicateSuspectedApplicationIds(applications = []) {
+  const duplicateIds = new Set();
+  const seen = new Map();
+
+  applications.forEach((application) => {
+    getApplicationDuplicateKeys(application).forEach((key) => {
+      const existingIds = seen.get(key) || [];
+      if (existingIds.length > 0) {
+        duplicateIds.add(application.id);
+        existingIds.forEach((id) => duplicateIds.add(id));
+      }
+      seen.set(key, [...existingIds, application.id]);
+    });
+  });
+
+  return duplicateIds;
+}
+
+function getApplicationDuplicateKeys(application = {}) {
+  const jobKey = String(application.job_id || "unknown-job");
+  const email = normalizeText(application.email || application.applicant_email);
+  const phone = normalizePhone(application.phone || application.applicant_phone);
+  const name = normalizeText(application.applicant_name || application.name);
+
+  return [
+    email ? `${jobKey}:email:${email}` : "",
+    phone ? `${jobKey}:phone:${phone}` : "",
+    name ? `${jobKey}:name:${name}` : "",
+  ].filter(Boolean);
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizePhone(value) {
+  return String(value || "").replace(/\D/g, "");
 }
 
 export default AdminJobs;

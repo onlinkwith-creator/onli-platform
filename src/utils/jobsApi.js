@@ -1,18 +1,7 @@
 import { supabase as defaultSupabase } from "../supabase";
 import { isPublicJob } from "./jobStatus";
 import { supabaseConfigError } from "../supabase";
-
-const PUBLIC_JOB_STATUSES = [
-  "open",
-  "closing_soon",
-  "closed",
-  "assigned",
-  "모집중",
-  "마감임박",
-  "마감",
-  "모집마감",
-  "배정완료",
-];
+import { APPLICATION_STATUS, JOB_STATUS } from "./status";
 
 function isMissingColumnError(error) {
   return (
@@ -31,7 +20,7 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
     .from("jobs")
     .select("*")
     .eq("visibility", "public")
-    .in("status", PUBLIC_JOB_STATUSES)
+    .eq("status", JOB_STATUS.OPEN)
     .order("created_at", { ascending: false });
 
   if (limit) query = query.limit(Math.max(limit * 3, limit));
@@ -97,7 +86,7 @@ async function fetchMatchedApplicationCounts(supabase, jobIds) {
     .from("job_applications")
     .select("job_id")
     .in("job_id", jobIds)
-    .eq("status", "매칭완료");
+    .eq("status", APPLICATION_STATUS.ACCEPTED);
 
   if (error) {
     console.error("matched applications fetch error:", error);

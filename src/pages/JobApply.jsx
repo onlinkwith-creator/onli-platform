@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
@@ -8,6 +8,14 @@ import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatu
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
+import {
+  DUPLICATE_APPLICATION_MESSAGE,
+  findExistingJobApplication,
+  isDuplicateApplicationError,
+  normalizeApplicationEmail,
+  normalizeApplicationPhone,
+} from "../utils/applicationContact";
+import { APPLICATION_STATUS } from "../utils/status";
 import "./Jobs.css";
 
 const initialForm = {
@@ -30,6 +38,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -90,7 +99,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
     console.log("JOB APPLY SUBMIT START");
     console.log("JOB APPLY FORM DATA", form);
 
-    if (submitting || submitted) return;
+    if (submittingRef.current || submitting || submitted) return;
     if (!job) return;
     if (!canApplyToJob(job)) {
       setErrorMessage("지원할 수 없는 공고입니다.");
@@ -105,19 +114,26 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
     }
 
     setSubmitting(true);
+    submittingRef.current = true;
     setErrorMessage("");
 
     if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
       setSubmitting(false);
+      submittingRef.current = false;
       return;
     }
 
+    const applicantEmail = normalizeApplicationEmail(form.email);
+    const applicantPhone = normalizeApplicationPhone(form.phone);
+
     const application = {
       job_id: job.id,
-      applicant_name: form.name,
-      phone: form.phone,
-      email: form.email,
+      applicant_name: form.name.trim(),
+      phone: applicantPhone,
+      applicant_phone: applicantPhone,
+      email: applicantEmail,
+      applicant_email: applicantEmail,
       message: [
         form.message,
         form.gender ? `성별: ${form.gender}` : "",
@@ -126,15 +142,33 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
       ]
         .filter(Boolean)
         .join("\n\n"),
-      status: "지원완료",
+      status: APPLICATION_STATUS.PENDING,
       agreed_terms: true,
       agreed_policy: true,
       agreed_at: new Date().toISOString(),
     };
 
     try {
+      const existingApplication = await findExistingJobApplication(supabase, {
+        jobId: job.id,
+        email: applicantEmail,
+        phone: applicantPhone,
+      });
+
+      if (existingApplication) {
+        setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
+        alert(DUPLICATE_APPLICATION_MESSAGE);
+        setSubmitting(false);
+        submittingRef.current = false;
+        return;
+      }
+
       console.log("JOB APPLY BEFORE DB INSERT");
-      const { data, error } = await supabase.from("job_applications").insert([application]);
+      const { data, error } = await supabase
+        .from("job_applications")
+        .insert([application])
+        .select("id")
+        .single();
 
       console.log("JOB APPLY DB INSERT RESULT", {
         data,
@@ -151,6 +185,9 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
       }
 
       const emailPayload = {
+        requestId: data?.id || "",
+        applicationId: data?.id || "",
+        jobId: job.id,
         name: form.name,
         jobTitle: job.title || "공고 제목 미입력",
         date: formatDateRange(job.start_date, job.end_date, job.event_date || job.date),
@@ -160,14 +197,6 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
           .filter(Boolean)
           .join(" / "),
       };
-      const applicantEmail = (
-        form.email ||
-        form.applicant_email ||
-        form.mail ||
-        application.email ||
-        ""
-      ).trim();
-
       console.log("JOB APPLICATION SUCCESS - START EMAILS", applicantEmail);
       console.log("JOB APPLY START EMAIL FLOW");
       console.log("APPLICANT EMAIL TARGET:", applicantEmail);
@@ -213,10 +242,18 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
       setAgreements(initialTermsAgreement);
     } catch (error) {
       console.error("지원 실패:", error);
+      if (isDuplicateApplicationError(error)) {
+        setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
+        alert(DUPLICATE_APPLICATION_MESSAGE);
+        setSubmitting(false);
+        submittingRef.current = false;
+        return;
+      }
       const message = error?.message || "지원서 제출에 실패했습니다. 입력값을 확인해주세요.";
       setErrorMessage(message);
       alert("제출에 실패했습니다.");
       setSubmitting(false);
+      submittingRef.current = false;
       return;
     } finally {
       if (!submitted) setSubmitting(false);

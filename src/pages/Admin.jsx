@@ -2,6 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import AdminJobs from "./AdminJobs";
 import { normalizeJobVisibility } from "../utils/jobStatus";
+import {
+  APPLICATION_STATUS,
+  APPLICATION_STATUS_OPTIONS,
+  JOB_STATUS,
+  MATCHING_STATUS,
+  MATCHING_STATUS_OPTIONS,
+  getApplicationStatusLabel,
+  getMatchingStatusLabel,
+  getStatusBadgeClass as getStandardStatusBadgeClass,
+  normalizeApplicationStatus,
+  normalizeMatchingStatus,
+} from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
@@ -26,13 +38,14 @@ const TABS = [
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const REQUEST_STATUSES = [
-  "pending",
-  "matching",
-  "매칭완료",
-  "배정완료",
-  "confirmed",
-  "completed",
-  "cancelled",
+  MATCHING_STATUS.DRAFT,
+  MATCHING_STATUS.ASSIGNED,
+  MATCHING_STATUS.CONFIRMED,
+  MATCHING_STATUS.IN_PROGRESS,
+  MATCHING_STATUS.COMPLETED,
+  MATCHING_STATUS.SETTLEMENT_PENDING,
+  MATCHING_STATUS.SETTLED,
+  MATCHING_STATUS.CANCELLED,
 ];
 const CONTACT_STATUSES = [
   "not_contacted",
@@ -42,20 +55,26 @@ const CONTACT_STATUSES = [
 ];
 const PAYMENT_STATUSES = ["unpaid", "paid"];
 const SETTLEMENT_STATUSES = ["unsettled", "settled"];
-const JOB_APPLICATION_STATUSES = ["지원완료", "검토중", "매칭완료", "보류", "불합격"];
-const ONGOING_REQUEST_STATUSES = ["pending", "matching", "confirmed"];
+const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
+const ONGOING_REQUEST_STATUSES = [
+  MATCHING_STATUS.DRAFT,
+  MATCHING_STATUS.ASSIGNED,
+  MATCHING_STATUS.CONFIRMED,
+  MATCHING_STATUS.IN_PROGRESS,
+];
 const STATUS_LABELS = {
   pending: "대기",
   active: "활동중",
   warning: "경고",
   suspended: "정지",
   matching: "매칭중",
+  draft: "임시배정",
   assigned: "배정완료",
-  matched: "매칭완료",
-  "매칭완료": "매칭완료",
-  "배정완료": "배정완료",
+  matched: "배정완료",
   confirmed: "확정",
-  completed: "완료",
+  in_progress: "운영중",
+  settlement_pending: "정산대기",
+  completed: "운영완료",
   cancelled: "취소",
   not_contacted: "미연락",
   contacted: "연락완료",
@@ -82,7 +101,10 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
         job_id,
         applicant_name,
         phone,
+        applicant_phone,
         email,
+        applicant_email,
+        interpreter_id,
         message,
         status,
         created_at,
@@ -280,7 +302,7 @@ function Admin() {
   const matchedApplications = useMemo(
     () =>
       jobApplications.filter(
-        (application) => application.status === "매칭완료"
+        (application) => normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED
       ),
     [jobApplications]
   );
@@ -377,15 +399,17 @@ function Admin() {
           String(application.created_at || "").startsWith(today)
         ).length,
         uncheckedApplications: jobApplications.filter((application) =>
-          ["지원완료", "검토중"].includes(application.status || "지원완료")
+          [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
+            normalizeApplicationStatus(application.status)
+          )
         ).length,
         todayMatched: jobApplications.filter(
           (application) =>
-            application.status === "매칭완료" &&
+            normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED &&
             String(application.created_at || "").startsWith(today)
         ).length,
         ongoingRequests: requests.filter((request) =>
-          ONGOING_REQUEST_STATUSES.includes(request.status || "pending")
+          ONGOING_REQUEST_STATUSES.includes(normalizeMatchingStatus(request.status))
         ).length,
         urgentRequests: requests.filter((request) => isRequestWithinDays(request, 7)).length,
         newInterpreterApplications: interpreters.filter(isPendingInterpreter).length,
@@ -484,6 +508,8 @@ function Admin() {
 
     if (isNewApproval) {
       void sendAutoEmail("interpreter_approved", interpreter.email, {
+        requestId: interpreter.id,
+        interpreterId: interpreter.id,
         name: interpreter.name,
         email: interpreter.email,
         availableRegions: formatListOrMissing(interpreter.available_regions),
@@ -635,6 +661,8 @@ function Admin() {
 
     if (shouldSendUnderReviewEmail) {
       void sendAutoEmail("company_request_under_review", companyEmail, {
+        requestId: id,
+        request_id: id,
         companyName: request?.company_name || "",
         contactName: request?.contact_name || request?.manager_name || "",
         eventName: request?.event_name || "",
@@ -1163,9 +1191,12 @@ function Admin() {
       upsertAssignment(current, nextAssignment)
     );
     setAssignmentDrafts((current) => ({ ...current, [requestId]: "" }));
-    await updateMatchingApplicationStatus(request, interpreter, "매칭완료");
+    await updateMatchingApplicationStatus(request, interpreter, APPLICATION_STATUS.ACCEPTED);
 
     const matchingEmailPayload = {
+      requestId,
+      request_id: requestId,
+      interpreterId: interpreter?.id || "",
       name: interpreter?.name || "",
       interpreterName: interpreter?.name || "",
       jobTitle:
@@ -1257,7 +1288,7 @@ function Admin() {
           remainingAssignments
         );
         const interpreter = getAssignmentInterpreter(assignment, interpreters);
-        await updateMatchingApplicationStatus(request, interpreter, "지원완료");
+        await updateMatchingApplicationStatus(request, interpreter, APPLICATION_STATUS.PENDING);
       }
     }
     setSavingKey("");
@@ -1416,7 +1447,7 @@ function Admin() {
         return false;
       }
 
-      if (status === "매칭완료" && jobId) {
+      if (status === APPLICATION_STATUS.ACCEPTED && jobId) {
         const request = requestsByJobId.get(String(jobId));
         const interpreter = findInterpreterForApplication(application, interpreters);
 
@@ -1433,7 +1464,7 @@ function Admin() {
         }
       }
 
-      if (askAssignJob && status === "매칭완료" && jobId) {
+      if (askAssignJob && status === APPLICATION_STATUS.ACCEPTED && jobId) {
         const shouldAssignJob = window.confirm(
           "이 공고를 배정완료로 변경할까요?"
         );
@@ -1441,7 +1472,7 @@ function Admin() {
         if (shouldAssignJob) {
           const { error: jobError } = await supabase
             .from("jobs")
-            .update({ status: "assigned", is_urgent: false })
+            .update({ status: JOB_STATUS.ASSIGNED, is_urgent: false })
             .eq("id", jobId);
 
           if (jobError) {
@@ -1994,8 +2025,8 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
         </FieldControl>
         <FieldControl label="의뢰 상태">
           <InlineSelect
-            options={REQUEST_STATUSES}
-            value={draft.status || "pending"}
+            options={MATCHING_STATUS_OPTIONS}
+            value={normalizeMatchingStatus(draft.status)}
             onChange={(value) => onChange("status", value)}
           />
         </FieldControl>
@@ -2080,7 +2111,7 @@ function RequestManagement({
           <option value="all">전체 상태</option>
           {REQUEST_STATUSES.map((status) => (
             <option key={status} value={status}>
-              {getStatusLabel(status)}
+              {getMatchingStatusLabel(status)}
             </option>
           ))}
         </select>
@@ -2185,7 +2216,7 @@ function AdminRequestCard({
           <span className="admin-request-id">#{request.id}</span>
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
         </div>
-        <StatusBadge status={request.status || "pending"} />
+        <StatusBadge status={normalizeMatchingStatus(request.status)} />
       </div>
 
       <dl className="admin-request-summary">
@@ -2210,8 +2241,8 @@ function AdminRequestCard({
       <div className="admin-request-controls">
         <FieldControl label="의뢰 상태">
           <InlineSelect
-            options={REQUEST_STATUSES}
-            value={request.status || "pending"}
+            options={MATCHING_STATUS_OPTIONS}
+            value={normalizeMatchingStatus(request.status)}
             onChange={(value) => updateRequest(request.id, { status: value })}
           />
         </FieldControl>
@@ -2513,7 +2544,9 @@ function JobApplicationsPanel({
       {rows.map((application) => {
         const isAssigned = Boolean(application.assigned);
         const isDirectAssignment = application.source === "direct-assignment";
-        const status = isAssigned ? "배정완료" : application.status || "지원완료";
+        const status = isAssigned
+          ? MATCHING_STATUS.ASSIGNED
+          : normalizeApplicationStatus(application.status);
         const expanded = openApplicantId === application.rowId;
         const sourceLabel = isDirectAssignment ? "관리자 직접 배정" : "지원자";
 
@@ -2585,7 +2618,7 @@ function JobApplicationsPanel({
                   <div className="admin-card-actions">
                     {isAssigned ? (
                       <>
-                        <StatusBadge status="배정완료" />
+                        <StatusBadge status={MATCHING_STATUS.ASSIGNED} />
                         {application.assignment && onRemoveAssignment ? (
                           <button
                             type="button"
@@ -2601,8 +2634,8 @@ function JobApplicationsPanel({
                         type="button"
                         className="admin-link-button primary"
                         onClick={() =>
-                          onStatusChange(application, "매칭완료", {
-                            confirmMessage: "이 지원자를 매칭완료로 변경하시겠습니까?",
+                          onStatusChange(application, APPLICATION_STATUS.ACCEPTED, {
+                            confirmMessage: "이 지원자를 합격 처리하시겠습니까?",
                             askAssignJob: true,
                           })
                         }
@@ -2613,21 +2646,29 @@ function JobApplicationsPanel({
                     <button
                       type="button"
                       className="admin-link-button warning"
-                      disabled={isAssigned || application.status === "보류" || isDirectAssignment}
+                      disabled={
+                        isAssigned ||
+                        normalizeApplicationStatus(application.status) === APPLICATION_STATUS.REVIEWING ||
+                        isDirectAssignment
+                      }
                       onClick={() =>
-                        onStatusChange(application, "보류", {
-                          confirmMessage: "이 지원자를 보류 상태로 변경하시겠습니까?",
+                        onStatusChange(application, APPLICATION_STATUS.REVIEWING, {
+                          confirmMessage: "이 지원자를 검토중 상태로 변경하시겠습니까?",
                         })
                       }
                     >
-                      보류
+                      검토중
                     </button>
                     <button
                       type="button"
                       className="admin-link-button danger"
-                      disabled={isAssigned || application.status === "불합격" || isDirectAssignment}
+                      disabled={
+                        isAssigned ||
+                        normalizeApplicationStatus(application.status) === APPLICATION_STATUS.REJECTED ||
+                        isDirectAssignment
+                      }
                       onClick={() =>
-                        onStatusChange(application, "불합격", {
+                        onStatusChange(application, APPLICATION_STATUS.REJECTED, {
                           confirmMessage: "이 지원자를 불합격 상태로 변경하시겠습니까?",
                         })
                       }
@@ -3066,6 +3107,11 @@ function ApplicationManagement({
   updateApplicationStatus,
   deleteApplication,
 }) {
+  const duplicateApplicationIds = useMemo(
+    () => getDuplicateSuspectedApplicationIds(applications),
+    [applications]
+  );
+
   return (
     <section className="admin-section">
       <SectionTitle count={`${applications.length}명`} title="지원자 관리" />
@@ -3084,6 +3130,7 @@ function ApplicationManagement({
                 savingKey={savingKey}
                 updateApplicationStatus={updateApplicationStatus}
                 deleteApplication={deleteApplication}
+                duplicateSuspected={duplicateApplicationIds.has(application.id)}
               />
             );
           })}
@@ -3099,6 +3146,7 @@ function ApplicationCard({
   savingKey,
   updateApplicationStatus,
   deleteApplication,
+  duplicateSuspected,
 }) {
   return (
     <article className="admin-list-card">
@@ -3109,7 +3157,12 @@ function ApplicationCard({
             {application.applicant_name || "이름 미입력"}
           </h3>
         </div>
-        <StatusBadge status={application.status || "지원완료"} />
+        <div className="admin-card-chip-row">
+          {duplicateSuspected && (
+            <span className="status-badge badge-orange">중복 의심</span>
+          )}
+          <StatusBadge status={application.status || APPLICATION_STATUS.PENDING} />
+        </div>
       </div>
 
       <dl className="admin-card-summary">
@@ -3117,6 +3170,8 @@ function ApplicationCard({
         <Info label="기업/행사" value={getJobOrganizationLabel(job)} />
         <Info label="언어" value={getApplicationLanguage(application, job)} />
         <Info label="지원일" value={formatDate(application.created_at)} />
+        <Info label="이메일" value={application.email || application.applicant_email || "-"} />
+        <Info label="전화번호" value={application.phone || application.applicant_phone || "-"} />
         <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
         <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
         <Info label="메모" value={application.message || "지원 메모 없음"} />
@@ -3126,7 +3181,7 @@ function ApplicationCard({
         <FieldControl label="상태">
           <InlineSelect
             options={JOB_APPLICATION_STATUSES}
-            value={application.status || "지원완료"}
+            value={normalizeApplicationStatus(application.status)}
             disabled={savingKey === `job-application-${application.id}`}
             onChange={(value) => updateApplicationStatus(application, value)}
           />
@@ -3134,16 +3189,16 @@ function ApplicationCard({
       </div>
 
       <div className="admin-card-actions">
-        {application.status === "매칭완료" ? (
-          <StatusBadge status="매칭완료" />
+        {normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED ? (
+          <StatusBadge status={APPLICATION_STATUS.ACCEPTED} />
         ) : (
           <button
             type="button"
             className="admin-link-button primary"
             disabled={savingKey === `job-application-${application.id}`}
             onClick={() =>
-              updateApplicationStatus(application, "매칭완료", {
-                confirmMessage: "이 지원자를 매칭완료로 변경하시겠습니까?",
+              updateApplicationStatus(application, APPLICATION_STATUS.ACCEPTED, {
+                confirmMessage: "이 지원자를 합격 처리하시겠습니까?",
                 askAssignJob: true,
               })
             }
@@ -3180,7 +3235,7 @@ function MatchingManagement({
     <section className="admin-section">
       <SectionTitle count={`${totalCount}건`} title="매칭 관리" />
       {totalCount === 0 ? (
-        <MessageBox text="아직 매칭완료된 의뢰가 없습니다." />
+        <MessageBox text="아직 배정완료된 의뢰가 없습니다." />
       ) : (
         <div className="admin-management-card-grid">
           {requests.map((request) => (
@@ -3239,7 +3294,9 @@ function MatchingRequestCard({ request, assignments, interpreters }) {
           <span className="admin-card-meta">의뢰 매칭</span>
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
         </div>
-        <StatusBadge status={request.status || request.matching_status || "매칭완료"} />
+        <StatusBadge
+          status={normalizeMatchingStatus(request.status || request.matching_status)}
+        />
       </div>
 
       <dl className="admin-card-summary">
@@ -3296,7 +3353,7 @@ function MatchingCard({
             {getJobDisplayTitle(job, application.job_id)}
           </h3>
         </div>
-        <StatusBadge status={application.status || "매칭완료"} />
+        <StatusBadge status={normalizeApplicationStatus(application.status)} />
       </div>
 
       <dl className="admin-card-summary">
@@ -3328,7 +3385,7 @@ function MatchingCard({
         <FieldControl label="매칭 상태">
           <InlineSelect
             options={JOB_APPLICATION_STATUSES}
-            value={application.status || "매칭완료"}
+            value={normalizeApplicationStatus(application.status)}
             disabled={savingKey === `job-application-${application.id}`}
             onChange={(value) => updateApplicationStatus(application, value)}
           />
@@ -3382,7 +3439,7 @@ function InlineSelect({ options, value, onChange, disabled = false }) {
 }
 
 function StatusBadge({ status }) {
-  const normalized = status || "지원완료";
+  const normalized = status || APPLICATION_STATUS.PENDING;
   return (
     <span className={`status-badge ${getStatusBadgeClass(normalized)}`}>
       {getStatusLabel(normalized)}
@@ -3492,7 +3549,7 @@ function buildJobPayloadFromRequest(request) {
     people: peopleCount ? `${peopleCount}명` : "",
     people_count: peopleCount || null,
     field,
-    status: "open",
+    status: JOB_STATUS.OPEN,
     visibility: "public",
     request_type: getDesignatedRequestType(request).label,
     selected_interpreter_id: request.selected_interpreter_id || request.interpreter_id || null,
@@ -3515,7 +3572,7 @@ function createRequestEditDraft(request = {}, job = {}) {
     requested_level: request.requested_level || request.required_level || job?.requested_level || job?.level || "Lv1",
     preferred_gender: request.preferred_gender || job?.preferred_gender || "",
     is_public: String(Boolean(request.is_job_public || request.is_public || normalizeJobVisibility(job) === "public")),
-    status: request.status || "pending",
+    status: normalizeMatchingStatus(request.status),
     contact_status: request.contact_status || "not_contacted",
     payment_status: request.payment_status || "unpaid",
   };
@@ -3532,7 +3589,7 @@ function buildLegacyJobPayloadFromRequest(request) {
     level: payload.level,
     preference: payload.preference,
     people: payload.people,
-    status: "open",
+    status: JOB_STATUS.OPEN,
     is_urgent: false,
   };
 }
@@ -3580,8 +3637,8 @@ function isRequestWithinDays(request, days) {
 
 function isRequestVisibleInMatching(request, assignments = []) {
   return (
-    ["matched", "assigned"].includes(request.matching_status) ||
-    ["매칭완료", "배정완료", "assigned", "matched"].includes(request.status) ||
+    normalizeMatchingStatus(request.matching_status) === MATCHING_STATUS.ASSIGNED ||
+    normalizeMatchingStatus(request.status) === MATCHING_STATUS.ASSIGNED ||
     Boolean(
       request.assigned_interpreter_id ||
         request.assigned_interpreter_name ||
@@ -3652,7 +3709,7 @@ function buildApplicationAssignmentRows(applications = [], assignments = [], int
       language: interpreter?.language_level || interpreter?.jlpt || interpreter?.level || "",
       experience: getExperienceLabel(interpreter || {}),
       message: "관리자가 직접 배정한 통역사입니다.",
-      status: "배정완료",
+      status: MATCHING_STATUS.ASSIGNED,
       created_at: assignment.assigned_at,
       assigned: true,
       assignment,
@@ -3674,15 +3731,19 @@ function buildApplicationAssignmentRows(applications = [], assignments = [], int
 
 function sortApplicationRows(a, b) {
   const priority = {
-    "배정완료": 0,
-    "매칭완료": 0,
-    "보류": 2,
-    "지원완료": 1,
-    "검토중": 1,
-    "불합격": 3,
+    [MATCHING_STATUS.ASSIGNED]: 0,
+    [APPLICATION_STATUS.ACCEPTED]: 0,
+    [APPLICATION_STATUS.REVIEWING]: 2,
+    [APPLICATION_STATUS.PENDING]: 1,
+    [APPLICATION_STATUS.REJECTED]: 3,
+    [APPLICATION_STATUS.CANCELLED]: 4,
   };
-  const aStatus = a.assigned ? "배정완료" : a.status || "지원완료";
-  const bStatus = b.assigned ? "배정완료" : b.status || "지원완료";
+  const aStatus = a.assigned
+    ? MATCHING_STATUS.ASSIGNED
+    : normalizeApplicationStatus(a.status);
+  const bStatus = b.assigned
+    ? MATCHING_STATUS.ASSIGNED
+    : normalizeApplicationStatus(b.status);
   const statusDiff = (priority[aStatus] ?? 1) - (priority[bStatus] ?? 1);
   if (statusDiff !== 0) return statusDiff;
   return String(b.created_at || "").localeCompare(String(a.created_at || ""));
@@ -3783,6 +3844,37 @@ function normalizePhone(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function getDuplicateSuspectedApplicationIds(applications = []) {
+  const duplicateIds = new Set();
+  const seen = new Map();
+
+  applications.forEach((application) => {
+    getApplicationDuplicateKeys(application).forEach((key) => {
+      const existingIds = seen.get(key) || [];
+      if (existingIds.length > 0) {
+        duplicateIds.add(application.id);
+        existingIds.forEach((id) => duplicateIds.add(id));
+      }
+      seen.set(key, [...existingIds, application.id]);
+    });
+  });
+
+  return duplicateIds;
+}
+
+function getApplicationDuplicateKeys(application = {}) {
+  const jobKey = String(application.job_id || "unknown-job");
+  const email = normalizeText(application.email || application.applicant_email);
+  const phone = normalizePhone(application.phone || application.applicant_phone);
+  const name = normalizeText(application.applicant_name || application.name);
+
+  return [
+    email ? `${jobKey}:email:${email}` : "",
+    phone ? `${jobKey}:phone:${phone}` : "",
+    name ? `${jobKey}:name:${name}` : "",
+  ].filter(Boolean);
+}
+
 function getRequestRequiredCount(request = {}) {
   return getPositiveInteger(
     request.requested_people_count || request.required_count || request.people_count,
@@ -3798,8 +3890,8 @@ function buildAssignmentRequestChanges(assignments = [], requiredCount = 1) {
   const isFullyAssigned = hasAssignments && assignments.length >= requiredCount;
 
   return {
-    status: hasAssignments ? (isFullyAssigned ? "배정완료" : "매칭완료") : "pending",
-    matching_status: hasAssignments ? (isFullyAssigned ? "assigned" : "matched") : "pending",
+    status: hasAssignments ? MATCHING_STATUS.ASSIGNED : MATCHING_STATUS.DRAFT,
+    matching_status: hasAssignments ? MATCHING_STATUS.ASSIGNED : MATCHING_STATUS.DRAFT,
     assigned_interpreter_id: interpreterId,
     assigned_interpreter_name: interpreterName,
     matched_interpreter_id: interpreterId,
@@ -3852,20 +3944,7 @@ function getDesignatedRequestType(...items) {
 }
 
 function getStatusBadgeClass(status) {
-  if (["모집중", "open", "공개", "public", "매칭완료", "completed", "승인 완료"].includes(status)) {
-    return "badge-green";
-  }
-  if (["배정완료", "assigned", "지원완료"].includes(status)) {
-    return "badge-blue";
-  }
-  if (["모집마감", "closed", "비공개", "private", "일반의뢰"].includes(status)) {
-    return "badge-gray";
-  }
-  if (["검토중", "승인 대기"].includes(status)) return "badge-yellow";
-  if (["보류"].includes(status)) return "badge-orange";
-  if (["불합격", "cancelled", "suspended", "반려", "rejected"].includes(status)) return "badge-red";
-  if (["지정의뢰"].includes(status)) return "badge-purple";
-  return "badge-blue";
+  return getStandardStatusBadgeClass(status);
 }
 
 function getApplicationLanguage(application = {}, job = {}) {
@@ -4047,6 +4126,22 @@ function groupByStringKey(items, key) {
 }
 
 function getStatusLabel(status) {
+  const normalizedApplication = normalizeApplicationStatus(status);
+  if (
+    Object.values(APPLICATION_STATUS).includes(status) ||
+    ["지원접수", "지원완료", "검토중", "보류", "합격", "매칭완료", "불합격"].includes(status)
+  ) {
+    return getApplicationStatusLabel(normalizedApplication);
+  }
+
+  const normalizedMatching = normalizeMatchingStatus(status);
+  if (
+    Object.values(MATCHING_STATUS).includes(status) ||
+    ["임시배정", "배정", "배정완료", "확정", "운영중", "진행중", "운영완료", "정산대기"].includes(status)
+  ) {
+    return getMatchingStatusLabel(normalizedMatching);
+  }
+
   return STATUS_LABELS[status] || status || "-";
 }
 

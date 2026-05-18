@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
@@ -10,6 +10,7 @@ import {
   calculateInterpreterPay,
   getUrgency,
 } from "../utils/pricing";
+import { MATCHING_STATUS } from "../utils/status";
 
 const initialForm = {
   companyName: "",
@@ -44,6 +45,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const [form, setForm] = useState(initialForm);
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const handleChange = (event) => {
@@ -67,6 +69,12 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+
+    try {
     console.log("COMPANY REQUEST SUBMIT START");
     console.log("COMPANY REQUEST FORM DATA", form);
 
@@ -79,11 +87,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       return;
     }
 
-    setIsSubmitting(true);
-
     if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
-      setIsSubmitting(false);
       return;
     }
 
@@ -91,7 +96,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       const message = "종료일은 시작일보다 빠를 수 없습니다.";
       setErrorMessage(message);
       alert(message);
-      setIsSubmitting(false);
       return;
     }
 
@@ -130,7 +134,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       interpreter_pay: interpreterPay,
       request_details: requestDetails,
       request_detail: requestDetails,
-      status: "pending",
+      status: MATCHING_STATUS.DRAFT,
       is_public: false,
       job_description: requestDetails,
       job_field: form.interpretationField,
@@ -151,7 +155,11 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
     console.log("COMPANY REQUEST BEFORE DB INSERT");
 
-    let { data, error } = await supabase.from("requests").insert([designatedPayload]);
+    let { data, error } = await supabase
+      .from("requests")
+      .insert([designatedPayload])
+      .select("id")
+      .single();
 
     console.log("COMPANY REQUEST DB INSERT RESULT", {
       data,
@@ -159,7 +167,11 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     });
 
     if (error && isMissingColumnError(error)) {
-      const fallbackResult = await supabase.from("requests").insert([requestPayload]);
+      const fallbackResult = await supabase
+        .from("requests")
+        .insert([requestPayload])
+        .select("id")
+        .single();
       data = fallbackResult.data;
       error = fallbackResult.error;
       console.log("COMPANY REQUEST DB INSERT FALLBACK RESULT", {
@@ -167,8 +179,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         error,
       });
     }
-
-    setIsSubmitting(false);
 
     if (error) {
       if (isAgreementColumnError(error)) {
@@ -195,6 +205,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       requestPayload.contact_email_or_phone
     );
     const emailPayload = {
+      requestId: data?.id || "",
+      request_id: data?.id || "",
       companyName: requestPayload.company_name,
       contactName: requestPayload.contact_name,
       contactEmail: companyEmail || requestPayload.contact_email_or_phone,
@@ -259,6 +271,10 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     setForm(initialForm);
     setAgreements(initialTermsAgreement);
     onSubmitSuccess();
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   return (
