@@ -1233,6 +1233,21 @@
   color: #4f46e5;
 }
 
+.admin-duplicate-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .badge-green {
   background: #ecfdf5;
   color: #047857;

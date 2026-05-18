@@ -17,6 +17,7 @@ import {
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications } from "../utils/jobsApi";
+import { getDuplicateApplicationIdSet } from "../utils/duplicateApplications";
 import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
@@ -723,7 +724,7 @@ function JobApplicantsModal({ applications, job, onClose, onStatusChange }) {
 function JobApplicationsPanel({ applications, job, onStatusChange }) {
   const [openApplicationId, setOpenApplicationId] = useState(null);
   const duplicateApplicationIds = useMemo(
-    () => getDuplicateSuspectedApplicationIds(applications),
+    () => getDuplicateApplicationIdSet(applications),
     [applications]
   );
   const toggleApplication = (applicationId) => {
@@ -755,7 +756,7 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                 >
                   <StatusBadge status={status} />
                   {duplicateSuspected && (
-                    <span className="status-badge badge-orange">중복 의심</span>
+                    <span className="admin-duplicate-badge">중복 의심</span>
                   )}
                   <span className="admin-applicant-summary-text">
                     <strong>{application.applicant_name || "이름 미입력"}</strong>
@@ -773,7 +774,7 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                       <strong>{application.applicant_name || "이름 미입력"}</strong>
                       <div className="admin-card-chip-row">
                         {duplicateSuspected && (
-                          <span className="status-badge badge-orange">중복 의심</span>
+                          <span className="admin-duplicate-badge">중복 의심</span>
                         )}
                         <StatusBadge status={status} />
                       </div>
@@ -925,45 +926,6 @@ function getAssignedInterpreterName(assignments = [], interpreters = []) {
 function formatDate(value) {
   if (!value) return "-";
   return String(value).slice(0, 10);
-}
-
-function getDuplicateSuspectedApplicationIds(applications = []) {
-  const duplicateIds = new Set();
-  const seen = new Map();
-
-  applications.forEach((application) => {
-    getApplicationDuplicateKeys(application).forEach((key) => {
-      const existingIds = seen.get(key) || [];
-      if (existingIds.length > 0) {
-        duplicateIds.add(application.id);
-        existingIds.forEach((id) => duplicateIds.add(id));
-      }
-      seen.set(key, [...existingIds, application.id]);
-    });
-  });
-
-  return duplicateIds;
-}
-
-function getApplicationDuplicateKeys(application = {}) {
-  const jobKey = String(application.job_id || "unknown-job");
-  const email = normalizeText(application.email || application.applicant_email);
-  const phone = normalizePhone(application.phone || application.applicant_phone);
-  const name = normalizeText(application.applicant_name || application.name);
-
-  return [
-    email ? `${jobKey}:email:${email}` : "",
-    phone ? `${jobKey}:phone:${phone}` : "",
-    name ? `${jobKey}:name:${name}` : "",
-  ].filter(Boolean);
-}
-
-function normalizeText(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function normalizePhone(value) {
-  return String(value || "").replace(/\D/g, "");
 }
 
 export default AdminJobs;

@@ -29,6 +29,7 @@ import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/da
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
 import { normalizeLevel } from "../utils/levelBadge";
+import { getDuplicateApplicationIdSet } from "../utils/duplicateApplications";
 import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import {
   getDesignatedInterpreterName,
@@ -3234,7 +3235,7 @@ function ApplicationManagement({
   deleteApplication,
 }) {
   const duplicateApplicationIds = useMemo(
-    () => getDuplicateSuspectedApplicationIds(applications),
+    () => getDuplicateApplicationIdSet(applications),
     [applications]
   );
 
@@ -3285,7 +3286,7 @@ function ApplicationCard({
         </div>
         <div className="admin-card-chip-row">
           {duplicateSuspected && (
-            <span className="status-badge badge-orange">중복 의심</span>
+            <span className="admin-duplicate-badge">중복 의심</span>
           )}
           <StatusBadge status={application.status || APPLICATION_STATUS.PENDING} />
         </div>
@@ -3968,37 +3969,6 @@ function normalizeText(value) {
 
 function normalizePhone(value) {
   return String(value || "").replace(/\D/g, "");
-}
-
-function getDuplicateSuspectedApplicationIds(applications = []) {
-  const duplicateIds = new Set();
-  const seen = new Map();
-
-  applications.forEach((application) => {
-    getApplicationDuplicateKeys(application).forEach((key) => {
-      const existingIds = seen.get(key) || [];
-      if (existingIds.length > 0) {
-        duplicateIds.add(application.id);
-        existingIds.forEach((id) => duplicateIds.add(id));
-      }
-      seen.set(key, [...existingIds, application.id]);
-    });
-  });
-
-  return duplicateIds;
-}
-
-function getApplicationDuplicateKeys(application = {}) {
-  const jobKey = String(application.job_id || "unknown-job");
-  const email = normalizeText(application.email || application.applicant_email);
-  const phone = normalizePhone(application.phone || application.applicant_phone);
-  const name = normalizeText(application.applicant_name || application.name);
-
-  return [
-    email ? `${jobKey}:email:${email}` : "",
-    phone ? `${jobKey}:phone:${phone}` : "",
-    name ? `${jobKey}:name:${name}` : "",
-  ].filter(Boolean);
 }
 
 function getRequestRequiredCount(request = {}) {
