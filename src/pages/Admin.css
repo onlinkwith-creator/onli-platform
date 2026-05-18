@@ -386,6 +386,100 @@
   gap: 7px;
 }
 
+.admin-flow-status-row,
+.admin-flow-status-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-flow-status-controls {
+  justify-content: flex-end;
+}
+
+.admin-flow-status-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-flow-status-panel .admin-flow-status-controls {
+  justify-content: flex-start;
+}
+
+.admin-flow-status-badge,
+.admin-flow-status-select {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.admin-flow-status-select {
+  max-width: 122px;
+  cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 13px) 12px, calc(100% - 8px) 12px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 24px;
+}
+
+.admin-flow-status-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.flow-badge-gray {
+  border-color: #e5e7eb;
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+.flow-badge-blue {
+  border-color: #bfdbfe;
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.flow-badge-indigo {
+  border-color: #c7d2fe;
+  background-color: #e0e7ff;
+  color: #4338ca;
+}
+
+.flow-badge-orange {
+  border-color: #fed7aa;
+  background-color: #ffedd5;
+  color: #c2410c;
+}
+
+.flow-badge-green {
+  border-color: #bbf7d0;
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.flow-badge-purple {
+  border-color: #ddd6fe;
+  background-color: #ede9fe;
+  color: #6d28d9;
+}
+
+.flow-badge-emerald {
+  border-color: #a7f3d0;
+  background-color: #d1fae5;
+  color: #047857;
+}
+
 .admin-request-card .admin-detail-panel,
 .admin-request-card .admin-applications-panel,
 .admin-list-card .admin-detail-panel,

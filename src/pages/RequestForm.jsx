@@ -11,6 +11,11 @@ import {
   getUrgency,
 } from "../utils/pricing";
 import { MATCHING_STATUS } from "../utils/status";
+import {
+  ASSIGNMENT_STATUS,
+  OPERATION_STATUS,
+  SETTLEMENT_FLOW_STATUS,
+} from "../utils/operationsStatus";
 
 const initialForm = {
   companyName: "",
@@ -135,6 +140,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       request_details: requestDetails,
       request_detail: requestDetails,
       status: MATCHING_STATUS.DRAFT,
+      assignment_status: ASSIGNMENT_STATUS.WAITING,
+      operation_status: OPERATION_STATUS.BEFORE_OPERATION,
+      settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
       is_public: false,
       job_description: requestDetails,
       job_field: form.interpretationField,
@@ -167,9 +175,13 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     });
 
     if (error && isMissingColumnError(error)) {
+      const legacyRequestPayload = { ...requestPayload };
+      delete legacyRequestPayload.assignment_status;
+      delete legacyRequestPayload.operation_status;
+      delete legacyRequestPayload.settlement_status;
       const fallbackResult = await supabase
         .from("requests")
-        .insert([requestPayload])
+        .insert([legacyRequestPayload])
         .select("id")
         .single();
       data = fallbackResult.data;

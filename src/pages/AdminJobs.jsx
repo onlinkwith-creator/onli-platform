@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import {
-  JOB_STATUS_OPTIONS,
   JOB_VISIBILITY_OPTIONS,
   JOB_STATUS,
-  getJobStatusLabel,
   getJobVisibilityLabel,
   normalizeJobStatus,
   normalizeJobVisibility,
@@ -18,6 +16,20 @@ import {
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications } from "../utils/jobsApi";
 import { getDuplicateApplicationIdSet } from "../utils/duplicateApplications";
+import {
+  ASSIGNMENT_STATUS,
+  ASSIGNMENT_STATUS_OPTIONS,
+  OPERATION_STATUS,
+  OPERATION_STATUS_OPTIONS,
+  SETTLEMENT_FLOW_STATUS,
+  SETTLEMENT_FLOW_STATUS_OPTIONS,
+  getAssignmentStatusBadgeClass,
+  getOperationStatusBadgeClass,
+  getSettlementFlowStatusBadgeClass,
+  normalizeAssignmentStatus,
+  normalizeOperationStatus,
+  normalizeSettlementFlowStatus,
+} from "../utils/operationsStatus";
 import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
@@ -37,6 +49,9 @@ const emptyForm = {
   people: "",
   visibility: "public",
   status: JOB_STATUS.OPEN,
+  assignment_status: ASSIGNMENT_STATUS.WAITING,
+  operation_status: OPERATION_STATUS.BEFORE_OPERATION,
+  settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
   is_urgent: false,
 };
 
@@ -165,8 +180,7 @@ function AdminJobs({
       preference: form.preference,
       people: form.people,
       visibility: form.visibility,
-      status: form.status,
-      is_urgent: form.status === "closing_soon",
+      ...getJobStatusPayloadFromFlow(form),
     };
 
     try {
@@ -205,6 +219,9 @@ function AdminJobs({
       people: job.people || "",
       visibility: normalizeJobVisibility(job),
       status: normalizeJobStatus(job),
+      assignment_status: normalizeAssignmentStatus(job),
+      operation_status: normalizeOperationStatus(job),
+      settlement_status: normalizeSettlementFlowStatus(job),
       is_urgent: normalizeJobStatus(job) === "closing_soon",
     });
   };
@@ -368,7 +385,11 @@ function AdminJobs({
 
         const { error: jobError } = await supabase
           .from("jobs")
-          .update({ status: JOB_STATUS.ASSIGNED, is_urgent: false })
+          .update({
+            status: JOB_STATUS.ASSIGNED,
+            assignment_status: ASSIGNMENT_STATUS.ASSIGNED,
+            is_urgent: false,
+          })
           .eq("id", application.job_id);
 
         if (jobError) {
@@ -378,7 +399,12 @@ function AdminJobs({
           setJobs((current) =>
             current.map((job) =>
               String(job.id) === String(application.job_id)
-                ? { ...job, status: JOB_STATUS.ASSIGNED, is_urgent: false }
+                ? {
+                    ...job,
+                    status: JOB_STATUS.ASSIGNED,
+                    assignment_status: ASSIGNMENT_STATUS.ASSIGNED,
+                    is_urgent: false,
+                  }
                 : job
             )
           );
@@ -443,9 +469,27 @@ function AdminJobs({
               ))}
             </select>
           </JobField>
-          <JobField label="모집 상태">
-            <select name="status" value={form.status} onChange={handleChange}>
-              {JOB_STATUS_OPTIONS.map((option) => (
+          <JobField label="배정 상태">
+            <select name="assignment_status" value={form.assignment_status} onChange={handleChange}>
+              {ASSIGNMENT_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </JobField>
+          <JobField label="운영 상태">
+            <select name="operation_status" value={form.operation_status} onChange={handleChange}>
+              {OPERATION_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </JobField>
+          <JobField label="정산 상태">
+            <select name="settlement_status" value={form.settlement_status} onChange={handleChange}>
+              {SETTLEMENT_FLOW_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -570,9 +614,10 @@ function JobManagementCard({
           <span className="admin-card-meta">통역 공고</span>
           <h3 title={job.title || ""}>{job.event_name || job.title || "-"}</h3>
         </div>
-        <span className={`status-badge ${getJobStatusBadgeClass(normalizeJobStatus(job))}`}>
-          {getJobStatusLabel(job)}
-        </span>
+        <OperationFlowStatusControls
+          item={job}
+          onChange={(changes) => updateJob(job, changes)}
+        />
       </div>
 
       <dl className="admin-card-summary">
@@ -602,25 +647,7 @@ function JobManagementCard({
         )}
       </div>
 
-      <div className="admin-card-controls-grid">
-        <JobField label="모집 상태">
-          <select
-            className="admin-inline-select"
-            value={normalizeJobStatus(job)}
-            onChange={(event) =>
-              updateJob(job, {
-                status: event.target.value,
-                is_urgent: event.target.value === "closing_soon",
-              })
-            }
-          >
-            {JOB_STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </JobField>
+      <div className="admin-card-controls-grid single">
         <JobField label="공개 상태">
           <select
             className="admin-inline-select"
@@ -890,11 +917,55 @@ function StatusBadge({ status }) {
   );
 }
 
-function getStatusBadgeClass(status) {
-  return getStandardStatusBadgeClass(status);
+function OperationFlowStatusControls({ disabled = false, item, onChange }) {
+  const statuses = getOperationFlowStatuses(item);
+
+  return (
+    <div className="admin-flow-status-controls" aria-label="운영 단계 상태 변경">
+      <OperationFlowSelect
+        disabled={disabled}
+        options={ASSIGNMENT_STATUS_OPTIONS}
+        type="assignment"
+        value={statuses.assignment_status}
+        onChange={(value) => onChange(getAssignmentStatusChanges({ ...item, assignment_status: value }))}
+      />
+      <OperationFlowSelect
+        disabled={disabled}
+        options={OPERATION_STATUS_OPTIONS}
+        type="operation"
+        value={statuses.operation_status}
+        onChange={(value) => onChange(getOperationStatusChanges({ ...item, operation_status: value }))}
+      />
+      <OperationFlowSelect
+        disabled={disabled}
+        options={SETTLEMENT_FLOW_STATUS_OPTIONS}
+        type="settlement"
+        value={statuses.settlement_status}
+        onChange={(value) => onChange(getSettlementFlowStatusChanges({ ...item, settlement_status: value }))}
+      />
+    </div>
+  );
 }
 
-function getJobStatusBadgeClass(status) {
+function OperationFlowSelect({ disabled, onChange, options, type, value }) {
+  return (
+    <select
+      className={`admin-flow-status-select ${getOperationFlowBadgeClass(type, value)}`}
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      aria-label={getOperationFlowAriaLabel(type)}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function getStatusBadgeClass(status) {
   return getStandardStatusBadgeClass(status);
 }
 
@@ -926,6 +997,77 @@ function getAssignedInterpreterName(assignments = [], interpreters = []) {
 function formatDate(value) {
   if (!value) return "-";
   return String(value).slice(0, 10);
+}
+
+function getOperationFlowStatuses(item = {}) {
+  return {
+    assignment_status: normalizeAssignmentStatus(item),
+    operation_status: normalizeOperationStatus(item),
+    settlement_status: normalizeSettlementFlowStatus(item),
+  };
+}
+
+function getAssignmentStatusChanges(item = {}) {
+  return {
+    ...getJobStatusPayloadFromFlow(item),
+  };
+}
+
+function getOperationStatusChanges(item = {}) {
+  return {
+    ...getJobStatusPayloadFromFlow(item),
+  };
+}
+
+function getSettlementFlowStatusChanges(item = {}) {
+  return {
+    ...getJobStatusPayloadFromFlow(item),
+  };
+}
+
+function getJobStatusPayloadFromFlow(item = {}) {
+  const assignmentStatus = normalizeAssignmentStatus(item);
+  const operationStatus = normalizeOperationStatus(item);
+  const settlementStatus = normalizeSettlementFlowStatus(item);
+
+  if (operationStatus === OPERATION_STATUS.COMPLETED) {
+    return {
+      assignment_status: assignmentStatus,
+      operation_status: operationStatus,
+      settlement_status: settlementStatus,
+      status: JOB_STATUS.COMPLETED,
+      is_urgent: false,
+    };
+  }
+
+  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNED) {
+    return {
+      assignment_status: assignmentStatus,
+      operation_status: operationStatus,
+      settlement_status: settlementStatus,
+      status: JOB_STATUS.ASSIGNED,
+      is_urgent: false,
+    };
+  }
+
+  return {
+    assignment_status: assignmentStatus,
+    operation_status: operationStatus,
+    settlement_status: settlementStatus,
+    status: JOB_STATUS.OPEN,
+  };
+}
+
+function getOperationFlowBadgeClass(type, value) {
+  if (type === "assignment") return getAssignmentStatusBadgeClass(value);
+  if (type === "operation") return getOperationStatusBadgeClass(value);
+  return getSettlementFlowStatusBadgeClass(value);
+}
+
+function getOperationFlowAriaLabel(type) {
+  if (type === "assignment") return "배정 상태";
+  if (type === "operation") return "운영 상태";
+  return "정산 상태";
 }
 
 export default AdminJobs;

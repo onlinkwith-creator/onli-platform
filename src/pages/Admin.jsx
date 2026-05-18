@@ -18,7 +18,6 @@ import {
   APPLICATION_STATUS_OPTIONS,
   JOB_STATUS,
   MATCHING_STATUS,
-  MATCHING_STATUS_OPTIONS,
   getApplicationStatusLabel,
   getMatchingStatusLabel,
   getStatusBadgeClass as getStandardStatusBadgeClass,
@@ -30,6 +29,21 @@ import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsA
 import { getPositiveInteger } from "../utils/jobRecruitment";
 import { normalizeLevel } from "../utils/levelBadge";
 import { getDuplicateApplicationIdSet } from "../utils/duplicateApplications";
+import {
+  ASSIGNMENT_STATUS,
+  ASSIGNMENT_STATUS_OPTIONS,
+  OPERATION_STATUS,
+  OPERATION_STATUS_OPTIONS,
+  SETTLEMENT_FLOW_STATUS,
+  SETTLEMENT_FLOW_STATUS_OPTIONS,
+  getAssignmentStatusBadgeClass,
+  getOperationStatusBadgeClass,
+  getSettlementFlowStatusBadgeClass,
+  getSettlementFlowStatusLabel,
+  normalizeAssignmentStatus,
+  normalizeOperationStatus,
+  normalizeSettlementFlowStatus,
+} from "../utils/operationsStatus";
 import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import {
   getDesignatedInterpreterName,
@@ -59,14 +73,6 @@ const REQUEST_STATUSES = [
   MATCHING_STATUS.SETTLED,
   MATCHING_STATUS.CANCELLED,
 ];
-const CONTACT_STATUSES = [
-  "not_contacted",
-  "contacted",
-  "group_created",
-  "meeting_done",
-];
-const PAYMENT_STATUSES = ["unpaid", "paid"];
-const SETTLEMENT_STATUSES = ["unsettled", "settled"];
 const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
 const ONGOING_REQUEST_STATUSES = [
   MATCHING_STATUS.DRAFT,
@@ -630,6 +636,8 @@ function Admin() {
       delete legacyPayload.company_amount;
       delete legacyPayload.interpreter_payment;
       delete legacyPayload.platform_profit;
+      delete legacyPayload.assignment_status;
+      delete legacyPayload.operation_status;
       delete legacyPayload.settlement_status;
 
       const fallbackResult = await supabase
@@ -784,7 +792,10 @@ function Admin() {
       requested_level: requestEditDraft.requested_level,
       required_level: requestEditDraft.requested_level,
       preferred_gender: requestEditDraft.preferred_gender,
-      status: requestEditDraft.status,
+      status: getLegacyRequestStatusFromFlow(requestEditDraft),
+      assignment_status: normalizeAssignmentStatus(requestEditDraft),
+      operation_status: normalizeOperationStatus(requestEditDraft),
+      settlement_status: normalizeSettlementFlowStatus(requestEditDraft),
       contact_status: requestEditDraft.contact_status,
       payment_status: requestEditDraft.payment_status,
       is_public: requestEditDraft.is_public === "true",
@@ -812,6 +823,7 @@ function Admin() {
       level: requestEditDraft.requested_level,
       preferred_gender: requestEditDraft.preferred_gender,
       visibility: requestEditDraft.is_public === "true" ? "public" : "private",
+      ...getJobStatusPayloadFromFlow(requestEditDraft),
     };
 
     setSavingKey(`request-edit-${activeRequest.id}`);
@@ -980,7 +992,7 @@ function Admin() {
       interpreter_price: interpreterPayment,
       profit: platformProfit,
       payment_status: request.payment_status || "unpaid",
-      settlement_status: request.settlement_status || "unsettled",
+      settlement_status: normalizeSettlementFlowStatus(request),
     };
 
     setSavingKey(`request-${request.id}`);
@@ -1365,10 +1377,14 @@ function Admin() {
   ) => {
     if (!request?.job_id) return;
 
-    const status = assignedCount >= requiredCount ? "assigned" : "open";
+    const isAssigned = assignedCount >= requiredCount;
+    const status = isAssigned ? JOB_STATUS.ASSIGNED : JOB_STATUS.OPEN;
+    const assignmentStatus = isAssigned
+      ? ASSIGNMENT_STATUS.ASSIGNED
+      : ASSIGNMENT_STATUS.ASSIGNING;
     const { data, error } = await supabase
       .from("jobs")
-      .update({ status })
+      .update({ status, assignment_status: assignmentStatus })
       .eq("id", request.job_id)
       .select("*")
       .single();
@@ -1385,6 +1401,7 @@ function Admin() {
               ...job,
               ...(data || {}),
               status,
+              assignment_status: assignmentStatus,
               assigned_count: assignedCount,
               matched_count: assignedCount,
               assigned_interpreters: nextAssignments.map((assignment) =>
@@ -1482,7 +1499,11 @@ function Admin() {
         if (shouldAssignJob) {
           const { error: jobError } = await supabase
             .from("jobs")
-            .update({ status: JOB_STATUS.ASSIGNED, is_urgent: false })
+            .update({
+              status: JOB_STATUS.ASSIGNED,
+              assignment_status: ASSIGNMENT_STATUS.ASSIGNED,
+              is_urgent: false,
+            })
             .eq("id", jobId);
 
           if (jobError) {
@@ -2033,25 +2054,25 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
             onChange={(value) => onChange("is_public", value)}
           />
         </FieldControl>
-        <FieldControl label="의뢰 상태">
+        <FieldControl label="배정 상태">
           <InlineSelect
-            options={MATCHING_STATUS_OPTIONS}
-            value={normalizeMatchingStatus(draft.status)}
-            onChange={(value) => onChange("status", value)}
+            options={ASSIGNMENT_STATUS_OPTIONS}
+            value={normalizeAssignmentStatus(draft)}
+            onChange={(value) => onChange("assignment_status", value)}
           />
         </FieldControl>
-        <FieldControl label="연락 상태">
+        <FieldControl label="운영 상태">
           <InlineSelect
-            options={CONTACT_STATUSES}
-            value={draft.contact_status || "not_contacted"}
-            onChange={(value) => onChange("contact_status", value)}
+            options={OPERATION_STATUS_OPTIONS}
+            value={normalizeOperationStatus(draft)}
+            onChange={(value) => onChange("operation_status", value)}
           />
         </FieldControl>
-        <FieldControl label="결제 상태">
+        <FieldControl label="정산 상태">
           <InlineSelect
-            options={PAYMENT_STATUSES}
-            value={draft.payment_status || "unpaid"}
-            onChange={(value) => onChange("payment_status", value)}
+            options={SETTLEMENT_FLOW_STATUS_OPTIONS}
+            value={normalizeSettlementFlowStatus(draft)}
+            onChange={(value) => onChange("settlement_status", value)}
           />
         </FieldControl>
       </div>
@@ -2218,7 +2239,6 @@ function AdminRequestCard({
     assignments,
     interpreters
   );
-
   return (
     <article className="admin-request-card">
       <div className="admin-request-card-head">
@@ -2226,7 +2246,11 @@ function AdminRequestCard({
           <span className="admin-request-id">#{request.id}</span>
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
         </div>
-        <StatusBadge status={normalizeMatchingStatus(request.status)} />
+        <OperationFlowStatusControls
+          item={request}
+          disabled={savingKey === `request-${request.id}`}
+          onChange={(changes) => updateRequest(request.id, changes)}
+        />
       </div>
 
       <dl className="admin-request-summary">
@@ -2247,34 +2271,6 @@ function AdminRequestCard({
         <Info label="장소" value={request.event_location || "-"} />
         <Info label="공개 여부" value={jobPublicState.label} />
       </dl>
-
-      <div className="admin-request-controls">
-        <FieldControl label="의뢰 상태">
-          <InlineSelect
-            options={MATCHING_STATUS_OPTIONS}
-            value={normalizeMatchingStatus(request.status)}
-            onChange={(value) => updateRequest(request.id, { status: value })}
-          />
-        </FieldControl>
-        <FieldControl label="연락 상태">
-          <InlineSelect
-            options={CONTACT_STATUSES}
-            value={request.contact_status || "not_contacted"}
-            onChange={(value) =>
-              updateRequest(request.id, { contact_status: value })
-            }
-          />
-        </FieldControl>
-        <FieldControl label="결제 상태">
-          <InlineSelect
-            options={PAYMENT_STATUSES}
-            value={request.payment_status || "unpaid"}
-            onChange={(value) =>
-              updateRequest(request.id, { payment_status: value })
-            }
-          />
-        </FieldControl>
-      </div>
 
       <div className="admin-request-actions">
         <button
@@ -2355,6 +2351,15 @@ function RequestDetailPanel({
 
   return (
     <div className="admin-detail-panel">
+      <div className="admin-flow-status-panel">
+        <h3>운영 단계</h3>
+        <OperationFlowStatusControls
+          item={request}
+          disabled={savingKey === `request-${request.id}`}
+          onChange={(changes) => updateRequest(request.id, changes)}
+        />
+      </div>
+
       <div>
         <h3>의뢰 기본 정보</h3>
         <dl className="admin-detail-list compact">
@@ -2450,26 +2455,6 @@ function RequestDetailPanel({
             <span>플랫폼 수익</span>
             <strong>{formatJPY(getPlatformProfit(request))}</strong>
           </div>
-          <FieldControl label="결제 상태">
-            <InlineSelect
-              options={PAYMENT_STATUSES}
-              value={request.payment_status || "unpaid"}
-              disabled={savingKey === `request-${request.id}`}
-              onChange={(value) =>
-                updateRequest(request.id, { payment_status: value })
-              }
-            />
-          </FieldControl>
-          <FieldControl label="정산 상태">
-            <InlineSelect
-              options={SETTLEMENT_STATUSES}
-              value={request.settlement_status || "unsettled"}
-              disabled={savingKey === `request-${request.id}`}
-              onChange={(value) =>
-                updateRequest(request.id, { settlement_status: value })
-              }
-            />
-          </FieldControl>
           <button
             type="button"
             className="admin-save"
@@ -3446,7 +3431,7 @@ function MatchingRequestCard({ request, assignments, interpreters }) {
         <Info label="결제 상태" value={getStatusLabel(request.payment_status || "unpaid")} />
         <Info
           label="정산 상태"
-          value={getStatusLabel(request.settlement_status || "미정산")}
+          value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request))}
         />
       </dl>
     </article>
@@ -3497,7 +3482,10 @@ function MatchingCard({
         <Info label="통역사 지급액" value={formatJPY(interpreterPrice)} />
         <Info label="플랫폼 수익" value={formatJPY(platformProfit)} />
         <Info label="결제 상태" value={getStatusLabel(request?.payment_status || "unpaid")} />
-        <Info label="정산 상태" value={getStatusLabel(request?.settlement_status || "미정산")} />
+        <Info
+          label="정산 상태"
+          value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request || {}))}
+        />
       </dl>
 
       <div className="admin-card-chip-row">
@@ -3561,6 +3549,56 @@ function InlineSelect({ options, value, onChange, disabled = false }) {
           </option>
         );
       })}
+    </select>
+  );
+}
+
+function OperationFlowStatusControls({ disabled = false, item, onChange }) {
+  const statuses = getOperationFlowStatuses(item);
+
+  return (
+    <div className="admin-flow-status-controls" aria-label="운영 단계 상태 변경">
+      <OperationFlowSelect
+        disabled={disabled}
+        options={ASSIGNMENT_STATUS_OPTIONS}
+        type="assignment"
+        value={statuses.assignment_status}
+        onChange={(value) => onChange(getAssignmentStatusChanges({ ...item, assignment_status: value }))}
+      />
+      <OperationFlowSelect
+        disabled={disabled}
+        options={OPERATION_STATUS_OPTIONS}
+        type="operation"
+        value={statuses.operation_status}
+        onChange={(value) => onChange(getOperationStatusChanges({ ...item, operation_status: value }))}
+      />
+      <OperationFlowSelect
+        disabled={disabled}
+        options={SETTLEMENT_FLOW_STATUS_OPTIONS}
+        type="settlement"
+        value={statuses.settlement_status}
+        onChange={(value) => onChange(getSettlementFlowStatusChanges({ ...item, settlement_status: value }))}
+      />
+    </div>
+  );
+}
+
+function OperationFlowSelect({ disabled, onChange, options, type, value }) {
+  const className = `admin-flow-status-select ${getOperationFlowBadgeClass(type, value)}`;
+
+  return (
+    <select
+      className={className}
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      aria-label={getOperationFlowAriaLabel(type)}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
     </select>
   );
 }
@@ -3677,6 +3715,9 @@ function buildJobPayloadFromRequest(request) {
     people_count: peopleCount || null,
     field,
     status: JOB_STATUS.OPEN,
+    assignment_status: normalizeAssignmentStatus(request),
+    operation_status: normalizeOperationStatus(request),
+    settlement_status: normalizeSettlementFlowStatus(request),
     visibility: "public",
     request_type: getDesignatedRequestType(request).label,
     selected_interpreter_id: request.selected_interpreter_id || request.interpreter_id || null,
@@ -3700,6 +3741,9 @@ function createRequestEditDraft(request = {}, job = {}) {
     preferred_gender: request.preferred_gender || job?.preferred_gender || "",
     is_public: String(Boolean(request.is_job_public || request.is_public || normalizeJobVisibility(job) === "public")),
     status: normalizeMatchingStatus(request.status),
+    assignment_status: normalizeAssignmentStatus(request),
+    operation_status: normalizeOperationStatus(request),
+    settlement_status: normalizeSettlementFlowStatus(request),
     contact_status: request.contact_status || "not_contacted",
     payment_status: request.payment_status || "unpaid",
   };
@@ -3988,6 +4032,9 @@ function buildAssignmentRequestChanges(assignments = [], requiredCount = 1) {
   return {
     status: hasAssignments ? MATCHING_STATUS.ASSIGNED : MATCHING_STATUS.DRAFT,
     matching_status: hasAssignments ? MATCHING_STATUS.ASSIGNED : MATCHING_STATUS.DRAFT,
+    assignment_status: hasAssignments
+      ? (isFullyAssigned ? ASSIGNMENT_STATUS.ASSIGNED : ASSIGNMENT_STATUS.ASSIGNING)
+      : ASSIGNMENT_STATUS.WAITING,
     assigned_interpreter_id: interpreterId,
     assigned_interpreter_name: interpreterName,
     matched_interpreter_id: interpreterId,
@@ -4041,6 +4088,115 @@ function getDesignatedRequestType(...items) {
 
 function getStatusBadgeClass(status) {
   return getStandardStatusBadgeClass(status);
+}
+
+function getOperationFlowStatuses(item = {}) {
+  return {
+    assignment_status: normalizeAssignmentStatus(item),
+    operation_status: normalizeOperationStatus(item),
+    settlement_status: normalizeSettlementFlowStatus(item),
+  };
+}
+
+function getAssignmentStatusChanges(item = {}) {
+  const value = normalizeAssignmentStatus(item);
+  return {
+    assignment_status: value,
+    status:
+      value === ASSIGNMENT_STATUS.ASSIGNED
+        ? MATCHING_STATUS.ASSIGNED
+        : MATCHING_STATUS.DRAFT,
+    matching_status:
+      value === ASSIGNMENT_STATUS.ASSIGNED
+        ? MATCHING_STATUS.ASSIGNED
+        : MATCHING_STATUS.DRAFT,
+  };
+}
+
+function getOperationStatusChanges(item = {}) {
+  const value = normalizeOperationStatus(item);
+  const changes = { operation_status: value };
+  if (value === OPERATION_STATUS.IN_PROGRESS) {
+    changes.status = MATCHING_STATUS.IN_PROGRESS;
+    changes.matching_status = MATCHING_STATUS.IN_PROGRESS;
+  }
+  if (value === OPERATION_STATUS.COMPLETED) {
+    changes.status = MATCHING_STATUS.COMPLETED;
+    changes.matching_status = MATCHING_STATUS.COMPLETED;
+    changes.settlement_status = SETTLEMENT_FLOW_STATUS.PENDING;
+  }
+  return changes;
+}
+
+function getSettlementFlowStatusChanges(item = {}) {
+  const value = normalizeSettlementFlowStatus(item);
+  const changes = { settlement_status: value };
+  if (value === SETTLEMENT_FLOW_STATUS.COMPLETED) {
+    changes.status = MATCHING_STATUS.SETTLED;
+    changes.matching_status = MATCHING_STATUS.SETTLED;
+  }
+  if (value === SETTLEMENT_FLOW_STATUS.PENDING) {
+    changes.status = MATCHING_STATUS.SETTLEMENT_PENDING;
+    changes.matching_status = MATCHING_STATUS.SETTLEMENT_PENDING;
+  }
+  return changes;
+}
+
+function getLegacyRequestStatusFromFlow(item = {}) {
+  const settlementStatus = normalizeSettlementFlowStatus(item);
+  const operationStatus = normalizeOperationStatus(item);
+  const assignmentStatus = normalizeAssignmentStatus(item);
+
+  if (settlementStatus === SETTLEMENT_FLOW_STATUS.COMPLETED) return MATCHING_STATUS.SETTLED;
+  if (settlementStatus === SETTLEMENT_FLOW_STATUS.PENDING) return MATCHING_STATUS.SETTLEMENT_PENDING;
+  if (operationStatus === OPERATION_STATUS.COMPLETED) return MATCHING_STATUS.COMPLETED;
+  if (operationStatus === OPERATION_STATUS.IN_PROGRESS) return MATCHING_STATUS.IN_PROGRESS;
+  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNED) return MATCHING_STATUS.ASSIGNED;
+  return MATCHING_STATUS.DRAFT;
+}
+
+function getJobStatusPayloadFromFlow(item = {}) {
+  const assignmentStatus = normalizeAssignmentStatus(item);
+  const operationStatus = normalizeOperationStatus(item);
+
+  if (operationStatus === OPERATION_STATUS.COMPLETED) {
+    return {
+      assignment_status: assignmentStatus,
+      operation_status: operationStatus,
+      settlement_status: normalizeSettlementFlowStatus(item),
+      status: JOB_STATUS.COMPLETED,
+      is_urgent: false,
+    };
+  }
+
+  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNED) {
+    return {
+      assignment_status: assignmentStatus,
+      operation_status: operationStatus,
+      settlement_status: normalizeSettlementFlowStatus(item),
+      status: JOB_STATUS.ASSIGNED,
+      is_urgent: false,
+    };
+  }
+
+  return {
+    assignment_status: assignmentStatus,
+    operation_status: operationStatus,
+    settlement_status: normalizeSettlementFlowStatus(item),
+    status: JOB_STATUS.OPEN,
+  };
+}
+
+function getOperationFlowBadgeClass(type, value) {
+  if (type === "assignment") return getAssignmentStatusBadgeClass(value);
+  if (type === "operation") return getOperationStatusBadgeClass(value);
+  return getSettlementFlowStatusBadgeClass(value);
+}
+
+function getOperationFlowAriaLabel(type) {
+  if (type === "assignment") return "배정 상태";
+  if (type === "operation") return "운영 상태";
+  return "정산 상태";
 }
 
 function getApplicationLanguage(application = {}, job = {}) {
