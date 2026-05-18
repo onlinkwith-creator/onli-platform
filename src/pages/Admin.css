@@ -1573,6 +1573,7 @@
   place-items: center;
   padding: 16px;
   background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(6px);
 }
 
 .admin-modal-card {
@@ -1589,6 +1590,241 @@
 
 .admin-jobs-applicant-modal {
   max-width: 760px;
+}
+
+.admin-interpreter-detail-modal {
+  max-width: 960px;
+  padding: 28px;
+}
+
+.admin-interpreter-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.admin-interpreter-modal-head h2 {
+  margin: 3px 0 10px;
+  color: #111827;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.admin-interpreter-modal-badges,
+.admin-interpreter-memo-actions,
+.admin-interpreter-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-modal-icon-close {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-modal-icon-close:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #111827;
+}
+
+.admin-interpreter-summary-card {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.15fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
+  padding: 20px;
+  border: 1px solid #eef2f7;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.admin-interpreter-profile-pane {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.admin-interpreter-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #111827, #475569);
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.admin-interpreter-profile-pane h3 {
+  margin: 0 0 6px;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.admin-interpreter-profile-pane p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.admin-interpreter-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-interpreter-quick-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.admin-interpreter-quick-info svg,
+.admin-interpreter-section-title svg {
+  flex: 0 0 auto;
+  color: #4f46e5;
+}
+
+.admin-interpreter-quick-info span {
+  display: block;
+  margin-bottom: 4px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-interpreter-quick-info strong {
+  display: block;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-interpreter-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-interpreter-detail-section,
+.admin-interpreter-memo-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.admin-interpreter-section-title {
+  margin-bottom: 14px;
+}
+
+.admin-interpreter-section-title h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.admin-interpreter-detail-section dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.admin-interpreter-detail-item {
+  display: grid;
+  grid-template-columns: minmax(86px, 0.45fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.admin-interpreter-detail-item dt {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-interpreter-detail-item dd {
+  min-width: 0;
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.admin-interpreter-memo-card {
+  margin-top: 14px;
+}
+
+.admin-interpreter-memo-card textarea {
+  width: 100%;
+  min-height: 128px;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #111827;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.admin-interpreter-memo-card textarea:focus {
+  border-color: #6366f1;
+  outline: 3px solid rgba(99, 102, 241, 0.14);
+}
+
+.admin-interpreter-memo-actions {
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.admin-interpreter-memo-actions span {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-interpreter-memo-actions .admin-save {
+  width: auto;
+  min-width: 112px;
 }
 
 .admin-modal-head {
@@ -1844,9 +2080,40 @@
   .admin-info-section.two-column,
   .admin-interpreter-control-grid,
   .admin-interpreter-actions,
+  .admin-interpreter-summary-card,
+  .admin-interpreter-contact-grid,
+  .admin-interpreter-detail-grid,
   .admin-modal-edit-grid,
   .admin-modal-actions {
     grid-template-columns: 1fr;
+  }
+
+  .admin-interpreter-detail-modal {
+    width: 95vw;
+    padding: 18px;
+  }
+
+  .admin-interpreter-modal-head {
+    gap: 12px;
+  }
+
+  .admin-interpreter-modal-head h2 {
+    font-size: 24px;
+  }
+
+  .admin-interpreter-summary-card,
+  .admin-interpreter-detail-section,
+  .admin-interpreter-memo-card {
+    padding: 16px;
+  }
+
+  .admin-interpreter-detail-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .admin-interpreter-detail-item dd {
+    text-align: left;
   }
 
   .admin-metrics {

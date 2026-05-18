@@ -1,4 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Briefcase,
+  Languages,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldAlert,
+  Star,
+  User,
+  X,
+} from "lucide-react";
 import { supabase, supabaseConfigError } from "../supabase";
 import AdminJobs from "./AdminJobs";
 import { normalizeJobVisibility } from "../utils/jobStatus";
@@ -543,9 +554,7 @@ function Admin() {
   const openInterpreterModal = (interpreter, modalType) => {
     setSelectedInterpreter(interpreter);
     setInterpreterModalType(modalType);
-    setInterpreterEditDraft(
-      modalType === "edit" ? createInterpreterEditDraft(interpreter) : null
-    );
+    setInterpreterEditDraft(createInterpreterEditDraft(interpreter));
   };
 
   const updateInterpreterEditDraft = (name, value) => {
@@ -579,7 +588,7 @@ function Admin() {
       selectedInterpreter.id,
       getInterpreterChangesFromDraft(interpreterEditDraft)
     );
-    closeInterpreterModal();
+    if (interpreterModalType === "edit") closeInterpreterModal();
   };
 
   const updateRequest = async (id, changes) => {
@@ -2871,6 +2880,15 @@ function InterpreterModal({
   if (!interpreter || !modalType) return null;
 
   const approvalLabel = getInterpreterStatusLabel(interpreter);
+  const levelLabel = normalizeLevel(interpreter.level);
+  const approvalStatus = interpreter.approved ? "승인 완료" : "승인 대기";
+  const adminMemo =
+    draft?.admin_memo ??
+    interpreter.admin_memo ??
+    interpreter.management_memo ??
+    interpreter.memo ??
+    interpreter.note ??
+    "";
   const managementMemo =
     interpreter.admin_memo ||
     interpreter.management_memo ||
@@ -2881,84 +2899,151 @@ function InterpreterModal({
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
       <section
-        className="admin-modal-card"
+        className={`admin-modal-card${modalType === "detail" ? " admin-interpreter-detail-modal" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="interpreter-modal-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="admin-modal-head">
-          <div>
-            <span className="admin-card-meta">INTERPRETER</span>
-            <h2 id="interpreter-modal-title">
-              {modalType === "detail" ? "통역사 상세 정보" : "통역사 정보 수정"}
-            </h2>
-          </div>
-          <button type="button" className="admin-modal-close" onClick={onClose}>
-            닫기
-          </button>
-        </div>
-
         {modalType === "detail" ? (
-          <div className="admin-modal-sections">
-            <ModalInfoSection title="기본 정보">
-              <Info label="이름" value={interpreter.name || "미입력"} />
-              <Info label="성별" value={interpreter.gender || "미입력"} />
-              <Info label="나이" value={interpreter.age || "미입력"} />
-              <Info label="레벨" value={normalizeLevel(interpreter.level)} />
-              <Info label="승인 상태" value={interpreter.approved ? "승인 완료" : "승인 대기"} />
-              <Info label="활동 상태" value={approvalLabel} />
-            </ModalInfoSection>
-
-            <ModalInfoSection title="프로필 정보" twoColumn>
-              <Info label="언어 수준" value={interpreter.language_level || interpreter.level || "미입력"} />
-              <Info label="JLPT 여부" value={interpreter.jlpt || "미입력"} />
-              <Info label="통역 경험 여부" value={getExperienceLabel(interpreter)} />
-              <Info
-                label="통역 경험 횟수"
-                value={
-                  interpreter.experience_count || interpreter.experience_count === 0
-                    ? `${interpreter.experience_count}회`
-                    : "미입력"
-                }
-              />
-              <Info label="가능 업무" value={interpreter.available_tasks || "미입력"} />
-              <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
-              <Info label="활동 가능 지역" value={formatListOrMissing(interpreter.available_regions)} />
-              <Info label="일본 체류 기간" value={interpreter.stay_period || "미입력"} />
-              <Info label="학교/전공" value={interpreter.school || "미입력"} />
-            </ModalInfoSection>
-
-            <section className="admin-private-info admin-modal-private-info" aria-label="관리자 전용 정보">
-              <div className="admin-private-info-head">
-                <h3>관리자 전용 정보</h3>
-                <span>관리자 전용</span>
+          <>
+            <div className="admin-interpreter-modal-head">
+              <div>
+                <span className="admin-card-meta">INTERPRETER PROFILE</span>
+                <h2 id="interpreter-modal-title">
+                  {interpreter.name || "이름 미입력"}
+                </h2>
+                <div className="admin-interpreter-modal-badges">
+                  <span className="status-badge badge-blue">{levelLabel}</span>
+                  <StatusBadge status={approvalStatus} />
+                  <StatusBadge status={approvalLabel} />
+                </div>
               </div>
-              <dl className="admin-info-section">
-                <Info label="이메일" value={interpreter.email || "미입력"} />
-                <Info label="전화번호" value={interpreter.phone || "미입력"} />
-                <Info label="Kakao/LINE" value={interpreter.kakao_or_line || "미입력"} />
-              </dl>
+              <button
+                type="button"
+                className="admin-modal-icon-close"
+                onClick={onClose}
+                aria-label="닫기"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="admin-interpreter-summary-card">
+              <div className="admin-interpreter-profile-pane">
+                <div className="admin-interpreter-avatar" aria-hidden="true">
+                  {getInitial(interpreter.name)}
+                </div>
+                <div>
+                  <h3>{interpreter.name || "이름 미입력"}</h3>
+                  <p>
+                    {[interpreter.gender, interpreter.age ? `${interpreter.age}세` : "", levelLabel]
+                      .filter(Boolean)
+                      .join(" · ") || "기본 정보 미입력"}
+                  </p>
+                </div>
+              </div>
+              <div className="admin-interpreter-contact-grid">
+                <InterpreterQuickInfo icon={Phone} label="전화번호" value={interpreter.phone} />
+                <InterpreterQuickInfo icon={Mail} label="이메일" value={interpreter.email} />
+                <InterpreterQuickInfo
+                  icon={MapPin}
+                  label="활동 지역"
+                  value={formatListOrMissing(interpreter.available_regions)}
+                />
+                <InterpreterQuickInfo
+                  icon={Briefcase}
+                  label="전문 분야"
+                  value={formatListOrMissing(interpreter.specialties)}
+                />
+              </div>
+            </div>
+
+            <div className="admin-interpreter-detail-grid">
+              <InterpreterDetailSection icon={User} title="기본 정보">
+                <InterpreterDetailItem label="이름" value={interpreter.name} />
+                <InterpreterDetailItem label="성별" value={interpreter.gender} />
+                <InterpreterDetailItem label="나이" value={interpreter.age} />
+                <InterpreterDetailItem label="레벨" value={levelLabel} />
+                <InterpreterDetailItem label="승인 상태" value={approvalStatus} />
+                <InterpreterDetailItem label="활동 상태" value={approvalLabel} />
+              </InterpreterDetailSection>
+
+              <InterpreterDetailSection icon={Languages} title="활동 정보">
+                <InterpreterDetailItem label="언어 수준" value={interpreter.language_level || interpreter.level} />
+                <InterpreterDetailItem label="JLPT 여부" value={interpreter.jlpt} />
+                <InterpreterDetailItem label="통역 경험" value={getExperienceLabel(interpreter)} />
+                <InterpreterDetailItem
+                  label="통역 횟수"
+                  value={
+                    interpreter.experience_count || interpreter.experience_count === 0
+                      ? `${interpreter.experience_count}회`
+                      : ""
+                  }
+                />
+                <InterpreterDetailItem
+                  label="활동 가능 지역"
+                  value={formatListOrMissing(interpreter.available_regions)}
+                />
+                <InterpreterDetailItem label="가능 업무" value={interpreter.available_tasks} />
+              </InterpreterDetailSection>
+
+              <InterpreterDetailSection icon={Star} title="프로필 정보">
+                <InterpreterDetailItem
+                  label="전문 분야"
+                  value={formatListOrMissing(interpreter.specialties)}
+                />
+                <InterpreterDetailItem label="일본 체류 기간" value={interpreter.stay_period} />
+                <InterpreterDetailItem label="학교/전공" value={interpreter.school} />
+                <InterpreterDetailItem label="Kakao/LINE" value={interpreter.kakao_or_line} />
+                <InterpreterDetailItem label="약관 동의" value={getAgreementStatusLabel(interpreter)} />
+                <InterpreterDetailItem label="동의 시간" value={formatDateTime(interpreter.agreed_at)} />
+              </InterpreterDetailSection>
+
+              <InterpreterDetailSection icon={ShieldAlert} title="경고/운영 상태">
+                <InterpreterDetailItem label="경고 횟수" value={`${interpreter.warning_count || 0}회`} />
+                <InterpreterDetailItem label="운영 메모" value={managementMemo} />
+                <InterpreterDetailItem label="공개 노출" value="관리자 전용 정보" />
+              </InterpreterDetailSection>
+            </div>
+
+            <section className="admin-interpreter-memo-card">
+              <div className="admin-interpreter-section-title">
+                <ShieldAlert size={18} aria-hidden="true" />
+                <h3>관리자 메모</h3>
+              </div>
+              <textarea
+                rows={5}
+                value={adminMemo}
+                onChange={(event) => onChangeDraft("admin_memo", event.target.value)}
+                placeholder="운영팀 내부에서만 확인하는 메모를 입력하세요."
+              />
+              <div className="admin-interpreter-memo-actions">
+                <span>공개 페이지에는 노출되지 않습니다.</span>
+                <button type="button" className="admin-save" disabled={saving} onClick={onSave}>
+                  {saving ? "저장 중..." : "메모 저장"}
+                </button>
+              </div>
             </section>
-
-            <ModalInfoSection title="운영 상태">
-              <Info label="경고 횟수" value={`${interpreter.warning_count || 0}회`} />
-              <Info label="메모" value={managementMemo || "미입력"} />
-            </ModalInfoSection>
-
-            <ModalInfoSection title="약관 동의">
-              <Info label="약관 동의" value={getAgreementStatusLabel(interpreter)} />
-              <Info label="동의 시간" value={formatDateTime(interpreter.agreed_at)} />
-            </ModalInfoSection>
-          </div>
+          </>
         ) : (
-          <form
-            className="admin-modal-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSave();
-            }}
-          >
+          <>
+            <div className="admin-modal-head">
+              <div>
+                <span className="admin-card-meta">INTERPRETER</span>
+                <h2 id="interpreter-modal-title">통역사 정보 수정</h2>
+              </div>
+              <button type="button" className="admin-modal-close" onClick={onClose}>
+                닫기
+              </button>
+            </div>
+            <form
+              className="admin-modal-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onSave();
+              }}
+            >
             <div className="admin-modal-edit-grid">
               <FieldControl label="레벨">
                 <InlineSelect
@@ -3073,6 +3158,13 @@ function InterpreterModal({
                   placeholder="쉼표로 구분"
                 />
               </FieldControl>
+              <FieldControl label="관리자 메모">
+                <textarea
+                  rows={3}
+                  value={draft?.admin_memo || ""}
+                  onChange={(event) => onChangeDraft("admin_memo", event.target.value)}
+                />
+              </FieldControl>
             </div>
             <div className="admin-modal-actions">
               <button type="button" className="admin-link-button" onClick={onClose}>
@@ -3083,8 +3175,42 @@ function InterpreterModal({
               </button>
             </div>
           </form>
+          </>
         )}
       </section>
+    </div>
+  );
+}
+
+function InterpreterQuickInfo({ icon: Icon, label, value }) {
+  return (
+    <div className="admin-interpreter-quick-info">
+      <Icon size={18} aria-hidden="true" />
+      <div>
+        <span>{label}</span>
+        <strong>{value || "미입력"}</strong>
+      </div>
+    </div>
+  );
+}
+
+function InterpreterDetailSection({ children, icon: Icon, title }) {
+  return (
+    <section className="admin-interpreter-detail-section">
+      <div className="admin-interpreter-section-title">
+        <Icon size={18} aria-hidden="true" />
+        <h3>{title}</h3>
+      </div>
+      <dl>{children}</dl>
+    </section>
+  );
+}
+
+function InterpreterDetailItem({ label, value }) {
+  return (
+    <div className="admin-interpreter-detail-item">
+      <dt>{label}</dt>
+      <dd>{value || "미입력"}</dd>
     </div>
   );
 }
@@ -4036,6 +4162,12 @@ function createInterpreterEditDraft(interpreter = {}) {
     available_tasks: interpreter.available_tasks || "",
     specialties: listToDraftText(interpreter.specialties),
     available_regions: listToDraftText(interpreter.available_regions),
+    admin_memo:
+      interpreter.admin_memo ||
+      interpreter.management_memo ||
+      interpreter.memo ||
+      interpreter.note ||
+      "",
   };
 }
 
@@ -4056,7 +4188,12 @@ function getInterpreterChangesFromDraft(draft = {}) {
     available_tasks: draft.available_tasks,
     specialties: draftTextToList(draft.specialties),
     available_regions: draftTextToList(draft.available_regions),
+    admin_memo: draft.admin_memo || "",
   };
+}
+
+function getInitial(value) {
+  return String(value || "ON").trim().slice(0, 1).toUpperCase();
 }
 
 function listToDraftText(value) {
