@@ -1026,9 +1026,17 @@ function getSettlementFlowStatusChanges(item = {}) {
 }
 
 function getJobStatusPayloadFromFlow(item = {}) {
-  const assignmentStatus = normalizeAssignmentStatus(item);
-  const operationStatus = normalizeOperationStatus(item);
   const settlementStatus = normalizeSettlementFlowStatus(item);
+  const rawOperationStatus = normalizeOperationStatus(item);
+  const operationStatus =
+    settlementStatus !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
+      ? OPERATION_STATUS.COMPLETED
+      : rawOperationStatus;
+  const assignmentStatus =
+    operationStatus === OPERATION_STATUS.IN_PROGRESS ||
+    operationStatus === OPERATION_STATUS.COMPLETED
+      ? ASSIGNMENT_STATUS.ASSIGNED
+      : normalizeAssignmentStatus(item);
 
   if (operationStatus === OPERATION_STATUS.COMPLETED) {
     return {

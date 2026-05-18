@@ -574,9 +574,12 @@ function Admin() {
   const openRequestModal = (type, request) => {
     setActiveRequestModal({ type, requestId: request.id, request });
     setSelectedRequest(type === "detail" ? request : null);
+    const requestJob = request.job_id
+      ? jobsById.get(String(request.job_id)) || jobsById.get(request.job_id) || null
+      : null;
     setRequestEditDraft(
       type === "edit"
-        ? createRequestEditDraft(request, request.job_id ? jobsById.get(String(request.job_id)) : null)
+        ? createRequestEditDraft(request, requestJob)
         : null
     );
   };
@@ -691,6 +694,69 @@ function Admin() {
         ),
         location: request?.event_location || "",
       });
+    }
+  };
+
+  const updateRequestFlowStatus = async (request, changes) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const linkedJob = request?.job_id
+      ? jobsById.get(String(request.job_id)) || jobsById.get(request.job_id) || null
+      : null;
+    const currentFlow = getRequestFlowSource(request, linkedJob);
+    const nextFlow = { ...currentFlow, ...changes };
+    const requestChanges = getRequestStatusPayloadFromFlow(nextFlow);
+    const jobChanges = getJobStatusPayloadFromFlow(nextFlow);
+
+    setSavingKey(`request-${request.id}`);
+    try {
+      let updatedJob = null;
+      if (request.job_id) {
+        const { data, error } = await supabase
+          .from("jobs")
+          .update(jobChanges)
+          .eq("id", request.job_id)
+          .select("*")
+          .single();
+
+        if (error) throw error;
+        updatedJob = data;
+      }
+
+      const { data: updatedRequest, error: requestError } =
+        await updateRequestWithFallback(request.id, requestChanges);
+
+      if (requestError) throw requestError;
+
+      setJobs((current) =>
+        updatedJob
+          ? current.map((job) =>
+              String(job.id) === String(request.job_id)
+                ? { ...job, ...jobChanges, ...updatedJob }
+                : job
+            )
+          : current
+      );
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id
+            ? { ...item, ...requestChanges, ...(updatedRequest || {}) }
+            : item
+        )
+      );
+      setSelectedRequest((current) =>
+        current?.id === request.id
+          ? { ...current, ...requestChanges, ...(updatedRequest || {}) }
+          : current
+      );
+    } catch (error) {
+      console.error("operation flow status update error:", error);
+      alert("운영 단계 상태 변경에 실패했습니다.");
+    } finally {
+      setSavingKey("");
     }
   };
 
@@ -1714,6 +1780,7 @@ function Admin() {
                 updateApplicationStatus={updateJobApplicationStatus}
                 deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
+                updateRequestFlowStatus={updateRequestFlowStatus}
               />
             )}
 
@@ -1805,6 +1872,7 @@ function Admin() {
                 toggleRequestJobPublic={toggleRequestJobPublic}
                 updateApplicationStatus={updateJobApplicationStatus}
                 updateRequest={updateRequest}
+                updateRequestFlowStatus={updateRequestFlowStatus}
               />
             )}
           
@@ -1837,6 +1905,7 @@ function RequestActionModal({
   toggleRequestJobPublic,
   updateApplicationStatus,
   updateRequest,
+  updateRequestFlowStatus,
 }) {
   if (!activeModal || !request) return null;
 
@@ -1857,6 +1926,7 @@ function RequestActionModal({
       {activeModal.type === "detail" && (
         <RequestDetailPanel
           request={request}
+          job={job}
           applications={applications}
           assignmentDrafts={assignmentDrafts}
           assignments={assignments}
@@ -1868,6 +1938,7 @@ function RequestActionModal({
           saveSettlement={saveSettlement}
           removeAssignment={onRemoveAssignment}
           updateRequest={updateRequest}
+          updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
         />
       )}
@@ -2114,6 +2185,7 @@ function RequestManagement({
   updateApplicationStatus,
   deleteRequest,
   toggleRequestJobPublic,
+  updateRequestFlowStatus,
 }) {
   return (
     <section className="admin-section">
@@ -2188,6 +2260,7 @@ function RequestManagement({
               saveSettlement={saveSettlement}
               removeAssignment={removeAssignment}
               updateRequest={updateRequest}
+              updateRequestFlowStatus={updateRequestFlowStatus}
               updateApplicationStatus={updateApplicationStatus}
               deleteRequest={deleteRequest}
               toggleRequestJobPublic={toggleRequestJobPublic}
@@ -2224,10 +2297,12 @@ function AdminRequestCard({
   updateApplicationStatus,
   deleteRequest,
   toggleRequestJobPublic,
+  updateRequestFlowStatus,
   openRequestModal,
 }) {
   const job = request.job_id ? jobsById.get(request.job_id) : null;
   const linkedRequest = request.job_id ? requestsByJobId.get(String(request.job_id)) : null;
+  const flowSource = getRequestFlowSource(request, job);
   const jobPublicState = getRequestJobPublicState(request, job);
   const requestType = getDesignatedRequestType(request, job, linkedRequest);
   const designatedInterpreterName = getDesignatedInterpreterName(
@@ -2247,9 +2322,9 @@ function AdminRequestCard({
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
         </div>
         <OperationFlowStatusControls
-          item={request}
+          item={flowSource}
           disabled={savingKey === `request-${request.id}`}
-          onChange={(changes) => updateRequest(request.id, changes)}
+          onChange={(changes) => updateRequestFlowStatus(request, changes)}
         />
       </div>
 
@@ -2322,6 +2397,7 @@ function RequestDetailPanel({
   assignmentDrafts,
   assignments,
   interpreters,
+  job,
   request,
   savingKey,
   setAssignmentDrafts,
@@ -2331,7 +2407,9 @@ function RequestDetailPanel({
   removeAssignment,
   updateRequest,
   updateApplicationStatus,
+  updateRequestFlowStatus,
 }) {
+  const flowSource = getRequestFlowSource(request, job);
   const requestType = getDesignatedRequestType(request);
   const designatedInterpreterName = getDesignatedInterpreterName([request], interpreters);
   const assignedInterpreterName = getAssignedInterpreterName(
@@ -2354,9 +2432,9 @@ function RequestDetailPanel({
       <div className="admin-flow-status-panel">
         <h3>운영 단계</h3>
         <OperationFlowStatusControls
-          item={request}
+          item={flowSource}
           disabled={savingKey === `request-${request.id}`}
-          onChange={(changes) => updateRequest(request.id, changes)}
+          onChange={(changes) => updateRequestFlowStatus(request, changes)}
         />
       </div>
 
@@ -3728,7 +3806,9 @@ function buildJobPayloadFromRequest(request) {
   };
 }
 
-function createRequestEditDraft(request = {}, job = {}) {
+function createRequestEditDraft(request = {}, job = null) {
+  const flowSource = getRequestFlowSource(request, job);
+
   return {
     event_name: request.event_name || job?.event_name || "",
     company_name: request.company_name || job?.company_name || "",
@@ -3740,10 +3820,10 @@ function createRequestEditDraft(request = {}, job = {}) {
     requested_level: request.requested_level || request.required_level || job?.requested_level || job?.level || "Lv1",
     preferred_gender: request.preferred_gender || job?.preferred_gender || "",
     is_public: String(Boolean(request.is_job_public || request.is_public || normalizeJobVisibility(job) === "public")),
-    status: normalizeMatchingStatus(request.status),
-    assignment_status: normalizeAssignmentStatus(request),
-    operation_status: normalizeOperationStatus(request),
-    settlement_status: normalizeSettlementFlowStatus(request),
+    status: normalizeMatchingStatus(flowSource.status),
+    assignment_status: normalizeAssignmentStatus(flowSource),
+    operation_status: normalizeOperationStatus(flowSource),
+    settlement_status: normalizeSettlementFlowStatus(flowSource),
     contact_status: request.contact_status || "not_contacted",
     payment_status: request.payment_status || "unpaid",
   };
@@ -4098,6 +4178,18 @@ function getOperationFlowStatuses(item = {}) {
   };
 }
 
+function getRequestFlowSource(request = {}, job = null) {
+  if (!job) return request;
+
+  return {
+    ...request,
+    assignment_status: job.assignment_status,
+    operation_status: job.operation_status,
+    settlement_status: job.settlement_status,
+    status: job.status || request.status,
+  };
+}
+
 function getAssignmentStatusChanges(item = {}) {
   const value = normalizeAssignmentStatus(item);
   return {
@@ -4155,15 +4247,48 @@ function getLegacyRequestStatusFromFlow(item = {}) {
   return MATCHING_STATUS.DRAFT;
 }
 
-function getJobStatusPayloadFromFlow(item = {}) {
-  const assignmentStatus = normalizeAssignmentStatus(item);
+function getRequestStatusPayloadFromFlow(item = {}) {
+  const legacyStatus = getLegacyRequestStatusFromFlow(item);
   const operationStatus = normalizeOperationStatus(item);
+  const settlementStatus = normalizeSettlementFlowStatus(item);
+  const operationRequiresAssignment =
+    operationStatus === OPERATION_STATUS.IN_PROGRESS ||
+    operationStatus === OPERATION_STATUS.COMPLETED ||
+    settlementStatus !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED;
+  const settlementRequiresCompletion =
+    settlementStatus !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED;
+
+  return {
+    assignment_status: operationRequiresAssignment
+      ? ASSIGNMENT_STATUS.ASSIGNED
+      : normalizeAssignmentStatus(item),
+    operation_status: settlementRequiresCompletion
+      ? OPERATION_STATUS.COMPLETED
+      : operationStatus,
+    settlement_status: settlementStatus,
+    status: legacyStatus,
+    matching_status: legacyStatus,
+  };
+}
+
+function getJobStatusPayloadFromFlow(item = {}) {
+  const settlementStatus = normalizeSettlementFlowStatus(item);
+  const rawOperationStatus = normalizeOperationStatus(item);
+  const operationStatus =
+    settlementStatus !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
+      ? OPERATION_STATUS.COMPLETED
+      : rawOperationStatus;
+  const assignmentStatus =
+    operationStatus === OPERATION_STATUS.IN_PROGRESS ||
+    operationStatus === OPERATION_STATUS.COMPLETED
+      ? ASSIGNMENT_STATUS.ASSIGNED
+      : normalizeAssignmentStatus(item);
 
   if (operationStatus === OPERATION_STATUS.COMPLETED) {
     return {
       assignment_status: assignmentStatus,
       operation_status: operationStatus,
-      settlement_status: normalizeSettlementFlowStatus(item),
+      settlement_status: settlementStatus,
       status: JOB_STATUS.COMPLETED,
       is_urgent: false,
     };
@@ -4173,7 +4298,7 @@ function getJobStatusPayloadFromFlow(item = {}) {
     return {
       assignment_status: assignmentStatus,
       operation_status: operationStatus,
-      settlement_status: normalizeSettlementFlowStatus(item),
+      settlement_status: settlementStatus,
       status: JOB_STATUS.ASSIGNED,
       is_urgent: false,
     };
@@ -4182,7 +4307,7 @@ function getJobStatusPayloadFromFlow(item = {}) {
   return {
     assignment_status: assignmentStatus,
     operation_status: operationStatus,
-    settlement_status: normalizeSettlementFlowStatus(item),
+    settlement_status: settlementStatus,
     status: JOB_STATUS.OPEN,
   };
 }
