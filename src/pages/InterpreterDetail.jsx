@@ -1,279 +1,396 @@
-import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  Briefcase,
+  Calendar,
+  CircleCheck,
+  Languages,
+  MapPin,
+  ShieldCheck,
+  Star,
+  Tag,
+} from "lucide-react";
+import { normalizeLevel } from "../utils/levelBadge";
+import "./InterpreterDetail.css";
+
+const DEFAULT_INTRO =
+  "전시회·상담회·비즈니스 미팅 등 다양한 분야에서 정확하고 신뢰도 높은 통역을 제공합니다.";
+const CONSULTATION_FALLBACK = "자세한 내용은 상담 후 안내드리겠습니다.";
+const EMPTY_TEXT = "미입력";
 
 function InterpreterDetail({ interpreter, onBackClick, onRequestClick }) {
   if (!interpreter) {
     return (
-      <div style={styles.page}>
+      <main className="interpreter-detail-page">
         <MessageBox text="통역사 정보를 찾을 수 없습니다." />
-      </div>
+      </main>
     );
   }
 
+  const profile = getProfile(interpreter);
+
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
-        <section style={styles.profileCard}>
-          <div style={styles.profileHeader}>
-            <div>
-              <p style={styles.label}>ON-LI INTERPRETER PROFILE</p>
-              <h1 style={styles.name}>{interpreter.name || "이름 미입력"}</h1>
-              <p style={styles.summary}>
-                {interpreter.gender || "성별 미입력"} · 나이(만){" "}
-                {interpreter.age || "-"} · {interpreter.region || "지역 미입력"}
-              </p>
-            </div>
-            <span style={getLevelBadgeStyle(interpreter.level)}>
-              {normalizeLevel(interpreter.level)}
-            </span>
-          </div>
+    <main className="interpreter-detail-page">
+      <div className="interpreter-detail-container">
+        <button type="button" onClick={onBackClick} className="interpreter-detail-back">
+          <ArrowLeft size={17} aria-hidden="true" />
+          메인으로 돌아가기
+        </button>
 
-          <div style={styles.infoGrid}>
-            <Info label="활동 가능 지역" value={formatList(interpreter.available_regions)} />
-            <Info label="언어 수준" value={interpreter.language_level || interpreter.level} />
-            <Info label="JLPT N1 여부" value={interpreter.jlpt || "N1 미입력"} />
-            <Info label="일본 체류 기간" value={interpreter.stay_period} />
-            <Info label="학교/전공" value={interpreter.school} />
-            <Info label="가능 업무" value={interpreter.available_tasks} />
-          </div>
-        </section>
+        <ProfileHero
+          interpreter={interpreter}
+          profile={profile}
+          onRequestClick={onRequestClick}
+        />
 
-        <div style={styles.contentGrid}>
-          <section style={styles.card}>
-            <h2 style={styles.sectionTitle}>Experience</h2>
-            <Info
-              label="통역 경험 여부"
-              value={getExperienceLabel(interpreter)}
-            />
-            <div style={styles.badgeList}>
-              {getList(interpreter.specialties).length === 0 ? (
-                <span style={styles.emptyBadge}>전문 분야 미입력</span>
-              ) : (
-                getList(interpreter.specialties).map((item) => (
-                  <span key={item} style={styles.fieldBadge}>
-                    {item}
-                  </span>
-                ))
-              )}
-            </div>
-          </section>
+        <InfoMetricGrid profile={profile} />
 
-          <section style={styles.card}>
-            <h2 style={styles.sectionTitle}>About Interpreter</h2>
-            <Info
-              label="소개"
-              value={
-                interpreter.intro ||
-                interpreter.profile_intro ||
-                interpreter.description ||
-                "자세한 내용은 상담 후 안내드리겠습니다."
-              }
-            />
-          </section>
+        <div className="interpreter-detail-content-grid">
+          <ExperienceCard profile={profile} />
+          <AboutCard profile={profile} />
         </div>
 
-        <div style={styles.actions}>
-          <button onClick={() => onRequestClick(interpreter)} style={styles.requestButton}>
-            이 통역사 지정해서 의뢰하기
-          </button>
-          <button onClick={onBackClick} style={styles.backButton}>
-            ← 메인으로 돌아가기
-          </button>
-        </div>
+        <ProfileCTA
+          interpreter={interpreter}
+          name={profile.name}
+          onBackClick={onBackClick}
+          onRequestClick={onRequestClick}
+        />
       </div>
+    </main>
+  );
+}
+
+function ProfileHero({ interpreter, profile, onRequestClick }) {
+  return (
+    <section className="profile-hero-card" aria-labelledby="interpreter-profile-title">
+      <div className="profile-hero-main">
+        <div className="profile-verified-kicker">
+          <BadgeCheck size={17} aria-hidden="true" />
+          <span>검증된 통역사</span>
+          <em>VERIFIED INTERPRETER</em>
+        </div>
+
+        <h1 id="interpreter-profile-title">{profile.name}</h1>
+        <p className="profile-summary">{profile.summary}</p>
+
+        <div className="profile-badge-row" aria-label="핵심 프로필 정보">
+          {profile.heroBadges.map((badge) => (
+            <span key={badge} className="profile-chip">
+              {badge}
+            </span>
+          ))}
+        </div>
+
+        <p className="profile-intro">{profile.intro}</p>
+      </div>
+
+      <aside className="profile-hero-side" aria-label="프로필 인증 및 의뢰">
+        <div className="profile-level-badge">
+          <ShieldCheck size={30} aria-hidden="true" />
+          <span>VERIFIED</span>
+          <strong>{profile.level}</strong>
+        </div>
+        <span className={`profile-status-badge ${profile.statusClass}`}>
+          <span aria-hidden="true" />
+          {profile.statusLabel}
+        </span>
+        <button
+          type="button"
+          onClick={() => onRequestClick(interpreter)}
+          className="profile-primary-button"
+        >
+          이 통역사 지정해서 의뢰하기
+          <ArrowRight size={18} aria-hidden="true" />
+        </button>
+      </aside>
+    </section>
+  );
+}
+
+function InfoMetricGrid({ profile }) {
+  const metrics = [
+    {
+      icon: MapPin,
+      label: "활동 가능 지역",
+      value: profile.availableRegions,
+    },
+    {
+      icon: Languages,
+      label: "언어 수준",
+      value: profile.languageLevel,
+    },
+    {
+      icon: Star,
+      label: "활동 레벨",
+      value: profile.level,
+    },
+    {
+      icon: Calendar,
+      label: "일본 체류 기간",
+      value: profile.stayPeriod,
+    },
+    {
+      icon: ShieldCheck,
+      label: "ON-LI 플랫폼 테스트",
+      value: profile.platformTest,
+    },
+    {
+      icon: Briefcase,
+      label: "가능 업무",
+      value: profile.availableTasks,
+    },
+    {
+      icon: Tag,
+      label: "전문 분야",
+      value: profile.specialtyText,
+    },
+  ];
+
+  return (
+    <section className="profile-metric-grid" aria-label="통역사 핵심 정보">
+      {metrics.map(({ icon: Icon, label, value }) => (
+        <div key={label} className="profile-metric-item">
+          <span className="profile-metric-icon">
+            <Icon size={20} aria-hidden="true" />
+          </span>
+          <span className="profile-metric-label">{label}</span>
+          <strong>{value || EMPTY_TEXT}</strong>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function ExperienceCard({ profile }) {
+  return (
+    <section className="profile-info-card">
+      <div className="profile-section-head">
+        <p>Experience</p>
+        <h2>현장 경험</h2>
+      </div>
+
+      <div className={`profile-experience-status ${profile.hasExperience ? "is-active" : ""}`}>
+        <CircleCheck size={20} aria-hidden="true" />
+        <span>{profile.experienceLabel}</span>
+      </div>
+
+      <div className="profile-card-block">
+        <span className="profile-card-label">전문 분야</span>
+        <BadgeList items={profile.specialties} fallback="일반 비즈니스" />
+      </div>
+
+      <div className="profile-card-block">
+        <span className="profile-card-label">가능 업무</span>
+        <BadgeList items={profile.tasks} fallback={EMPTY_TEXT} />
+      </div>
+    </section>
+  );
+}
+
+function AboutCard({ profile }) {
+  return (
+    <section className="profile-info-card">
+      <div className="profile-section-head">
+        <p>About Interpreter</p>
+        <h2>통역사 소개</h2>
+      </div>
+
+      <p className="profile-about-text">{profile.about}</p>
+
+      <div className="profile-soft-box">
+        <AboutRow label="강점" value={profile.strengths} />
+        <AboutRow label="통역 스타일" value={profile.style} />
+        <AboutRow label="주요 통역 분야" value={profile.mainFields} />
+      </div>
+    </section>
+  );
+}
+
+function ProfileCTA({ interpreter, name, onBackClick, onRequestClick }) {
+  return (
+    <section className="profile-bottom-cta" aria-label="프로필 하단 액션">
+      <div>
+        <span>ON-LI Verified Interpreter</span>
+        <strong>{name} 통역사와 의뢰를 시작해보세요.</strong>
+      </div>
+      <div className="profile-bottom-actions">
+        <button
+          type="button"
+          onClick={() => onRequestClick(interpreter)}
+          className="profile-primary-button"
+        >
+          이 통역사 지정해서 의뢰하기
+          <ArrowRight size={18} aria-hidden="true" />
+        </button>
+        <button type="button" onClick={onBackClick} className="profile-secondary-button">
+          <ArrowLeft size={17} aria-hidden="true" />
+          메인으로 돌아가기
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function BadgeList({ items, fallback }) {
+  const list = items.length ? items : fallback ? [fallback] : [];
+
+  return (
+    <div className="profile-badge-list">
+      {list.map((item) => (
+        <span key={item} className={item === EMPTY_TEXT ? "profile-empty-chip" : "profile-chip"}>
+          {item}
+        </span>
+      ))}
     </div>
   );
 }
 
-function getExperienceLabel(interpreter) {
-  return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
-}
-
-function Info({ label, value }) {
+function AboutRow({ label, value }) {
   return (
-    <div style={styles.infoRow}>
-      <span style={styles.infoLabel}>{label}</span>
-      <span style={styles.infoValue}>{value || "-"}</span>
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
 
 function MessageBox({ text }) {
-  return <div style={styles.messageBox}>{text}</div>;
+  return <div className="interpreter-detail-message">{text}</div>;
+}
+
+function getProfile(interpreter) {
+  const level = normalizeDisplayLevel(interpreter.level);
+  const specialties = getList(
+    interpreter.specialties ||
+      interpreter.specialty ||
+      interpreter.field ||
+      interpreter.interpretation_field
+  );
+  const tasks = getList(interpreter.available_tasks || interpreter.available_work);
+  const regions = getList(
+    interpreter.available_regions || interpreter.active_region || interpreter.region
+  );
+  const intro = getFirstText(
+    interpreter.self_intro,
+    interpreter.introduction,
+    interpreter.intro,
+    interpreter.profile_intro,
+    interpreter.description
+  );
+  const languageLevel = formatLanguageLevel(
+    interpreter.language_level || interpreter.jlpt_level || interpreter.jlpt
+  );
+  const status = getStatus(interpreter);
+  const specialtyFallback = specialties[0] || tasks[0] || "일반 비즈니스";
+  const mainFields = formatInlineList([...specialties, ...tasks], "일반 비즈니스");
+
+  return {
+    name: interpreter.name || "이름 미입력",
+    summary: [
+      interpreter.gender || "성별 미입력",
+      formatAge(interpreter.age),
+      interpreter.region || regions[0] || "지역 미입력",
+    ].join(" · "),
+    level,
+    statusLabel: status.label,
+    statusClass: status.className,
+    heroBadges: uniqueList([languageLevel, level, specialtyFallback]).slice(0, 4),
+    intro: intro || DEFAULT_INTRO,
+    about: intro || CONSULTATION_FALLBACK,
+    availableRegions: formatInlineList(regions, interpreter.region || EMPTY_TEXT),
+    languageLevel,
+    stayPeriod: interpreter.residence_period || interpreter.stay_period || EMPTY_TEXT,
+    platformTest: getPlatformTestLabel(interpreter),
+    availableTasks: formatInlineList(tasks, EMPTY_TEXT),
+    specialtyText: formatInlineList(specialties, "일반 비즈니스"),
+    hasExperience: Boolean(
+      interpreter.has_experience ||
+        interpreter.interpretation_experience ||
+        interpreter.experience ||
+        interpreter.experience_count
+    ),
+    experienceLabel: getExperienceLabel(interpreter),
+    specialties,
+    tasks,
+    strengths: getFirstText(interpreter.strengths) || getStrengthsText(specialties, tasks),
+    style: getFirstText(interpreter.interpretation_style, interpreter.style) || "정확 · 자연스러움 · 신속한 전달",
+    mainFields,
+  };
+}
+
+function getExperienceLabel(interpreter) {
+  if (interpreter.experience_count) return `통역 경험 ${interpreter.experience_count}회`;
+  if (interpreter.experience) return String(interpreter.experience);
+  if (interpreter.interpretation_experience) return String(interpreter.interpretation_experience);
+  return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
+}
+
+function getStatus(interpreter) {
+  const status = String(interpreter.status || interpreter.approval_status || "").toLowerCase();
+  if (status === "inactive" || status === "paused") {
+    return { label: "활동 대기", className: "is-muted" };
+  }
+  if (status === "pending" || status === "review") {
+    return { label: "승인 검토 중", className: "is-pending" };
+  }
+  return { label: "활동 중", className: "is-active" };
+}
+
+function getPlatformTestLabel(interpreter) {
+  if (interpreter.approved === false) return "검토 중";
+  if (interpreter.platform_test === false || interpreter.test_completed === false) {
+    return "확인 중";
+  }
+  return "완료";
+}
+
+function normalizeDisplayLevel(value) {
+  const normalized = normalizeLevel(value || "LV1");
+  return normalized.replace(/^LV/i, "Lv");
+}
+
+function formatLanguageLevel(value) {
+  const text = String(value || "").trim();
+  if (!text) return "JLPT N1";
+  if (/^jlpt/i.test(text)) return text.replace(/^jlpt/i, "JLPT");
+  if (/^n[1-5]/i.test(text)) return `JLPT ${text.toUpperCase()}`;
+  return text;
+}
+
+function formatAge(value) {
+  if (value === null || value === undefined || value === "") return "나이 미입력";
+  return `${value}세`;
+}
+
+function getStrengthsText(specialties, tasks) {
+  const hasBusinessFields = [...specialties, ...tasks].length > 0;
+  return hasBusinessFields
+    ? "전문 용어 이해도, 비즈니스 매너, 현장 대응력"
+    : CONSULTATION_FALLBACK;
+}
+
+function getFirstText(...values) {
+  return values.map((value) => String(value || "").trim()).find(Boolean) || "";
 }
 
 function getList(value) {
-  if (Array.isArray(value)) return value.filter(Boolean);
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
   if (!value) return [];
   return String(value)
-    .split(",")
+    .split(/[,/]/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
-function formatList(value) {
-  const list = getList(value);
-  return list.length ? list.join(", ") : "-";
+function formatInlineList(value, fallback) {
+  const list = Array.isArray(value) ? value.filter(Boolean) : getList(value);
+  return list.length ? list.join(", ") : fallback;
 }
 
-const styles = {
-  page: {
-    minHeight: "100vh",
-    width: "100vw",
-    background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
-    padding: "44px 16px",
-    boxSizing: "border-box",
-    color: "#111827",
-  },
-  container: {
-    maxWidth: "980px",
-    margin: "0 auto",
-  },
-  profileCard: {
-    background: "#ffffff",
-    borderRadius: "18px",
-    padding: "28px",
-    boxShadow: "0 16px 40px rgba(15, 23, 42, 0.1)",
-    border: "1px solid #e5e7eb",
-  },
-  profileHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "16px",
-    flexWrap: "wrap",
-    marginBottom: "22px",
-  },
-  label: {
-    fontSize: "12px",
-    letterSpacing: "3px",
-    color: "#4f46e5",
-    fontWeight: "900",
-    margin: "0 0 8px",
-  },
-  name: {
-    margin: 0,
-    fontSize: "clamp(30px, 5vw, 44px)",
-    fontWeight: "900",
-    color: "#111827",
-  },
-  summary: {
-    margin: "10px 0 0",
-    color: "#4b5563",
-    fontSize: "15px",
-    lineHeight: 1.6,
-    overflowWrap: "anywhere",
-  },
-  infoGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "0 18px",
-  },
-  contentGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: "14px",
-    marginTop: "14px",
-  },
-  card: {
-    background: "#ffffff",
-    border: "1px solid #e5e7eb",
-    borderRadius: "16px",
-    padding: "22px",
-    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
-  },
-  sectionTitle: {
-    margin: "0 0 12px",
-    color: "#111827",
-    fontSize: "18px",
-    fontWeight: "900",
-  },
-  infoRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "12px",
-    padding: "10px 0",
-    borderBottom: "1px solid #f1f5f9",
-    fontSize: "14px",
-  },
-  infoLabel: {
-    color: "#6b7280",
-    fontWeight: "800",
-    whiteSpace: "nowrap",
-  },
-  infoValue: {
-    color: "#111827",
-    textAlign: "right",
-    fontWeight: "700",
-    overflowWrap: "anywhere",
-  },
-  badgeList: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "7px",
-    marginTop: "14px",
-  },
-  fieldBadge: {
-    padding: "5px 9px",
-    borderRadius: "999px",
-    background: "#f3f4f6",
-    color: "#374151",
-    fontSize: "12px",
-    fontWeight: "900",
-  },
-  emptyBadge: {
-    padding: "5px 9px",
-    borderRadius: "999px",
-    background: "#f8fafc",
-    color: "#6b7280",
-    fontSize: "12px",
-    fontWeight: "900",
-  },
-  notice: {
-    margin: "14px 0 0",
-    padding: "12px",
-    borderRadius: "12px",
-    background: "#f8fafc",
-    color: "#4b5563",
-    fontSize: "13px",
-    lineHeight: 1.6,
-  },
-  actions: {
-    display: "flex",
-    gap: "10px",
-    marginTop: "14px",
-    flexWrap: "wrap",
-  },
-  requestButton: {
-    flex: "1 1 260px",
-    padding: "14px 16px",
-    borderRadius: "12px",
-    border: "none",
-    background: "#4f46e5",
-    color: "white",
-    fontWeight: "900",
-    cursor: "pointer",
-    fontSize: "15px",
-  },
-  backButton: {
-    flex: "0 1 160px",
-    padding: "14px 16px",
-    borderRadius: "12px",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#111827",
-    fontWeight: "900",
-    cursor: "pointer",
-    fontSize: "14px",
-  },
-  messageBox: {
-    maxWidth: "900px",
-    margin: "0 auto",
-    background: "white",
-    padding: "32px",
-    borderRadius: "16px",
-    textAlign: "center",
-    color: "#6b7280",
-  },
-};
+function uniqueList(values) {
+  return values.filter(Boolean).filter((value, index, array) => array.indexOf(value) === index);
+}
 
 export default InterpreterDetail;
