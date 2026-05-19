@@ -83,6 +83,54 @@ body,
   font-family: inherit;
 }
 
+.bg-green-100 {
+  background: #ecfdf5 !important;
+}
+
+.text-green-700 {
+  color: #047857 !important;
+}
+
+.border-green-200 {
+  border-color: #bbf7d0 !important;
+}
+
+.bg-gray-100 {
+  background: #f3f4f6 !important;
+}
+
+.text-gray-600 {
+  color: #4b5563 !important;
+}
+
+.border-gray-200 {
+  border-color: #e5e7eb !important;
+}
+
+.bg-yellow-100 {
+  background: #fef9c3 !important;
+}
+
+.text-yellow-700 {
+  color: #a16207 !important;
+}
+
+.border-yellow-200 {
+  border-color: #fde68a !important;
+}
+
+.bg-red-100 {
+  background: #fef2f2 !important;
+}
+
+.text-red-700 {
+  color: #b91c1c !important;
+}
+
+.border-red-200 {
+  border-color: #fecaca !important;
+}
+
 button,
 input,
 textarea,

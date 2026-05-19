@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import JobCard from "../components/JobCard";
 import { supabase, supabaseConfigError } from "../supabase";
+import {
+  INTERPRETER_ACTIVITY_STATUS,
+  getInterpreterActivityStatusBadgeClass,
+  getInterpreterActivityStatusLabel,
+} from "../utils/status";
 import { fetchPublicJobs } from "../utils/jobsApi";
 import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import {
@@ -477,7 +482,8 @@ function InterpreterCard({ interpreter, onProfileClick }) {
   const specialtyBadges = specialties.length > 0 ? specialties : ["일반 비즈니스"];
   const availableRegionLabel = getAvailableRegionLabel(interpreter);
   const experience = getExperienceLabel(interpreter);
-  const statusLabel = getInterpreterStatusLabel(interpreter);
+  const activityStatus = getInterpreterActivityStatus(interpreter);
+  const statusLabel = getInterpreterActivityStatusLabel(activityStatus);
   const publicInfo = getPrimaryPublicInterpreterInfo(interpreter);
 
   return (
@@ -518,7 +524,11 @@ function InterpreterCard({ interpreter, onProfileClick }) {
         <div>
           <dt>활동 상태</dt>
           <dd>
-            <span className="home-activity-badge">{statusLabel}</span>
+            <span
+              className={`home-activity-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}
+            >
+              {statusLabel}
+            </span>
           </dd>
         </div>
       </dl>
@@ -549,11 +559,10 @@ function getExperienceLabel(interpreter) {
   return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
 }
 
-function getInterpreterStatusLabel(interpreter) {
-  if (interpreter.status === "warning") return "운영팀 확인";
-  if (interpreter.status === "inactive") return "휴식중";
-  if (interpreter.approved === false) return "검토중";
-  return "활동중";
+function getInterpreterActivityStatus(interpreter = {}) {
+  const status = String(interpreter.activity_status || "").trim().toLowerCase();
+  if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(status)) return status;
+  return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
 }
 
 export default Home;

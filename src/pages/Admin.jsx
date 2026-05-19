@@ -26,9 +26,13 @@ import { normalizeJobVisibility } from "../utils/jobStatus";
 import {
   APPLICATION_STATUS,
   APPLICATION_STATUS_OPTIONS,
+  INTERPRETER_ACTIVITY_STATUS,
+  INTERPRETER_ACTIVITY_STATUS_OPTIONS,
   JOB_STATUS,
   MATCHING_STATUS,
   getApplicationStatusLabel,
+  getInterpreterActivityStatusBadgeClass,
+  getInterpreterActivityStatusLabel,
   getMatchingStatusLabel,
   getStatusBadgeClass as getStandardStatusBadgeClass,
   normalizeApplicationStatus,
@@ -190,6 +194,7 @@ function Admin() {
     search: "",
     level: "all",
     status: "all",
+    activity: "all",
     approved: "all",
     duplicate: "all",
   });
@@ -431,6 +436,9 @@ function Admin() {
       const matchesStatus =
         interpreterFilters.status === "all" ||
         getInterpreterFilterStatus(interpreter) === interpreterFilters.status;
+      const matchesActivity =
+        interpreterFilters.activity === "all" ||
+        getInterpreterActivityStatus(interpreter) === interpreterFilters.activity;
       const matchesApproved =
         interpreterFilters.approved === "all" ||
         String(Boolean(interpreter.approved)) === interpreterFilters.approved;
@@ -442,6 +450,7 @@ function Admin() {
         matchesSearch &&
         matchesLevel &&
         matchesStatus &&
+        matchesActivity &&
         matchesApproved &&
         matchesDuplicate
       );
@@ -2949,6 +2958,19 @@ function InterpreterManagement({
           ))}
         </select>
         <select
+          value={filters.activity}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, activity: event.target.value }))
+          }
+        >
+          <option value="all">전체 활동</option>
+          {INTERPRETER_ACTIVITY_STATUS_OPTIONS.map((status) => (
+            <option key={status.value} value={status.value}>
+              {status.label}
+            </option>
+          ))}
+        </select>
+        <select
           value={filters.approved}
           onChange={(event) =>
             setFilters((current) => ({ ...current, approved: event.target.value }))
@@ -3001,6 +3023,8 @@ function InterpreterCard({
   deleteInterpreter,
 }) {
   const approvalLabel = getInterpreterStatusLabel(interpreter);
+  const activityStatus = getInterpreterActivityStatus(interpreter);
+  const activityLabel = getInterpreterActivityStatusLabel(activityStatus);
   const isSaving = savingKey === `interpreter-${interpreter.id}`;
   const duplicateTitle = duplicateReasons.join(", ");
 
@@ -3016,18 +3040,42 @@ function InterpreterCard({
             <DuplicateBadge title={duplicateTitle} />
           )}
           <StatusBadge status={approvalLabel} />
+          <span className={`status-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}>
+            {activityLabel}
+          </span>
         </div>
       </div>
 
       <dl className="admin-card-summary">
         <Info label="레벨" value={normalizeLevel(interpreter.level)} />
         <Info label="승인 상태" value={interpreter.approved ? "승인 완료" : "승인 대기"} />
-        <Info label="활동 상태" value={approvalLabel} />
+        <Info label="활동 상태" value={activityLabel} />
         <Info label="활동 지역" value={formatListOrMissing(interpreter.available_regions)} />
         <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
         <Info label="통역 경험" value={getExperienceLabel(interpreter)} />
         <Info label="경고" value={`${interpreter.warning_count || 0}회`} />
       </dl>
+
+      <div className="admin-card-controls-grid single">
+        <FieldControl label="공개 활동 상태">
+          <select
+            className="admin-inline-select"
+            value={activityStatus}
+            disabled={isSaving}
+            onChange={(event) =>
+              updateInterpreter(interpreter.id, {
+                activity_status: event.target.value,
+              })
+            }
+          >
+            {INTERPRETER_ACTIVITY_STATUS_OPTIONS.map((status) => (
+              <option key={status.value} value={status.value}>
+                {status.label}
+              </option>
+            ))}
+          </select>
+        </FieldControl>
+      </div>
 
       <div className="admin-card-actions admin-interpreter-actions">
         <button
@@ -3052,6 +3100,7 @@ function InterpreterCard({
             updateInterpreter(interpreter.id, {
               approved: true,
               status: "active",
+              activity_status: INTERPRETER_ACTIVITY_STATUS.ACTIVE,
             })
           }
         >
@@ -3099,6 +3148,8 @@ function InterpreterModal({
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const levelLabel = normalizeLevel(interpreter.level);
   const approvalStatus = interpreter.approved ? "승인 완료" : "승인 대기";
+  const activityStatus = getInterpreterActivityStatus(interpreter);
+  const activityLabel = getInterpreterActivityStatusLabel(activityStatus);
   const duplicateTitle = duplicateReasons.join(", ");
   const adminMemo =
     draft?.admin_memo ??
@@ -3135,6 +3186,9 @@ function InterpreterModal({
                   <span className="status-badge badge-blue">{levelLabel}</span>
                   <StatusBadge status={approvalStatus} />
                   <StatusBadge status={approvalLabel} />
+                  <span className={`status-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}>
+                    {activityLabel}
+                  </span>
                   {duplicateSuspected && <DuplicateBadge title={duplicateTitle} />}
                 </div>
               </div>
@@ -3185,7 +3239,7 @@ function InterpreterModal({
                 <InterpreterDetailItem label="나이" value={interpreter.age} />
                 <InterpreterDetailItem label="레벨" value={levelLabel} />
                 <InterpreterDetailItem label="승인 상태" value={approvalStatus} />
-                <InterpreterDetailItem label="활동 상태" value={approvalLabel} />
+                <InterpreterDetailItem label="공개 활동 상태" value={activityLabel} />
               </InterpreterDetailSection>
 
               <InterpreterDetailSection icon={Languages} title="활동 정보">
@@ -3302,6 +3356,13 @@ function InterpreterModal({
                   }))}
                   value={draft?.status || "pending"}
                   onChange={(value) => onChangeDraft("status", value)}
+                />
+              </FieldControl>
+              <FieldControl label="공개 활동 상태">
+                <InlineSelect
+                  options={INTERPRETER_ACTIVITY_STATUS_OPTIONS}
+                  value={draft?.activity_status || INTERPRETER_ACTIVITY_STATUS.ACTIVE}
+                  onChange={(value) => onChangeDraft("activity_status", value)}
                 />
               </FieldControl>
               <FieldControl label="경고 횟수">
@@ -4958,6 +5019,7 @@ function createInterpreterEditDraft(interpreter = {}) {
     level: interpreter.level || "Lv1",
     approved: String(Boolean(interpreter.approved)),
     status: getInterpreterFilterStatus(interpreter),
+    activity_status: getInterpreterActivityStatus(interpreter),
     warning_count: interpreter.warning_count || 0,
     jlpt: interpreter.jlpt || "",
     stay_period: interpreter.stay_period || "",
@@ -4984,6 +5046,7 @@ function getInterpreterChangesFromDraft(draft = {}) {
     level: draft.level,
     approved: draft.approved === "true",
     status: draft.status,
+    activity_status: draft.activity_status || INTERPRETER_ACTIVITY_STATUS.ACTIVE,
     warning_count: Math.max(0, Number(draft.warning_count || 0)),
     jlpt: draft.jlpt,
     stay_period: draft.stay_period,
@@ -5028,6 +5091,12 @@ function getInterpreterFilterStatus(interpreter = {}) {
   if (interpreter.status === "rejected") return "rejected";
   if (interpreter.approved) return interpreter.status || "active";
   return "pending";
+}
+
+function getInterpreterActivityStatus(interpreter = {}) {
+  const status = String(interpreter.activity_status || "").trim().toLowerCase();
+  if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(status)) return status;
+  return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
 }
 
 function isPendingInterpreter(interpreter = {}) {

@@ -28,6 +28,13 @@ export const MATCHING_STATUS = {
   CANCELLED: "cancelled",
 };
 
+export const INTERPRETER_ACTIVITY_STATUS = {
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+  PAUSED: "paused",
+  UNAVAILABLE: "unavailable",
+};
+
 export const JOB_STATUS_OPTIONS = [
   { value: JOB_STATUS.RECRUITING, label: "모집중" },
   { value: JOB_STATUS.ASSIGNING, label: "배정중" },
@@ -55,6 +62,13 @@ export const MATCHING_STATUS_OPTIONS = [
   { value: MATCHING_STATUS.SETTLEMENT_PENDING, label: "정산대기" },
   { value: MATCHING_STATUS.SETTLED, label: "정산완료" },
   { value: MATCHING_STATUS.CANCELLED, label: "취소" },
+];
+
+export const INTERPRETER_ACTIVITY_STATUS_OPTIONS = [
+  { value: INTERPRETER_ACTIVITY_STATUS.ACTIVE, label: "활동중" },
+  { value: INTERPRETER_ACTIVITY_STATUS.INACTIVE, label: "비활성" },
+  { value: INTERPRETER_ACTIVITY_STATUS.PAUSED, label: "일시중지" },
+  { value: INTERPRETER_ACTIVITY_STATUS.UNAVAILABLE, label: "활동불가" },
 ];
 
 const JOB_STATUS_LABELS = Object.fromEntries(
@@ -135,6 +149,26 @@ export function getApplicationStatusLabel(status) {
 export function getMatchingStatusLabel(status) {
   return MATCHING_STATUS_LABELS[normalizeMatchingStatus(status)] || "상태미정";
 }
+
+export const getInterpreterActivityStatusLabel = (status) => {
+  const labels = {
+    active: "활동중",
+    inactive: "비활성",
+    paused: "일시중지",
+    unavailable: "활동불가",
+  };
+  return labels[status] || "활동중";
+};
+
+export const getInterpreterActivityStatusBadgeClass = (status) => {
+  const classes = {
+    active: "bg-green-100 text-green-700 border-green-200",
+    inactive: "bg-gray-100 text-gray-600 border-gray-200",
+    paused: "bg-yellow-100 text-yellow-700 border-yellow-200",
+    unavailable: "bg-red-100 text-red-700 border-red-200",
+  };
+  return classes[status] || classes.active;
+};
 
 export function getStatusBadgeClass(status) {
   const normalized = String(status || "").trim();

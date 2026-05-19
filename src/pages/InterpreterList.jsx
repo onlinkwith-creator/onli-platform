@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import {
+  INTERPRETER_ACTIVITY_STATUS,
+  getInterpreterActivityStatusLabel,
+} from "../utils/status";
+import {
   PUBLIC_INTERPRETER_SELECT,
   getPrimaryPublicInterpreterInfo,
 } from "../utils/publicInterpreter";
@@ -503,9 +507,11 @@ function getExperienceLabel(person) {
 }
 
 function getInterpreterStatusLabel(person) {
-  if (person.status === "warning") return "운영팀 확인";
-  if (person.status === "inactive") return "휴식중";
-  return "활동중";
+  const status = String(person.activity_status || "").trim().toLowerCase();
+  if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(status)) {
+    return getInterpreterActivityStatusLabel(status);
+  }
+  return getInterpreterActivityStatusLabel(INTERPRETER_ACTIVITY_STATUS.ACTIVE);
 }
 
 const styles = {

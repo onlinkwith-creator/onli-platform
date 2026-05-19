@@ -207,6 +207,7 @@
   justify-content: center;
   min-height: 38px;
   gap: 8px;
+  border: 1px solid #bbf7d0;
   border-radius: 999px;
   background: #ecfdf5;
   color: #047857;

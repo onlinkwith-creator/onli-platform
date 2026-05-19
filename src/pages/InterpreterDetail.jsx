@@ -12,6 +12,11 @@ import {
   Tag,
 } from "lucide-react";
 import { normalizeLevel } from "../utils/levelBadge";
+import {
+  INTERPRETER_ACTIVITY_STATUS,
+  getInterpreterActivityStatusBadgeClass,
+  getInterpreterActivityStatusLabel,
+} from "../utils/status";
 import "./InterpreterDetail.css";
 
 const DEFAULT_INTRO =
@@ -304,7 +309,7 @@ function getProfile(interpreter) {
   const languageLevel = formatLanguageLevel(
     interpreter.language_level || interpreter.jlpt_level || interpreter.jlpt
   );
-  const status = getStatus(interpreter);
+  const activityStatus = getInterpreterActivityStatus(interpreter);
   const specialtyFallback = specialties[0] || tasks[0] || "일반 비즈니스";
   const mainFields = formatInlineList([...specialties, ...tasks], "일반 비즈니스");
 
@@ -316,8 +321,8 @@ function getProfile(interpreter) {
       interpreter.region || regions[0] || "지역 미입력",
     ].join(" · "),
     level,
-    statusLabel: status.label,
-    statusClass: status.className,
+    statusLabel: getInterpreterActivityStatusLabel(activityStatus),
+    statusClass: getInterpreterActivityStatusBadgeClass(activityStatus),
     heroBadges: uniqueList([languageLevel, level, specialtyFallback]).slice(0, 4),
     intro: intro || DEFAULT_INTRO,
     about: intro || CONSULTATION_FALLBACK,
@@ -350,17 +355,6 @@ function getExperienceLabel(interpreter) {
   return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
 }
 
-function getStatus(interpreter) {
-  const status = String(interpreter.status || interpreter.approval_status || "").toLowerCase();
-  if (status === "inactive" || status === "paused") {
-    return { label: "활동 대기", className: "is-muted" };
-  }
-  if (status === "pending" || status === "review") {
-    return { label: "승인 검토 중", className: "is-pending" };
-  }
-  return { label: "활동 중", className: "is-active" };
-}
-
 function getRecentEvents(interpreter) {
   const source =
     interpreter.recent_events ||
@@ -382,6 +376,12 @@ function getRecentEvents(interpreter) {
   }
 
   return getList(source).map((event) => ({ name: event, date: "" }));
+}
+
+function getInterpreterActivityStatus(interpreter = {}) {
+  const status = String(interpreter.activity_status || "").trim().toLowerCase();
+  if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(status)) return status;
+  return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
 }
 
 function getPlatformTestLabel(interpreter) {

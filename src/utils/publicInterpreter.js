@@ -14,6 +14,7 @@ export const PUBLIC_INTERPRETER_SELECT = [
   "level",
   "approved",
   "status",
+  "activity_status",
 ].join(", ");
 
 const FALLBACK_TEXT = "정보 확인 중";
