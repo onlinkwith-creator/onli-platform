@@ -393,6 +393,49 @@
   font-weight: 900;
 }
 
+.profile-event-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-event-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  background: #fbfcff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.profile-event-list time {
+  flex-shrink: 0;
+  color: #6d5dfc;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profile-empty-note {
+  margin: 0;
+  padding: 13px 14px;
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
 .profile-about-text {
   margin: 0;
   color: #374151;

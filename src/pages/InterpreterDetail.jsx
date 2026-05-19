@@ -185,6 +185,11 @@ function ExperienceCard({ profile }) {
         <span className="profile-card-label">가능 업무</span>
         <BadgeList items={profile.tasks} fallback={EMPTY_TEXT} />
       </div>
+
+      <div className="profile-card-block">
+        <span className="profile-card-label">최근 참여 행사</span>
+        <RecentEventList events={profile.recentEvents} />
+      </div>
     </section>
   );
 }
@@ -244,6 +249,23 @@ function BadgeList({ items, fallback }) {
         </span>
       ))}
     </div>
+  );
+}
+
+function RecentEventList({ events }) {
+  if (events.length === 0) {
+    return <p className="profile-empty-note">등록된 최근 참여 행사가 없습니다.</p>;
+  }
+
+  return (
+    <ul className="profile-event-list">
+      {events.map((event) => (
+        <li key={`${event.name}-${event.date}`}>
+          <span>{event.name}</span>
+          {event.date ? <time>{event.date}</time> : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -312,6 +334,7 @@ function getProfile(interpreter) {
         interpreter.experience_count
     ),
     experienceLabel: getExperienceLabel(interpreter),
+    recentEvents: getRecentEvents(interpreter),
     specialties,
     tasks,
     strengths: getFirstText(interpreter.strengths) || getStrengthsText(specialties, tasks),
@@ -336,6 +359,29 @@ function getStatus(interpreter) {
     return { label: "승인 검토 중", className: "is-pending" };
   }
   return { label: "활동 중", className: "is-active" };
+}
+
+function getRecentEvents(interpreter) {
+  const source =
+    interpreter.recent_events ||
+    interpreter.recent_event ||
+    interpreter.recent_projects ||
+    interpreter.event_history ||
+    interpreter.participated_events;
+
+  if (Array.isArray(source)) {
+    return source
+      .map((event) => {
+        if (typeof event === "string") return { name: event.trim(), date: "" };
+        return {
+          name: getFirstText(event?.name, event?.title, event?.event_name),
+          date: getFirstText(event?.date, event?.period, event?.month),
+        };
+      })
+      .filter((event) => event.name);
+  }
+
+  return getList(source).map((event) => ({ name: event, date: "" }));
 }
 
 function getPlatformTestLabel(interpreter) {
