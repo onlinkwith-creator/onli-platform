@@ -30,9 +30,14 @@ import {
   INTERPRETER_ACTIVITY_STATUS_OPTIONS,
   JOB_STATUS,
   MATCHING_STATUS,
+  MATCHING_RESULT_STATUS,
+  MATCHING_RESULT_STATUS_OPTIONS,
   getApplicationStatusLabel,
   getInterpreterActivityStatusBadgeClass,
   getInterpreterActivityStatusLabel,
+  getMatchingResultStatus,
+  getMatchingResultStatusBadgeClass,
+  getMatchingResultStatusLabel,
   getMatchingStatusLabel,
   getStatusBadgeClass as getStandardStatusBadgeClass,
   normalizeApplicationStatus,
@@ -1660,6 +1665,43 @@ function Admin() {
     }
   };
 
+  const updateRequestMatchingResultStatus = async (request, status) => {
+    if (!request?.id) {
+      alert("의뢰 정보를 확인할 수 없습니다.");
+      return false;
+    }
+
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return false;
+    }
+
+    const requestStatus = getRequestStatusFromMatchingResult(status);
+    const changes = {
+      status: requestStatus,
+      matching_status: requestStatus,
+    };
+
+    setSavingKey(`matching-request-${request.id}`);
+    try {
+      const { data, error } = await updateRequestWithFallback(request.id, changes);
+      if (error) throw error;
+
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, ...changes, ...(data || {}) } : item
+        )
+      );
+      return true;
+    } catch (error) {
+      console.error("matching request status update error:", error);
+      alert("매칭 상태 변경에 실패했습니다.");
+      return false;
+    } finally {
+      setSavingKey("");
+    }
+  };
+
   const deleteJobApplication = async (application) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
@@ -1917,6 +1959,7 @@ function Admin() {
                 interpreters={interpreters}
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
+                updateRequestMatchingResultStatus={updateRequestMatchingResultStatus}
                 setFilters={setMatchingFilters}
               />
             )}
@@ -3671,6 +3714,7 @@ function MatchingManagement({
   interpreters,
   savingKey,
   updateApplicationStatus,
+  updateRequestMatchingResultStatus,
 }) {
   const filteredRequests = requests.filter(
     (request) =>
@@ -3718,6 +3762,8 @@ function MatchingManagement({
               request={request}
               assignments={assignmentsByRequest.get(request.id) || []}
               interpreters={interpreters}
+              savingKey={savingKey}
+              updateRequestMatchingResultStatus={updateRequestMatchingResultStatus}
             />
           ))}
           {filteredApplications.map((application) => {
@@ -3750,7 +3796,13 @@ function MatchingManagement({
   );
 }
 
-function MatchingRequestCard({ request, assignments, interpreters }) {
+function MatchingRequestCard({
+  request,
+  assignments,
+  interpreters,
+  savingKey,
+  updateRequestMatchingResultStatus,
+}) {
   const assignedInterpreterName = getAssignedInterpreterName(
     request,
     assignments,
@@ -3760,6 +3812,7 @@ function MatchingRequestCard({ request, assignments, interpreters }) {
   const clientPrice = getCompanyAmount(request);
   const interpreterPrice = getInterpreterPayment(request);
   const platformProfit = getPlatformProfit(request);
+  const currentStatus = getMatchingResultStatus(request);
 
   return (
     <article className="admin-list-card">
@@ -3768,9 +3821,7 @@ function MatchingRequestCard({ request, assignments, interpreters }) {
           <span className="admin-card-meta">의뢰 매칭</span>
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
         </div>
-        <StatusBadge
-          status={normalizeMatchingStatus(request.status || request.matching_status)}
-        />
+        <MatchingResultStatusBadge status={currentStatus} />
       </div>
 
       <dl className="admin-card-summary">
@@ -3796,6 +3847,16 @@ function MatchingRequestCard({ request, assignments, interpreters }) {
           value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request))}
         />
       </dl>
+      <div className="admin-card-controls-grid single">
+        <FieldControl label="매칭 상태">
+          <InlineSelect
+            options={MATCHING_RESULT_STATUS_OPTIONS}
+            value={currentStatus}
+            disabled={savingKey === `matching-request-${request.id}`}
+            onChange={(value) => updateRequestMatchingResultStatus(request, value)}
+          />
+        </FieldControl>
+      </div>
     </article>
   );
 }
@@ -3817,6 +3878,10 @@ function MatchingCard({
   const clientPrice = getCompanyAmount(request);
   const interpreterPrice = getInterpreterPayment(request);
   const platformProfit = getPlatformProfit(request);
+  const currentStatus = getMatchingResultStatus({
+    ...application,
+    application_status: application.status,
+  });
 
   return (
     <article className="admin-list-card">
@@ -3827,7 +3892,7 @@ function MatchingCard({
             {getJobDisplayTitle(job, application.job_id)}
           </h3>
         </div>
-        <StatusBadge status={normalizeApplicationStatus(application.status)} />
+        <MatchingResultStatusBadge status={currentStatus} />
       </div>
 
       <dl className="admin-card-summary">
@@ -3850,6 +3915,19 @@ function MatchingCard({
         />
       </dl>
 
+      <div className="admin-card-controls-grid single">
+        <FieldControl label="매칭 상태">
+          <InlineSelect
+            options={MATCHING_RESULT_STATUS_OPTIONS}
+            value={currentStatus}
+            disabled={savingKey === `job-application-${application.id}`}
+            onChange={(value) =>
+              updateApplicationStatus(application, getApplicationStatusFromMatchingResult(value))
+            }
+          />
+        </FieldControl>
+      </div>
+
       <div className="admin-card-chip-row">
         <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
           {requestType.label}
@@ -3858,16 +3936,6 @@ function MatchingCard({
         <span className="admin-empty-chip">{application.phone || "연락처 미입력"}</span>
       </div>
 
-      <div className="admin-card-controls-grid single">
-        <FieldControl label="매칭 상태">
-          <InlineSelect
-            options={JOB_APPLICATION_STATUSES}
-            value={normalizeApplicationStatus(application.status)}
-            disabled={savingKey === `job-application-${application.id}`}
-            onChange={(value) => updateApplicationStatus(application, value)}
-          />
-        </FieldControl>
-      </div>
     </article>
   );
 }
@@ -4053,6 +4121,15 @@ function StatusBadge({ status }) {
   return (
     <span className={`status-badge ${getStatusBadgeClass(normalized)}`}>
       {getStatusLabel(normalized)}
+    </span>
+  );
+}
+
+function MatchingResultStatusBadge({ status }) {
+  const currentStatus = status || MATCHING_RESULT_STATUS.PENDING;
+  return (
+    <span className={`status-badge ${getMatchingResultStatusBadgeClass(currentStatus)}`}>
+      {getMatchingResultStatusLabel(currentStatus)}
     </span>
   );
 }
@@ -4462,6 +4539,22 @@ function getAssignedInterpreterName(request = {}, assignments = [], interpreters
 
   const assignment = assignments.find(Boolean);
   return assignment?.interpreter?.name || "";
+}
+
+function getApplicationStatusFromMatchingResult(status) {
+  if (status === MATCHING_RESULT_STATUS.ACCEPTED || status === MATCHING_RESULT_STATUS.ASSIGNED) {
+    return APPLICATION_STATUS.ACCEPTED;
+  }
+  if (status === MATCHING_RESULT_STATUS.REJECTED) return APPLICATION_STATUS.REJECTED;
+  if (status === MATCHING_RESULT_STATUS.CANCELLED) return APPLICATION_STATUS.CANCELLED;
+  return APPLICATION_STATUS.REVIEWING;
+}
+
+function getRequestStatusFromMatchingResult(status) {
+  if (status === MATCHING_RESULT_STATUS.ACCEPTED) return MATCHING_STATUS.CONFIRMED;
+  if (status === MATCHING_RESULT_STATUS.ASSIGNED) return MATCHING_STATUS.ASSIGNED;
+  if (status === MATCHING_RESULT_STATUS.CANCELLED) return MATCHING_STATUS.CANCELLED;
+  return MATCHING_STATUS.DRAFT;
 }
 
 function buildApplicationAssignmentRows(applications = [], assignments = [], interpreters = []) {

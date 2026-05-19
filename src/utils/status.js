@@ -28,6 +28,14 @@ export const MATCHING_STATUS = {
   CANCELLED: "cancelled",
 };
 
+export const MATCHING_RESULT_STATUS = {
+  PENDING: "pending",
+  ACCEPTED: "accepted",
+  REJECTED: "rejected",
+  ASSIGNED: "assigned",
+  CANCELLED: "cancelled",
+};
+
 export const INTERPRETER_ACTIVITY_STATUS = {
   ACTIVE: "active",
   INACTIVE: "inactive",
@@ -62,6 +70,14 @@ export const MATCHING_STATUS_OPTIONS = [
   { value: MATCHING_STATUS.SETTLEMENT_PENDING, label: "정산대기" },
   { value: MATCHING_STATUS.SETTLED, label: "정산완료" },
   { value: MATCHING_STATUS.CANCELLED, label: "취소" },
+];
+
+export const MATCHING_RESULT_STATUS_OPTIONS = [
+  { value: MATCHING_RESULT_STATUS.PENDING, label: "검토중" },
+  { value: MATCHING_RESULT_STATUS.ACCEPTED, label: "합격" },
+  { value: MATCHING_RESULT_STATUS.REJECTED, label: "불합격" },
+  { value: MATCHING_RESULT_STATUS.ASSIGNED, label: "배정완료" },
+  { value: MATCHING_RESULT_STATUS.CANCELLED, label: "취소" },
 ];
 
 export const INTERPRETER_ACTIVITY_STATUS_OPTIONS = [
@@ -149,6 +165,54 @@ export function getApplicationStatusLabel(status) {
 export function getMatchingStatusLabel(status) {
   return MATCHING_STATUS_LABELS[normalizeMatchingStatus(status)] || "상태미정";
 }
+
+export const getMatchingResultStatus = (matching) => {
+  const status = String(
+    matching?.status ||
+      matching?.matching_status ||
+      matching?.application_status ||
+      matching?.result_status ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (["accepted", "approved", "합격", "confirmed"].includes(status)) {
+    return MATCHING_RESULT_STATUS.ACCEPTED;
+  }
+  if (["rejected", "불합격", "거절"].includes(status)) {
+    return MATCHING_RESULT_STATUS.REJECTED;
+  }
+  if (["assigned", "matched", "배정", "배정완료", "매칭완료"].includes(status)) {
+    return MATCHING_RESULT_STATUS.ASSIGNED;
+  }
+  if (["cancelled", "canceled", "취소"].includes(status)) {
+    return MATCHING_RESULT_STATUS.CANCELLED;
+  }
+  return MATCHING_RESULT_STATUS.PENDING;
+};
+
+export const getMatchingResultStatusLabel = (status) => {
+  const labels = {
+    pending: "검토중",
+    accepted: "합격",
+    rejected: "불합격",
+    assigned: "배정완료",
+    cancelled: "취소",
+  };
+  return labels[status] || "검토중";
+};
+
+export const getMatchingResultStatusBadgeClass = (status) => {
+  const classes = {
+    pending: "bg-gray-100 text-gray-700 border-gray-200",
+    accepted: "bg-green-100 text-green-700 border-green-200",
+    rejected: "bg-red-100 text-red-700 border-red-200",
+    assigned: "bg-blue-100 text-blue-700 border-blue-200",
+    cancelled: "bg-gray-200 text-gray-600 border-gray-300",
+  };
+  return classes[status] || classes.pending;
+};
 
 export const getInterpreterActivityStatusLabel = (status) => {
   const labels = {
