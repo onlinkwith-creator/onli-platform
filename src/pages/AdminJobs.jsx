@@ -15,7 +15,7 @@ import {
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { fetchJobApplications } from "../utils/jobsApi";
-import { getDuplicateApplicationIdSet } from "../utils/duplicateApplications";
+import { getDuplicateApplicationIdSet } from "../utils/duplicateCheck";
 import {
   ASSIGNMENT_STATUS,
   ASSIGNMENT_STATUS_OPTIONS,
@@ -48,7 +48,7 @@ const emptyForm = {
   preference: "",
   people: "",
   visibility: "public",
-  status: JOB_STATUS.OPEN,
+  status: JOB_STATUS.RECRUITING,
   assignment_status: ASSIGNMENT_STATUS.WAITING,
   operation_status: OPERATION_STATUS.BEFORE_OPERATION,
   settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
@@ -278,9 +278,7 @@ function AdminJobs({
       if (isControlled) {
         await onDataChanged?.();
       } else {
-        setJobs((current) =>
-          current.map((item) => (item.id === job.id ? { ...item, ...changes } : item))
-        );
+        await fetchJobs();
       }
     } catch (error) {
       console.error("Failed to update job status", error);
@@ -785,7 +783,7 @@ function JobApplicantsModal({ applications, job, onClose, onStatusChange }) {
 
 function JobApplicationsPanel({ applications, job, onStatusChange }) {
   const [openApplicationId, setOpenApplicationId] = useState(null);
-  const duplicateApplicationIds = useMemo(
+  const duplicateData = useMemo(
     () => getDuplicateApplicationIdSet(applications),
     [applications]
   );
@@ -806,7 +804,8 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
             const language =
               application.language || application.japanese_level || job.language || "-";
             const expanded = String(openApplicationId) === String(application.id);
-            const duplicateSuspected = duplicateApplicationIds.has(application.id);
+            const duplicateSuspected = duplicateData.duplicateIds.has(application.id);
+            const duplicateTitle = (duplicateData.reasonMap.get(application.id) || []).join(", ");
 
             return (
               <article key={application.id} className="admin-applicant-accordion-item">
@@ -818,7 +817,9 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                 >
                   <StatusBadge status={status} />
                   {duplicateSuspected && (
-                    <span className="admin-duplicate-badge">중복 의심</span>
+                    <span className="admin-duplicate-badge" title={duplicateTitle || "중복 의심"}>
+                      중복 의심
+                    </span>
                   )}
                   <span className="admin-applicant-summary-text">
                     <strong>{application.applicant_name || "이름 미입력"}</strong>
@@ -836,7 +837,9 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                       <strong>{application.applicant_name || "이름 미입력"}</strong>
                       <div className="admin-card-chip-row">
                         {duplicateSuspected && (
-                          <span className="admin-duplicate-badge">중복 의심</span>
+                          <span className="admin-duplicate-badge" title={duplicateTitle || "중복 의심"}>
+                            중복 의심
+                          </span>
                         )}
                         <StatusBadge status={status} />
                       </div>
@@ -1093,11 +1096,21 @@ function getJobStatusPayloadFromFlow(item = {}) {
     };
   }
 
+  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNING) {
+    return {
+      assignment_status: assignmentStatus,
+      operation_status: operationStatus,
+      settlement_status: settlementStatus,
+      status: JOB_STATUS.ASSIGNING,
+      is_urgent: false,
+    };
+  }
+
   return {
     assignment_status: assignmentStatus,
     operation_status: operationStatus,
     settlement_status: settlementStatus,
-    status: JOB_STATUS.OPEN,
+    status: JOB_STATUS.RECRUITING,
   };
 }
 

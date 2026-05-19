@@ -1,5 +1,7 @@
 export const JOB_STATUS = {
-  OPEN: "open",
+  OPEN: "recruiting",
+  RECRUITING: "recruiting",
+  ASSIGNING: "assigning",
   CLOSING_SOON: "closing_soon",
   CLOSED: "closed",
   ASSIGNED: "assigned",
@@ -27,9 +29,10 @@ export const MATCHING_STATUS = {
 };
 
 export const JOB_STATUS_OPTIONS = [
-  { value: JOB_STATUS.OPEN, label: "모집중" },
+  { value: JOB_STATUS.RECRUITING, label: "모집중" },
+  { value: JOB_STATUS.ASSIGNING, label: "배정중" },
   { value: JOB_STATUS.CLOSING_SOON, label: "마감임박" },
-  { value: JOB_STATUS.CLOSED, label: "모집마감" },
+  { value: JOB_STATUS.CLOSED, label: "마감" },
   { value: JOB_STATUS.ASSIGNED, label: "배정완료" },
   { value: JOB_STATUS.COMPLETED, label: "운영완료" },
   { value: JOB_STATUS.CANCELLED, label: "취소" },
@@ -66,13 +69,14 @@ const MATCHING_STATUS_LABELS = Object.fromEntries(
 
 export function normalizeJobStatus(status) {
   const normalized = String(status || "").trim().toLowerCase();
-  if (["모집중", "open"].includes(normalized)) return JOB_STATUS.OPEN;
+  if (["모집중", "open", "recruiting"].includes(normalized)) return JOB_STATUS.RECRUITING;
+  if (["배정중", "assigning", "matching"].includes(normalized)) return JOB_STATUS.ASSIGNING;
   if (["마감임박", "closing_soon"].includes(normalized)) return JOB_STATUS.CLOSING_SOON;
   if (["마감", "모집마감", "closed"].includes(normalized)) return JOB_STATUS.CLOSED;
   if (["배정", "배정완료", "assigned"].includes(normalized)) return JOB_STATUS.ASSIGNED;
   if (["완료", "운영완료", "completed"].includes(normalized)) return JOB_STATUS.COMPLETED;
   if (["취소", "cancelled", "canceled"].includes(normalized)) return JOB_STATUS.CANCELLED;
-  return JOB_STATUS.OPEN;
+  return JOB_STATUS.RECRUITING;
 }
 
 export function normalizeApplicationStatus(status) {
@@ -138,6 +142,9 @@ export function getStatusBadgeClass(status) {
   const jobLike = [
     "모집중",
     "open",
+    "recruiting",
+    "배정중",
+    "assigning",
     "마감임박",
     "closing_soon",
     "마감",
@@ -206,7 +213,7 @@ export function getStatusBadgeClass(status) {
   const matchingStatus = matchingLike ? normalizeMatchingStatus(normalized) : "";
 
   if (
-    jobStatus === JOB_STATUS.OPEN ||
+    jobStatus === JOB_STATUS.RECRUITING ||
     applicationStatus === APPLICATION_STATUS.ACCEPTED ||
     matchingStatus === MATCHING_STATUS.COMPLETED ||
     matchingStatus === MATCHING_STATUS.SETTLED ||
@@ -217,6 +224,7 @@ export function getStatusBadgeClass(status) {
     return "badge-green";
   }
   if (
+    jobStatus === JOB_STATUS.ASSIGNING ||
     jobStatus === JOB_STATUS.ASSIGNED ||
     applicationStatus === APPLICATION_STATUS.PENDING ||
     matchingStatus === MATCHING_STATUS.ASSIGNED ||

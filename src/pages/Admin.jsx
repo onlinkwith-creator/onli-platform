@@ -36,7 +36,10 @@ import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/da
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
 import { normalizeLevel } from "../utils/levelBadge";
-import { getDuplicateApplicationIdSet } from "../utils/duplicateApplications";
+import {
+  getDuplicateApplicationIdSet,
+  getDuplicateInterpreterIdSet,
+} from "../utils/duplicateCheck";
 import {
   ASSIGNMENT_STATUS,
   ASSIGNMENT_STATUS_OPTIONS,
@@ -185,6 +188,7 @@ function Admin() {
     level: "all",
     status: "all",
     approved: "all",
+    duplicate: "all",
   });
   const [requestFilters, setRequestFilters] = useState({
     search: "",
@@ -328,6 +332,14 @@ function Admin() {
       ),
     [jobApplications]
   );
+  const duplicateApplicationResult = useMemo(
+    () => getDuplicateApplicationIdSet(jobApplications),
+    [jobApplications]
+  );
+  const duplicateInterpreterResult = useMemo(
+    () => getDuplicateInterpreterIdSet(interpreters),
+    [interpreters]
+  );
   const matchedRequests = useMemo(
     () =>
       requests.filter((request) =>
@@ -417,10 +429,19 @@ function Admin() {
       const matchesApproved =
         interpreterFilters.approved === "all" ||
         String(Boolean(interpreter.approved)) === interpreterFilters.approved;
+      const matchesDuplicate =
+        interpreterFilters.duplicate === "all" ||
+        duplicateInterpreterResult.duplicateIds.has(interpreter.id);
 
-      return matchesSearch && matchesLevel && matchesStatus && matchesApproved;
+      return (
+        matchesSearch &&
+        matchesLevel &&
+        matchesStatus &&
+        matchesApproved &&
+        matchesDuplicate
+      );
     }).sort(sortInterpretersForAdmin);
-  }, [interpreterFilters, interpreters]);
+  }, [duplicateInterpreterResult, interpreterFilters, interpreters]);
 
   const dashboard = useMemo(
     () => {
@@ -1479,7 +1500,7 @@ function Admin() {
     if (!request?.job_id) return;
 
     const isAssigned = assignedCount >= requiredCount;
-    const status = isAssigned ? JOB_STATUS.ASSIGNED : JOB_STATUS.OPEN;
+    const status = isAssigned ? JOB_STATUS.ASSIGNED : JOB_STATUS.ASSIGNING;
     const assignmentStatus = isAssigned
       ? ASSIGNMENT_STATUS.ASSIGNED
       : ASSIGNMENT_STATUS.ASSIGNING;
@@ -1829,6 +1850,7 @@ function Admin() {
               <InterpreterManagement
                 filters={interpreterFilters}
                 interpreters={filteredInterpreters}
+                duplicateResult={duplicateInterpreterResult}
                 savingKey={savingKey}
                 setFilters={setInterpreterFilters}
                 onOpenModal={openInterpreterModal}
@@ -1853,6 +1875,7 @@ function Admin() {
             {activeTab === "applications" && (
               <ApplicationManagement
                 applications={jobApplications}
+                duplicateResult={duplicateApplicationResult}
                 jobsById={jobsById}
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
@@ -1876,6 +1899,16 @@ function Admin() {
             <InterpreterModal
               draft={interpreterEditDraft}
               interpreter={selectedInterpreter}
+              duplicateReasons={
+                selectedInterpreter
+                  ? duplicateInterpreterResult.reasonMap.get(selectedInterpreter.id) || []
+                  : []
+              }
+              duplicateSuspected={
+                selectedInterpreter
+                  ? duplicateInterpreterResult.duplicateIds.has(selectedInterpreter.id)
+                  : false
+              }
               modalType={interpreterModalType}
               saving={
                 selectedInterpreter
@@ -2685,6 +2718,10 @@ function JobApplicationsPanel({
   onStatusChange,
 }) {
   const [openApplicantId, setOpenApplicantId] = useState(null);
+  const duplicateData = useMemo(
+    () => getDuplicateApplicationIdSet(applications),
+    [applications]
+  );
   const rows = buildApplicationAssignmentRows(applications, assignments, interpreters);
   const toggleRow = (rowId) => {
     setOpenApplicantId((current) => (current === rowId ? null : rowId));
@@ -2704,6 +2741,9 @@ function JobApplicationsPanel({
           : normalizeApplicationStatus(application.status);
         const expanded = openApplicantId === application.rowId;
         const sourceLabel = isDirectAssignment ? "관리자 직접 배정" : "지원자";
+        const duplicateSuspected =
+          !isDirectAssignment && duplicateData.duplicateIds.has(application.id);
+        const duplicateTitle = (duplicateData.reasonMap.get(application.id) || []).join(", ");
 
         return (
           <article key={application.rowId} className="admin-applicant-accordion-item">
@@ -2714,6 +2754,7 @@ function JobApplicationsPanel({
               onClick={() => toggleRow(application.rowId)}
             >
               <StatusBadge status={status} />
+              {duplicateSuspected && <DuplicateBadge title={duplicateTitle} />}
               <span className="admin-applicant-summary-text">
                 <strong>{application.applicant_name || "이름 미입력"}</strong>
                 <span>{getApplicationLanguage(application)}</span>
@@ -2728,7 +2769,10 @@ function JobApplicationsPanel({
               <div className="admin-applicant-detail">
                 <div className="admin-applicant-detail-head">
                   <strong>{application.applicant_name || "이름 미입력"}</strong>
-                  <StatusBadge status={status} />
+                  <div className="admin-card-chip-row">
+                    {duplicateSuspected && <DuplicateBadge title={duplicateTitle} />}
+                    <StatusBadge status={status} />
+                  </div>
                   <span>{sourceLabel}</span>
                 </div>
 
@@ -2853,6 +2897,7 @@ function ApplicantDetailItem({ full = false, label, multiline = false, value }) 
 }
 
 function InterpreterManagement({
+  duplicateResult,
   filters,
   interpreters,
   savingKey,
@@ -2908,6 +2953,15 @@ function InterpreterManagement({
           <option value="false">승인 대기</option>
           <option value="true">승인 완료</option>
         </select>
+        <select
+          value={filters.duplicate}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, duplicate: event.target.value }))
+          }
+        >
+          <option value="all">전체</option>
+          <option value="suspected">중복 의심</option>
+        </select>
       </div>
 
       {interpreters.length === 0 ? (
@@ -2918,6 +2972,8 @@ function InterpreterManagement({
             <InterpreterCard
               key={interpreter.id}
               interpreter={interpreter}
+              duplicateReasons={duplicateResult.reasonMap.get(interpreter.id) || []}
+              duplicateSuspected={duplicateResult.duplicateIds.has(interpreter.id)}
               savingKey={savingKey}
               onOpenModal={onOpenModal}
               updateInterpreter={updateInterpreter}
@@ -2931,6 +2987,8 @@ function InterpreterManagement({
 }
 
 function InterpreterCard({
+  duplicateReasons,
+  duplicateSuspected,
   interpreter,
   savingKey,
   onOpenModal,
@@ -2939,6 +2997,7 @@ function InterpreterCard({
 }) {
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const isSaving = savingKey === `interpreter-${interpreter.id}`;
+  const duplicateTitle = duplicateReasons.join(", ");
 
   return (
     <article className="admin-list-card admin-interpreter-card">
@@ -2947,7 +3006,12 @@ function InterpreterCard({
           <span className="admin-card-meta">통역사</span>
           <h3>{interpreter.name || "이름 미입력"}</h3>
         </div>
-        <StatusBadge status={approvalLabel} />
+        <div className="admin-card-chip-row">
+          {duplicateSuspected && (
+            <DuplicateBadge title={duplicateTitle} />
+          )}
+          <StatusBadge status={approvalLabel} />
+        </div>
       </div>
 
       <dl className="admin-card-summary">
@@ -3016,6 +3080,8 @@ function InterpreterCard({
 
 function InterpreterModal({
   draft,
+  duplicateReasons = [],
+  duplicateSuspected = false,
   interpreter,
   modalType,
   saving,
@@ -3028,6 +3094,7 @@ function InterpreterModal({
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const levelLabel = normalizeLevel(interpreter.level);
   const approvalStatus = interpreter.approved ? "승인 완료" : "승인 대기";
+  const duplicateTitle = duplicateReasons.join(", ");
   const adminMemo =
     draft?.admin_memo ??
     interpreter.admin_memo ??
@@ -3063,6 +3130,7 @@ function InterpreterModal({
                   <span className="status-badge badge-blue">{levelLabel}</span>
                   <StatusBadge status={approvalStatus} />
                   <StatusBadge status={approvalLabel} />
+                  {duplicateSuspected && <DuplicateBadge title={duplicateTitle} />}
                 </div>
               </div>
               <button
@@ -3148,6 +3216,16 @@ function InterpreterModal({
 
               <InterpreterDetailSection icon={ShieldAlert} title="경고/운영 상태">
                 <InterpreterDetailItem label="경고 횟수" value={`${interpreter.warning_count || 0}회`} />
+                <InterpreterDetailItem
+                  label="중복 의심"
+                  value={duplicateSuspected ? "중복 의심" : "해당 없음"}
+                />
+                {duplicateSuspected && (
+                  <InterpreterDetailItem
+                    label="중복 사유"
+                    value={duplicateReasons.join(", ")}
+                  />
+                )}
                 <InterpreterDetailItem label="운영 메모" value={managementMemo} />
                 <InterpreterDetailItem label="공개 노출" value="관리자 전용 정보" />
               </InterpreterDetailSection>
@@ -3374,25 +3452,46 @@ function ModalInfoSection({ children, title, twoColumn = false }) {
 
 function ApplicationManagement({
   applications,
+  duplicateResult,
   jobsById,
   savingKey,
   updateApplicationStatus,
   deleteApplication,
 }) {
-  const duplicateApplicationIds = useMemo(
-    () => getDuplicateApplicationIdSet(applications),
-    [applications]
+  const [duplicateFilter, setDuplicateFilter] = useState("all");
+  const duplicateData = useMemo(
+    () => duplicateResult || getDuplicateApplicationIdSet(applications),
+    [applications, duplicateResult]
+  );
+  const visibleApplications = useMemo(
+    () =>
+      duplicateFilter === "suspected"
+        ? applications.filter((application) =>
+            duplicateData.duplicateIds.has(application.id)
+          )
+        : applications,
+    [applications, duplicateData, duplicateFilter]
   );
 
   return (
     <section className="admin-section">
-      <SectionTitle count={`${applications.length}명`} title="지원자 관리" />
-      {applications.length === 0 ? (
+      <SectionTitle count={`${visibleApplications.length}명`} title="지원자 관리" />
+      <div className="admin-filters">
+        <select
+          value={duplicateFilter}
+          onChange={(event) => setDuplicateFilter(event.target.value)}
+        >
+          <option value="all">전체</option>
+          <option value="suspected">중복 의심</option>
+        </select>
+      </div>
+      {visibleApplications.length === 0 ? (
         <MessageBox text="아직 접수된 지원자가 없습니다." />
       ) : (
         <div className="admin-management-card-grid">
-          {applications.map((application) => {
+          {visibleApplications.map((application) => {
             const job = application.jobs || jobsById.get(application.job_id);
+            const duplicateReasons = duplicateData.reasonMap.get(application.id) || [];
 
             return (
               <ApplicationCard
@@ -3402,7 +3501,8 @@ function ApplicationManagement({
                 savingKey={savingKey}
                 updateApplicationStatus={updateApplicationStatus}
                 deleteApplication={deleteApplication}
-                duplicateSuspected={duplicateApplicationIds.has(application.id)}
+                duplicateReasons={duplicateReasons}
+                duplicateSuspected={duplicateData.duplicateIds.has(application.id)}
               />
             );
           })}
@@ -3418,8 +3518,11 @@ function ApplicationCard({
   savingKey,
   updateApplicationStatus,
   deleteApplication,
+  duplicateReasons,
   duplicateSuspected,
 }) {
+  const duplicateTitle = duplicateReasons.join(", ");
+
   return (
     <article className="admin-list-card">
       <div className="admin-list-card-head">
@@ -3431,7 +3534,7 @@ function ApplicationCard({
         </div>
         <div className="admin-card-chip-row">
           {duplicateSuspected && (
-            <span className="admin-duplicate-badge">중복 의심</span>
+            <DuplicateBadge title={duplicateTitle} />
           )}
           <StatusBadge status={application.status || APPLICATION_STATUS.PENDING} />
         </div>
@@ -3855,6 +3958,14 @@ function StatusBadge({ status }) {
   );
 }
 
+function DuplicateBadge({ title }) {
+  return (
+    <span className="admin-duplicate-badge" title={title || "중복 의심"}>
+      중복 의심
+    </span>
+  );
+}
+
 function NumberControl({ label, value, onChange }) {
   return (
     <label className="admin-field-control">
@@ -3957,7 +4068,7 @@ function buildJobPayloadFromRequest(request) {
     people: peopleCount ? `${peopleCount}명` : "",
     people_count: peopleCount || null,
     field,
-    status: JOB_STATUS.OPEN,
+    status: JOB_STATUS.RECRUITING,
     assignment_status: normalizeAssignmentStatus(request),
     operation_status: normalizeOperationStatus(request),
     settlement_status: normalizeSettlementFlowStatus(request),
@@ -4005,7 +4116,7 @@ function buildLegacyJobPayloadFromRequest(request) {
     level: payload.level,
     preference: payload.preference,
     people: payload.people,
-    status: JOB_STATUS.OPEN,
+    status: JOB_STATUS.RECRUITING,
     is_urgent: false,
   };
 }
@@ -4671,11 +4782,21 @@ function getJobStatusPayloadFromFlow(item = {}) {
     };
   }
 
+  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNING) {
+    return {
+      assignment_status: assignmentStatus,
+      operation_status: operationStatus,
+      settlement_status: settlementStatus,
+      status: JOB_STATUS.ASSIGNING,
+      is_urgent: false,
+    };
+  }
+
   return {
     assignment_status: assignmentStatus,
     operation_status: operationStatus,
     settlement_status: settlementStatus,
-    status: JOB_STATUS.OPEN,
+    status: JOB_STATUS.RECRUITING,
   };
 }
 

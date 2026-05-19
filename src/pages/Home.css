@@ -658,7 +658,8 @@
   white-space: nowrap;
 }
 
-.home-job-status.open {
+.home-job-status.open,
+.home-job-status.recruiting {
   background: #ecfdf5;
   color: #047857;
 }
@@ -671,6 +672,11 @@
 .home-job-status.assigned {
   background: #eff6ff;
   color: #1d4ed8;
+}
+
+.home-job-status.assigning {
+  background: #eef2ff;
+  color: #4f46e5;
 }
 
 .home-job-status.closed {

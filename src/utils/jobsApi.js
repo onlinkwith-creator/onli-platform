@@ -20,7 +20,23 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
     .from("jobs")
     .select("*")
     .eq("visibility", "public")
-    .eq("status", JOB_STATUS.OPEN)
+    .in("status", [
+      JOB_STATUS.RECRUITING,
+      "open",
+      "모집중",
+      JOB_STATUS.ASSIGNING,
+      "배정중",
+      JOB_STATUS.ASSIGNED,
+      "배정완료",
+      JOB_STATUS.CLOSING_SOON,
+      "마감임박",
+      JOB_STATUS.CLOSED,
+      "마감",
+      "모집마감",
+      JOB_STATUS.COMPLETED,
+      "완료",
+      "운영완료",
+    ])
     .order("created_at", { ascending: false });
 
   if (limit) query = query.limit(Math.max(limit * 3, limit));

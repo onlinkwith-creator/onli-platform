@@ -1,4 +1,3 @@
-import { isJobFullyAssigned } from "./jobRecruitment";
 import {
   JOB_STATUS,
   JOB_STATUS_OPTIONS,
@@ -14,7 +13,6 @@ export const JOB_VISIBILITY_OPTIONS = [
 ];
 
 export function normalizeJobStatus(job = {}) {
-  if (isJobFullyAssigned(job)) return JOB_STATUS.ASSIGNED;
   return normalizeStandardJobStatus(job.status);
 }
 
@@ -42,12 +40,10 @@ export function getJobVisibilityLabel(job = {}) {
 }
 
 export function isPublicJob(job = {}) {
-  return (
-    normalizeJobVisibility(job) === "public" &&
-    normalizeStandardJobStatus(job.status) === JOB_STATUS.OPEN
-  );
+  const status = normalizeStandardJobStatus(job.status);
+  return normalizeJobVisibility(job) === "public" && status !== JOB_STATUS.CANCELLED;
 }
 
 export function canApplyToJob(job = {}) {
-  return isPublicJob(job) && normalizeJobStatus(job) === JOB_STATUS.OPEN;
+  return isPublicJob(job) && normalizeJobStatus(job) === JOB_STATUS.RECRUITING;
 }
