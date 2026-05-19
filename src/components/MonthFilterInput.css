@@ -1,0 +1,81 @@
+.month-filter-input {
+  display: grid;
+  grid-template-columns: minmax(122px, 1fr) auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.month-filter-input label {
+  min-width: 0;
+}
+
+.month-filter-input label > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.month-filter-input input {
+  width: 100%;
+  min-height: 34px;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  background: #f9fafb;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 7px 9px;
+}
+
+.month-filter-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.month-filter-actions button {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #4b5563;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.month-filter-actions button:hover {
+  border-color: rgba(79, 70, 229, 0.35);
+  color: #4f46e5;
+}
+
+.month-filter-input > strong {
+  grid-column: 1 / -1;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.month-filter-input input:focus-visible,
+.month-filter-actions button:focus-visible {
+  outline: 3px solid rgba(109, 93, 252, 0.24);
+  outline-offset: 2px;
+}
+
+@media (max-width: 980px) {
+  .month-filter-input {
+    grid-template-columns: 1fr;
+  }
+
+  .month-filter-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

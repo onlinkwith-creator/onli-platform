@@ -3,6 +3,7 @@ import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
 } from "../components/TermsAgreement";
+import DateRangeInput from "../components/DateRangeInput";
 import { supabase, supabaseConfigError } from "../supabase";
 import { ADMIN_EMAILS, getEmailRecipient, sendAutoEmail } from "../lib/email";
 import {
@@ -94,6 +95,20 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
     if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
+      return;
+    }
+
+    if (!form.startDate) {
+      const message = "시작일을 선택해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
+
+    if (!form.endDate) {
+      const message = "종료일을 선택해주세요.";
+      setErrorMessage(message);
+      alert(message);
       return;
     }
 
@@ -332,8 +347,22 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
             <SectionTitle title="행사 정보" />
             <Field label="행사명" name="eventName" value={form.eventName} onChange={handleChange} required />
-            <Field label="시작일" name="startDate" type="date" value={form.startDate} onChange={handleChange} required />
-            <Field label="종료일" name="endDate" type="date" value={form.endDate} onChange={handleChange} required />
+            <div style={styles.fullWidth}>
+              <DateRangeInput
+                required
+                showQuickButtons
+                label="행사 기간"
+                startDate={form.startDate}
+                endDate={form.endDate}
+                onChange={({ startDate, endDate }) =>
+                  setForm((current) => ({
+                    ...current,
+                    startDate,
+                    endDate,
+                  }))
+                }
+              />
+            </div>
             <Field label="행사 장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
 
             <SectionTitle title="통역 요청 정보" />

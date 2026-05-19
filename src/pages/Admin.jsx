@@ -19,6 +19,8 @@ import {
   X,
 } from "lucide-react";
 import { supabase, supabaseConfigError } from "../supabase";
+import DateRangeInput from "../components/DateRangeInput";
+import MonthFilterInput from "../components/MonthFilterInput";
 import AdminJobs from "./AdminJobs";
 import { normalizeJobVisibility } from "../utils/jobStatus";
 import {
@@ -2169,16 +2171,18 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
             onChange={(value) => onChange("request_type", value)}
           />
         </FieldControl>
-        <DateControl
-          label="행사 시작일"
-          value={draft.start_date || ""}
-          onChange={(value) => onChange("start_date", value)}
-        />
-        <DateControl
-          label="행사 종료일"
-          value={draft.end_date || ""}
-          onChange={(value) => onChange("end_date", value)}
-        />
+        <div className="admin-modal-date-range">
+          <DateRangeInput
+            required
+            label="행사 기간"
+            startDate={draft.start_date || ""}
+            endDate={draft.end_date || ""}
+            onChange={({ startDate, endDate }) => {
+              onChange("start_date", startDate);
+              onChange("end_date", endDate);
+            }}
+          />
+        </div>
         <FieldControl label="장소">
           <input
             value={draft.event_location || ""}
@@ -2291,7 +2295,7 @@ function RequestManagement({
             placeholder="기업명/행사명 검색"
           />
         </label>
-        <MonthFilterControl
+        <MonthFilterInput
           value={filters.month}
           onChange={(month) => setFilters((current) => ({ ...current, month }))}
         />
@@ -2609,32 +2613,22 @@ function RequestDetailPanel({
 
       <div>
         <h3>행사 기간 수정</h3>
-        <div className="admin-settlement">
-          <DateControl
-            label="시작일"
-            value={getDateRangeStart(request.start_date, request.event_date)}
-            onChange={(value) => {
-              const end = getDateRangeEnd(request.end_date, request.event_date);
-              if (end && end < value) {
+        <div className="admin-date-range-panel">
+          <DateRangeInput
+            required
+            label="행사 기간"
+            startDate={getDateRangeStart(request.start_date, request.event_date)}
+            endDate={getDateRangeEnd(request.end_date, request.event_date)}
+            onChange={({ startDate, endDate }) => {
+              if (startDate && endDate && endDate < startDate) {
                 alert("종료일은 시작일보다 빠를 수 없습니다.");
                 return;
               }
               updateRequest(request.id, {
-                start_date: value,
-                event_date: value,
+                start_date: startDate,
+                end_date: endDate,
+                event_date: startDate,
               });
-            }}
-          />
-          <DateControl
-            label="종료일"
-            value={getDateRangeEnd(request.end_date, request.event_date)}
-            onChange={(value) => {
-              const start = getDateRangeStart(request.start_date, request.event_date);
-              if (value < start) {
-                alert("종료일은 시작일보다 빠를 수 없습니다.");
-                return;
-              }
-              updateRequest(request.id, { end_date: value });
             }}
           />
         </div>
@@ -3648,7 +3642,7 @@ function MatchingManagement({
     <section className="admin-section">
       <SectionTitle count={`${totalCount}건`} title="매칭 관리" />
       <div className="admin-filters admin-matching-filters">
-        <MonthFilterControl
+        <MonthFilterInput
           value={filters.month}
           onChange={(month) => setFilters((current) => ({ ...current, month }))}
         />
@@ -4022,58 +4016,6 @@ function NumberControl({ label, value, onChange }) {
       />
     </label>
   );
-}
-
-function MonthFilterControl({ value, onChange }) {
-  return (
-    <div className="admin-month-filter">
-      <input
-        aria-label="월 선택"
-        type="month"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <div className="admin-month-actions" aria-label="빠른 월 이동">
-        <button type="button" onClick={() => onChange(getCurrentMonthValue())}>
-          이번 달
-        </button>
-        <button type="button" onClick={() => onChange(getNextMonthValue())}>
-          다음 달
-        </button>
-        <button type="button" onClick={() => onChange("")}>
-          전체
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function DateControl({ label, value, onChange }) {
-  return (
-    <label className="admin-field-control">
-      <span>{label}</span>
-      <input
-        type="date"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
-  );
-}
-
-function getCurrentMonthValue() {
-  const today = new Date();
-  return formatMonthValue(today.getFullYear(), today.getMonth() + 1);
-}
-
-function getNextMonthValue() {
-  const today = new Date();
-  return formatMonthValue(today.getFullYear(), today.getMonth() + 2);
-}
-
-function formatMonthValue(year, month) {
-  const date = new Date(year, month - 1, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function FieldControl({ label, children }) {

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
+import DateRangeInput from "../components/DateRangeInput";
+import MonthFilterInput from "../components/MonthFilterInput";
 import {
   JOB_VISIBILITY_OPTIONS,
   JOB_STATUS_OPTIONS,
@@ -191,6 +193,22 @@ function AdminJobs({
 
     if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
+      setSaving(false);
+      return;
+    }
+
+    if (!form.start_date) {
+      const message = "시작일을 선택해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      setSaving(false);
+      return;
+    }
+
+    if (!form.end_date) {
+      const message = "종료일을 선택해주세요.";
+      setErrorMessage(message);
+      alert(message);
       setSaving(false);
       return;
     }
@@ -496,24 +514,21 @@ function AdminJobs({
           <JobField label="장소">
             <input name="location" value={form.location} onChange={handleChange} />
           </JobField>
-          <JobField label="시작일">
-            <input
-              name="start_date"
-              type="date"
-              value={form.start_date}
-              onChange={handleChange}
+          <div className="admin-job-date-range">
+            <DateRangeInput
               required
+              label="행사 기간"
+              startDate={form.start_date}
+              endDate={form.end_date}
+              onChange={({ startDate, endDate }) =>
+                setForm((current) => ({
+                  ...current,
+                  start_date: startDate,
+                  end_date: endDate,
+                }))
+              }
             />
-          </JobField>
-          <JobField label="종료일">
-            <input
-              name="end_date"
-              type="date"
-              value={form.end_date}
-              onChange={handleChange}
-              required
-            />
-          </JobField>
+          </div>
           <JobField label="일급">
             <input name="pay" value={form.pay} onChange={handleChange} />
           </JobField>
@@ -590,7 +605,7 @@ function AdminJobs({
               placeholder="공고명/기업명/장소 검색"
             />
           </label>
-          <MonthFilterControl
+          <MonthFilterInput
             value={jobFilters.month}
             onChange={(month) => setJobFilters((current) => ({ ...current, month }))}
           />
@@ -791,45 +806,6 @@ function JobManagementCard({
 
     </article>
   );
-}
-
-function MonthFilterControl({ value, onChange }) {
-  return (
-    <div className="admin-month-filter">
-      <input
-        aria-label="월 선택"
-        type="month"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <div className="admin-month-actions" aria-label="빠른 월 이동">
-        <button type="button" onClick={() => onChange(getCurrentMonthValue())}>
-          이번 달
-        </button>
-        <button type="button" onClick={() => onChange(getNextMonthValue())}>
-          다음 달
-        </button>
-        <button type="button" onClick={() => onChange("")}>
-          전체
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function getCurrentMonthValue() {
-  const today = new Date();
-  return formatMonthValue(today.getFullYear(), today.getMonth() + 1);
-}
-
-function getNextMonthValue() {
-  const today = new Date();
-  return formatMonthValue(today.getFullYear(), today.getMonth() + 2);
-}
-
-function formatMonthValue(year, month) {
-  const date = new Date(year, month - 1, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function JobField({ label, children }) {

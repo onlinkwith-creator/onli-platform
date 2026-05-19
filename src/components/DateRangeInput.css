@@ -1,0 +1,135 @@
+.date-range-input {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.date-range-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.date-range-head span,
+.date-picker-card span {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.date-range-head strong {
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.date-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.date-picker-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.date-picker-card button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 48px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(124, 58, 237, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+  color: #111827;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.date-picker-card button:hover {
+  border-color: rgba(79, 70, 229, 0.32);
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.08);
+  transform: translateY(-1px);
+}
+
+.date-picker-card input {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.date-range-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.date-range-quick button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4b5563;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.date-range-quick button:hover:not(:disabled) {
+  border-color: rgba(124, 58, 237, 0.22);
+  color: #6d5dfc;
+}
+
+.date-range-quick button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.date-range-error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.date-range-input.has-error .date-picker-card button {
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+.date-picker-card button:focus-visible,
+.date-range-quick button:focus-visible {
+  outline: 3px solid rgba(109, 93, 252, 0.26);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .date-range-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .date-range-fields {
+    grid-template-columns: 1fr;
+  }
+}

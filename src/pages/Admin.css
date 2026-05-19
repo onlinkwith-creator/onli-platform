@@ -1028,6 +1028,15 @@
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 
+.admin-job-date-range,
+.admin-modal-date-range {
+  grid-column: span 2;
+}
+
+.admin-date-range-panel {
+  margin-top: 10px;
+}
+
 .admin-check-control {
   display: flex;
   align-items: center;
@@ -1410,37 +1419,6 @@
   border: none;
   background: transparent;
   padding: 0;
-}
-
-.admin-month-filter {
-  display: grid;
-  grid-template-columns: minmax(122px, 1fr) auto;
-  gap: 6px;
-  min-width: 0;
-}
-
-.admin-month-actions {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.admin-month-actions button {
-  min-height: 34px;
-  padding: 0 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 9px;
-  background: #ffffff;
-  color: #4b5563;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 900;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.admin-month-actions button:hover {
-  border-color: rgba(79, 70, 229, 0.35);
-  color: #4f46e5;
 }
 
 .admin-job-filters {
@@ -2516,17 +2494,13 @@
     grid-template-columns: 1fr;
   }
 
+  .admin-job-date-range,
+  .admin-modal-date-range {
+    grid-column: 1 / -1;
+  }
+
   .admin-filters {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .admin-month-filter {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-month-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .admin-interpreter-grid {

@@ -1,17 +1,16 @@
-export function formatDateRange(startDate, endDate, fallbackDate) {
-  const format = (date) => {
-    if (!date) return "";
-    return String(date).slice(0, 10).replaceAll("-", ".");
-  };
+import { formatDisplayDate, formatDisplayDateRange, normalizeDateToISO } from "./date";
 
+export function formatDateRange(startDate, endDate, fallbackDate) {
   const fallbackRange = splitFallbackDate(fallbackDate);
   const start = startDate || fallbackRange[0];
   const end = endDate || fallbackRange[1];
 
   if (!start) return "일정 미정";
-  if (!end || start === end) return format(start);
+  if (!end || normalizeDateInput(start) === normalizeDateInput(end)) {
+    return formatDisplayDate(start);
+  }
 
-  return `${format(start)} ~ ${format(end)}`;
+  return formatDisplayDateRange(start, end);
 }
 
 export function getDateRangeStart(startDate, fallbackDate) {
@@ -29,6 +28,5 @@ function splitFallbackDate(fallbackDate) {
 }
 
 function normalizeDateInput(date) {
-  if (!date) return "";
-  return String(date).slice(0, 10).replaceAll(".", "-");
+  return normalizeDateToISO(date);
 }
