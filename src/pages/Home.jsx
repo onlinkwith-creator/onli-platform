@@ -8,7 +8,17 @@ import {
   getPrimaryPublicInterpreterInfo,
 } from "../utils/publicInterpreter";
 import "./Home.css";
-import { Building2, UserRound } from "lucide-react";
+import {
+  Building2,
+  Camera,
+  Clock,
+  Handshake,
+  Lock,
+  Mail,
+  MessageCircle,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
@@ -312,76 +322,71 @@ function Home({
       </section>
 
       <footer className="home-footer" id="contact">
-        <div className="home-footer-content">
-          <div className="home-footer-brand">
+        <div className="home-footer-top">
+          <div className="home-footer-brand" aria-label="ON-LI 브랜드">
             <div className="home-footer-logo-row">
               <img className="home-footer-logo" src="/favicon.svg" alt="ON-LI" />
               <strong>ON-LI</strong>
             </div>
             <span>한일 비즈니스 통역 매칭 플랫폼</span>
-            <small>레벨 기반 매칭 · 현장 중심 운영</small>
-            <small>한일 비즈니스 특화</small>
           </div>
-          <div className="home-footer-links" aria-label="운영 문의">
-            <span className="home-footer-links-title">운영 문의</span>
+          <div className="home-footer-contact" aria-label="운영 문의">
             <a
-              className="home-footer-link"
+              className="home-footer-contact-item"
               href="https://www.instagram.com/onlink_official?igsh=NjZkb3ZkN3NtZG1y&utm_source=qr"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Instagram
+              <Camera size={22} aria-hidden="true" />
+              <span>Instagram</span>
             </a>
-            <a className="home-footer-link" href="mailto:onlinkwith@gmail.com">
-              onlinkwith@gmail.com
+            {/* TODO: 실제 KakaoTalk 채널 링크가 확정되면 href를 교체합니다. */}
+            <a className="home-footer-contact-item" href="#">
+              <MessageCircle size={22} aria-hidden="true" />
+              <span>KakaoTalk</span>
             </a>
-            <a className="home-footer-link" href="mailto:onlinkcp@gmail.com">
-              onlinkcp@gmail.com
+            <a className="home-footer-contact-item" href="mailto:onlinkwith@gmail.com">
+              <Mail size={22} aria-hidden="true" />
+              <span className="home-footer-email-full">onlinkwith@gmail.com</span>
+              <span className="home-footer-email-short">메일 문의</span>
             </a>
-            <span className="home-footer-hours">평일 10:00-18:00</span>
-          </div>
-          <nav className="home-footer-policies" aria-label="약관 및 정책">
-            <span className="home-footer-links-title">약관 및 정책</span>
-            <a className="home-footer-link" href="/privacy">
-              개인정보 처리방침
-            </a>
-            <a className="home-footer-link" href="/terms">
-              이용약관
-            </a>
-            <a className="home-footer-link" href="/interpreter-policy">
-              통역사 활동 약관
-            </a>
-            <a className="home-footer-link" href="/client-policy">
-              기업 의뢰 약관
-            </a>
-            <a className="home-footer-link" href="/refund-policy">
-              취소/환불 규정
-            </a>
-            <a className="home-footer-link" href="/disclaimer">
-              면책 조항
-            </a>
-            <a className="home-footer-link" href="/anti-poaching">
-              통역사 스카우트 금지 조항
-            </a>
-          </nav>
-          <div className="home-footer-trust" aria-label="서비스 신뢰 포인트">
-            <div className="home-footer-trust-item">
-              <span className="home-footer-trust-icon home-footer-trust-icon-shield" aria-hidden="true" />
-              <strong>검증된 통역사</strong>
-              <span>엄격한 심사를 거친 전문 통역사만 활동</span>
-            </div>
-            <div className="home-footer-trust-item">
-              <span className="home-footer-trust-icon home-footer-trust-icon-match" aria-hidden="true" />
-              <strong>직접 매칭</strong>
-              <span>ON-LI가 직접 검토 후 최적의 통역사 매칭</span>
-            </div>
-            <div className="home-footer-trust-item">
-              <span className="home-footer-trust-icon home-footer-trust-icon-lock" aria-hidden="true" />
-              <strong>안심 서비스</strong>
-              <span>개인정보 보호 및 안전한 서비스 제공</span>
-            </div>
+            <span className="home-footer-contact-item" aria-label="운영시간">
+              <Clock size={22} aria-hidden="true" />
+              <span>평일 10:00 - 18:00</span>
+            </span>
           </div>
         </div>
+
+        <nav className="home-footer-policies" aria-label="약관 및 정책">
+          <a className="home-footer-link" href="/terms">
+            이용약관
+          </a>
+          <a className="home-footer-link" href="/privacy">
+            개인정보처리방침
+          </a>
+          <a className="home-footer-link" href="/refund-policy">
+            환불규정
+          </a>
+        </nav>
+
+        <div className="home-footer-trust" aria-label="서비스 신뢰 포인트">
+          <div className="home-footer-trust-item">
+            <ShieldCheck size={24} aria-hidden="true" />
+            <strong>검증 통역사</strong>
+            <span>Verified Interpreter</span>
+          </div>
+          <div className="home-footer-trust-item">
+            <Handshake size={24} aria-hidden="true" />
+            <strong>직접 매칭</strong>
+            <span>Direct Match</span>
+          </div>
+          <div className="home-footer-trust-item">
+            <Lock size={24} aria-hidden="true" />
+            <strong>안전 운영</strong>
+            <span>Safe Service</span>
+          </div>
+        </div>
+
         <div className="home-footer-divider" aria-hidden="true" />
         <span className="home-footer-copy">© 2025 ON-LI. All rights reserved.</span>
       </footer>
