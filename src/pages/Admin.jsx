@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Briefcase,
+  CalendarDays,
+  CheckCircle2,
+  Eye,
   Languages,
+  LayoutGrid,
+  List,
   Mail,
   MapPin,
+  MoreHorizontal,
   Phone,
+  Search,
   ShieldAlert,
   Star,
   User,
@@ -74,12 +82,6 @@ const REQUEST_STATUSES = [
   MATCHING_STATUS.CANCELLED,
 ];
 const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
-const ONGOING_REQUEST_STATUSES = [
-  MATCHING_STATUS.DRAFT,
-  MATCHING_STATUS.ASSIGNED,
-  MATCHING_STATUS.CONFIRMED,
-  MATCHING_STATUS.IN_PROGRESS,
-];
 const STATUS_LABELS = {
   pending: "대기",
   active: "활동중",
@@ -189,6 +191,8 @@ function Admin() {
     date: "",
     status: "all",
     public: "all",
+    sort: "latest",
+    view: "card",
   });
 
   const fetchAdminData = useCallback(async () => {
@@ -349,7 +353,7 @@ function Admin() {
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
 
-    return requests.filter((request) => {
+    const result = requests.filter((request) => {
       const searchableText = [
         request.company_name,
         request.event_name,
@@ -375,6 +379,16 @@ function Admin() {
         String(isRequestJobPublic(request, jobsById)) === requestFilters.public;
 
       return matchesSearch && matchesDate && matchesStatus && matchesPublic;
+    });
+
+    return result.sort((a, b) => {
+      if (requestFilters.sort === "date") {
+        return String(getRequestPrimaryDate(a) || "9999-12-31").localeCompare(
+          String(getRequestPrimaryDate(b) || "9999-12-31")
+        );
+      }
+
+      return String(b.created_at || "").localeCompare(String(a.created_at || ""));
     });
   }, [jobsById, requestFilters, requests]);
 
@@ -411,6 +425,18 @@ function Admin() {
   const dashboard = useMemo(
     () => {
       const today = new Date().toISOString().slice(0, 10);
+      const conflictRequestIds = getScheduleConflictRequestIds(
+        requests,
+        assignmentsByRequest
+      );
+      const todayOperations = requests.filter((request) =>
+        isDateInRange(today, request.start_date, request.end_date, request.event_date)
+      );
+      const settlementPending = requests.filter(
+        (request) =>
+          normalizeSettlementFlowStatus(getRequestFlowSource(request, null)) ===
+          SETTLEMENT_FLOW_STATUS.PENDING
+      ).length;
       return {
         totalRequests: requests.length,
         todayApplications: jobApplications.filter((application) =>
@@ -421,57 +447,70 @@ function Admin() {
             normalizeApplicationStatus(application.status)
           )
         ).length,
-        todayMatched: jobApplications.filter(
-          (application) =>
-            normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED &&
-            String(application.created_at || "").startsWith(today)
+        urgentRequests: requests.filter(
+          (request) =>
+            conflictRequestIds.has(String(request.id)) ||
+            isUrgentOperationRequest(request)
         ).length,
-        ongoingRequests: requests.filter((request) =>
-          ONGOING_REQUEST_STATUSES.includes(normalizeMatchingStatus(request.status))
-        ).length,
-        urgentRequests: requests.filter((request) => isRequestWithinDays(request, 7)).length,
-        newInterpreterApplications: interpreters.filter(isPendingInterpreter).length,
+        todayOperations: todayOperations.length,
+        settlementPending,
       };
     },
-    [interpreters, jobApplications, requests]
+    [assignmentsByRequest, jobApplications, requests]
+  );
+
+  const operationDashboard = useMemo(
+    () => buildOperationDashboard(requests, assignmentsByRequest, interpreters, jobApplications),
+    [assignmentsByRequest, interpreters, jobApplications, requests]
   );
 
   const metricCards = [
     {
       label: "전체 의뢰",
       value: `${dashboard.totalRequests}건`,
+      description: "누적 운영 건수",
+      tone: "purple",
+      icon: Briefcase,
       targetTab: "requests",
     },
     {
       label: "오늘 신규 지원",
       value: `${dashboard.todayApplications}건`,
+      description: "오늘 접수된 지원",
+      tone: "green",
+      icon: User,
       targetTab: "applications",
     },
     {
       label: "미확인 지원",
       value: `${dashboard.uncheckedApplications}건`,
+      description: "검토가 필요한 지원",
+      tone: "orange",
+      icon: Eye,
       targetTab: "applications",
-    },
-    {
-      label: "신규 통역사 신청",
-      value: `${dashboard.newInterpreterApplications}명`,
-      description: "검토가 필요한 통역사",
-      targetTab: "interpreters",
-      pendingInterpretersOnly: true,
-    },
-    {
-      label: "오늘 매칭 완료",
-      value: `${dashboard.todayMatched}건`,
-      targetTab: "matching",
-    },
-    {
-      label: "진행중 프로젝트",
-      value: `${dashboard.ongoingRequests}건`,
-      targetTab: "requests",
     },
     {
       label: "긴급 요청(D-7)",
       value: `${dashboard.urgentRequests}건`,
+      description: "바로 확인 필요",
+      tone: "red",
+      icon: AlertTriangle,
+      targetTab: "matching",
+    },
+    {
+      label: "오늘 운영",
+      value: `${dashboard.todayOperations}건`,
+      description: "오늘 진행/시작",
+      tone: "indigo",
+      icon: CalendarDays,
+      targetTab: "requests",
+    },
+    {
+      label: "정산 대기",
+      value: `${dashboard.settlementPending}건`,
+      description: "정산 처리 필요",
+      tone: "blue",
+      icon: CheckCircle2,
       targetTab: "requests",
     },
   ];
@@ -1726,10 +1765,21 @@ function Admin() {
                   label={card.label}
                   value={card.value}
                   description={card.description}
+                  icon={card.icon}
+                  tone={card.tone}
                   onClick={() => handleMetricCardClick(card)}
                 />
               ))}
             </section>
+
+            <OperationOverview
+              todayItems={operationDashboard.todayItems}
+              urgentItems={operationDashboard.urgentItems}
+              onOpenRequest={(request) => {
+                setActiveTab("requests");
+                openRequestModal("detail", request);
+              }}
+            />
 
             <nav className="admin-tabs" aria-label="관리자 메뉴">
               {TABS.map((tab) => (
@@ -2178,17 +2228,22 @@ function RequestManagement({
   toggleRequestJobPublic,
   updateRequestFlowStatus,
 }) {
+  const isListView = filters.view === "list";
+
   return (
     <section className="admin-section">
       <SectionTitle count={`${requests.length}건`} title="의뢰 관리" />
       <div className="admin-filters admin-request-filters">
-        <input
-          value={filters.search}
-          onChange={(event) =>
-            setFilters((current) => ({ ...current, search: event.target.value }))
-          }
-          placeholder="기업명/행사명 검색"
-        />
+        <label className="admin-search-control">
+          <Search size={16} aria-hidden="true" />
+          <input
+            value={filters.search}
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, search: event.target.value }))
+            }
+            placeholder="기업명/행사명 검색"
+          />
+        </label>
         <input
           type="date"
           value={filters.date}
@@ -2219,12 +2274,40 @@ function RequestManagement({
           <option value="true">공개</option>
           <option value="false">비공개</option>
         </select>
+        <select
+          value={filters.sort}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, sort: event.target.value }))
+          }
+          aria-label="정렬"
+        >
+          <option value="latest">최신순</option>
+          <option value="date">날짜순</option>
+        </select>
+        <div className="admin-view-toggle" aria-label="보기 방식">
+          <button
+            type="button"
+            className={filters.view !== "list" ? "is-active" : ""}
+            onClick={() => setFilters((current) => ({ ...current, view: "card" }))}
+          >
+            <LayoutGrid size={15} aria-hidden="true" />
+            카드
+          </button>
+          <button
+            type="button"
+            className={filters.view === "list" ? "is-active" : ""}
+            onClick={() => setFilters((current) => ({ ...current, view: "list" }))}
+          >
+            <List size={15} aria-hidden="true" />
+            리스트
+          </button>
+        </div>
       </div>
 
       {requests.length === 0 ? (
         <MessageBox text="조건에 맞는 의뢰가 없습니다." />
       ) : (
-        <div className="admin-request-card-grid">
+        <div className={isListView ? "admin-request-card-grid is-list-view" : "admin-request-card-grid"}>
           {requests.map((request) => (
             <AdminRequestCard
               key={request.id}
@@ -2266,28 +2349,13 @@ function RequestManagement({
 }
 
 function AdminRequestCard({
-  applicationsExpanded,
-  assignmentDrafts,
   assignments,
-  expanded,
   interpreters,
   jobApplications,
   jobsById,
   requestsByJobId,
-  onJobsAdminClick,
   request,
   savingKey,
-  setAssignmentDrafts,
-  setApplicationsRequestId,
-  setExpandedRequestId,
-  assignInterpreter,
-  handlePriceDraft,
-  saveSettlement,
-  removeAssignment,
-  updateRequest,
-  updateApplicationStatus,
-  deleteRequest,
-  toggleRequestJobPublic,
   updateRequestFlowStatus,
   openRequestModal,
 }) {
@@ -2295,7 +2363,6 @@ function AdminRequestCard({
   const linkedRequest = request.job_id ? requestsByJobId.get(String(request.job_id)) : null;
   const flowSource = getRequestFlowSource(request, job);
   const jobPublicState = getRequestJobPublicState(request, job);
-  const requestType = getDesignatedRequestType(request, job, linkedRequest);
   const designatedInterpreterName = getDesignatedInterpreterName(
     [request, job, linkedRequest],
     interpreters
@@ -2305,54 +2372,71 @@ function AdminRequestCard({
     assignments,
     interpreters
   );
+  const statuses = getOperationFlowStatuses(flowSource);
+  const headlineStatus = getRequestHeadlineStatus(flowSource);
+  const requestDate = formatDateRange(
+    request.start_date,
+    request.end_date,
+    request.event_date
+  );
+
   return (
     <article className="admin-request-card">
       <div className="admin-request-card-head">
         <div>
           <span className="admin-request-id">#{request.id}</span>
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
+          <p>{request.company_name || "-"}</p>
         </div>
-        <OperationFlowStatusControls
-          item={flowSource}
-          disabled={savingKey === `request-${request.id}`}
-          onChange={(changes) => updateRequestFlowStatus(request, changes)}
+        <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(headlineStatus.type, headlineStatus.value)}`}>
+          {headlineStatus.label}
+        </span>
+      </div>
+
+      <div className="admin-status-badge-row">
+        <FlowStatusBadge
+          type="assignment"
+          value={statuses.assignment_status}
+          label={getOperationStatusOptionLabel(ASSIGNMENT_STATUS_OPTIONS, statuses.assignment_status)}
+        />
+        <FlowStatusBadge
+          type="operation"
+          value={statuses.operation_status}
+          label={getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, statuses.operation_status)}
+        />
+        <FlowStatusBadge
+          type="settlement"
+          value={statuses.settlement_status}
+          label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
         />
       </div>
 
-      <dl className="admin-request-summary">
-        <Info label="기업명" value={request.company_name || "-"} />
-        <Info label="의뢰 유형" value={requestType.label} />
-        <Info label="지정 통역사" value={designatedInterpreterName} />
-        <Info label="배정 통역사" value={assignedInterpreterName} />
-        <Info label="약관 동의" value={getAgreementStatusLabel(request)} />
-        <Info label="동의 시간" value={formatDateTime(request.agreed_at)} />
-        <Info
-          label="날짜"
-          value={formatDateRange(
-            request.start_date,
-            request.end_date,
-            request.event_date
-          )}
-        />
+      <dl className="admin-request-summary admin-request-summary-clean">
+        <Info label="날짜" value={requestDate} />
         <Info label="장소" value={request.event_location || "-"} />
-        <Info label="공개 여부" value={jobPublicState.label} />
+        <Info label="배정 통역사" value={assignedInterpreterName || designatedInterpreterName || "-"} />
       </dl>
+
+      <OperationFlowStatusControls
+        item={flowSource}
+        disabled={savingKey === `request-${request.id}`}
+        onChange={(changes) => updateRequestFlowStatus(request, changes)}
+      />
 
       <div className="admin-request-actions">
         <button
           type="button"
-          className="admin-link-button"
+          className="admin-link-button primary"
           onClick={() => openRequestModal("applicants", request)}
         >
           지원자 확인 ({jobApplications.length}명)
         </button>
         <button
           type="button"
-          className="admin-link-button"
-          disabled={savingKey === `request-job-${request.id}`}
-          onClick={() => openRequestModal("visibility", request)}
+          className="admin-link-button primary subtle"
+          onClick={() => openRequestModal("detail", request)}
         >
-          {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
+          상세보기
         </button>
         {request.job_id && (
           <button
@@ -2360,24 +2444,31 @@ function AdminRequestCard({
             className="admin-link-button"
             onClick={() => openRequestModal("edit", request)}
           >
-            공고 수정
+            수정
           </button>
         )}
-        <button
-          type="button"
-          className="admin-link-button"
-          onClick={() => openRequestModal("detail", request)}
-        >
-          상세 보기
-        </button>
-        <button
-          type="button"
-          className="admin-link-button danger"
-          disabled={savingKey === `request-delete-${request.id}`}
-          onClick={() => openRequestModal("delete", request)}
-        >
-          삭제
-        </button>
+        <details className="admin-more-menu">
+          <summary aria-label="더보기">
+            <MoreHorizontal size={18} aria-hidden="true" />
+          </summary>
+          <div>
+            <button
+              type="button"
+              disabled={savingKey === `request-job-${request.id}`}
+              onClick={() => openRequestModal("visibility", request)}
+            >
+              {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
+            </button>
+            <button
+              type="button"
+              className="danger"
+              disabled={savingKey === `request-delete-${request.id}`}
+              onClick={() => openRequestModal("delete", request)}
+            >
+              삭제
+            </button>
+          </div>
+        </details>
       </div>
     </article>
   );
@@ -3579,12 +3670,87 @@ function MatchingCard({
   );
 }
 
-function MetricCard({ label, value, description, onClick }) {
+function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
   return (
-    <button type="button" className="admin-metric-card" onClick={onClick}>
+    <section className="admin-operation-overview" aria-label="오늘 운영과 긴급 요청">
+      <div className="admin-operation-panel admin-today-panel">
+        <div className="admin-panel-head">
+          <div>
+            <p className="admin-kicker">TODAY</p>
+            <h2>오늘 운영</h2>
+          </div>
+          <span>{todayItems.length}건</span>
+        </div>
+        <div className="admin-operation-list">
+          {todayItems.length === 0 ? (
+            <p className="admin-empty-text">오늘 예정된 운영이 없습니다.</p>
+          ) : (
+            todayItems.slice(0, 4).map((item) => (
+              <article className="admin-operation-item" key={`today-${item.request.id}`}>
+                <div>
+                  <span className={`admin-flow-status-badge ${item.badgeClass}`}>
+                    {item.statusLabel}
+                  </span>
+                  <strong>{item.timeLabel}</strong>
+                </div>
+                <h3>{item.request.event_name || "-"}</h3>
+                <p>
+                  <MapPin size={14} aria-hidden="true" />
+                  {item.request.event_location || "-"}
+                </p>
+                <p>
+                  <User size={14} aria-hidden="true" />
+                  {item.interpreters || "배정 통역사 없음"}
+                </p>
+              </article>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="admin-operation-panel admin-urgent-panel">
+        <div className="admin-panel-head">
+          <div>
+            <p className="admin-kicker">URGENT</p>
+            <h2>긴급 요청</h2>
+          </div>
+          <span>{urgentItems.length}건</span>
+        </div>
+        <div className="admin-operation-list">
+          {urgentItems.length === 0 ? (
+            <p className="admin-empty-text">긴급 확인이 필요한 의뢰가 없습니다.</p>
+          ) : (
+            urgentItems.slice(0, 4).map((item) => (
+              <article className="admin-urgent-item" key={`urgent-${item.request.id}`}>
+                <div className="admin-urgent-topline">
+                  <span>{item.dDayLabel}</span>
+                  <small>{item.reason}</small>
+                </div>
+                <h3>{item.request.event_name || "-"}</h3>
+                <p>{item.dateLabel}</p>
+                <p>{item.request.event_location || "-"}</p>
+                <p>{item.interpreters || "통역사 미배정"}</p>
+                <button type="button" onClick={() => onOpenRequest(item.request)}>
+                  바로 확인
+                </button>
+              </article>
+            ))
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MetricCard({ label, value, description, icon: Icon, tone = "purple", onClick }) {
+  return (
+    <button type="button" className={`admin-metric-card tone-${tone}`} onClick={onClick}>
+      <span className="admin-metric-icon">
+        {Icon && <Icon size={20} aria-hidden="true" />}
+      </span>
       <span>{label}</span>
       <strong>{value}</strong>
-      {description && <small>{description}</small>}
+      <small>{description}</small>
     </button>
   );
 }
@@ -3669,6 +3835,14 @@ function OperationFlowSelect({ disabled, onChange, options, type, value }) {
         </option>
       ))}
     </select>
+  );
+}
+
+function FlowStatusBadge({ label, type, value }) {
+  return (
+    <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(type, value)}`}>
+      {label}
+    </span>
   );
 }
 
@@ -3865,8 +4039,12 @@ function isDateInRange(date, startDate, endDate, fallbackDate) {
   return start <= date && date <= end;
 }
 
+function getRequestPrimaryDate(request = {}) {
+  return getDateRangeStart(request.start_date, request.event_date);
+}
+
 function isRequestWithinDays(request, days) {
-  const date = getDateRangeStart(request.start_date, request.event_date);
+  const date = getRequestPrimaryDate(request);
   if (!date) return false;
 
   const today = new Date();
@@ -3875,6 +4053,180 @@ function isRequestWithinDays(request, days) {
 
   const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
   return diffDays >= 0 && diffDays <= days;
+}
+
+function getRequestDday(request = {}) {
+  const date = getRequestPrimaryDate(request);
+  if (!date) return null;
+
+  const today = new Date();
+  const target = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+}
+
+function getDdayLabel(request = {}) {
+  const dDay = getRequestDday(request);
+  if (dDay === null) return "D-?";
+  if (dDay === 0) return "D-DAY";
+  if (dDay > 0) return `D-${dDay}`;
+  return `D+${Math.abs(dDay)}`;
+}
+
+function isUrgentOperationRequest(request = {}, applications = []) {
+  const statuses = getOperationFlowStatuses(request);
+  const uncheckedCount = applications.filter((application) =>
+    [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
+      normalizeApplicationStatus(application.status)
+    )
+  ).length;
+
+  return (
+    request.is_urgent ||
+    (isRequestWithinDays(request, 7) &&
+      statuses.assignment_status !== ASSIGNMENT_STATUS.ASSIGNED) ||
+    uncheckedCount >= 3
+  );
+}
+
+function buildOperationDashboard(
+  requests = [],
+  assignmentsByRequest = new Map(),
+  interpreters = [],
+  applications = []
+) {
+  const today = new Date().toISOString().slice(0, 10);
+  const applicationsByJob = groupByStringKey(applications, "job_id");
+  const conflictRequestIds = getScheduleConflictRequestIds(requests, assignmentsByRequest);
+
+  const todayItems = requests
+    .filter((request) =>
+      isDateInRange(today, request.start_date, request.end_date, request.event_date)
+    )
+    .map((request) => {
+      const operationStatus = normalizeOperationStatus(request);
+      const startDate = getDateRangeStart(request.start_date, request.event_date);
+      const statusLabel =
+        operationStatus === OPERATION_STATUS.IN_PROGRESS
+          ? "운영중"
+          : startDate === today
+            ? "오늘 시작"
+            : "운영예정";
+      const badgeClass =
+        operationStatus === OPERATION_STATUS.IN_PROGRESS
+          ? getOperationFlowBadgeClass("operation", OPERATION_STATUS.IN_PROGRESS)
+          : getOperationFlowBadgeClass("operation", OPERATION_STATUS.BEFORE_OPERATION);
+
+      return {
+        request,
+        statusLabel,
+        badgeClass,
+        timeLabel: request.work_hours || formatDateRange(request.start_date, request.end_date, request.event_date),
+        interpreters: getAssignedInterpreterName(
+          request,
+          assignmentsByRequest.get(request.id) || [],
+          interpreters
+        ),
+      };
+    });
+
+  const urgentItems = requests
+    .map((request) => {
+      const requestApplications = request.job_id
+        ? applicationsByJob.get(String(request.job_id)) || []
+        : [];
+      const uncheckedCount = requestApplications.filter((application) =>
+        [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
+          normalizeApplicationStatus(application.status)
+        )
+      ).length;
+      const isUnassigned =
+        normalizeAssignmentStatus(request) !== ASSIGNMENT_STATUS.ASSIGNED;
+      const hasConflict = conflictRequestIds.has(String(request.id));
+      const reason = request.is_urgent
+        ? "긴급 요청"
+        : hasConflict
+          ? "일정 충돌"
+        : uncheckedCount >= 3
+          ? `미확인 지원 ${uncheckedCount}건`
+          : isUnassigned
+            ? "통역사 미배정"
+            : "일정 확인";
+
+      return {
+        request,
+        reason,
+        priority: getRequestDday(request) ?? 99,
+        dDayLabel: getDdayLabel(request),
+        dateLabel: formatDateRange(request.start_date, request.end_date, request.event_date),
+        interpreters: getAssignedInterpreterName(
+          request,
+          assignmentsByRequest.get(request.id) || [],
+          interpreters
+        ),
+        visible: hasConflict || isUrgentOperationRequest(request, requestApplications),
+      };
+    })
+    .filter((item) => item.visible)
+    .sort((a, b) => a.priority - b.priority);
+
+  return { todayItems, urgentItems };
+}
+
+function getScheduleConflictRequestIds(requests = [], assignmentsByRequest = new Map()) {
+  const conflictIds = new Set();
+
+  requests.forEach((request, index) => {
+    const requestInterpreterIds = getRequestAssignedInterpreterIds(
+      request,
+      assignmentsByRequest.get(request.id) || []
+    );
+    if (requestInterpreterIds.length === 0) return;
+
+    requests.slice(index + 1).forEach((otherRequest) => {
+      if (!doRequestDatesOverlap(request, otherRequest)) return;
+
+      const otherInterpreterIds = getRequestAssignedInterpreterIds(
+        otherRequest,
+        assignmentsByRequest.get(otherRequest.id) || []
+      );
+      const hasSharedInterpreter = requestInterpreterIds.some((id) =>
+        otherInterpreterIds.includes(id)
+      );
+      if (!hasSharedInterpreter) return;
+
+      conflictIds.add(String(request.id));
+      conflictIds.add(String(otherRequest.id));
+    });
+  });
+
+  return conflictIds;
+}
+
+function getRequestAssignedInterpreterIds(request = {}, assignments = []) {
+  const ids = assignments
+    .map((assignment) => assignment.interpreter_id)
+    .filter(Boolean)
+    .map(String);
+
+  [
+    request.assigned_interpreter_id,
+    request.matched_interpreter_id,
+    request.interpreter_id,
+  ].forEach((id) => {
+    if (id) ids.push(String(id));
+  });
+
+  return [...new Set(ids)];
+}
+
+function doRequestDatesOverlap(a = {}, b = {}) {
+  const aStart = a.start_date || a.event_date;
+  const aEnd = a.end_date || a.event_date || aStart;
+  const bStart = b.start_date || b.event_date;
+  const bEnd = b.end_date || b.event_date || bStart;
+  if (!aStart || !aEnd || !bStart || !bEnd) return false;
+  return aStart <= bEnd && bStart <= aEnd;
 }
 
 function isRequestVisibleInMatching(request, assignments = []) {
@@ -4169,6 +4521,30 @@ function getOperationFlowStatuses(item = {}) {
   };
 }
 
+function getRequestHeadlineStatus(item = {}) {
+  const statuses = getOperationFlowStatuses(item);
+
+  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.COMPLETED) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산완료" };
+  }
+  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.PENDING) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산대기" };
+  }
+  if (statuses.operation_status === OPERATION_STATUS.COMPLETED) {
+    return { type: "operation", value: statuses.operation_status, label: "운영완료" };
+  }
+  if (statuses.operation_status === OPERATION_STATUS.IN_PROGRESS) {
+    return { type: "operation", value: statuses.operation_status, label: "운영중" };
+  }
+  if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNED) {
+    return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
+  }
+  if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNING) {
+    return { type: "assignment", value: statuses.assignment_status, label: "배정중" };
+  }
+  return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
+}
+
 function getRequestFlowSource(request = {}, job = null) {
   if (!job) return request;
 
@@ -4307,6 +4683,10 @@ function getOperationFlowBadgeClass(type, value) {
   if (type === "assignment") return getAssignmentStatusBadgeClass(value);
   if (type === "operation") return getOperationStatusBadgeClass(value);
   return getSettlementFlowStatusBadgeClass(value);
+}
+
+function getOperationStatusOptionLabel(options, value) {
+  return options.find((option) => option.value === value)?.label || value;
 }
 
 function getOperationFlowAriaLabel(type) {
