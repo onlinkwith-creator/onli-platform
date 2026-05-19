@@ -715,12 +715,10 @@ function Admin() {
     try {
       let updatedJob = null;
       if (request.job_id) {
-        const { data, error } = await supabase
-          .from("jobs")
-          .update(jobChanges)
-          .eq("id", request.job_id)
-          .select("*")
-          .single();
+        const { data, error } = await updateJobWithFallback(
+          request.job_id,
+          jobChanges
+        );
 
         if (error) throw error;
         updatedJob = data;
@@ -900,12 +898,10 @@ function Admin() {
 
       let updatedJob = null;
       if (activeRequest.job_id) {
-        const { data, error } = await supabase
-          .from("jobs")
-          .update(jobPayload)
-          .eq("id", activeRequest.job_id)
-          .select("*")
-          .single();
+        const { data, error } = await updateJobWithFallback(
+          activeRequest.job_id,
+          jobPayload
+        );
         if (error) throw error;
         updatedJob = data;
       }
@@ -1448,12 +1444,10 @@ function Admin() {
     const assignmentStatus = isAssigned
       ? ASSIGNMENT_STATUS.ASSIGNED
       : ASSIGNMENT_STATUS.ASSIGNING;
-    const { data, error } = await supabase
-      .from("jobs")
-      .update({ status, assignment_status: assignmentStatus })
-      .eq("id", request.job_id)
-      .select("*")
-      .single();
+    const { data, error } = await updateJobWithFallback(request.job_id, {
+      status,
+      assignment_status: assignmentStatus,
+    });
 
     if (error) {
       console.error("linked job assignment status update error:", error);
@@ -1563,18 +1557,15 @@ function Admin() {
         );
 
         if (shouldAssignJob) {
-          const { error: jobError } = await supabase
-            .from("jobs")
-            .update({
-              status: JOB_STATUS.ASSIGNED,
-              assignment_status: ASSIGNMENT_STATUS.ASSIGNED,
-              is_urgent: false,
-            })
-            .eq("id", jobId);
+          const { error: jobError } = await updateJobWithFallback(jobId, {
+            status: JOB_STATUS.ASSIGNED,
+            assignment_status: ASSIGNMENT_STATUS.ASSIGNED,
+            is_urgent: false,
+          });
 
           if (jobError) {
-            console.error("공고 상태 변경 실패:", jobError);
-            alert(jobError.message);
+            console.error("Failed to update job status", jobError);
+            alert("상태 변경에 실패했습니다. 잠시 후 다시 시도해주세요.");
           }
         }
       }
@@ -4340,6 +4331,42 @@ function isMissingColumnError(error) {
     error?.code === "PGRST204" ||
     /column|schema cache/i.test(error?.message || "")
   );
+}
+
+function withoutOperationFlowColumns(payload) {
+  const legacyPayload = { ...payload };
+  delete legacyPayload.assignment_status;
+  delete legacyPayload.operation_status;
+  delete legacyPayload.settlement_status;
+  return legacyPayload;
+}
+
+async function updateJobWithFallback(jobId, changes) {
+  const { data, error } = await supabase
+    .from("jobs")
+    .update(changes)
+    .eq("id", jobId)
+    .select("*")
+    .single();
+
+  if (!error) return { data, error: null };
+  if (!isMissingColumnError(error)) return { data: null, error };
+
+  console.error("Failed to update job status", error);
+  const legacyChanges = withoutOperationFlowColumns(changes);
+  if (Object.keys(legacyChanges).length === 0) {
+    return { data: null, error: null };
+  }
+
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from("jobs")
+    .update(legacyChanges)
+    .eq("id", jobId)
+    .select("*")
+    .single();
+
+  if (fallbackError) console.error("Failed to update job status", fallbackError);
+  return { data: fallbackData, error: fallbackError };
 }
 
 function upsertById(items, nextItem) {

@@ -59,6 +59,36 @@ function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
 
+function isMissingColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column|schema cache/i.test(error?.message || "")
+  );
+}
+
+function withoutOperationFlowColumns(payload) {
+  const legacyPayload = { ...payload };
+  delete legacyPayload.assignment_status;
+  delete legacyPayload.operation_status;
+  delete legacyPayload.settlement_status;
+  return legacyPayload;
+}
+
+async function updateJobWithFallback(jobId, changes) {
+  let result = await supabase.from("jobs").update(changes).eq("id", jobId);
+
+  if (result.error && isMissingColumnError(result.error)) {
+    console.error("Failed to update job status", result.error);
+    result = await supabase
+      .from("jobs")
+      .update(withoutOperationFlowColumns(changes))
+      .eq("id", jobId);
+  }
+
+  return result;
+}
+
 function AdminJobs({
   onBackClick,
   embedded = false,
@@ -184,11 +214,19 @@ function AdminJobs({
     };
 
     try {
-      const { error } = editingId
+      let result = editingId
         ? await supabase.from("jobs").update(payload).eq("id", editingId)
         : await supabase.from("jobs").insert([payload]);
 
-      if (error) throw error;
+      if (result.error && isMissingColumnError(result.error)) {
+        console.error("Failed to update job status", result.error);
+        const legacyPayload = withoutOperationFlowColumns(payload);
+        result = editingId
+          ? await supabase.from("jobs").update(legacyPayload).eq("id", editingId)
+          : await supabase.from("jobs").insert([legacyPayload]);
+      }
+
+      if (result.error) throw result.error;
 
       resetForm();
       if (isControlled) {
@@ -198,7 +236,7 @@ function AdminJobs({
       }
       alert("공고가 저장되었습니다.");
     } catch (error) {
-      console.error(error);
+      console.error("Failed to update job status", error);
       alert(getSupabaseErrorMessage(error, "공고 저장에 실패했습니다."));
     } finally {
       setSaving(false);
@@ -233,9 +271,9 @@ function AdminJobs({
     }
 
     try {
-      const { error } = await supabase.from("jobs").update(changes).eq("id", job.id);
+      const result = await updateJobWithFallback(job.id, changes);
 
-      if (error) throw error;
+      if (result.error) throw result.error;
 
       if (isControlled) {
         await onDataChanged?.();
@@ -245,8 +283,8 @@ function AdminJobs({
         );
       }
     } catch (error) {
-      console.error(error);
-      alert(getSupabaseErrorMessage(error, "공고 변경에 실패했습니다."));
+      console.error("Failed to update job status", error);
+      alert("상태 변경에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
@@ -383,18 +421,15 @@ function AdminJobs({
           return;
         }
 
-        const { error: jobError } = await supabase
-          .from("jobs")
-          .update({
-            status: JOB_STATUS.ASSIGNED,
-            assignment_status: ASSIGNMENT_STATUS.ASSIGNED,
-            is_urgent: false,
-          })
-          .eq("id", application.job_id);
+        const { error: jobError } = await updateJobWithFallback(application.job_id, {
+          status: JOB_STATUS.ASSIGNED,
+          assignment_status: ASSIGNMENT_STATUS.ASSIGNED,
+          is_urgent: false,
+        });
 
         if (jobError) {
-          console.error("공고 상태 변경 실패:", jobError);
-          alert("공고 모집 상태 변경에 실패했습니다.");
+          console.error("Failed to update job status", jobError);
+          alert("상태 변경에 실패했습니다. 잠시 후 다시 시도해주세요.");
         } else {
           setJobs((current) =>
             current.map((job) =>
