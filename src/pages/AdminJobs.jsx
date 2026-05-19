@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import {
   JOB_VISIBILITY_OPTIONS,
+  JOB_STATUS_OPTIONS,
   JOB_STATUS,
   getJobVisibilityLabel,
   normalizeJobStatus,
@@ -14,6 +15,7 @@ import {
   normalizeApplicationStatus,
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
+import { isDateRangeOverlappingMonth } from "../utils/date";
 import { fetchJobApplications } from "../utils/jobsApi";
 import { getDuplicateApplicationIdSet } from "../utils/duplicateCheck";
 import {
@@ -109,6 +111,12 @@ function AdminJobs({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [jobFilters, setJobFilters] = useState({
+    search: "",
+    month: "",
+    status: "all",
+    visibility: "all",
+  });
   const visibleJobs = isControlled ? controlledJobs : jobs;
   const visibleApplications = isControlled
     ? controlledApplications || []
@@ -341,6 +349,34 @@ function AdminJobs({
 
     return Math.max(assignmentCount, applicationCount);
   };
+  const filteredJobs = visibleJobs.filter((job) => {
+    const search = jobFilters.search.trim().toLowerCase();
+    const searchableText = [
+      job.title,
+      job.event_name,
+      job.company_name,
+      job.location,
+      job.event_location,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const matchesSearch = !search || searchableText.includes(search);
+    const matchesMonth =
+      !jobFilters.month ||
+      isDateRangeOverlappingMonth(
+        getDateRangeStart(job.start_date || job.event_date, job.date),
+        getDateRangeEnd(job.end_date || job.event_date, job.date),
+        jobFilters.month
+      );
+    const matchesStatus =
+      jobFilters.status === "all" || normalizeJobStatus(job) === jobFilters.status;
+    const matchesVisibility =
+      jobFilters.visibility === "all" ||
+      normalizeJobVisibility(job) === jobFilters.visibility;
+
+    return matchesSearch && matchesMonth && matchesStatus && matchesVisibility;
+  });
 
   const refreshApplications = async () => {
     const applicationData = await fetchJobApplications();
@@ -451,7 +487,7 @@ function AdminJobs({
   const content = (
     <>
       <section className="admin-section">
-          <SectionTitle count={`${visibleJobs.length}건`} title="통역 공고 관리" />
+          <SectionTitle count={`${filteredJobs.length}건`} title="통역 공고 관리" />
 
         <form className="admin-job-form" onSubmit={handleSubmit}>
           <JobField label="공고 제목">
@@ -544,16 +580,57 @@ function AdminJobs({
       </section>
 
       <section className="admin-section">
+        <div className="admin-filters admin-job-filters">
+          <label className="admin-search-control">
+            <input
+              value={jobFilters.search}
+              onChange={(event) =>
+                setJobFilters((current) => ({ ...current, search: event.target.value }))
+              }
+              placeholder="공고명/기업명/장소 검색"
+            />
+          </label>
+          <MonthFilterControl
+            value={jobFilters.month}
+            onChange={(month) => setJobFilters((current) => ({ ...current, month }))}
+          />
+          <select
+            value={jobFilters.status}
+            onChange={(event) =>
+              setJobFilters((current) => ({ ...current, status: event.target.value }))
+            }
+          >
+            <option value="all">전체 상태</option>
+            {JOB_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={jobFilters.visibility}
+            onChange={(event) =>
+              setJobFilters((current) => ({ ...current, visibility: event.target.value }))
+            }
+          >
+            <option value="all">공개 전체</option>
+            {JOB_VISIBILITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         {loading ? (
           <MessageBox text="공고를 불러오는 중입니다..." />
         ) : errorMessage ? (
           <MessageBox text={errorMessage} />
         ) : (
-          visibleJobs.length === 0 ? (
+          filteredJobs.length === 0 ? (
             <MessageBox text="현재 등록된 공고가 없습니다." />
           ) : (
             <div className="admin-management-card-grid">
-              {visibleJobs.map((job) => {
+              {filteredJobs.map((job) => {
                 const jobApplications = getApplicationsForJob(job.id);
                 const matchedCount = getMatchedCount(job.id);
                 const request = requestsByJobId.get(String(job.id));
@@ -714,6 +791,45 @@ function JobManagementCard({
 
     </article>
   );
+}
+
+function MonthFilterControl({ value, onChange }) {
+  return (
+    <div className="admin-month-filter">
+      <input
+        aria-label="월 선택"
+        type="month"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <div className="admin-month-actions" aria-label="빠른 월 이동">
+        <button type="button" onClick={() => onChange(getCurrentMonthValue())}>
+          이번 달
+        </button>
+        <button type="button" onClick={() => onChange(getNextMonthValue())}>
+          다음 달
+        </button>
+        <button type="button" onClick={() => onChange("")}>
+          전체
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function getCurrentMonthValue() {
+  const today = new Date();
+  return formatMonthValue(today.getFullYear(), today.getMonth() + 1);
+}
+
+function getNextMonthValue() {
+  const today = new Date();
+  return formatMonthValue(today.getFullYear(), today.getMonth() + 2);
+}
+
+function formatMonthValue(year, month) {
+  const date = new Date(year, month - 1, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function JobField({ label, children }) {

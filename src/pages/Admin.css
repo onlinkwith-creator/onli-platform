@@ -1412,6 +1412,45 @@
   padding: 0;
 }
 
+.admin-month-filter {
+  display: grid;
+  grid-template-columns: minmax(122px, 1fr) auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-month-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.admin-month-actions button {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #4b5563;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-month-actions button:hover {
+  border-color: rgba(79, 70, 229, 0.35);
+  color: #4f46e5;
+}
+
+.admin-job-filters {
+  grid-template-columns: minmax(220px, 1.3fr) minmax(320px, 1.1fr) repeat(2, minmax(130px, 0.7fr));
+}
+
+.admin-matching-filters {
+  grid-template-columns: minmax(320px, 0.8fr);
+}
+
 .admin-view-toggle {
   display: inline-flex;
   align-items: center;
@@ -2479,6 +2518,15 @@
 
   .admin-filters {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-month-filter {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-month-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .admin-interpreter-grid {

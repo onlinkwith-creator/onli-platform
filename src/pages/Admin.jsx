@@ -33,6 +33,7 @@ import {
   normalizeMatchingStatus,
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
+import { isDateRangeOverlappingMonth } from "../utils/date";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
 import { normalizeLevel } from "../utils/levelBadge";
@@ -192,11 +193,14 @@ function Admin() {
   });
   const [requestFilters, setRequestFilters] = useState({
     search: "",
-    date: "",
+    month: "",
     status: "all",
     public: "all",
     sort: "latest",
     view: "card",
+  });
+  const [matchingFilters, setMatchingFilters] = useState({
+    month: "",
   });
 
   const fetchAdminData = useCallback(async () => {
@@ -376,12 +380,11 @@ function Admin() {
         .toLowerCase();
       const matchesSearch = !search || searchableText.includes(search);
       const matchesDate =
-        !requestFilters.date ||
-        isDateInRange(
-          requestFilters.date,
-          request.start_date,
-          request.end_date,
-          request.event_date
+        !requestFilters.month ||
+        isDateRangeOverlappingMonth(
+          getDateRangeStart(request.start_date || request.event_date, request.date),
+          getDateRangeEnd(request.end_date || request.event_date, request.date),
+          requestFilters.month
         );
       const matchesStatus =
         requestFilters.status === "all" ||
@@ -899,6 +902,15 @@ function Admin() {
 
     if (!supabase) {
       alert(supabaseConfigError.message);
+      return;
+    }
+
+    if (
+      requestEditDraft.start_date &&
+      requestEditDraft.end_date &&
+      requestEditDraft.end_date < requestEditDraft.start_date
+    ) {
+      alert("종료일은 시작일보다 빠를 수 없습니다.");
       return;
     }
 
@@ -1886,6 +1898,7 @@ function Admin() {
             {activeTab === "matching" && (
               <MatchingManagement
                 applications={matchedApplications}
+                filters={matchingFilters}
                 requests={matchedRequests}
                 assignmentsByRequest={assignmentsByRequest}
                 jobsById={jobsById}
@@ -1893,6 +1906,7 @@ function Admin() {
                 interpreters={interpreters}
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
+                setFilters={setMatchingFilters}
               />
             )}
 
@@ -2277,12 +2291,9 @@ function RequestManagement({
             placeholder="기업명/행사명 검색"
           />
         </label>
-        <input
-          type="date"
-          value={filters.date}
-          onChange={(event) =>
-            setFilters((current) => ({ ...current, date: event.target.value }))
-          }
+        <MonthFilterControl
+          value={filters.month}
+          onChange={(month) => setFilters((current) => ({ ...current, month }))}
         />
         <select
           value={filters.status}
@@ -3597,6 +3608,8 @@ function ApplicationCard({
 function MatchingManagement({
   applications,
   requests,
+  filters,
+  setFilters,
   assignmentsByRequest,
   jobsById,
   requestsByJobId,
@@ -3604,16 +3617,47 @@ function MatchingManagement({
   savingKey,
   updateApplicationStatus,
 }) {
-  const totalCount = applications.length + requests.length;
+  const filteredRequests = requests.filter(
+    (request) =>
+      !filters.month ||
+      isDateRangeOverlappingMonth(
+        getDateRangeStart(request.start_date || request.event_date, request.date),
+        getDateRangeEnd(request.end_date || request.event_date, request.date),
+        filters.month
+      )
+  );
+  const filteredApplications = applications.filter((application) => {
+    const job = jobsById.get(application.job_id) || application.jobs;
+    const request = application.job_id
+      ? requestsByJobId.get(String(application.job_id))
+      : null;
+    const startDate = getDateRangeStart(
+      job?.start_date || request?.start_date || job?.event_date || request?.event_date,
+      job?.date || request?.date
+    );
+    const endDate = getDateRangeEnd(
+      job?.end_date || request?.end_date || job?.event_date || request?.event_date,
+      job?.date || request?.date
+    );
+
+    return !filters.month || isDateRangeOverlappingMonth(startDate, endDate, filters.month);
+  });
+  const totalCount = filteredApplications.length + filteredRequests.length;
 
   return (
     <section className="admin-section">
       <SectionTitle count={`${totalCount}건`} title="매칭 관리" />
+      <div className="admin-filters admin-matching-filters">
+        <MonthFilterControl
+          value={filters.month}
+          onChange={(month) => setFilters((current) => ({ ...current, month }))}
+        />
+      </div>
       {totalCount === 0 ? (
         <MessageBox text="아직 배정완료된 의뢰가 없습니다." />
       ) : (
         <div className="admin-management-card-grid">
-          {requests.map((request) => (
+          {filteredRequests.map((request) => (
             <MatchingRequestCard
               key={`request-${request.id}`}
               request={request}
@@ -3621,7 +3665,7 @@ function MatchingManagement({
               interpreters={interpreters}
             />
           ))}
-          {applications.map((application) => {
+          {filteredApplications.map((application) => {
             const job = jobsById.get(application.job_id) || application.jobs;
             const request = application.job_id
               ? requestsByJobId.get(String(application.job_id))
@@ -3980,6 +4024,30 @@ function NumberControl({ label, value, onChange }) {
   );
 }
 
+function MonthFilterControl({ value, onChange }) {
+  return (
+    <div className="admin-month-filter">
+      <input
+        aria-label="월 선택"
+        type="month"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <div className="admin-month-actions" aria-label="빠른 월 이동">
+        <button type="button" onClick={() => onChange(getCurrentMonthValue())}>
+          이번 달
+        </button>
+        <button type="button" onClick={() => onChange(getNextMonthValue())}>
+          다음 달
+        </button>
+        <button type="button" onClick={() => onChange("")}>
+          전체
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function DateControl({ label, value, onChange }) {
   return (
     <label className="admin-field-control">
@@ -3991,6 +4059,21 @@ function DateControl({ label, value, onChange }) {
       />
     </label>
   );
+}
+
+function getCurrentMonthValue() {
+  const today = new Date();
+  return formatMonthValue(today.getFullYear(), today.getMonth() + 1);
+}
+
+function getNextMonthValue() {
+  const today = new Date();
+  return formatMonthValue(today.getFullYear(), today.getMonth() + 2);
+}
+
+function formatMonthValue(year, month) {
+  const date = new Date(year, month - 1, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function FieldControl({ label, children }) {
