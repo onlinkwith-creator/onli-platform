@@ -20,6 +20,11 @@ import {
   checkInterpreterScheduleConflict,
   getScheduleRange,
 } from "../utils/scheduleConflict";
+import {
+  MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
+} from "../utils/managementNumber";
 import "./Jobs.css";
 
 const initialForm = {
@@ -153,6 +158,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
       agreed_policy: true,
       agreed_at: new Date().toISOString(),
     };
+    const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
 
     try {
       const existingApplication = await findExistingJobApplication(supabase, {
@@ -187,15 +193,38 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
       }
 
       console.log("JOB APPLY BEFORE DB INSERT");
+      let insertPayload = await addManagementNumber({
+        supabase,
+        table: "job_applications",
+        payload: application,
+        ...managementConfig,
+      });
       let { data, error } = await supabase
         .from("job_applications")
-        .insert([application])
+        .insert([insertPayload])
         .select("id")
         .single();
 
+      if (isManagementNumberConflict(error, managementConfig.column)) {
+        insertPayload = await addManagementNumber({
+          supabase,
+          table: "job_applications",
+          payload: application,
+          ...managementConfig,
+        });
+        const retryResult = await supabase
+          .from("job_applications")
+          .insert([insertPayload])
+          .select("id")
+          .single();
+        data = retryResult.data;
+        error = retryResult.error;
+      }
+
       if (error && isAgreementColumnError(error)) {
-        const fallbackApplication = { ...application };
+        const fallbackApplication = { ...insertPayload };
         delete fallbackApplication.interpreter_id;
+        delete fallbackApplication.application_no;
         const fallbackResult = await supabase
           .from("job_applications")
           .insert([fallbackApplication])
@@ -215,6 +244,11 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
           console.error("약관 동의 저장 실패:", error);
         }
         console.error("JOB APPLY DB INSERT ERROR", error);
+        console.error("insert failed", {
+          table: "job_applications",
+          payload: insertPayload,
+          error,
+        });
         console.error("지원 실패:", error);
         throw error;
       }

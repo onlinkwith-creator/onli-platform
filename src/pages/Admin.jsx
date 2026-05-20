@@ -80,6 +80,11 @@ import {
   getRequestTypeLabel,
   isDesignatedRequest,
 } from "../utils/designatedRequest";
+import {
+  MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
+} from "../utils/managementNumber";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
@@ -140,6 +145,7 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
     .select(
       `
         id,
+        application_no,
         job_id,
         applicant_name,
         phone,
@@ -152,6 +158,7 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
         created_at,
         jobs (
           id,
+          job_no,
           title,
           company_name,
           event_name,
@@ -254,7 +261,7 @@ function Admin() {
           .order("id", { ascending: false }),
         supabase
           .from("matchings")
-          .select("id, job_id, request_id, interpreter_id, start_date, end_date, status")
+          .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
           .order("created_at", { ascending: false }),
       ]);
 
@@ -1046,21 +1053,51 @@ function Admin() {
   };
 
   const createJobFromRequest = async (request) => {
-    const fullPayload = buildJobPayloadFromRequest(request);
-    const { data, error } = await supabase
+    const config = MANAGEMENT_NUMBER_CONFIG.jobs;
+    const basePayload = buildJobPayloadFromRequest(request);
+    let fullPayload = await addManagementNumber({
+      supabase,
+      table: "jobs",
+      payload: basePayload,
+      ...config,
+    });
+    let { data, error } = await supabase
       .from("jobs")
       .insert([fullPayload])
       .select("*")
       .single();
 
+    if (isManagementNumberConflict(error, config.column)) {
+      fullPayload = await addManagementNumber({
+        supabase,
+        table: "jobs",
+        payload: basePayload,
+        ...config,
+      });
+      const retryResult = await supabase
+        .from("jobs")
+        .insert([fullPayload])
+        .select("*")
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
     if (!error) return { data, error: null };
 
+    console.error("insert failed", {
+      table: "jobs",
+      payload: fullPayload,
+      error,
+    });
     console.error("jobs insert error:", error);
     if (!isMissingColumnError(error)) return { data: null, error };
 
+    const legacyPayload = buildLegacyJobPayloadFromRequest(request);
+    delete legacyPayload.job_no;
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("jobs")
-      .insert([buildLegacyJobPayloadFromRequest(request)])
+      .insert([legacyPayload])
       .select("*")
       .single();
 
@@ -1525,7 +1562,7 @@ function Admin() {
     interpreterId,
     scheduleRange,
   }) => {
-    const payload = {
+    const basePayload = {
       job_id: selectedJob?.id || null,
       request_id: request?.id || null,
       interpreter_id: interpreterId,
@@ -1533,14 +1570,42 @@ function Admin() {
       end_date: scheduleRange.endDate,
       status: "assigned",
     };
+    const config = MANAGEMENT_NUMBER_CONFIG.matchings;
+    let payload = await addManagementNumber({
+      supabase,
+      table: "matchings",
+      payload: basePayload,
+      ...config,
+    });
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("matchings")
       .insert([payload])
-      .select("id, job_id, request_id, interpreter_id, start_date, end_date, status")
+      .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
       .single();
 
+    if (isManagementNumberConflict(error, config.column)) {
+      payload = await addManagementNumber({
+        supabase,
+        table: "matchings",
+        payload: basePayload,
+        ...config,
+      });
+      const retryResult = await supabase
+        .from("matchings")
+        .insert([payload])
+        .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
     if (error) {
+      console.error("insert failed", {
+        table: "matchings",
+        payload,
+        error,
+      });
       console.warn("matching schedule snapshot skipped:", error);
       return null;
     }
@@ -2115,6 +2180,7 @@ function Admin() {
                 jobsById={jobsById}
                 requestsByJobId={requestsByJobId}
                 interpreters={interpreters}
+                matchings={matchings}
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
@@ -2649,7 +2715,7 @@ function AdminRequestCard({
     <article className="admin-request-card">
       <div className="admin-request-card-head">
         <div>
-          <span className="admin-request-id">#{request.id}</span>
+          <ManagementNumberBadge value={request.request_no} />
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
           <p>{request.company_name || "-"}</p>
         </div>
@@ -2677,6 +2743,7 @@ function AdminRequestCard({
       </div>
 
       <dl className="admin-request-summary admin-request-summary-clean">
+        <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
         <Info label="날짜" value={requestDate} />
         <Info label="장소" value={request.event_location || "-"} />
         <Info label="배정 통역사" value={assignedInterpreterName || designatedInterpreterName || "-"} />
@@ -2778,6 +2845,8 @@ function RequestDetailPanel({
 
   return (
     <div className="admin-detail-panel">
+      <ManagementNumberBlock label="관리번호" value={request.request_no} />
+
       <div className="admin-flow-status-panel">
         <h3>운영 단계</h3>
         <OperationFlowStatusControls
@@ -2790,6 +2859,7 @@ function RequestDetailPanel({
       <div>
         <h3>의뢰 기본 정보</h3>
         <dl className="admin-detail-list compact">
+          <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
           <Info label="담당자" value={request.manager_name} />
           <Info label="의뢰 유형" value={requestType.label} />
           <Info label="지정 통역사" value={designatedInterpreterName} />
@@ -3008,7 +3078,10 @@ function JobApplicationsPanel({
             {expanded && (
               <div className="admin-applicant-detail">
                 <div className="admin-applicant-detail-head">
-                  <strong>{application.applicant_name || "이름 미입력"}</strong>
+                  <div>
+                    <ManagementNumberBadge value={application.application_no} />
+                    <strong>{application.applicant_name || "이름 미입력"}</strong>
+                  </div>
                   <div className="admin-card-chip-row">
                     {duplicateSuspected && <DuplicateBadge title={duplicateTitle} />}
                     {scheduleConflict && <ScheduleConflictBadge />}
@@ -3018,6 +3091,10 @@ function JobApplicationsPanel({
                 </div>
 
                 <div className="admin-applicant-detail-grid">
+                  <ApplicantDetailItem
+                    label="지원번호"
+                    value={formatManagementNumber(application.application_no)}
+                  />
                   <ApplicantDetailItem label="성별" value={application.gender || "-"} />
                   <ApplicantDetailItem
                     label="언어/레벨"
@@ -3274,6 +3351,7 @@ function InterpreterCard({
       </div>
 
       <dl className="admin-card-summary">
+        <Info label="통역사번호" value={formatManagementNumber(interpreter.interpreter_no)} />
         <Info label="레벨" value={normalizeLevel(interpreter.level)} />
         <Info label="승인 상태" value={interpreter.approved ? "승인 완료" : "승인 대기"} />
         <Info label="활동 상태" value={activityLabel} />
@@ -3828,6 +3906,7 @@ function ApplicationCard({
       <div className="admin-list-card-head">
         <div>
           <span className="admin-card-meta">지원자</span>
+          <ManagementNumberBadge value={application.application_no} />
           <h3 title={application.applicant_name || ""}>
             {application.applicant_name || "이름 미입력"}
           </h3>
@@ -3842,6 +3921,7 @@ function ApplicationCard({
       </div>
 
       <dl className="admin-card-summary">
+        <Info label="지원번호" value={formatManagementNumber(application.application_no)} />
         <Info label="지원 공고" value={getJobDisplayTitle(job, application.job_id)} />
         <Info label="기업/행사" value={getJobOrganizationLabel(job)} />
         <Info label="언어" value={getApplicationLanguage(application, job)} />
@@ -3905,6 +3985,7 @@ function MatchingManagement({
   jobsById,
   requestsByJobId,
   interpreters,
+  matchings = [],
   savingKey,
   updateApplicationStatus,
   updateRequestMatchingResultStatus,
@@ -3956,6 +4037,7 @@ function MatchingManagement({
               assignments={assignmentsByRequest.get(request.id) || []}
               getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
               interpreters={interpreters}
+              matchingNo={getMatchingNoForRequest(matchings, request)}
               savingKey={savingKey}
               updateRequestMatchingResultStatus={updateRequestMatchingResultStatus}
             />
@@ -3979,6 +4061,7 @@ function MatchingManagement({
                 request={request}
                 requestType={requestType}
                 designatedInterpreterName={designatedInterpreterName}
+                matchingNo={getMatchingNoForApplication(matchings, application, request)}
                 scheduleConflict={hasApplicationScheduleConflict(
                   application,
                   request || job,
@@ -4000,6 +4083,7 @@ function MatchingRequestCard({
   assignments,
   getInterpreterScheduleConflicts,
   interpreters,
+  matchingNo,
   savingKey,
   updateRequestMatchingResultStatus,
 }) {
@@ -4020,12 +4104,14 @@ function MatchingRequestCard({
       <div className="admin-list-card-head">
         <div>
           <span className="admin-card-meta">의뢰 매칭</span>
+          <ManagementNumberBadge value={matchingNo} />
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
         </div>
         <MatchingResultStatusBadge status={currentStatus} />
       </div>
 
       <dl className="admin-card-summary">
+        <Info label="매칭번호" value={formatManagementNumber(matchingNo)} />
         <Info label="기업명" value={request.company_name || "-"} />
         <Info label="행사명" value={request.event_name || "-"} />
         <Info
@@ -4068,6 +4154,7 @@ function MatchingCard({
   request,
   requestType,
   designatedInterpreterName,
+  matchingNo,
   scheduleConflict,
   savingKey,
   updateApplicationStatus,
@@ -4090,6 +4177,7 @@ function MatchingCard({
       <div className="admin-list-card-head">
         <div>
           <span className="admin-card-meta">매칭</span>
+          <ManagementNumberBadge value={matchingNo} />
           <h3 title={getJobDisplayTitle(job, application.job_id)}>
             {getJobDisplayTitle(job, application.job_id)}
           </h3>
@@ -4098,6 +4186,7 @@ function MatchingCard({
       </div>
 
       <dl className="admin-card-summary">
+        <Info label="매칭번호" value={formatManagementNumber(matchingNo)} />
         <Info label="기업명" value={request?.company_name || job?.company_name || "-"} />
         <Info label="행사명" value={job?.event_name || request?.event_name || "-"} />
         <Info
@@ -4358,6 +4447,27 @@ function ScheduleConflictBadge() {
       일정 충돌
     </span>
   );
+}
+
+function ManagementNumberBadge({ value }) {
+  return (
+    <span className="admin-management-number-badge">
+      {formatManagementNumber(value)}
+    </span>
+  );
+}
+
+function ManagementNumberBlock({ label = "관리번호", value }) {
+  return (
+    <div className="admin-management-number-block">
+      <span>{label}</span>
+      <ManagementNumberBadge value={value} />
+    </div>
+  );
+}
+
+function formatManagementNumber(value) {
+  return value || "번호 미생성";
 }
 
 function NameWithScheduleConflict({ hasConflict, name }) {
@@ -4622,6 +4732,27 @@ function getAssignedInterpreterNamesWithConflictBadges(
 
   if (names.length > 0) return names;
   return getAssignedInterpreterName(request, assignments, interpreters);
+}
+
+function getMatchingNoForRequest(matchings = [], request = {}) {
+  return (
+    matchings.find((matching) => String(matching.request_id) === String(request.id))
+      ?.matching_no || ""
+  );
+}
+
+function getMatchingNoForApplication(matchings = [], application = {}, request = null) {
+  if (request?.id) return getMatchingNoForRequest(matchings, request);
+
+  return (
+    matchings.find(
+      (matching) =>
+        application.job_id &&
+        String(matching.job_id) === String(application.job_id) &&
+        application.interpreter_id &&
+        String(matching.interpreter_id) === String(application.interpreter_id)
+    )?.matching_no || ""
+  );
 }
 
 function buildScheduleConflictMessage(conflicts = [], target = {}, interpreter = {}) {

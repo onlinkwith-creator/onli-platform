@@ -17,6 +17,11 @@ import {
   OPERATION_STATUS,
   SETTLEMENT_FLOW_STATUS,
 } from "../utils/operationsStatus";
+import {
+  MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
+} from "../utils/managementNumber";
 
 const initialForm = {
   companyName: "",
@@ -175,14 +180,37 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       selected_interpreter_id: interpreter?.id || null,
       selected_interpreter_name: interpreter?.name || "",
     };
+    const managementConfig = MANAGEMENT_NUMBER_CONFIG.requests;
+    let insertPayload = await addManagementNumber({
+      supabase,
+      table: "requests",
+      payload: designatedPayload,
+      ...managementConfig,
+    });
 
     console.log("COMPANY REQUEST BEFORE DB INSERT");
 
     let { data, error } = await supabase
       .from("requests")
-      .insert([designatedPayload])
+      .insert([insertPayload])
       .select("id")
       .single();
+
+    if (isManagementNumberConflict(error, managementConfig.column)) {
+      insertPayload = await addManagementNumber({
+        supabase,
+        table: "requests",
+        payload: designatedPayload,
+        ...managementConfig,
+      });
+      const retryResult = await supabase
+        .from("requests")
+        .insert([insertPayload])
+        .select("id")
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     console.log("COMPANY REQUEST DB INSERT RESULT", {
       data,
@@ -194,6 +222,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       delete legacyRequestPayload.assignment_status;
       delete legacyRequestPayload.operation_status;
       delete legacyRequestPayload.settlement_status;
+      delete legacyRequestPayload.request_no;
       const fallbackResult = await supabase
         .from("requests")
         .insert([legacyRequestPayload])
@@ -212,6 +241,11 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         console.error("약관 동의 저장 실패:", error);
       }
       console.error("COMPANY REQUEST DB INSERT ERROR", error);
+      console.error("insert failed", {
+        table: "requests",
+        payload: insertPayload,
+        error,
+      });
       console.error("request insert error:", error);
       const message =
         error.code === "42501"

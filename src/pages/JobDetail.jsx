@@ -18,6 +18,11 @@ import {
   normalizeApplicationPhone,
 } from "../utils/applicationContact";
 import { APPLICATION_STATUS } from "../utils/status";
+import {
+  MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
+} from "../utils/managementNumber";
 import "./Jobs.css";
 
 const initialForm = {
@@ -166,12 +171,36 @@ function JobDetail({ jobId, onBackClick }) {
         return;
       }
 
+      const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
+      let insertPayload = await addManagementNumber({
+        supabase,
+        table: "job_applications",
+        payload: application,
+        ...managementConfig,
+      });
+
       console.log("JOB DETAIL APPLY BEFORE DB INSERT");
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("job_applications")
-        .insert([application])
+        .insert([insertPayload])
         .select("id")
         .single();
+
+      if (isManagementNumberConflict(error, managementConfig.column)) {
+        insertPayload = await addManagementNumber({
+          supabase,
+          table: "job_applications",
+          payload: application,
+          ...managementConfig,
+        });
+        const retryResult = await supabase
+          .from("job_applications")
+          .insert([insertPayload])
+          .select("id")
+          .single();
+        data = retryResult.data;
+        error = retryResult.error;
+      }
 
       console.log("JOB DETAIL APPLY DB INSERT RESULT", {
         data,
@@ -183,6 +212,11 @@ function JobDetail({ jobId, onBackClick }) {
           console.error("약관 동의 저장 실패:", error);
         }
         console.error("JOB DETAIL APPLY DB INSERT ERROR", error);
+        console.error("insert failed", {
+          table: "job_applications",
+          payload: insertPayload,
+          error,
+        });
         console.error("지원 실패:", error);
         throw error;
       }

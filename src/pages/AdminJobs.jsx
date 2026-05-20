@@ -39,6 +39,11 @@ import {
   getRequestTypeLabel,
   isDesignatedRequest,
 } from "../utils/designatedRequest";
+import {
+  MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
+} from "../utils/managementNumber";
 import "./Admin.css";
 
 const emptyForm = {
@@ -224,7 +229,7 @@ function AdminJobs({
 
     const formattedDate = formatDateRange(form.start_date, form.end_date);
 
-    const payload = {
+    let payload = {
       title: form.title,
       location: form.location,
       date: formattedDate,
@@ -239,11 +244,31 @@ function AdminJobs({
       visibility: form.visibility,
       ...getJobStatusPayloadFromFlow(form),
     };
+    const managementConfig = MANAGEMENT_NUMBER_CONFIG.jobs;
+
+    if (!editingId) {
+      payload = await addManagementNumber({
+        supabase,
+        table: "jobs",
+        payload,
+        ...managementConfig,
+      });
+    }
 
     try {
       let result = editingId
         ? await supabase.from("jobs").update(payload).eq("id", editingId)
         : await supabase.from("jobs").insert([payload]);
+
+      if (!editingId && isManagementNumberConflict(result.error, managementConfig.column)) {
+        payload = await addManagementNumber({
+          supabase,
+          table: "jobs",
+          payload: { ...payload, [managementConfig.column]: "" },
+          ...managementConfig,
+        });
+        result = await supabase.from("jobs").insert([payload]);
+      }
 
       if (result.error && isMissingColumnError(result.error)) {
         console.error("Failed to update job status", result.error);
@@ -264,6 +289,11 @@ function AdminJobs({
       alert("공고가 저장되었습니다.");
     } catch (error) {
       console.error("Failed to update job status", error);
+      console.error("insert failed", {
+        table: "jobs",
+        payload,
+        error,
+      });
       alert(getSupabaseErrorMessage(error, "공고 저장에 실패했습니다."));
     } finally {
       setSaving(false);
@@ -739,6 +769,7 @@ function JobManagementCard({
       <div className="admin-list-card-head">
         <div>
           <span className="admin-card-meta">통역 공고</span>
+          <ManagementNumberBadge value={job.job_no} />
           <h3 title={job.title || ""}>{job.event_name || job.title || "-"}</h3>
         </div>
         <OperationFlowStatusControls
@@ -748,6 +779,7 @@ function JobManagementCard({
       </div>
 
       <dl className="admin-card-summary">
+        <JobInfo label="공고번호" value={formatManagementNumber(job.job_no)} />
         <JobInfo label="기업명" value={job.company_name || "-"} />
         <JobInfo
           label="날짜"
@@ -863,6 +895,7 @@ function JobApplicantsModal({
         <div className="admin-modal-head">
           <div>
             <p className="admin-kicker">APPLICANTS</p>
+            <ManagementNumberBlock label="관리번호" value={job?.job_no} />
             <h2 id="job-applicants-modal-title">
               지원자 목록 - {job?.event_name || job?.title || "공고"}
             </h2>
@@ -935,6 +968,7 @@ function JobApplicationsPanel({
                   {scheduleConflict && <ScheduleConflictBadge />}
                   <span className="admin-applicant-summary-text">
                     <strong>{application.applicant_name || "이름 미입력"}</strong>
+                    <ManagementNumberBadge value={application.application_no} />
                     <span>{language}</span>
                     <span>지원자</span>
                   </span>
@@ -946,7 +980,10 @@ function JobApplicationsPanel({
                 {expanded && (
                   <div className="admin-applicant-detail">
                     <div className="admin-applicant-detail-head">
-                      <strong>{application.applicant_name || "이름 미입력"}</strong>
+                      <div>
+                        <ManagementNumberBadge value={application.application_no} />
+                        <strong>{application.applicant_name || "이름 미입력"}</strong>
+                      </div>
                       <div className="admin-card-chip-row">
                         {duplicateSuspected && (
                           <span className="admin-duplicate-badge" title={duplicateTitle || "중복 의심"}>
@@ -960,6 +997,10 @@ function JobApplicationsPanel({
                     </div>
 
                     <div className="admin-applicant-detail-grid">
+                      <JobApplicantDetailItem
+                        label="지원번호"
+                        value={formatManagementNumber(application.application_no)}
+                      />
                       <JobApplicantDetailItem label="성별" value={application.gender || "-"} />
                       <JobApplicantDetailItem label="언어/레벨" value={language} />
                       <JobApplicantDetailItem
@@ -1074,6 +1115,27 @@ function ScheduleConflictBadge() {
       일정 충돌
     </span>
   );
+}
+
+function ManagementNumberBadge({ value }) {
+  return (
+    <span className="admin-management-number-badge">
+      {formatManagementNumber(value)}
+    </span>
+  );
+}
+
+function ManagementNumberBlock({ label = "관리번호", value }) {
+  return (
+    <div className="admin-management-number-block">
+      <span>{label}</span>
+      <ManagementNumberBadge value={value} />
+    </div>
+  );
+}
+
+function formatManagementNumber(value) {
+  return value || "번호 미생성";
 }
 
 function hasJobApplicationScheduleConflict(application = {}, job = {}, getInterpreterScheduleConflicts) {

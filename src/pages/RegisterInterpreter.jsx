@@ -5,6 +5,11 @@ import TermsAgreement, {
 } from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
+import {
+  MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
+} from "../utils/managementNumber";
 import "./RegisterInterpreter.css";
 
 const specialtyOptions = [
@@ -138,29 +143,56 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
 
     console.log("BEFORE DB INSERT");
 
-    const { data, error } = await supabase.from("interpreters").insert([
-      {
-        name: form.name,
-        gender: form.gender,
-        age: form.age,
-        region: form.region,
-        email: form.email,
-        phone: form.phone,
-        school: form.school,
-        kakao_or_line: form.kakaoOrLine,
-        jlpt: form.jlpt,
-        stay_period: form.stayPeriod,
-        has_experience: form.has_experience,
-        specialties: form.specialties,
-        available_regions: form.availableRegions,
-        available_tasks: form.availableTasks,
-        approved: false,
-        status: "pending",
-        agreed_terms: true,
-        agreed_policy: true,
-        agreed_at: new Date().toISOString(),
-      },
-    ]);
+    const managementConfig = MANAGEMENT_NUMBER_CONFIG.interpreters;
+    const basePayload = {
+      name: form.name,
+      gender: form.gender,
+      age: form.age,
+      region: form.region,
+      email: form.email,
+      phone: form.phone,
+      school: form.school,
+      kakao_or_line: form.kakaoOrLine,
+      jlpt: form.jlpt,
+      stay_period: form.stayPeriod,
+      has_experience: form.has_experience,
+      specialties: form.specialties,
+      available_regions: form.availableRegions,
+      available_tasks: form.availableTasks,
+      approved: false,
+      status: "pending",
+      agreed_terms: true,
+      agreed_policy: true,
+      agreed_at: new Date().toISOString(),
+    };
+    let payload = await addManagementNumber({
+      supabase,
+      table: "interpreters",
+      payload: basePayload,
+      ...managementConfig,
+    });
+
+    let { data, error } = await supabase
+      .from("interpreters")
+      .insert([payload])
+      .select("id")
+      .single();
+
+    if (isManagementNumberConflict(error, managementConfig.column)) {
+      payload = await addManagementNumber({
+        supabase,
+        table: "interpreters",
+        payload: basePayload,
+        ...managementConfig,
+      });
+      const retryResult = await supabase
+        .from("interpreters")
+        .insert([payload])
+        .select("id")
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     console.log("DB INSERT RESULT", {
       data,
@@ -172,6 +204,11 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
         console.error("약관 동의 저장 실패:", error);
       }
       console.error("DB INSERT ERROR", error);
+      console.error("insert failed", {
+        table: "interpreters",
+        payload,
+        error,
+      });
       console.error("등록 실패 원인:", error.message);
       alert("제출에 실패했습니다.");
       return;
