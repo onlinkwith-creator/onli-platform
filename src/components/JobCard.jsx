@@ -43,6 +43,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
         />
         <JobInfo label="장소" value={job.location || job.event_location} />
         <JobInfo label="모집 인원" value={getRecruitmentCountDisplay(job)} />
+        <JobInfo label="요구 레벨" value={getRequiredLevelDisplay(job)} />
         <JobInfo label="분야" value={getJobSpecialty(job)} />
       </dl>
 
@@ -69,6 +70,21 @@ function JobInfo({ label, value }) {
       <dd>{value || "-"}</dd>
     </div>
   );
+}
+
+function getRequiredLevelDisplay(job = {}) {
+  const level =
+    job.requested_level ||
+    job.preferred_level ||
+    job.interpreter_level ||
+    job.level ||
+    job.target_level ||
+    job.required_level ||
+    "";
+  const matched = String(level).match(/lv\s*(\d)/i);
+
+  if (matched) return `Lv${matched[1]}`;
+  return level || "운영팀 추천";
 }
 
 export default JobCard;
