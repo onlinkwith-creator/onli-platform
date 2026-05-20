@@ -44,7 +44,7 @@ import {
   normalizeMatchingStatus,
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
-import { isDateRangeOverlappingMonth } from "../utils/date";
+import { isDateRangeOverlappingMonth, normalizeDateToISO } from "../utils/date";
 import {
   ACTIVE_MATCHING_STATUSES,
   checkInterpreterScheduleConflict,
@@ -482,10 +482,6 @@ function Admin() {
   const dashboard = useMemo(
     () => {
       const today = new Date().toISOString().slice(0, 10);
-      const conflictRequestIds = getScheduleConflictRequestIds(
-        requests,
-        assignmentsByRequest
-      );
       const todayOperations = requests.filter((request) =>
         isDateInRange(today, request.start_date, request.end_date, request.event_date)
       );
@@ -504,21 +500,18 @@ function Admin() {
             normalizeApplicationStatus(application.status)
           )
         ).length,
-        urgentRequests: requests.filter(
-          (request) =>
-            conflictRequestIds.has(String(request.id)) ||
-            isUrgentOperationRequest(request)
-        ).length,
+        urgentRequests: requests.filter((request) => isUrgentOperationRequest(request))
+          .length,
         todayOperations: todayOperations.length,
         settlementPending,
       };
     },
-    [assignmentsByRequest, jobApplications, requests]
+    [jobApplications, requests]
   );
 
   const operationDashboard = useMemo(
-    () => buildOperationDashboard(requests, assignmentsByRequest, interpreters, jobApplications),
-    [assignmentsByRequest, interpreters, jobApplications, requests]
+    () => buildOperationDashboard(requests, assignmentsByRequest, interpreters),
+    [assignmentsByRequest, interpreters, requests]
   );
   const getInterpreterScheduleConflicts = useCallback(
     (interpreterId, range, excludeMatchingId) =>
@@ -4548,7 +4541,13 @@ function isDateInRange(date, startDate, endDate, fallbackDate) {
 }
 
 function getRequestPrimaryDate(request = {}) {
-  return getDateRangeStart(request.start_date, request.event_date);
+  return normalizeDateToISO(
+    request.start_date ||
+      request.event_start_date ||
+      request.work_date ||
+      request.date ||
+      request.event_date
+  );
 }
 
 function getAssignmentScheduleRange(request = {}, job = {}) {
@@ -4662,24 +4661,25 @@ function getConflictEventTitle(conflict = {}) {
 }
 
 function isRequestWithinDays(request, days) {
-  const date = getRequestPrimaryDate(request);
-  if (!date) return false;
-
-  const today = new Date();
-  const target = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return false;
-
-  const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
-  return diffDays >= 0 && diffDays <= days;
+  const dDay = getRequestDday(request);
+  return dDay !== null && dDay >= 0 && dDay <= days;
 }
 
 function getRequestDday(request = {}) {
   const date = getRequestPrimaryDate(request);
-  if (!date) return null;
+  if (!date) {
+    console.warn("urgent request skipped: invalid start date", request);
+    return null;
+  }
 
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const target = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
+  target.setHours(0, 0, 0, 0);
+  if (Number.isNaN(target.getTime())) {
+    console.warn("urgent request skipped: invalid start date", request);
+    return null;
+  }
   return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
 }
 
@@ -4691,31 +4691,38 @@ function getDdayLabel(request = {}) {
   return `D+${Math.abs(dDay)}`;
 }
 
-function isUrgentOperationRequest(request = {}, applications = []) {
+function isUrgentOperationRequest(request = {}) {
   const statuses = getOperationFlowStatuses(request);
-  const uncheckedCount = applications.filter((application) =>
-    [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
-      normalizeApplicationStatus(application.status)
-    )
-  ).length;
+  const finishedStatuses = new Set([
+    "completed",
+    "settled",
+    "cancelled",
+    "closed",
+    "deleted",
+    "운영완료",
+    "정산완료",
+    "취소",
+    "마감",
+  ]);
+  const statusValues = [
+    request.status,
+    request.matching_status,
+    request.operation_status,
+    request.settlement_status,
+    statuses.operation_status,
+    statuses.settlement_status,
+  ].map((status) => String(status || "").trim().toLowerCase());
+  const isFinished = statusValues.some((status) => finishedStatuses.has(status));
 
-  return (
-    request.is_urgent ||
-    (isRequestWithinDays(request, 7) &&
-      statuses.assignment_status !== ASSIGNMENT_STATUS.ASSIGNED) ||
-    uncheckedCount >= 3
-  );
+  return !isFinished && isRequestWithinDays(request, 7);
 }
 
 function buildOperationDashboard(
   requests = [],
   assignmentsByRequest = new Map(),
-  interpreters = [],
-  applications = []
+  interpreters = []
 ) {
   const today = new Date().toISOString().slice(0, 10);
-  const applicationsByJob = groupByStringKey(applications, "job_id");
-  const conflictRequestIds = getScheduleConflictRequestIds(requests, assignmentsByRequest);
 
   const todayItems = requests
     .filter((request) =>
@@ -4750,26 +4757,9 @@ function buildOperationDashboard(
 
   const urgentItems = requests
     .map((request) => {
-      const requestApplications = request.job_id
-        ? applicationsByJob.get(String(request.job_id)) || []
-        : [];
-      const uncheckedCount = requestApplications.filter((application) =>
-        [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
-          normalizeApplicationStatus(application.status)
-        )
-      ).length;
       const isUnassigned =
         normalizeAssignmentStatus(request) !== ASSIGNMENT_STATUS.ASSIGNED;
-      const hasConflict = conflictRequestIds.has(String(request.id));
-      const reason = request.is_urgent
-        ? "긴급 요청"
-        : hasConflict
-          ? "일정 충돌"
-        : uncheckedCount >= 3
-          ? `미확인 지원 ${uncheckedCount}건`
-          : isUnassigned
-            ? "통역사 미배정"
-            : "일정 확인";
+      const reason = isUnassigned ? "통역사 미배정" : "일정 확인";
 
       return {
         request,
@@ -4782,7 +4772,7 @@ function buildOperationDashboard(
           assignmentsByRequest.get(request.id) || [],
           interpreters
         ),
-        visible: hasConflict || isUrgentOperationRequest(request, requestApplications),
+        visible: isUrgentOperationRequest(request),
       };
     })
     .filter((item) => item.visible)
