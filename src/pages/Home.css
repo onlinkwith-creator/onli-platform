@@ -4,17 +4,18 @@
   --home-section-gap: 48px;
   --home-section-padding-x: 24px;
   --onli-card-radius: 20px;
-  --onli-card-shadow: 0 14px 34px rgba(15, 23, 42, 0.09);
-  --onli-card-shadow-hover: 0 24px 52px rgba(15, 23, 42, 0.14);
-  --onli-border: #e5e7eb;
-  --onli-border-hover: #c7d2fe;
+  --onli-card-shadow: 0 8px 30px rgba(120, 120, 160, 0.08);
+  --onli-card-shadow-hover: 0 14px 36px rgba(120, 120, 160, 0.12);
+  --onli-border: rgba(255, 255, 255, 0.48);
+  --onli-border-hover: rgba(129, 140, 248, 0.28);
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at 78% 18%, rgba(99, 102, 241, 0.12), transparent 30%),
-    radial-gradient(circle at 18% 72%, rgba(57, 85, 151, 0.08), transparent 28%),
-    linear-gradient(135deg, #f8fafc, #e5e7eb);
+    radial-gradient(circle at 16% 8%, rgba(255, 255, 255, 0.95) 0, rgba(255, 255, 255, 0) 34%),
+    radial-gradient(circle at 88% 18%, rgba(139, 92, 246, 0.14) 0, rgba(139, 92, 246, 0) 36%),
+    radial-gradient(circle at 50% 88%, rgba(191, 219, 254, 0.12) 0, rgba(191, 219, 254, 0) 34%),
+    linear-gradient(180deg, #fcfcff 0%, #f7f7fb 100%);
   color: #395597;
   padding: 0 0 56px;
   box-sizing: border-box;
@@ -29,14 +30,37 @@
 
 .home-bg-glow {
   position: absolute;
-  top: 140px;
-  right: 8%;
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
-  background: rgba(79, 70, 229, 0.08);
-  filter: blur(44px);
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
   pointer-events: none;
+}
+
+.home-bg-glow::before,
+.home-bg-glow::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(130px);
+  opacity: 0.16;
+  transform: translateZ(0);
+}
+
+.home-bg-glow::before {
+  top: 92px;
+  right: -90px;
+  width: min(44vw, 520px);
+  height: min(44vw, 520px);
+  background: #a78bfa;
+}
+
+.home-bg-glow::after {
+  left: -110px;
+  bottom: 18%;
+  width: min(50vw, 560px);
+  height: min(50vw, 560px);
+  background: #dbeafe;
+  opacity: 0.12;
 }
 
 .home-header,
@@ -59,7 +83,13 @@
   justify-content: space-between;
   align-items: center;
   gap: 28px;
-  padding: 48px var(--home-section-padding-x) 32px;
+  margin-top: 24px;
+  padding: 22px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 10px 32px rgba(120, 120, 160, 0.06);
+  backdrop-filter: blur(14px);
 }
 
 .home-logo-area {
@@ -128,10 +158,10 @@
 
 .home-main {
   margin-top: 0;
-  padding: 56px var(--home-section-padding-x) var(--home-section-gap);
+  padding: 76px var(--home-section-padding-x) var(--home-section-gap);
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
-  gap: 64px;
+  gap: 84px;
   align-items: center;
 }
 
@@ -139,7 +169,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 24px;
+  gap: 28px;
   min-width: 0;
   text-align: left;
 }
@@ -148,24 +178,27 @@
   display: inline-block;
   padding: 8px 14px;
   border-radius: 999px;
-  background: #38353c;
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.66);
+  color: #4f46e5;
   font-size: 18px;
   font-weight: 700;
   margin: 0;
+  border: 1px solid rgba(129, 140, 248, 0.18);
+  box-shadow: 0 8px 24px rgba(120, 120, 160, 0.06);
+  backdrop-filter: blur(14px);
 }
 
 .home-hero-title {
   margin: 0;
   display: block;
   font-size: clamp(36px, 4vw, 56px);
-  line-height: 1.22;
+  line-height: 1.18;
   font-weight: 800;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   word-break: keep-all;
   overflow-wrap: break-word;
   text-align: left;
-  color: #374151;
+  color: #1f2937;
   transform: none;
 }
 
@@ -190,11 +223,11 @@
 }
 
 .home-description {
-  max-width: 500px;
+  max-width: 540px;
   margin: 0;
-  color: #111827;
+  color: #374151;
   font-size: 19px;
-  line-height: 1.72;
+  line-height: 1.8;
   text-align: left;
 }
 
@@ -203,11 +236,13 @@
   margin: 0;
   padding: 7px 11px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.62);
   color: #4b5563;
   font-size: 13px;
   font-weight: 800;
-  border: 1px solid rgba(209, 213, 219, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  box-shadow: 0 8px 24px rgba(120, 120, 160, 0.05);
+  backdrop-filter: blur(14px);
 }
 
 .home-primary {
@@ -219,22 +254,31 @@
   color: #ffffff;
   font-size: 16px;
   font-weight: 800;
-  box-shadow: 0 14px 30px rgba(17, 24, 39, 0.25);
+  box-shadow: 0 12px 26px rgba(17, 24, 39, 0.16);
   cursor: pointer;
   font-family: inherit;
+  transition:
+    filter 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.home-primary:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 14px 30px rgba(17, 24, 39, 0.18);
 }
 
 .home-secondary {
   min-height: 52px;
   padding: 14px 24px;
   border-radius: 12px;
-  border: 1px solid #111827;
-  background: #ffffff;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  background: rgba(255, 255, 255, 0.68);
   color: #111827;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
+  backdrop-filter: blur(14px);
 }
 
 .home-feature-card {
@@ -242,11 +286,12 @@
   max-width: 420px;
   justify-self: end;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 24px;
-  padding: 28px;
-  box-shadow: 0 22px 54px rgba(80, 17, 111, 0.1);
-  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.64);
+  border-radius: var(--onli-card-radius);
+  padding: 30px;
+  box-shadow: var(--onli-card-shadow);
+  border: 1px solid var(--onli-border);
+  backdrop-filter: blur(18px);
   text-align: left;
 }
 
@@ -267,20 +312,20 @@
   grid-template-columns: auto 1fr;
   gap: 14px;
   align-items: flex-start;
-  padding: 15px;
+  padding: 16px;
   border-radius: 16px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.54);
+  border: 1px solid rgba(255, 255, 255, 0.52);
   transition:
-    transform 160ms ease,
+    filter 160ms ease,
     border-color 160ms ease,
     background 160ms ease;
 }
 
 .home-feature:hover {
-  transform: translateY(-1px);
-  border-color: #d1d5db;
-  background: #ffffff;
+  filter: brightness(1.02);
+  border-color: rgba(129, 140, 248, 0.24);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .home-feature-symbol {
@@ -290,7 +335,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: #eef2ff;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(245, 243, 255, 0.95));
   color: #4f46e5;
   font-size: 12px;
   font-weight: 900;
@@ -333,9 +378,10 @@
   gap: 18px;
   padding: 32px;
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.07);
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid var(--onli-border);
+  box-shadow: var(--onli-card-shadow);
+  backdrop-filter: blur(16px);
 }
 
 .home-step {
@@ -433,25 +479,26 @@
   flex-direction: column;
   justify-content: flex-start;
   gap: 18px;
-  padding: 32px;
-  border-radius: 24px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9));
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+  padding: 34px;
+  border-radius: var(--onli-card-radius);
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid var(--onli-border);
+  box-shadow: var(--onli-card-shadow);
+  backdrop-filter: blur(18px);
   text-align: left;
   transition:
-    transform 160ms ease,
+    filter 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease;
 }
 
 .home-interpreter-cta {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(238, 242, 255, 0.54));
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .home-company-cta:hover,
 .home-interpreter-cta:hover {
-  transform: translateY(-4px);
+  filter: brightness(1.015);
   border-color: var(--onli-border-hover);
   box-shadow: var(--onli-card-shadow-hover);
 }
@@ -463,15 +510,16 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: #eef2ff;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(245, 243, 255, 0.96));
   color: #4f46e5;
   font-size: 15px;
   font-weight: 900;
+  border: 1px solid rgba(129, 140, 248, 0.16);
 }
 
 .home-company-cta .home-cta-icon {
-  background: #f3f4f6;
-  color: #38353c;
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.96), rgba(238, 242, 255, 0.88));
+  color: #4f46e5;
 }
 
 .home-cta-copy {
@@ -505,6 +553,15 @@
   font-family: inherit;
   font-weight: 900;
   cursor: pointer;
+  box-shadow: 0 12px 24px rgba(17, 24, 39, 0.14);
+  transition:
+    filter 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.home-company-cta button:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 14px 28px rgba(17, 24, 39, 0.16);
 }
 
 .home-cta-actions {
@@ -590,24 +647,25 @@
   justify-content: center;
   border-radius: 999px;
   border: 1px solid #d1d5db;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.72);
   color: #111827;
   cursor: pointer;
   font-family: inherit;
   font-size: 28px;
   font-weight: 700;
   line-height: 1;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 24px rgba(120, 120, 160, 0.08);
+  backdrop-filter: blur(14px);
   transition:
-    transform 160ms ease,
+    filter 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease;
 }
 
 .home-carousel-button:hover {
-  transform: translateY(-1px);
+  filter: brightness(1.04);
   border-color: #9ca3af;
-  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 12px 30px rgba(120, 120, 160, 0.12);
 }
 
 .home-job-card,
@@ -620,12 +678,13 @@
   justify-content: space-between;
   padding: 20px;
   border-radius: var(--onli-card-radius);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.66);
   border: 1px solid var(--onli-border);
   box-shadow: var(--onli-card-shadow);
+  backdrop-filter: blur(16px);
   cursor: pointer;
   transition:
-    transform 160ms ease,
+    filter 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease;
   scroll-snap-align: start;
@@ -634,7 +693,7 @@
 
 .home-job-card:hover,
 .home-interpreter-card:hover {
-  transform: translateY(-4px);
+  filter: brightness(1.015);
   border-color: var(--onli-border-hover);
   box-shadow: var(--onli-card-shadow-hover);
 }
