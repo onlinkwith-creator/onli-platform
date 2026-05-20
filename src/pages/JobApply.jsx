@@ -16,6 +16,10 @@ import {
   normalizeApplicationPhone,
 } from "../utils/applicationContact";
 import { APPLICATION_STATUS } from "../utils/status";
+import {
+  checkInterpreterScheduleConflict,
+  getScheduleRange,
+} from "../utils/scheduleConflict";
 import "./Jobs.css";
 
 const initialForm = {
@@ -127,8 +131,10 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
     const applicantEmail = normalizeApplicationEmail(form.email);
     const applicantPhone = normalizeApplicationPhone(form.phone);
 
+    const matchedInterpreter = await findInterpreterByEmail(applicantEmail);
     const application = {
       job_id: job.id,
+      interpreter_id: matchedInterpreter?.id || null,
       applicant_name: form.name.trim(),
       phone: applicantPhone,
       applicant_phone: applicantPhone,
@@ -163,12 +169,41 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
         return;
       }
 
+      if (matchedInterpreter?.id) {
+        const range = getScheduleRange(job);
+        const { conflicts, error } = await checkInterpreterScheduleConflict({
+          interpreterId: matchedInterpreter.id,
+          newStartDate: range.startDate,
+          newEndDate: range.endDate,
+          supabase,
+        });
+        if (error) {
+          console.warn("지원 단계 일정 충돌 확인 실패:", error);
+        } else if (conflicts.length > 0) {
+          alert(
+            "해당 기간에 이미 배정된 일정이 있습니다. 지원은 가능하지만 관리자 검토 시 제한될 수 있습니다."
+          );
+        }
+      }
+
       console.log("JOB APPLY BEFORE DB INSERT");
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("job_applications")
         .insert([application])
         .select("id")
         .single();
+
+      if (error && isAgreementColumnError(error)) {
+        const fallbackApplication = { ...application };
+        delete fallbackApplication.interpreter_id;
+        const fallbackResult = await supabase
+          .from("job_applications")
+          .insert([fallbackApplication])
+          .select("id")
+          .single();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       console.log("JOB APPLY DB INSERT RESULT", {
         data,
@@ -451,6 +486,23 @@ function isAgreementColumnError(error) {
     error?.code === "PGRST204" ||
     /agreed_|column|schema cache/i.test(error?.message || "")
   );
+}
+
+async function findInterpreterByEmail(email) {
+  if (!email || !supabase) return null;
+
+  const { data, error } = await supabase
+    .from("interpreters")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("지원자 통역사 정보 확인 실패:", error);
+    return null;
+  }
+
+  return data || null;
 }
 
 export default JobApply;

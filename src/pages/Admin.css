@@ -1692,6 +1692,28 @@
   line-height: 1;
 }
 
+.admin-schedule-conflict-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.admin-name-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .badge-green {
   background: #ecfdf5;
   color: #047857;

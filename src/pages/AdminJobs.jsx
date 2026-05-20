@@ -101,6 +101,7 @@ function AdminJobs({
   interpreters = [],
   assignments = [],
   applications: controlledApplications,
+  getInterpreterScheduleConflicts,
   onDataChanged,
   updateApplicationStatus: sharedUpdateApplicationStatus,
 }) {
@@ -686,6 +687,7 @@ function AdminJobs({
       {activeApplicantsJobId && (
         <JobApplicantsModal
           applications={getApplicationsForJob(activeApplicantsJobId)}
+          getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
           job={visibleJobs.find(
             (job) => String(job.id) === String(activeApplicantsJobId)
           )}
@@ -842,7 +844,13 @@ function MessageBox({ text }) {
   return <div className="admin-message">{text}</div>;
 }
 
-function JobApplicantsModal({ applications, job, onClose, onStatusChange }) {
+function JobApplicantsModal({
+  applications,
+  getInterpreterScheduleConflicts,
+  job,
+  onClose,
+  onStatusChange,
+}) {
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
       <section
@@ -865,6 +873,7 @@ function JobApplicantsModal({ applications, job, onClose, onStatusChange }) {
         </div>
         <JobApplicationsPanel
           applications={applications}
+          getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
           job={job || {}}
           onStatusChange={onStatusChange}
         />
@@ -873,7 +882,12 @@ function JobApplicantsModal({ applications, job, onClose, onStatusChange }) {
   );
 }
 
-function JobApplicationsPanel({ applications, job, onStatusChange }) {
+function JobApplicationsPanel({
+  applications,
+  getInterpreterScheduleConflicts,
+  job,
+  onStatusChange,
+}) {
   const [openApplicationId, setOpenApplicationId] = useState(null);
   const duplicateData = useMemo(
     () => getDuplicateApplicationIdSet(applications),
@@ -898,6 +912,11 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
             const expanded = String(openApplicationId) === String(application.id);
             const duplicateSuspected = duplicateData.duplicateIds.has(application.id);
             const duplicateTitle = (duplicateData.reasonMap.get(application.id) || []).join(", ");
+            const scheduleConflict = hasJobApplicationScheduleConflict(
+              application,
+              job,
+              getInterpreterScheduleConflicts
+            );
 
             return (
               <article key={application.id} className="admin-applicant-accordion-item">
@@ -913,6 +932,7 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                       중복 의심
                     </span>
                   )}
+                  {scheduleConflict && <ScheduleConflictBadge />}
                   <span className="admin-applicant-summary-text">
                     <strong>{application.applicant_name || "이름 미입력"}</strong>
                     <span>{language}</span>
@@ -933,6 +953,7 @@ function JobApplicationsPanel({ applications, job, onStatusChange }) {
                             중복 의심
                           </span>
                         )}
+                        {scheduleConflict && <ScheduleConflictBadge />}
                         <StatusBadge status={status} />
                       </div>
                       <span>지원자</span>
@@ -1045,6 +1066,32 @@ function StatusBadge({ status }) {
       {getApplicationStatusLabel(normalized)}
     </span>
   );
+}
+
+function ScheduleConflictBadge() {
+  return (
+    <span className="admin-schedule-conflict-badge" title="일정 충돌">
+      일정 충돌
+    </span>
+  );
+}
+
+function hasJobApplicationScheduleConflict(application = {}, job = {}, getInterpreterScheduleConflicts) {
+  if (!application?.interpreter_id || !getInterpreterScheduleConflicts) return false;
+  const startDate = getDateRangeStart(
+    job.start_date || job.event_start_date || job.event_date || job.work_date,
+    job.date
+  );
+  const endDate = getDateRangeEnd(
+    job.end_date || job.event_end_date || job.event_date || job.work_date,
+    job.date
+  );
+  if (!startDate) return false;
+
+  return getInterpreterScheduleConflicts(application.interpreter_id, {
+    startDate,
+    endDate: endDate || startDate,
+  }).some((matching) => String(matching.job_id) !== String(job.id));
 }
 
 function OperationFlowStatusControls({ disabled = false, item, onChange }) {

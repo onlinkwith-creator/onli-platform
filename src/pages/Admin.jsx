@@ -45,6 +45,13 @@ import {
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { isDateRangeOverlappingMonth } from "../utils/date";
+import {
+  ACTIVE_MATCHING_STATUSES,
+  checkInterpreterScheduleConflict,
+  findLocalScheduleConflicts,
+  getScheduleRange,
+  normalizeScheduleDate,
+} from "../utils/scheduleConflict";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
 import { normalizeLevel } from "../utils/levelBadge";
@@ -182,6 +189,7 @@ function Admin() {
   const [jobs, setJobs] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [matchings, setMatchings] = useState([]);
   const [jobApplications, setJobApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -225,7 +233,7 @@ function Admin() {
       return;
     }
 
-    const [requestResult, jobResult, interpreterResult, assignmentResult] =
+    const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult] =
       await Promise.all([
         supabase.from("requests").select("*").order("created_at", {
           ascending: false,
@@ -244,6 +252,10 @@ function Admin() {
             "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
           )
           .order("id", { ascending: false }),
+        supabase
+          .from("matchings")
+          .select("id, job_id, request_id, interpreter_id, start_date, end_date, status")
+          .order("created_at", { ascending: false }),
       ]);
 
     if (
@@ -263,6 +275,10 @@ function Admin() {
       return;
     }
 
+    if (matchingResult.error) {
+      console.warn("matchings fetch skipped:", matchingResult.error);
+    }
+
     const jobApplicationResult = await fetchJobApplicationsWithJobs(jobResult.data || []);
     if (jobApplicationResult.error) {
       console.error("job_applications fetch error:", jobApplicationResult.error);
@@ -275,6 +291,7 @@ function Admin() {
     setJobs(jobResult.data || []);
     setInterpreters(interpreterResult.data || []);
     setAssignments(assignmentResult.data || []);
+    setMatchings(matchingResult.error ? [] : matchingResult.data || []);
     setJobApplications(jobApplicationResult.data || []);
     setLoading(false);
   }, []);
@@ -502,6 +519,17 @@ function Admin() {
   const operationDashboard = useMemo(
     () => buildOperationDashboard(requests, assignmentsByRequest, interpreters, jobApplications),
     [assignmentsByRequest, interpreters, jobApplications, requests]
+  );
+  const getInterpreterScheduleConflicts = useCallback(
+    (interpreterId, range, excludeMatchingId) =>
+      findLocalScheduleConflicts({
+        interpreterId,
+        matchings,
+        newStartDate: range?.startDate,
+        newEndDate: range?.endDate,
+        excludeMatchingId,
+      }),
+    [matchings]
   );
 
   const metricCards = [
@@ -1255,6 +1283,7 @@ function Admin() {
       : null;
     const currentAssignments = assignmentsByRequest.get(requestId) || [];
     const requiredCount = getRequestRequiredCount(request);
+    const scheduleRange = getAssignmentScheduleRange(request, selectedJob);
 
     if (
       currentAssignments.some(
@@ -1273,6 +1302,16 @@ function Admin() {
     const interpreter = interpreters.find(
       (item) => Number(item.id) === interpreterId
     );
+
+    const conflictCheck = await confirmScheduleConflictOverride({
+      interpreterId,
+      scheduleRange,
+      selectedJob,
+      request,
+      interpreter,
+    });
+
+    if (!conflictCheck.shouldProceed) return false;
 
     setSavingKey(`assign-${requestId}`);
     const payload = {
@@ -1317,6 +1356,16 @@ function Admin() {
       }),
       interpreter: assignmentData?.interpreter || interpreter,
     };
+    const matchingData = await createMatchingScheduleSnapshot({
+      request,
+      selectedJob,
+      interpreterId,
+      scheduleRange,
+    });
+    if (conflictCheck.isOverride && matchingData?.id) {
+      await logScheduleConflictOverride(matchingData.id, conflictCheck.conflicts);
+    }
+
     const nextAssignments = [...currentAssignments, nextAssignment];
     const requestChanges = buildAssignmentRequestChanges(nextAssignments, requiredCount);
     const { data: requestData, error: requestError } =
@@ -1415,6 +1464,98 @@ function Admin() {
     return true;
   };
 
+  const confirmScheduleConflictOverride = async ({
+    interpreterId,
+    scheduleRange,
+    selectedJob,
+    request,
+    interpreter,
+  }) => {
+    if (!scheduleRange.startDate || !scheduleRange.endDate) {
+      console.warn("schedule conflict check skipped: missing assignment date", {
+        request,
+        selectedJob,
+        interpreterId,
+      });
+      return { shouldProceed: true, isOverride: false, conflicts: [] };
+    }
+
+    const { conflicts, error } = await checkInterpreterScheduleConflict({
+      interpreterId,
+      newStartDate: scheduleRange.startDate,
+      newEndDate: scheduleRange.endDate,
+      supabase,
+    });
+
+    if (error) {
+      console.error("schedule conflict check failed:", error);
+      alert("일정 충돌 확인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      return { shouldProceed: false, isOverride: false, conflicts: [] };
+    }
+
+    if (conflicts.length === 0) {
+      return { shouldProceed: true, isOverride: false, conflicts: [] };
+    }
+
+    const shouldOverride = window.confirm(
+      buildScheduleConflictMessage(conflicts, selectedJob || request, interpreter)
+    );
+
+    return {
+      shouldProceed: shouldOverride,
+      isOverride: shouldOverride,
+      conflicts,
+    };
+  };
+
+  const logScheduleConflictOverride = async (matchingId, conflicts = []) => {
+    const memo = `일정 충돌 경고 후 관리자가 강제 배정함. 기존 일정: ${conflicts
+      .map((conflict) => getConflictEventTitle(conflict))
+      .filter(Boolean)
+      .join(", ") || "확인 필요"}`;
+
+    const { error } = await supabase.from("admin_logs").insert([
+      {
+        action: "schedule_conflict_override",
+        target_type: "matching",
+        target_id: matchingId,
+        memo,
+      },
+    ]);
+
+    if (error) console.warn("schedule conflict override log skipped:", error);
+  };
+
+  const createMatchingScheduleSnapshot = async ({
+    request,
+    selectedJob,
+    interpreterId,
+    scheduleRange,
+  }) => {
+    const payload = {
+      job_id: selectedJob?.id || null,
+      request_id: request?.id || null,
+      interpreter_id: interpreterId,
+      start_date: scheduleRange.startDate,
+      end_date: scheduleRange.endDate,
+      status: "assigned",
+    };
+
+    const { data, error } = await supabase
+      .from("matchings")
+      .insert([payload])
+      .select("id, job_id, request_id, interpreter_id, start_date, end_date, status")
+      .single();
+
+    if (error) {
+      console.warn("matching schedule snapshot skipped:", error);
+      return null;
+    }
+
+    setMatchings((current) => [data, ...current]);
+    return data;
+  };
+
   const removeAssignment = async (assignment) => {
     if (!window.confirm("이 통역사의 매칭을 취소하시겠습니까?")) return;
 
@@ -1460,6 +1601,26 @@ function Admin() {
           remainingAssignments
         );
         const interpreter = getAssignmentInterpreter(assignment, interpreters);
+        if (interpreter?.id) {
+          const { error: matchingError } = await supabase
+            .from("matchings")
+            .update({ status: "cancelled" })
+            .eq("request_id", requestId)
+            .eq("interpreter_id", interpreter.id)
+            .in("status", ACTIVE_MATCHING_STATUSES);
+
+          if (matchingError) console.warn("matching schedule cancel skipped:", matchingError);
+          if (!matchingError) {
+            setMatchings((current) =>
+              current.map((matching) =>
+                Number(matching.request_id) === Number(requestId) &&
+                Number(matching.interpreter_id) === Number(interpreter.id)
+                  ? { ...matching, status: "cancelled" }
+                  : matching
+              )
+            );
+          }
+        }
         await updateMatchingApplicationStatus(request, interpreter, APPLICATION_STATUS.PENDING);
       }
     }
@@ -1887,6 +2048,7 @@ function Admin() {
                 assignmentsByRequest={assignmentsByRequest}
                 expandedRequestId={expandedRequestId}
                 filters={requestFilters}
+                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 interpreters={interpreters}
                 requests={filteredRequests}
                 savingKey={savingKey}
@@ -1933,6 +2095,8 @@ function Admin() {
                 assignments={assignments}
                 applications={jobApplications}
                 onDataChanged={fetchAdminData}
+                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
+                matchings={matchings}
                 updateApplicationStatus={updateJobApplicationStatus}
               />
             )}
@@ -1941,6 +2105,7 @@ function Admin() {
               <ApplicationManagement
                 applications={jobApplications}
                 duplicateResult={duplicateApplicationResult}
+                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 jobsById={jobsById}
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
@@ -1957,6 +2122,7 @@ function Admin() {
                 jobsById={jobsById}
                 requestsByJobId={requestsByJobId}
                 interpreters={interpreters}
+                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
                 updateRequestMatchingResultStatus={updateRequestMatchingResultStatus}
@@ -1998,6 +2164,7 @@ function Admin() {
                 assignments={assignmentsByRequest.get(activeRequest.id) || []}
                 assignmentDrafts={assignmentDrafts}
                 draft={requestEditDraft}
+                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 interpreters={interpreters}
                 job={activeRequestJob}
                 request={activeRequest}
@@ -2031,6 +2198,7 @@ function RequestActionModal({
   assignments,
   assignmentDrafts,
   draft,
+  getInterpreterScheduleConflicts,
   interpreters,
   job,
   request,
@@ -2072,6 +2240,7 @@ function RequestActionModal({
           applications={applications}
           assignmentDrafts={assignmentDrafts}
           assignments={assignments}
+          getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
           interpreters={interpreters}
           savingKey={savingKey}
           setAssignmentDrafts={setAssignmentDrafts}
@@ -2090,6 +2259,7 @@ function RequestActionModal({
           <JobApplicationsPanel
             applications={applications}
             assignments={assignments}
+            getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
             interpreters={interpreters}
             request={request}
             onRemoveAssignment={onRemoveAssignment}
@@ -2309,6 +2479,7 @@ function RequestManagement({
   assignmentsByRequest,
   expandedRequestId,
   filters,
+  getInterpreterScheduleConflicts,
   interpreters,
   jobsById,
   requestsByJobId,
@@ -2415,6 +2586,7 @@ function RequestManagement({
               assignmentDrafts={assignmentDrafts}
               assignments={assignmentsByRequest.get(request.id) || []}
               expanded={expandedRequestId === request.id}
+              getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
               interpreters={interpreters}
               jobApplications={
                 request.job_id
@@ -2578,6 +2750,7 @@ function RequestDetailPanel({
   applications,
   assignmentDrafts,
   assignments,
+  getInterpreterScheduleConflicts,
   interpreters,
   job,
   request,
@@ -2608,6 +2781,7 @@ function RequestDetailPanel({
       interpreter.status !== "suspended" &&
       !assignedInterpreterIds.has(String(interpreter.id))
   );
+  const scheduleRange = getAssignmentScheduleRange(request, job);
 
   return (
     <div className="admin-detail-panel">
@@ -2743,6 +2917,13 @@ function RequestDetailPanel({
             {assignableInterpreters.map((interpreter) => (
               <option key={interpreter.id} value={interpreter.id}>
                 {getInterpreterSelectLabel(interpreter)}
+                {hasInterpreterScheduleConflict(
+                  getInterpreterScheduleConflicts,
+                  interpreter.id,
+                  scheduleRange
+                )
+                  ? " (일정 충돌)"
+                  : ""}
               </option>
             ))}
           </select>
@@ -2757,6 +2938,7 @@ function RequestDetailPanel({
         <JobApplicationsPanel
           applications={applications}
           assignments={assignments}
+          getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
           interpreters={interpreters}
           request={request}
           onRemoveAssignment={removeAssignment}
@@ -2770,7 +2952,9 @@ function RequestDetailPanel({
 function JobApplicationsPanel({
   applications,
   assignments = [],
+  getInterpreterScheduleConflicts,
   interpreters = [],
+  request,
   onRemoveAssignment,
   onStatusChange,
 }) {
@@ -2801,6 +2985,11 @@ function JobApplicationsPanel({
         const duplicateSuspected =
           !isDirectAssignment && duplicateData.duplicateIds.has(application.id);
         const duplicateTitle = (duplicateData.reasonMap.get(application.id) || []).join(", ");
+        const scheduleConflict = hasApplicationScheduleConflict(
+          application,
+          request,
+          getInterpreterScheduleConflicts
+        );
 
         return (
           <article key={application.rowId} className="admin-applicant-accordion-item">
@@ -2812,6 +3001,7 @@ function JobApplicationsPanel({
             >
               <StatusBadge status={status} />
               {duplicateSuspected && <DuplicateBadge title={duplicateTitle} />}
+              {scheduleConflict && <ScheduleConflictBadge />}
               <span className="admin-applicant-summary-text">
                 <strong>{application.applicant_name || "이름 미입력"}</strong>
                 <span>{getApplicationLanguage(application)}</span>
@@ -2828,6 +3018,7 @@ function JobApplicationsPanel({
                   <strong>{application.applicant_name || "이름 미입력"}</strong>
                   <div className="admin-card-chip-row">
                     {duplicateSuspected && <DuplicateBadge title={duplicateTitle} />}
+                    {scheduleConflict && <ScheduleConflictBadge />}
                     <StatusBadge status={status} />
                   </div>
                   <span>{sourceLabel}</span>
@@ -3562,6 +3753,7 @@ function ModalInfoSection({ children, title, twoColumn = false }) {
 function ApplicationManagement({
   applications,
   duplicateResult,
+  getInterpreterScheduleConflicts,
   jobsById,
   savingKey,
   updateApplicationStatus,
@@ -3606,6 +3798,11 @@ function ApplicationManagement({
               <ApplicationCard
                 key={application.id}
                 application={application}
+                scheduleConflict={hasApplicationScheduleConflict(
+                  application,
+                  job,
+                  getInterpreterScheduleConflicts
+                )}
                 job={job}
                 savingKey={savingKey}
                 updateApplicationStatus={updateApplicationStatus}
@@ -3624,6 +3821,7 @@ function ApplicationManagement({
 function ApplicationCard({
   application,
   job,
+  scheduleConflict,
   savingKey,
   updateApplicationStatus,
   deleteApplication,
@@ -3645,6 +3843,7 @@ function ApplicationCard({
           {duplicateSuspected && (
             <DuplicateBadge title={duplicateTitle} />
           )}
+          {scheduleConflict && <ScheduleConflictBadge />}
           <StatusBadge status={application.status || APPLICATION_STATUS.PENDING} />
         </div>
       </div>
@@ -3709,6 +3908,7 @@ function MatchingManagement({
   filters,
   setFilters,
   assignmentsByRequest,
+  getInterpreterScheduleConflicts,
   jobsById,
   requestsByJobId,
   interpreters,
@@ -3761,6 +3961,7 @@ function MatchingManagement({
               key={`request-${request.id}`}
               request={request}
               assignments={assignmentsByRequest.get(request.id) || []}
+              getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
               interpreters={interpreters}
               savingKey={savingKey}
               updateRequestMatchingResultStatus={updateRequestMatchingResultStatus}
@@ -3785,6 +3986,11 @@ function MatchingManagement({
                 request={request}
                 requestType={requestType}
                 designatedInterpreterName={designatedInterpreterName}
+                scheduleConflict={hasApplicationScheduleConflict(
+                  application,
+                  request || job,
+                  getInterpreterScheduleConflicts
+                )}
                 savingKey={savingKey}
                 updateApplicationStatus={updateApplicationStatus}
               />
@@ -3799,14 +4005,16 @@ function MatchingManagement({
 function MatchingRequestCard({
   request,
   assignments,
+  getInterpreterScheduleConflicts,
   interpreters,
   savingKey,
   updateRequestMatchingResultStatus,
 }) {
-  const assignedInterpreterName = getAssignedInterpreterName(
+  const assignedInterpreterNames = getAssignedInterpreterNamesWithConflictBadges(
     request,
     assignments,
-    interpreters
+    interpreters,
+    getInterpreterScheduleConflicts
   );
   const peopleCount = request.requested_people_count || request.required_count;
   const clientPrice = getCompanyAmount(request);
@@ -3836,7 +4044,7 @@ function MatchingRequestCard({
           )}
         />
         <Info label="장소" value={request.event_location || request.location || "-"} />
-        <Info label="배정 통역사" value={assignedInterpreterName} />
+        <Info label="배정 통역사" value={assignedInterpreterNames || "-"} />
         <Info label="필요 인원 수" value={peopleCount ? `${peopleCount}명` : "-"} />
         <Info label="기업 금액" value={formatJPY(clientPrice)} />
         <Info label="통역사 지급액" value={formatJPY(interpreterPrice)} />
@@ -3867,6 +4075,7 @@ function MatchingCard({
   request,
   requestType,
   designatedInterpreterName,
+  scheduleConflict,
   savingKey,
   updateApplicationStatus,
 }) {
@@ -3903,7 +4112,15 @@ function MatchingCard({
           value={formatDateRange(job?.start_date, job?.end_date, job?.event_date || job?.date)}
         />
         <Info label="장소" value={job?.event_location || job?.location || "-"} />
-        <Info label="배정 통역사" value={application.applicant_name || "이름 미입력"} />
+        <Info
+          label="배정 통역사"
+          value={
+            <NameWithScheduleConflict
+              hasConflict={scheduleConflict}
+              name={application.applicant_name || "이름 미입력"}
+            />
+          }
+        />
         <Info label="필요 인원 수" value={peopleCount ? `${peopleCount}`.replace(/명$/, "") + "명" : "-"} />
         <Info label="기업 금액" value={formatJPY(clientPrice)} />
         <Info label="통역사 지급액" value={formatJPY(interpreterPrice)} />
@@ -4142,6 +4359,23 @@ function DuplicateBadge({ title }) {
   );
 }
 
+function ScheduleConflictBadge() {
+  return (
+    <span className="admin-schedule-conflict-badge" title="일정 충돌">
+      일정 충돌
+    </span>
+  );
+}
+
+function NameWithScheduleConflict({ hasConflict, name }) {
+  return (
+    <span className="admin-name-with-badge">
+      <span>{name || "-"}</span>
+      {hasConflict && <ScheduleConflictBadge />}
+    </span>
+  );
+}
+
 function NumberControl({ label, value, onChange }) {
   return (
     <label className="admin-field-control">
@@ -4315,6 +4549,116 @@ function isDateInRange(date, startDate, endDate, fallbackDate) {
 
 function getRequestPrimaryDate(request = {}) {
   return getDateRangeStart(request.start_date, request.event_date);
+}
+
+function getAssignmentScheduleRange(request = {}, job = {}) {
+  const range = getScheduleRange(request, job);
+  return {
+    startDate: normalizeScheduleDate(range.startDate),
+    endDate: normalizeScheduleDate(range.endDate || range.startDate),
+  };
+}
+
+function hasInterpreterScheduleConflict(getInterpreterScheduleConflicts, interpreterId, range) {
+  if (!getInterpreterScheduleConflicts || !interpreterId || !range?.startDate) return false;
+  return getInterpreterScheduleConflicts(interpreterId, range).length > 0;
+}
+
+function getInterpreterScheduleConflictsForSource(
+  getInterpreterScheduleConflicts,
+  interpreterId,
+  range,
+  source = {}
+) {
+  if (!getInterpreterScheduleConflicts || !interpreterId || !range?.startDate) return [];
+  return getInterpreterScheduleConflicts(interpreterId, range).filter((matching) => {
+    if (source.id && String(matching.request_id) === String(source.id)) return false;
+    if (source.job_id && String(matching.job_id) === String(source.job_id)) return false;
+    if (source.id && String(matching.job_id) === String(source.id)) return false;
+    return true;
+  });
+}
+
+function hasApplicationScheduleConflict(
+  application = {},
+  scheduleSource = {},
+  getInterpreterScheduleConflicts
+) {
+  if (!application?.interpreter_id || !getInterpreterScheduleConflicts) return false;
+  const range = getAssignmentScheduleRange(scheduleSource);
+  return getInterpreterScheduleConflictsForSource(
+    getInterpreterScheduleConflicts,
+    application.interpreter_id,
+    range,
+    scheduleSource
+  ).length > 0;
+}
+
+function getAssignedInterpreterNamesWithConflictBadges(
+  request = {},
+  assignments = [],
+  interpreters = [],
+  getInterpreterScheduleConflicts
+) {
+  const range = getAssignmentScheduleRange(request);
+  const names = assignments
+    .map((assignment) => {
+      const interpreter = getAssignmentInterpreter(assignment, interpreters);
+      const name = interpreter?.name || assignment.interpreter?.name;
+      if (!name) return null;
+      return (
+        <NameWithScheduleConflict
+          key={assignment.id || `${assignment.request_id}-${assignment.interpreter_id}`}
+          hasConflict={getInterpreterScheduleConflictsForSource(
+            getInterpreterScheduleConflicts,
+            assignment.interpreter_id,
+            range,
+            request
+          ).length > 0}
+          name={name}
+        />
+      );
+    })
+    .filter(Boolean);
+
+  if (names.length > 0) return names;
+  return getAssignedInterpreterName(request, assignments, interpreters);
+}
+
+function buildScheduleConflictMessage(conflicts = [], target = {}, interpreter = {}) {
+  const conflictText = conflicts.map(formatScheduleConflictLine).join("\n");
+  const targetDate = formatDateRange(
+    target?.start_date,
+    target?.end_date,
+    target?.event_date || target?.date
+  );
+
+  return [
+    "해당 통역사는 이미 같은 기간에 배정된 일정이 있습니다.",
+    interpreter?.name ? `선택 통역사: ${interpreter.name}` : "",
+    `신규 일정: ${targetDate}`,
+    `기존 일정: ${conflictText}`,
+    "그래도 배정하시겠습니까?",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatScheduleConflictLine(conflict = {}) {
+  const title = getConflictEventTitle(conflict);
+  const date = formatDateRange(conflict.start_date, conflict.end_date, conflict.start_date);
+  const location = conflict.jobs?.location || conflict.location || "장소 미입력";
+  return `${title} / ${date} / ${location}`;
+}
+
+function getConflictEventTitle(conflict = {}) {
+  return (
+    conflict.jobs?.title ||
+    conflict.jobs?.company_name ||
+    conflict.title ||
+    conflict.event_name ||
+    "행사명 미입력"
+  );
 }
 
 function isRequestWithinDays(request, days) {
@@ -4586,6 +4930,7 @@ function buildApplicationAssignmentRows(applications = [], assignments = [], int
     assignmentRows.push({
       id: `assignment-${assignment.id}`,
       rowId: `assignment-${assignment.id}`,
+      interpreter_id: assignment.interpreter_id,
       applicant_name: interpreter?.name || assignment.interpreter?.name || "이름 미입력",
       phone: interpreter?.phone || "",
       email: interpreter?.email || "",
