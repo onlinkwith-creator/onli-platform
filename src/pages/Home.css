@@ -1450,6 +1450,12 @@
     scroll-snap-type: x mandatory;
   }
 
+  .home-job-carousel {
+    justify-content: flex-start;
+    padding-inline: calc((100vw - min(380px, calc(100vw - 48px))) / 2);
+    scroll-padding-inline: 24px;
+  }
+
   .home-carousel-button {
     display: none;
   }
@@ -1459,6 +1465,14 @@
     flex-basis: min(330px, calc(100vw - 48px));
     min-height: 0;
     padding: 20px;
+  }
+
+  .home-job-carousel .home-job-card {
+    flex-basis: min(380px, calc(100vw - 48px));
+    max-width: 380px;
+    min-width: 0;
+    margin-inline: 0;
+    scroll-snap-align: center;
   }
 
   .home-interpreters {
@@ -1650,10 +1664,18 @@
     padding-left: 14px;
   }
 
+  .home-job-carousel {
+    padding-inline: calc((100vw - min(380px, calc(100vw - 48px))) / 2);
+  }
+
   .home-job-card,
   .home-interpreter-card {
     flex-basis: calc(100vw - 44px);
     padding: 18px;
+  }
+
+  .home-job-carousel .home-job-card {
+    flex-basis: min(380px, calc(100vw - 48px));
   }
 
   .home-footer {
