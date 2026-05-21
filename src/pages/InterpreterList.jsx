@@ -9,6 +9,7 @@ import {
   PUBLIC_INTERPRETER_SELECT,
   getPrimaryPublicInterpreterInfo,
 } from "../utils/publicInterpreter";
+import "./InterpreterList.css";
 
 const initialFilters = {
   gender: "전체",
@@ -136,6 +137,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
 
   return (
     <div
+      className="interpreter-list-page"
       style={{
         minHeight: "100vh",
         width: "100vw",
@@ -146,6 +148,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
       }}
     >
       <div
+        className="interpreter-list-shell"
         style={{
           maxWidth: "1120px",
           margin: "0 auto",
@@ -168,7 +171,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
           ← 메인으로
         </button>
 
-        <div style={styles.header}>
+        <div className="interpreter-list-header" style={styles.header}>
           <div>
             <p style={styles.kicker}>ON-LI INTERPRETERS</p>
             <h1 style={styles.title}>통역사 리스트</h1>
@@ -177,7 +180,12 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
             </p>
           </div>
 
-          <button type="button" onClick={onRegisterClick} style={styles.registerButton}>
+          <button
+            type="button"
+            onClick={onRegisterClick}
+            className="interpreter-list-register-button"
+            style={styles.registerButton}
+          >
             통역사 등록
           </button>
         </div>
@@ -190,13 +198,14 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
           <MessageBox text="등록된 통역사가 없습니다" />
         ) : (
           <>
-            <div style={styles.filterCard}>
-              <div style={styles.filterHead}>
+            <div className="interpreter-list-filter-card" style={styles.filterCard}>
+              <div className="interpreter-list-filter-head" style={styles.filterHead}>
                 <h2 style={styles.filterTitle}>통역사 검색 필터</h2>
                 <button
                   type="button"
                   onClick={() => setFilters(initialFilters)}
                   style={styles.resetButton}
+                  className="interpreter-list-reset-button"
                 >
                   필터 초기화
                 </button>
@@ -233,13 +242,14 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                 options={ageOptions}
                 hint="나이는 만 나이 기준입니다."
               />
-              <label style={styles.filterField}>
+              <label className="interpreter-list-filter-field" style={styles.filterField}>
                 <span style={styles.filterLabel}>키워드 검색</span>
                 <input
                   value={filters.keyword}
                   onChange={(event) => updateFilter("keyword", event.target.value)}
                   placeholder="이름, 지역, 분야, 경력 검색"
                   style={styles.filterInput}
+                  className="interpreter-list-filter-input"
                 />
               </label>
             </div>
@@ -251,9 +261,9 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
             {filteredInterpreters.length === 0 ? (
               <MessageBox text="조건에 맞는 통역사가 없습니다." />
             ) : (
-              <div style={styles.grid}>
+              <div className="interpreter-list-grid" style={styles.grid}>
                 {filteredInterpreters.map((person) => (
-              <div key={person.id} style={styles.card}>
+              <div key={person.id} className="interpreter-list-card" style={styles.card}>
                 <div
                   style={{
                     display: "flex",
@@ -262,6 +272,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                     marginBottom: "18px",
                     gap: "12px",
                   }}
+                  className="interpreter-list-card-head"
                 >
                   <h2
                     style={{
@@ -294,6 +305,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
 
                 <button
   onClick={() => onDetailClick(person)}
+  className="interpreter-list-card-button"
   style={styles.cardButton}
 >
   상세 보기
@@ -311,12 +323,13 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
 
 function FilterSelect({ label, value, onChange, options, hint }) {
   return (
-    <label style={styles.filterField}>
+    <label className="interpreter-list-filter-field" style={styles.filterField}>
       <span style={styles.filterLabel}>{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
         style={styles.filterInput}
+        className="interpreter-list-filter-input"
       >
         {options.map((option) => {
           const optionValue =
@@ -339,6 +352,7 @@ function FilterSelect({ label, value, onChange, options, hint }) {
 function Info({ label, value }) {
   return (
     <div
+      className="interpreter-list-info-row"
       style={{
         display: "flex",
         justifyContent: "space-between",

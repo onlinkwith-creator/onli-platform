@@ -2,12 +2,14 @@
   min-height: 100vh;
   width: 100vw;
   box-sizing: border-box;
+  overflow-x: hidden;
   padding: 22px 14px;
   background: #f6f7fb;
   color: #111827;
 }
 
 .admin-shell {
+  width: 100%;
   max-width: 1480px;
   margin: 0 auto;
   text-align: left;
@@ -2089,7 +2091,7 @@
 }
 
 .admin-modal-card {
-  width: calc(100% - 32px);
+  width: min(100%, 720px);
   max-width: 720px;
   max-height: 85vh;
   overflow-y: auto;
@@ -2559,11 +2561,28 @@
   .admin-interpreter-grid {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   }
+
+  .admin-tabs {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-tabs button {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+
+  .admin-table-wrap,
+  .admin-nested-table-wrap {
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 720px) {
   .admin-page {
-    padding: 18px 10px;
+    padding: 18px 12px;
   }
 
   .admin-header,
@@ -2574,6 +2593,16 @@
 
   .admin-header h1 {
     font-size: 25px;
+  }
+
+  .admin-refresh,
+  .admin-email-test,
+  .admin-save,
+  .admin-assign-row button,
+  .admin-link-button,
+  .admin-small-button,
+  .admin-toggle {
+    min-height: 44px;
   }
 
   .admin-refresh,
@@ -2616,7 +2645,9 @@
   }
 
   .admin-interpreter-detail-modal {
-    width: 95vw;
+    width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px);
+    max-height: 85vh;
     padding: 18px;
   }
 
@@ -2708,7 +2739,7 @@
   }
 
   .admin-table {
-    min-width: 1180px;
+    min-width: 980px;
     font-size: 12px;
   }
 
@@ -2768,6 +2799,103 @@
   }
 
   .admin-link-button {
-    min-height: 32px;
+    min-height: 44px;
+  }
+
+  .admin-modal-overlay {
+    align-items: start;
+    place-items: start center;
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  .admin-modal-card {
+    width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px);
+    max-height: 85vh;
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .admin-modal-head,
+  .admin-private-info-head,
+  .admin-card-head,
+  .admin-request-card-head,
+  .admin-list-card-head,
+  .admin-panel-head,
+  .admin-urgent-topline,
+  .admin-interpreter-modal-head,
+  .admin-interpreter-profile-pane,
+  .admin-interpreter-memo-actions,
+  .admin-profit {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-info-list div,
+  .admin-detail-grid div,
+  .admin-request-summary div,
+  .admin-card-summary div,
+  .admin-detail-list div,
+  .admin-info-section div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .admin-info-list dd,
+  .admin-detail-grid dd,
+  .admin-detail-list dd,
+  .admin-info-section dd {
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-page {
+    padding: 14px 10px 36px;
+  }
+
+  .admin-header h1 {
+    font-size: 22px;
+  }
+
+  .admin-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-metric-card,
+  .admin-operation-panel,
+  .admin-request-card,
+  .admin-list-card,
+  .admin-card {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .admin-modal-overlay {
+    padding: 10px;
+  }
+
+  .admin-modal-card,
+  .admin-interpreter-detail-modal {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    padding: 14px;
+  }
+
+  .admin-applicant-detail-item {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-applicant-detail .admin-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-tabs {
+    margin-right: -10px;
+    margin-left: -10px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
   }
 }

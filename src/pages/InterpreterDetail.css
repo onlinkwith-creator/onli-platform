@@ -650,8 +650,34 @@
 }
 
 @media (max-width: 430px) {
+  .interpreter-detail-page {
+    padding: 22px 12px 48px;
+  }
+
+  .profile-hero-card,
+  .profile-info-card,
+  .profile-bottom-cta {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+
+  .profile-verified-kicker {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .profile-hero-card h1 {
+    font-size: 30px;
+  }
+
   .profile-metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .profile-event-list li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .profile-summary {

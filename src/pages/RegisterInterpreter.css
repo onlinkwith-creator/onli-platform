@@ -637,11 +637,33 @@
     padding-left: 10px;
   }
 
+  .register-hero-copy,
+  .register-hero-panel,
+  .register-section-card,
+  .register-submit-card {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+
+  .register-hero h1 {
+    font-size: 28px;
+  }
+
   .register-steps {
     grid-template-columns: 1fr;
   }
 
   .register-chip {
     flex: 1 1 auto;
+    min-height: 44px;
+    white-space: normal;
+  }
+
+  .register-field span,
+  .register-chip-head h3,
+  .register-chip-head p,
+  .register-selected-summary {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
   }
 }

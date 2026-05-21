@@ -1252,6 +1252,31 @@
   }
 }
 
+@media (max-width: 1024px) {
+  .home-page {
+    --home-carousel-edge-offset: 0;
+  }
+
+  .home-main {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+
+  .home-feature-card {
+    justify-self: stretch;
+    max-width: none;
+  }
+
+  .home-process-timeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-step:not(:last-child)::before,
+  .home-step:not(:last-child)::after {
+    display: none;
+  }
+}
+
 @media (min-width: 769px) and (max-width: 1024px) {
   .home-footer {
     width: calc(100% - 48px);
@@ -1313,7 +1338,7 @@
   }
 
   .home-hero-title {
-    font-size: 34px;
+    font-size: clamp(30px, 9vw, 34px);
     line-height: 1.25;
     text-align: left;
   }
@@ -1420,8 +1445,8 @@
 
   .home-carousel {
     gap: 12px;
-    margin: 0 -20px;
-    padding: 2px 20px 14px;
+    margin: 0 -16px;
+    padding: 2px 16px 14px;
     scroll-snap-type: x mandatory;
   }
 
@@ -1431,7 +1456,7 @@
 
   .home-job-card,
   .home-interpreter-card {
-    flex-basis: min(330px, 86vw);
+    flex-basis: min(330px, calc(100vw - 48px));
     min-height: 0;
     padding: 20px;
   }
@@ -1565,6 +1590,84 @@
   }
 
   .home-interpreter-badges {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-page {
+    --home-section-padding-x: 14px;
+  }
+
+  .home-header {
+    margin-top: 12px;
+    padding: 22px 14px;
+    border-radius: 20px;
+  }
+
+  .home-main {
+    padding-top: 26px;
+  }
+
+  .home-hero {
+    gap: 20px;
+  }
+
+  .home-brand-sub,
+  .home-logo-area .home-brand-sub {
+    letter-spacing: 0.28em;
+  }
+
+  .home-brand-title {
+    font-size: 30px;
+  }
+
+  .home-description {
+    font-size: 15px;
+  }
+
+  .home-primary,
+  .home-secondary {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .home-feature-card,
+  .home-company-cta,
+  .home-interpreter-cta,
+  .home-process-timeline {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .home-feature {
+    grid-template-columns: 1fr;
+  }
+
+  .home-carousel {
+    margin: 0 -14px;
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .home-job-card,
+  .home-interpreter-card {
+    flex-basis: calc(100vw - 44px);
+    padding: 18px;
+  }
+
+  .home-footer {
+    width: calc(100% - 24px);
+    padding: 26px 14px;
+  }
+
+  .home-footer-contact,
+  .home-footer-trust {
+    grid-template-columns: 1fr;
+  }
+
+  .home-footer-contact-item,
+  .home-footer-trust-item {
     min-height: 0;
   }
 }

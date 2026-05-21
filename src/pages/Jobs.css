@@ -466,6 +466,48 @@
   }
 }
 
+@media (max-width: 480px) {
+  .jobs-page {
+    padding: 24px 12px 44px;
+  }
+
+  .jobs-header h1,
+  .job-detail-card h1,
+  .jobs-success-box h1 {
+    font-size: 28px;
+  }
+
+  .jobs-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .job-card {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+
+  .job-card-head,
+  .job-card dl div,
+  .job-detail-grid div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .job-card dd,
+  .job-detail-grid dd {
+    text-align: left;
+  }
+
+  .job-detail-card,
+  .job-apply-card,
+  .jobs-message,
+  .jobs-success-box {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+}
+
 @media (min-width: 821px) and (max-width: 1080px) {
   .jobs-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
