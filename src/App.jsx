@@ -106,6 +106,16 @@ function App() {
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
+  const navigateAdminJobs = () => {
+    setSelectedInterpreter(null);
+    setSelectedInterpreterId(null);
+    setSelectedJobId(null);
+    setSelectedPolicyKey(null);
+    setPage("admin");
+    window.history.pushState({ page: "admin" }, "", "/admin/jobs");
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+
   useEffect(() => {
     const handlePopState = (event) => {
       const statePage = event.state?.page || getInitialPage();
@@ -200,6 +210,7 @@ function App() {
       {page === "jobs" && (
         <JobList
           onBackClick={() => navigate("home", null, null)}
+          onCreateJobClick={navigateAdminJobs}
           onDetailClick={(job) => navigate("jobDetail", null, job.id)}
           onApplyClick={(job) => {
             navigate("jobDetail", null, job.id);

@@ -9,7 +9,7 @@ function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
 
-function JobList({ onBackClick, onApplyClick, onDetailClick }) {
+function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -46,10 +46,19 @@ function JobList({ onBackClick, onApplyClick, onDetailClick }) {
           ← 메인으로
         </button>
 
-        <header className="jobs-header">
-          <p className="jobs-kicker">ON-LI JOBS</p>
-          <h1>전체 통역 공고</h1>
-          <p>공개된 한일 통역 공고를 확인하고 지원할 수 있습니다.</p>
+        <header className="jobs-header jobs-list-header">
+          <div>
+            <p className="jobs-kicker">ON-LI JOBS</p>
+            <h1>전체 통역 공고</h1>
+            <p>공개된 한일 통역 공고를 확인하고 지원할 수 있습니다.</p>
+          </div>
+          <button
+            type="button"
+            className="jobs-create-button"
+            onClick={onCreateJobClick}
+          >
+            통역 공고 등록
+          </button>
         </header>
 
         {loading ? (

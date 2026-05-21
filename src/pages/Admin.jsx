@@ -191,7 +191,9 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
 }
 
 function Admin() {
-  const [activeTab, setActiveTab] = useState("requests");
+  const [activeTab, setActiveTab] = useState(() =>
+    window.location.pathname === "/admin/jobs" ? "jobs" : "requests"
+  );
   const [requests, setRequests] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
