@@ -3686,6 +3686,14 @@ function InterpreterModal({
                   onChange={(event) => onChangeDraft("name", event.target.value)}
                 />
               </FieldControl>
+              <FieldControl label="이메일">
+                <input
+                  type="email"
+                  value={draft?.email || ""}
+                  onChange={(event) => onChangeDraft("email", event.target.value)}
+                  placeholder="이메일을 입력해주세요"
+                />
+              </FieldControl>
               <FieldControl label="성별">
                 <input
                   value={draft?.gender || ""}
@@ -5574,6 +5582,7 @@ function formatListOrMissing(value) {
 function createInterpreterEditDraft(interpreter = {}) {
   return {
     name: interpreter.name || "",
+    email: interpreter.email || "",
     gender: interpreter.gender || "",
     age: interpreter.age || "",
     region: interpreter.region || "",
@@ -5601,6 +5610,7 @@ function createInterpreterEditDraft(interpreter = {}) {
 function getInterpreterChangesFromDraft(draft = {}) {
   return {
     name: draft.name,
+    email: draft.email,
     gender: draft.gender,
     age: draft.age,
     region: draft.region,
