@@ -3,6 +3,7 @@
   grid-template-columns: minmax(122px, 1fr) auto;
   gap: 6px;
   min-width: 0;
+  align-items: stretch;
 }
 
 .month-filter-input label {
@@ -20,7 +21,7 @@
 
 .month-filter-input input {
   width: 100%;
-  min-height: 34px;
+  min-height: 44px;
   box-sizing: border-box;
   border: 1px solid #d1d5db;
   border-radius: 9px;
@@ -38,8 +39,9 @@
 }
 
 .month-filter-actions button {
-  min-height: 34px;
-  padding: 0 8px;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 10px;
   border: 1px solid #d1d5db;
   border-radius: 9px;
   background: #ffffff;

@@ -1022,7 +1022,7 @@
 .admin-filters select,
 .admin-assign-row select {
   width: 100%;
-  min-height: 34px;
+  min-height: 44px;
   box-sizing: border-box;
   border: 1px solid #d1d5db;
   border-radius: 9px;
@@ -1407,8 +1407,9 @@
 }
 
 .admin-filters {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.5fr) repeat(4, minmax(130px, 0.7fr)) auto;
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
   max-width: 1308px;
   gap: 10px;
   margin: 0 auto 18px;
@@ -1422,8 +1423,10 @@
 .admin-search-control {
   display: flex;
   align-items: center;
+  flex: 1 1 280px;
   gap: 8px;
-  min-height: 34px;
+  min-width: 260px;
+  min-height: 44px;
   box-sizing: border-box;
   border: 1px solid #d1d5db;
   border-radius: 9px;
@@ -1433,31 +1436,41 @@
 }
 
 .admin-search-control input {
-  min-height: 32px;
+  min-height: 42px;
   border: none;
   background: transparent;
   padding: 0;
 }
 
+.admin-filters > select {
+  flex: 0 0 170px;
+  min-width: 150px;
+}
+
+.admin-filters > .month-filter-input {
+  flex: 0 0 auto;
+  min-width: 150px;
+}
+
 .admin-job-filters {
-  grid-template-columns: minmax(260px, 360px) minmax(260px, 340px) repeat(2, minmax(150px, 180px));
   justify-content: center;
 }
 
 .admin-matching-filters {
-  grid-template-columns: minmax(260px, 360px);
   justify-content: center;
 }
 
 .admin-request-filters {
-  grid-template-columns: minmax(260px, 360px) minmax(180px, 220px) repeat(3, minmax(150px, 180px)) auto;
   justify-content: center;
 }
 
 .admin-view-toggle {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
+  min-width: 120px;
   gap: 4px;
+  margin-left: auto;
   padding: 3px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -1467,8 +1480,10 @@
 .admin-view-toggle button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  min-height: 32px;
+  min-height: 38px;
+  min-width: 58px;
   border: none;
   border-radius: 9px;
   background: transparent;
@@ -1478,6 +1493,7 @@
   font-size: 12px;
   font-weight: 900;
   padding: 6px 9px;
+  white-space: nowrap;
 }
 
 .admin-view-toggle button.is-active {
@@ -2581,6 +2597,19 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .admin-filters .admin-search-control {
+    flex-basis: 100%;
+  }
+
+  .admin-filters > select,
+  .admin-filters > .month-filter-input {
+    flex: 1 1 calc(50% - 10px);
+  }
+
+  .admin-request-filters .admin-view-toggle {
+    margin-left: 0;
+  }
+
   .admin-interpreter-grid {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   }
@@ -2728,6 +2757,7 @@
   .admin-view-toggle {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    margin-left: 0;
   }
 
   .admin-request-controls,
