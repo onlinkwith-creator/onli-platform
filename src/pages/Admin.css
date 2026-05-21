@@ -42,7 +42,7 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 18px;
-  margin-bottom: 18px;
+  margin-bottom: 24px;
   padding: 6px 2px;
 }
 
@@ -94,14 +94,14 @@
 .admin-metrics {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 15px;
+  margin-bottom: 20px;
 }
 
 .admin-metric-card {
   position: relative;
-  min-height: 132px;
-  padding: 20px;
+  min-height: 122px;
+  padding: 18px 20px;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   background: #ffffff;
@@ -130,16 +130,17 @@
 .admin-metric-card span {
   display: block;
   color: #6b7280;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
 .admin-metric-card strong {
   display: block;
-  margin-top: 12px;
+  margin-top: 8px;
   color: #111827;
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 900;
+  line-height: 1.05;
 }
 
 .admin-metric-card small {
@@ -155,9 +156,9 @@
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  margin-bottom: 14px;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 10px;
   border-radius: 999px;
 }
 
@@ -193,13 +194,14 @@
 
 .admin-operation-overview {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
-  gap: 16px;
-  margin-bottom: 18px;
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+  align-items: start;
+  gap: 15px;
+  margin-bottom: 20px;
 }
 
 .admin-operation-panel {
-  padding: 20px;
+  padding: 18px 20px;
   border: 1px solid #e5e7eb;
   border-radius: 18px;
   background: #ffffff;
@@ -216,13 +218,13 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .admin-panel-head h2 {
   margin: 0;
   color: #111827;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 900;
 }
 
@@ -237,12 +239,12 @@
 
 .admin-operation-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .admin-operation-item,
 .admin-urgent-item {
-  padding: 14px;
+  padding: 12px 14px;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   background: #ffffff;
@@ -253,7 +255,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .admin-operation-item strong {
@@ -264,7 +266,7 @@
 
 .admin-operation-item h3,
 .admin-urgent-item h3 {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: #111827;
   font-size: 15px;
   font-weight: 900;
@@ -275,7 +277,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: #64748b;
   font-size: 13px;
   font-weight: 800;
@@ -286,7 +288,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .admin-urgent-topline span {
@@ -306,8 +308,8 @@
 
 .admin-urgent-item button {
   width: 100%;
-  margin-top: 12px;
-  min-height: 36px;
+  margin-top: 10px;
+  min-height: 40px;
   border: none;
   border-radius: 10px;
   background: #ef4444;
@@ -320,8 +322,8 @@
 
 .admin-empty-text {
   margin: 0;
-  padding: 18px;
-  border-radius: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
   background: #f8fafc;
   color: #64748b;
   font-size: 13px;
