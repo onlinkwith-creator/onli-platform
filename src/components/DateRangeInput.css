@@ -14,13 +14,13 @@
 
 .date-range-head span,
 .date-picker-card span {
-  color: #6b7280;
-  font-size: 12px;
-  font-weight: 900;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .date-range-head strong {
-  color: #4f46e5;
+  color: #5b5cf0;
   font-size: 12px;
   font-weight: 900;
   text-align: right;
@@ -47,22 +47,21 @@
   min-height: 48px;
   width: 100%;
   padding: 12px 14px;
-  border: 1px solid rgba(124, 58, 237, 0.14);
-  border-radius: 14px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+  border: 1px solid #dbe3f0;
+  border-radius: 12px;
+  background: #ffffff;
   color: #111827;
   font: inherit;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 800;
   cursor: pointer;
   text-align: left;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .date-picker-card button:hover {
-  border-color: rgba(79, 70, 229, 0.32);
-  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.08);
-  transform: translateY(-1px);
+  border-color: #5b5cf0;
+  box-shadow: 0 0 0 3px rgba(91, 92, 240, 0.12);
 }
 
 .date-picker-card input {
@@ -84,19 +83,19 @@
 .date-range-quick button {
   min-height: 36px;
   padding: 0 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #dbe3f0;
   border-radius: 999px;
   background: #ffffff;
   color: #4b5563;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   cursor: pointer;
 }
 
 .date-range-quick button:hover:not(:disabled) {
-  border-color: rgba(124, 58, 237, 0.22);
-  color: #6d5dfc;
+  border-color: rgba(91, 92, 240, 0.34);
+  color: #5b5cf0;
 }
 
 .date-range-quick button:disabled {
@@ -118,7 +117,7 @@
 
 .date-picker-card button:focus-visible,
 .date-range-quick button:focus-visible {
-  outline: 3px solid rgba(109, 93, 252, 0.26);
+  outline: 3px solid rgba(91, 92, 240, 0.22);
   outline-offset: 2px;
 }
 

@@ -22,6 +22,7 @@ import {
   addManagementNumber,
   isManagementNumberConflict,
 } from "../utils/managementNumber";
+import "./RequestForm.css";
 
 const initialForm = {
   companyName: "",
@@ -50,6 +51,47 @@ const fieldOptions = [
   "일반 비즈니스",
   "기타",
 ];
+
+const requestSteps = [
+  "의뢰 접수",
+  "운영팀 검토",
+  "공고 등록",
+  "매칭 진행",
+  "배정 완료",
+];
+
+const sectionMeta = {
+  basic: {
+    icon: "01",
+    title: "기본 정보",
+    description: "의뢰하시는 기업 정보를 입력해주세요.",
+  },
+  event: {
+    icon: "02",
+    title: "행사 정보",
+    description: "통역이 필요한 행사명을 알려주세요.",
+  },
+  period: {
+    icon: "03",
+    title: "행사 기간",
+    description: "시작일과 종료일을 선택해주세요.",
+  },
+  location: {
+    icon: "04",
+    title: "행사 장소",
+    description: "통역사가 방문할 장소를 입력해주세요.",
+  },
+  request: {
+    icon: "05",
+    title: "통역 요청 정보",
+    description: "매칭에 필요한 조건을 선택해주세요.",
+  },
+  details: {
+    icon: "06",
+    title: "추가 요청사항",
+    description: "행사 목적이나 현장 요청을 남겨주세요.",
+  },
+};
 
 function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const isGeneralRequest = !interpreter;
@@ -338,50 +380,65 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     }
   };
 
+  const isSubmitDisabled = isSubmitting || !areTermsAgreed(agreements);
+
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div className="request-page">
+      <div className="request-container">
         <button
           type="button"
           onClick={onBackClick}
-          className={isGeneralRequest ? "main-return-button" : undefined}
-          style={styles.backButton}
+          className={`request-back-button${
+            isGeneralRequest ? " main-return-button" : ""
+          }`}
         >
-          {isGeneralRequest ? "메인으로 돌아가기" : "← 상세 페이지로"}
+          {isGeneralRequest ? "메인으로 돌아가기" : "상세 페이지로"}
         </button>
 
-        <div style={styles.card}>
-          <div style={styles.header}>
-            <p style={styles.label}>ON-LI REQUEST</p>
-            <h1 style={styles.title}>통역 의뢰하기</h1>
-            <p style={styles.description}>
+        <header className="request-hero">
+          <div>
+            <p className="request-eyebrow">ON-LI REQUEST</p>
+            <h1>통역 의뢰하기</h1>
+            <p className="request-description">
               {isGeneralRequest
                 ? "전시회·상담회·비즈니스 미팅 등 통역이 필요한 일정 정보를 입력해주세요."
                 : `${interpreter?.name || "선택한 통역사"}님과의 매칭 검토에 필요한 행사 정보를 입력해주세요.`}
               <br />
               접수 후 ON-LI 운영팀이 내용을 검토하여 적합한 통역사를 매칭합니다.
             </p>
-            <div style={styles.process}>
-              {["의뢰 접수", "운영팀 검토", "공고 등록", "매칭 진행", "배정 완료"].map(
-                (step, index, steps) => (
-                  <span key={step} style={styles.processItem}>
-                    {step}
-                    {index < steps.length - 1 && <b style={styles.processArrow}>→</b>}
-                  </span>
-                )
-              )}
-            </div>
           </div>
+          <div className="request-hero-mark" aria-hidden="true">
+            <span />
+          </div>
+        </header>
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <SectionTitle title="기본 정보" />
-            <Field label="회사명" name="companyName" value={form.companyName} onChange={handleChange} required />
-            <Field label="담당자명" name="contactName" value={form.contactName} onChange={handleChange} required />
-            <Field label="연락처 또는 이메일" name="contactEmailOrPhone" value={form.contactEmailOrPhone} onChange={handleChange} required />
+        <div className="request-step-card" aria-label="통역 의뢰 진행 단계">
+          {requestSteps.map((step, index) => (
+            <div
+              key={step}
+              className={`request-step${index === 0 ? " is-active" : ""}`}
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{step}</strong>
+            </div>
+          ))}
+        </div>
 
-            <SectionTitle title="행사 정보" />
+        <form onSubmit={handleSubmit} className="request-form-shell">
+          <SectionBlock meta={sectionMeta.basic}>
+            <div className="request-grid request-grid-3">
+              <Field label="회사명" name="companyName" value={form.companyName} onChange={handleChange} required />
+              <Field label="담당자명" name="contactName" value={form.contactName} onChange={handleChange} required />
+              <Field label="연락처 또는 이메일" name="contactEmailOrPhone" value={form.contactEmailOrPhone} onChange={handleChange} required />
+            </div>
+          </SectionBlock>
+
+          <SectionBlock meta={sectionMeta.event}>
             <Field label="행사명" name="eventName" value={form.eventName} onChange={handleChange} required />
-            <div style={styles.fullWidth}>
+          </SectionBlock>
+
+          <SectionBlock meta={sectionMeta.period}>
+            <div className="request-full-width">
               <DateRangeInput
                 required
                 showQuickButtons
@@ -397,68 +454,79 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                 }
               />
             </div>
+          </SectionBlock>
+
+          <SectionBlock meta={sectionMeta.location}>
             <Field label="행사 장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
+          </SectionBlock>
 
-            <SectionTitle title="통역 요청 정보" />
-            <Field label="필요 인원 수" name="requestedPeopleCount" type="number" min="1" placeholder="예: 3" value={form.requestedPeopleCount} onChange={handleChange} required />
-            <TabField
-              label="희망 통역 레벨"
-              value={form.requestedLevel}
-              onChange={(value) => updateFormValue("requestedLevel", value)}
-              options={levelOptions}
-              helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
-            />
-            <TabField
-              label="희망 성별"
-              value={form.preferredGender}
-              onChange={(value) => updateFormValue("preferredGender", value)}
-              options={["성별 무관", "여성 희망", "남성 희망"]}
-            />
-            <TabField
-              label="통역 분야"
-              value={form.interpretationField}
-              onChange={(value) => updateFormValue("interpretationField", value)}
-              options={fieldOptions}
-            />
+          <SectionBlock meta={sectionMeta.request}>
+            <div className="request-grid request-grid-2">
+              <Field label="필요 인원 수" name="requestedPeopleCount" type="number" min="1" placeholder="예: 3" value={form.requestedPeopleCount} onChange={handleChange} required />
+              <TabField
+                label="희망 통역 레벨"
+                value={form.requestedLevel}
+                onChange={(value) => updateFormValue("requestedLevel", value)}
+                options={levelOptions}
+                helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
+              />
+              <TabField
+                label="희망 성별"
+                value={form.preferredGender}
+                onChange={(value) => updateFormValue("preferredGender", value)}
+                options={["성별 무관", "여성 희망", "남성 희망"]}
+              />
+              <TabField
+                label="통역 분야"
+                value={form.interpretationField}
+                onChange={(value) => updateFormValue("interpretationField", value)}
+                options={fieldOptions}
+              />
+            </div>
+          </SectionBlock>
 
-            <label style={{ ...styles.field, ...styles.fullWidth }}>
-              <span style={styles.fieldLabel}>요청 내용</span>
+          <SectionBlock meta={sectionMeta.details}>
+            <label className="request-field request-full-width">
+              <span className="request-field-label">요청 내용</span>
               <textarea
                 name="requestDetails"
                 value={form.requestDetails}
                 onChange={handleChange}
-                required
+                maxLength={500}
                 rows={4}
-                style={{ ...styles.input, ...styles.textarea }}
-                placeholder="행사 목적, 통역 상황, 요청사항을 간단히 적어주세요."
+                className="request-input request-textarea"
+                placeholder="요청사항을 입력해주세요 (선택)"
               />
+              <span className="request-count">{form.requestDetails.length} / 500</span>
             </label>
+          </SectionBlock>
 
-            {errorMessage && <p style={styles.error}>{errorMessage}</p>}
+          {errorMessage && <p className="request-error">{errorMessage}</p>}
 
-            <TermsAgreement
-              agreements={agreements}
-              className="request-terms-agreement"
-              onChange={handleAgreementChange}
-              role="client"
-            />
+          <TermsAgreement
+            agreements={agreements}
+            className="request-terms-agreement"
+            onChange={handleAgreementChange}
+            role="client"
+          />
 
+          <div className="request-submit-card">
+            <div>
+              <strong>정확한 정보를 입력해주시면 더 빠르고 정확한 매칭이 가능합니다.</strong>
+              <p>문의사항은 언제든지 연락주세요. 친절하게 안내해드리겠습니다.</p>
+              <span className="request-security-note">
+                입력하신 정보는 안전하게 보호되며, 통역 매칭 용도로만 사용됩니다.
+              </span>
+            </div>
             <button
               type="submit"
-              disabled={isSubmitting || !areTermsAgreed(agreements)}
-              style={{
-                ...styles.submitButton,
-                opacity: isSubmitting || !areTermsAgreed(agreements) ? 0.65 : 1,
-                cursor:
-                  isSubmitting || !areTermsAgreed(agreements)
-                    ? "not-allowed"
-                    : "pointer",
-              }}
+              disabled={isSubmitDisabled}
+              className="request-submit-button"
             >
-              {isSubmitting ? "접수 중..." : "의뢰 문의 제출하기"}
+              {isSubmitting ? "접수 중..." : "통역 의뢰 제출하기"}
             </button>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -482,214 +550,47 @@ function isAgreementColumnError(error) {
 
 function Field({ label, ...inputProps }) {
   return (
-    <label style={styles.field}>
-      <span style={styles.fieldLabel}>{label}</span>
-      <input style={styles.input} {...inputProps} />
+    <label className="request-field">
+      <span className="request-field-label">{label}</span>
+      <input className="request-input" {...inputProps} />
     </label>
   );
 }
 
 function TabField({ label, options, value, onChange, helpText }) {
   return (
-    <div style={styles.field}>
-      <span style={styles.fieldLabel}>{label}</span>
-      <div style={styles.tabGroup}>
+    <div className="request-field">
+      <span className="request-field-label">{label}</span>
+      <div className="request-pill-group">
         {options.map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => onChange(option)}
-            style={{
-              ...styles.tabButton,
-              ...(value === option ? styles.tabButtonActive : {}),
-            }}
+            className={`request-pill${value === option ? " is-active" : ""}`}
           >
             {option}
           </button>
         ))}
       </div>
-      {helpText && <span style={styles.helpText}>{helpText}</span>}
+      {helpText && <span className="request-help-text">{helpText}</span>}
     </div>
   );
 }
 
-function SectionTitle({ title }) {
+function SectionBlock({ meta, children }) {
   return (
-    <div style={styles.sectionTitle}>
-      <span>{title}</span>
-    </div>
+    <section className="request-section-card">
+      <div className="request-section-copy">
+        <span className="request-section-icon">{meta.icon}</span>
+        <div>
+          <h2>{meta.title}</h2>
+          <p>{meta.description}</p>
+        </div>
+      </div>
+      <div className="request-section-fields">{children}</div>
+    </section>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    width: "100vw",
-    background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
-    padding: "48px 20px",
-    boxSizing: "border-box",
-    color: "#111827",
-  },
-  requestTermsAgreement: {
-    gridColumn: "1 / -1",
-  },
-  container: {
-    maxWidth: "860px",
-    margin: "0 auto",
-  },
-  backButton: {
-    marginBottom: "22px",
-    padding: "12px 18px",
-    borderRadius: "12px",
-    border: "1px solid #395597",
-    backgroundColor: "#395597",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontWeight: "700",
-  },
-  card: {
-    background: "#ffffff",
-    borderRadius: "16px",
-    padding: "28px",
-    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
-    border: "1px solid #e5e7eb",
-  },
-  header: {
-    marginBottom: "24px",
-    textAlign: "left",
-  },
-  label: {
-    fontSize: "12px",
-    letterSpacing: "4px",
-    color: "#395597",
-    fontWeight: "800",
-    margin: "0 0 8px",
-  },
-  title: {
-    margin: 0,
-    fontSize: "34px",
-    fontWeight: "900",
-    color: "#111827",
-  },
-  description: {
-    marginTop: "12px",
-    color: "#6b7280",
-    fontSize: "15px",
-    lineHeight: 1.65,
-  },
-  process: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "6px 10px",
-    marginTop: "18px",
-    paddingTop: "16px",
-    borderTop: "1px solid #eef2f7",
-    color: "#6b7280",
-    fontSize: "13px",
-    fontWeight: "800",
-  },
-  processItem: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "10px",
-  },
-  processArrow: {
-    color: "#cbd5e1",
-    fontWeight: "900",
-  },
-  form: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "14px",
-  },
-  sectionTitle: {
-    gridColumn: "1 / -1",
-    marginTop: "8px",
-    paddingTop: "12px",
-    borderTop: "1px solid #f1f5f9",
-    color: "#395597",
-    fontSize: "14px",
-    fontWeight: "900",
-    textAlign: "left",
-  },
-  field: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "6px",
-    textAlign: "left",
-  },
-  fullWidth: {
-    gridColumn: "1 / -1",
-  },
-  fieldLabel: {
-    color: "#374151",
-    fontSize: "13px",
-    fontWeight: "800",
-  },
-  input: {
-    width: "100%",
-    minHeight: "46px",
-    padding: "0 13px",
-    borderRadius: "11px",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#111827",
-    fontSize: "14px",
-    outline: "none",
-    boxSizing: "border-box",
-    fontFamily: "inherit",
-  },
-  tabGroup: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "8px",
-  },
-  tabButton: {
-    minHeight: "42px",
-    padding: "0 13px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#374151",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: "800",
-    fontFamily: "inherit",
-  },
-  tabButtonActive: {
-    border: "1px solid #395597",
-    background: "#395597",
-    color: "#ffffff",
-  },
-  textarea: {
-    minHeight: "112px",
-    padding: "13px",
-    lineHeight: 1.55,
-    resize: "vertical",
-  },
-  helpText: {
-    color: "#6b7280",
-    fontSize: "12px",
-    lineHeight: 1.45,
-  },
-  error: {
-    gridColumn: "1 / -1",
-    margin: 0,
-    color: "#dc2626",
-    fontSize: "14px",
-    fontWeight: "700",
-  },
-  submitButton: {
-    gridColumn: "1 / -1",
-    marginTop: "4px",
-    padding: "14px",
-    borderRadius: "12px",
-    border: "none",
-    background: "#395597",
-    color: "white",
-    fontWeight: "900",
-    fontSize: "15px",
-  },
-};
 
 export default RequestForm;
