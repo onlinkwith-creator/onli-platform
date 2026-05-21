@@ -348,16 +348,6 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
                 </select>
               </Field>
               <Field label="학교 및 전공" name="school" value={form.school} onChange={handleChange} />
-              <div className="register-level-guide register-field-wide">
-                <span>레벨 안내</span>
-                <div className="register-level-pill-row">
-                  {levelSystemCards.map((item) => (
-                    <span key={item.level} className={`register-level-pill is-${item.tone}`}>
-                      {item.level}
-                    </span>
-                  ))}
-                </div>
-              </div>
             </FormSectionCard>
 
             <FormSectionCard

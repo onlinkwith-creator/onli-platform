@@ -227,22 +227,10 @@
   --level-text: #4b5563;
 }
 
-.register-level-pill.is-gray {
-  --level-bg: #f8fafc;
-  --level-border: #e5e7eb;
-  --level-text: #4b5563;
-}
-
 .register-level-card.is-green {
   --level-bg: #f0fdf4;
   --level-border: #dcfce7;
   --level-accent: #34d399;
-  --level-text: #047857;
-}
-
-.register-level-pill.is-green {
-  --level-bg: #f0fdf4;
-  --level-border: #dcfce7;
   --level-text: #047857;
 }
 
@@ -253,22 +241,10 @@
   --level-text: #1d4ed8;
 }
 
-.register-level-pill.is-blue {
-  --level-bg: #f0f7ff;
-  --level-border: #dbeafe;
-  --level-text: #1d4ed8;
-}
-
 .register-level-card.is-purple {
   --level-bg: #f7f5ff;
   --level-border: #e9d5ff;
   --level-accent: #a78bfa;
-  --level-text: #6d28d9;
-}
-
-.register-level-pill.is-purple {
-  --level-bg: #f7f5ff;
-  --level-border: #e9d5ff;
   --level-text: #6d28d9;
 }
 
@@ -504,38 +480,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-}
-
-.register-level-guide {
-  display: grid;
-  gap: 9px;
-}
-
-.register-level-guide > span {
-  color: #374151;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.register-level-pill-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.register-level-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  min-width: 54px;
-  padding: 0 12px;
-  border: 1px solid var(--level-border);
-  border-radius: 999px;
-  background: var(--level-bg);
-  color: var(--level-text);
-  font-size: 12px;
-  font-weight: 900;
 }
 
 .register-field {
