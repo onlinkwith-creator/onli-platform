@@ -433,6 +433,11 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
             </section>
           </form>
         </div>
+
+        <footer className="register-footer" aria-label="ON-LI 사업자 정보">
+          <strong>ON-LI</strong>
+          <span>사업자등록번호 141-15-02905</span>
+        </footer>
       </div>
     </div>
   );

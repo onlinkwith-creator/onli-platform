@@ -311,67 +311,6 @@
   text-decoration: none;
 }
 
-.register-trust-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: auto;
-}
-
-.register-trust-grid div {
-  padding: 14px 12px;
-  border-radius: 16px;
-  background: #eef2ff;
-  text-align: center;
-}
-
-.register-trust-grid strong {
-  display: block;
-  color: #3730a3;
-  font-size: 20px;
-  font-weight: 900;
-}
-
-.register-trust-grid span {
-  display: block;
-  margin-top: 3px;
-  color: #4b5563;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.register-trust {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin: 16px 0;
-}
-
-.register-trust-card {
-  min-height: 118px;
-  padding: 22px;
-  border-radius: 20px;
-}
-
-.register-trust-card strong,
-.register-trust-card span {
-  display: block;
-}
-
-.register-trust-card strong {
-  color: #111827;
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.register-trust-card span {
-  margin-top: 9px;
-  color: #6b7280;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.55;
-}
-
 .register-steps {
   display: flex;
   gap: 8px;
@@ -664,6 +603,31 @@
   font-size: 14px;
 }
 
+.register-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 18px 0 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.register-footer strong {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.register-footer span {
+  color: #94a3b8;
+  font-weight: 800;
+}
+
 .register-message {
   margin: 0 0 12px;
   font-size: 14px;
@@ -680,8 +644,7 @@
 }
 
 @media (max-width: 900px) {
-  .register-guide-grid,
-  .register-trust {
+  .register-guide-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -724,8 +687,7 @@
     margin-bottom: 18px;
   }
 
-  .register-section-grid,
-  .register-trust-grid {
+  .register-section-grid {
     grid-template-columns: 1fr;
   }
 
@@ -747,6 +709,15 @@
     width: 100%;
     border-radius: 14px;
     text-align: left;
+  }
+
+  .register-footer {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-top: 18px;
+    padding-top: 16px;
+    text-align: center;
   }
 }
 
