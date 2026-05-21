@@ -300,6 +300,8 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
           </div>
         </section>
 
+        <LevelSystemCard className="register-level-system-card" />
+
         <StepIndicator />
 
         <div className="register-layout">
@@ -539,22 +541,6 @@ function RegisterSidebar() {
   return (
     <aside className="register-sidebar" aria-label="통역사 등록 안내">
       <div className="register-sidebar-card">
-        <div className="register-level-head">
-          <span>LEVEL SYSTEM</span>
-          <strong>레벨 기반 성장 시스템</strong>
-          <p>실력과 경험에 따라 더 높은 프로젝트와 활동 기회를 제공합니다.</p>
-        </div>
-        <div className="register-level-flow" aria-label="LV1부터 LV4까지 성장 단계">
-          {levelSystemCards.map((item) => (
-            <article key={item.level} className={`register-level-card is-${item.tone}`}>
-              <strong>{item.level}</strong>
-              <p>{item.text}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <div className="register-sidebar-card">
         <h3>ON-LI 통역사의 혜택</h3>
         <ul className="register-benefit-list">
           <li>다양한 비즈니스 매칭 기회</li>
@@ -570,6 +556,26 @@ function RegisterSidebar() {
         <a href="mailto:onlinkwith@gmail.com">문의하기</a>
       </div>
     </aside>
+  );
+}
+
+function LevelSystemCard({ className = "" }) {
+  return (
+    <div className={`register-sidebar-card ${className}`.trim()}>
+      <div className="register-level-head">
+        <span>LEVEL SYSTEM</span>
+        <strong>레벨 기반 성장 시스템</strong>
+        <p>실력과 경험에 따라 더 높은 프로젝트와 활동 기회를 제공합니다.</p>
+      </div>
+      <div className="register-level-flow" aria-label="LV1부터 LV4까지 성장 단계">
+        {levelSystemCards.map((item) => (
+          <article key={item.level} className={`register-level-card is-${item.tone}`}>
+            <strong>{item.level}</strong>
+            <p>{item.text}</p>
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }
 

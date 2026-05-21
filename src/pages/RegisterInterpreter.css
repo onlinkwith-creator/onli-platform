@@ -103,6 +103,10 @@
   line-height: 1.35;
 }
 
+.register-level-system-card {
+  margin-bottom: 18px;
+}
+
 .register-level-head span {
   display: block;
   color: #4f46e5;
