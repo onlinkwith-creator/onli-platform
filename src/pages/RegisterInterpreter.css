@@ -77,14 +77,19 @@
 
 .register-layout {
   display: grid;
-  grid-template-columns: minmax(0, 0.68fr) minmax(300px, 0.32fr);
-  gap: 24px;
+  grid-template-columns: 1fr;
   align-items: start;
 }
 
+.register-guide-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 22px;
+  align-items: start;
+  margin-bottom: 22px;
+}
+
 .register-sidebar {
-  position: sticky;
-  top: 24px;
   display: grid;
   gap: 16px;
   min-width: 0;
@@ -104,7 +109,7 @@
 }
 
 .register-level-system-card {
-  margin-bottom: 18px;
+  margin-bottom: 0;
 }
 
 .register-level-head span {
@@ -731,13 +736,9 @@
 }
 
 @media (max-width: 900px) {
-  .register-layout,
+  .register-guide-grid,
   .register-trust {
     grid-template-columns: 1fr;
-  }
-
-  .register-sidebar {
-    position: static;
   }
 }
 

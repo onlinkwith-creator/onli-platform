@@ -300,7 +300,10 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
           </div>
         </section>
 
-        <LevelSystemCard className="register-level-system-card" />
+        <section className="register-guide-grid" aria-label="통역사 등록 안내">
+          <LevelSystemCard className="register-level-system-card" />
+          <RegisterSidebar />
+        </section>
 
         <StepIndicator />
 
@@ -439,8 +442,6 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
               </button>
             </section>
           </form>
-
-          <RegisterSidebar />
         </div>
       </div>
     </div>
