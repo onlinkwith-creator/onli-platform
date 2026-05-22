@@ -3,7 +3,14 @@ import { createClient } from "@supabase/supabase-js";
 const rawUrl = import.meta.env.VITE_SUPABASE_URL;
 const rawAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabaseUrl = rawUrl?.trim();
+let cleanedUrl = rawUrl?.trim() || "";
+if (cleanedUrl.endsWith("/")) {
+  cleanedUrl = cleanedUrl.slice(0, -1);
+}
+if (cleanedUrl.endsWith("/rest/v1")) {
+  cleanedUrl = cleanedUrl.slice(0, -8);
+}
+const supabaseUrl = cleanedUrl;
 const supabaseAnonKey = rawAnonKey?.trim();
 
 console.log("Supabase env check:", {
