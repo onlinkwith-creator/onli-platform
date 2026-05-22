@@ -141,7 +141,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
       className="interpreter-list-page"
       style={{
         minHeight: "100vh",
-        width: "100vw",
+        width: "100%",
         background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
         padding: "48px 20px",
         boxSizing: "border-box",
@@ -151,7 +151,7 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
       <div
         className="interpreter-list-shell"
         style={{
-          maxWidth: "1120px",
+          maxWidth: "1240px",
           margin: "0 auto",
         }}
       >

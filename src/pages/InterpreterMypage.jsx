@@ -49,6 +49,10 @@ function InterpreterMypage({
   const [regionsInput, setRegionsInput] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
+  // Resume Submission States
+  const [resumeUrl, setResumeUrl] = useState("");
+  const [isSubmittingResume, setIsSubmittingResume] = useState(false);
+
   const handleStartEdit = () => {
     if (!interpreter) return;
     setEditForm({
@@ -121,6 +125,45 @@ function InterpreterMypage({
       alert("프로필 정보가 성공적으로 수정되었습니다.");
     }
     setIsUpdatingProfile(false);
+  };
+
+  useEffect(() => {
+    if (interpreter) {
+      setResumeUrl(interpreter.resume_url || "");
+    }
+  }, [interpreter]);
+
+  const handleUpdateResume = async (e) => {
+    e.preventDefault();
+    if (isSubmittingResume || !supabase || !interpreter) return;
+    
+    if (!resumeUrl.trim()) {
+      alert("이력서 링크 또는 내용을 입력해주세요.");
+      return;
+    }
+
+    setIsSubmittingResume(true);
+    
+    const payload = {
+      resume_url: resumeUrl.trim(),
+      resume_submitted_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Failed to submit resume", error);
+      alert("이력서 제출에 실패했습니다. 다시 시도해주세요.");
+    } else {
+      setInterpreter(data);
+      alert("이력서가 성공적으로 제출되었습니다. 운영팀 검토 후 검증 배지가 수여됩니다.");
+    }
+    setIsSubmittingResume(false);
   };
 
   const fetchApplicationsData = async (interpreterId) => {
@@ -533,7 +576,8 @@ function InterpreterMypage({
               {/* Dynamic Content Pane */}
               <div className="interpreter-mypage-tab-pane">
                 {activeTab === "profile" && interpreter && (
-                  <article className="interpreter-mypage-card animate-fade-in">
+                  <>
+                    <article className="interpreter-mypage-card animate-fade-in">
                     <div className="card-header-with-action">
                       <h2>프로필 정보</h2>
                       <div className="profile-header-actions" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
@@ -566,40 +610,40 @@ function InterpreterMypage({
 
                     {isEditingProfile ? (
                       <form onSubmit={handleUpdateProfile} className="interpreter-edit-profile-form" style={{ marginTop: "20px" }}>
-                        <div className="form-group-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+                        <div className="form-group-grid">
                           <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
                             <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>이름</span>
                             <input
-                              type="text"
-                              name="name"
-                              value={editForm.name}
-                              onChange={handleEditFormChange}
-                              required
-                              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                               type="text"
+                               name="name"
+                               value={editForm.name}
+                               onChange={handleEditFormChange}
+                               required
+                               style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
                             />
                           </label>
                           <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
                             <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>연락처</span>
                             <input
-                              type="text"
-                              name="phone"
-                              value={editForm.phone}
-                              onChange={handleEditFormChange}
-                              required
-                              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                               type="text"
+                               name="phone"
+                               value={editForm.phone}
+                               onChange={handleEditFormChange}
+                               required
+                               style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
                             />
                           </label>
                           <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
                             <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>이메일 (수정 불가)</span>
                             <input
-                              type="email"
-                              value={interpreter.email}
-                              disabled
-                              className="disabled-input"
-                              style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "14px", background: "#f3f4f6", color: "#9ca3af", cursor: "not-allowed" }}
+                               type="email"
+                               value={interpreter.email}
+                               disabled
+                               className="disabled-input"
+                               style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "14px", background: "#f3f4f6", color: "#9ca3af", cursor: "not-allowed" }}
                             />
                           </label>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                          <div className="form-subgroup-grid">
                             <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
                               <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>성별</span>
                               <select
@@ -765,7 +809,71 @@ function InterpreterMypage({
                       </dl>
                     )}
                   </article>
-                )}
+
+                  {/* Verification Badge & Resume Card */}
+                  <article className="mypage-verification-card animate-fade-in">
+                    <h3>통역사 검증 & 배지 신청</h3>
+                    
+                    {interpreter.approved ? (
+                      <div className="verification-status-box verified">
+                        <span className="verification-status-badge verified">✨ 검증 완료</span>
+                        <div className="verification-status-details">
+                          <h4 className="verification-status-title">ON-LI 공식 검증 통역사</h4>
+                          <p className="verification-status-desc">
+                            귀하는 ON-LI 공식 인증을 받은 신뢰할 수 있는 통역사입니다. 
+                            프로필에 검증 완료 배지가 표시되며 공고 추천 및 매칭에서 우선 순위를 얻게 됩니다.
+                          </p>
+                        </div>
+                      </div>
+                    ) : interpreter.resume_url ? (
+                      <div className="verification-status-box pending">
+                        <span className="verification-status-badge pending">⏳ 심사 대기 중</span>
+                        <div className="verification-status-details">
+                          <h4 className="verification-status-title">이력서 검토 중</h4>
+                          <p className="verification-status-desc">
+                            제출하신 이력서를 바탕으로 운영팀에서 검증 절차를 진행 중입니다. 
+                            심사는 영업일 기준 1~3일 소요됩니다.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="verification-status-box unsubmitted">
+                        <span className="verification-status-badge unsubmitted">📄 이력서 미제출</span>
+                        <div className="verification-status-details">
+                          <h4 className="verification-status-title">검증 배지 미보유</h4>
+                          <p className="verification-status-desc">
+                            검증된 통역사 배지를 획득하려면 아래에서 이력서(경력 소개서) 또는 포트폴리오 링크를 제출해주세요. 
+                            운영팀의 심사를 거쳐 배지가 수여됩니다.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {!interpreter.approved && (
+                      <form onSubmit={handleUpdateResume} className="resume-submit-form">
+                        <div className="resume-input-group">
+                          <label htmlFor="resume-url-input">이력서 또는 포트폴리오 링크 (구글 드라이브, 노션, PDF 링크 등)</label>
+                          <input
+                            id="resume-url-input"
+                            type="url"
+                            value={resumeUrl}
+                            onChange={(e) => setResumeUrl(e.target.value)}
+                            placeholder="예: https://notion.so/my-resume"
+                            required
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          className="resume-submit-btn"
+                          disabled={isSubmittingResume}
+                        >
+                          {isSubmittingResume ? "제출 중..." : interpreter.resume_url ? "이력서 수정 및 재제출" : "이력서 제출하기"}
+                        </button>
+                      </form>
+                    )}
+                  </article>
+                </>
+              )}
 
                 {activeTab === "applications" && (
                   <article className="interpreter-mypage-card animate-fade-in">

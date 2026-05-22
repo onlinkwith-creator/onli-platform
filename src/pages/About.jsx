@@ -77,7 +77,7 @@ function About({ onBackClick, onRequestClick, onListClick }) {
 const styles = {
   page: {
     minHeight: "100vh",
-    width: "100vw",
+    width: "100%",
     boxSizing: "border-box",
     padding: "48px 24px",
     background:
@@ -85,7 +85,7 @@ const styles = {
     color: "#111827",
   },
   shell: {
-    maxWidth: "1120px",
+    maxWidth: "1240px",
     margin: "0 auto",
   },
   backButton: {

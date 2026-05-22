@@ -137,10 +137,12 @@ function Home({
       <div className="home-bg-glow" />
 
       <header className="home-header">
-        <div className="home-logo-area">
-          <div className="home-brand-sub">ON-LI</div>
-          <h2 className="home-brand-title">On-Link Interpretation</h2>
-          <div className="home-brand-line" />
+        <div className="home-logo-area" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <img src="/logo.png" alt="ON-LI Logo" style={{ height: "48px", width: "48px", objectFit: "contain" }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+            <div className="home-brand-sub" style={{ margin: 0, marginBottom: "4px" }}>ON-LI</div>
+            <h2 className="home-brand-title">On-Link Interpretation</h2>
+          </div>
         </div>
 
         <nav className="home-nav" aria-label="메인 메뉴">
@@ -376,7 +378,7 @@ function Home({
         <div className="home-footer-top">
           <div className="home-footer-brand" aria-label="ON-LI 브랜드">
             <div className="home-footer-logo-row">
-              <img className="home-footer-logo" src="/favicon.svg" alt="ON-LI" />
+              <img className="home-footer-logo" src="/logo.png" alt="ON-LI" />
               <strong>ON-LI</strong>
             </div>
             <span>한일 비즈니스 통역 매칭 플랫폼</span>

@@ -2280,6 +2280,7 @@ function Admin() {
               onChangeDraft={updateInterpreterEditDraft}
               onClose={closeInterpreterModal}
               onSave={saveInterpreterEditDraft}
+              updateInterpreter={updateInterpreter}
             />
             {activeRequest && (
               <RequestActionModal
@@ -3409,6 +3410,16 @@ function InterpreterCard({
           <h3>{interpreter.name || "이름 미입력"}</h3>
         </div>
         <div className="admin-card-chip-row">
+          {interpreter.approved && (
+            <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              ✨ 검증 완료
+            </span>
+          )}
+          {!interpreter.approved && interpreter.resume_url && (
+            <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a' }}>
+              ⏳ 심사 대기
+            </span>
+          )}
           {duplicateSuspected && (
             <DuplicateBadge title={duplicateTitle} />
           )}
@@ -3424,6 +3435,18 @@ function InterpreterCard({
         <Info label="레벨" value={normalizeLevel(interpreter.level)} />
         <Info label="승인 상태" value={approvalLabel} />
         <Info label="활동 상태" value={activityLabel} />
+        <Info
+          label="이력서 제출"
+          value={
+            interpreter.approved ? (
+              <span style={{ color: "#15803d", fontWeight: "bold" }}>✨ 검증 완료</span>
+            ) : interpreter.resume_url ? (
+              <span style={{ color: "#a16207", fontWeight: "bold" }}>⏳ 심사 대기</span>
+            ) : (
+              <span style={{ color: "#6b7280" }}>미제출</span>
+            )
+          }
+        />
         <Info label="활동 지역" value={formatListOrMissing(interpreter.available_regions)} />
         <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
         <Info label="통역 경험" value={getExperienceLabel(interpreter)} />
@@ -3514,6 +3537,7 @@ function InterpreterModal({
   onChangeDraft,
   onClose,
   onSave,
+  updateInterpreter,
 }) {
   if (!interpreter || !modalType) return null;
 
@@ -3611,6 +3635,34 @@ function InterpreterModal({
                 <InterpreterDetailItem label="나이" value={interpreter.age} />
                 <InterpreterDetailItem label="레벨" value={levelLabel} />
                 <InterpreterDetailItem label="승인 상태" value={approvalLabel} />
+                <InterpreterDetailItem
+                  label="제출된 이력서"
+                  value={
+                    interpreter.resume_url ? (
+                      <a
+                        href={interpreter.resume_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          color: "#aa3bff",
+                          textDecoration: "underline",
+                          fontWeight: "600",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        이력서 보기 ↗
+                      </a>
+                    ) : (
+                      "미제출"
+                    )
+                  }
+                />
+                {interpreter.resume_submitted_at && (
+                  <InterpreterDetailItem
+                    label="이력서 제출일"
+                    value={formatDateTime(interpreter.resume_submitted_at)}
+                  />
+                )}
                 <InterpreterDetailItem label="검증된 통역사 뱃지" value={interpreter.approved ? "검증 완료" : "미검증"} />
                 <InterpreterDetailItem label="공개 활동 상태" value={activityLabel} />
               </InterpreterDetailSection>
@@ -3662,6 +3714,145 @@ function InterpreterModal({
                 <InterpreterDetailItem label="공개 노출" value="관리자 전용 정보" />
               </InterpreterDetailSection>
             </div>
+
+            <section className="admin-interpreter-verification-card" style={{
+              background: "var(--bg)",
+              border: "1px solid var(--border)",
+              borderRadius: "16px",
+              padding: "24px",
+              marginBottom: "24px",
+              textAlign: "left",
+              boxShadow: "var(--shadow)"
+            }}>
+              <div className="admin-interpreter-section-title" style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                marginBottom: "16px",
+                borderBottom: "1px solid var(--border)",
+                paddingBottom: "12px"
+              }}>
+                <CheckCircle2 size={20} color="#aa3bff" aria-hidden="true" />
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "600", color: "var(--text-h)" }}>검증 통역사 뱃지 및 이력서 관리</h3>
+              </div>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <h4 style={{ margin: "0 0 6px 0", fontSize: "0.95rem", color: "var(--text-h)" }}>제출된 이력서 / 포트폴리오</h4>
+                    {interpreter.resume_url ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <a
+                          href={interpreter.resume_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: "#aa3bff",
+                            textDecoration: "underline",
+                            fontWeight: "600",
+                            fontSize: "0.95rem",
+                            wordBreak: "break-all"
+                          }}
+                        >
+                          {interpreter.resume_url} ↗
+                        </a>
+                        {interpreter.resume_submitted_at && (
+                          <span style={{ fontSize: "0.8rem", color: "var(--text)" }}>
+                            제출 일시: {formatDateTime(interpreter.resume_submitted_at)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--text)", fontSize: "0.95rem", fontStyle: "italic" }}>제출된 이력서가 없습니다.</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ fontSize: "0.85rem", color: "var(--text)", display: "block", marginBottom: "4px" }}>현재 상태</span>
+                      {interpreter.approved ? (
+                        <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
+                          ✨ 검증 완료
+                        </span>
+                      ) : interpreter.resume_url ? (
+                        <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
+                          ⏳ 심사 대기중
+                        </span>
+                      ) : (
+                        <span className="status-badge unsubmitted" style={{ background: '#f3f4f6', color: '#6b7280', border: '1px solid #e5e7eb', padding: "6px 12px", borderRadius: "20px", display: "inline-block" }}>
+                          미제출
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  background: "var(--code-bg)",
+                  padding: "16px",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: "8px"
+                }}>
+                  <div style={{ flex: 1, paddingRight: "16px" }}>
+                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-h)", fontWeight: "600" }}>검증 통역사 권한 제어</p>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: "var(--text)" }}>
+                      승인 시 해당 통역사의 프로필에 <strong>✨ ON-LI 검증 통역사</strong> 뱃지가 노출되며 신뢰도를 높여줍니다.
+                    </p>
+                  </div>
+                  <div>
+                    {interpreter.approved ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm("이 통역사의 검증 완료 뱃지를 취소하시겠습니까?")) {
+                            await updateInterpreter(interpreter.id, { approved: false }, { showSuccess: true });
+                          }
+                        }}
+                        style={{
+                          background: "#fee2e2",
+                          color: "#991b1b",
+                          border: "1px solid #fca5a5",
+                          padding: "8px 16px",
+                          borderRadius: "8px",
+                          fontSize: "0.85rem",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        검증 배지 회수하기
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm("이 통역사의 이력서를 승인하고 검증 완료 뱃지를 부여하시겠습니까?")) {
+                            await updateInterpreter(interpreter.id, { approved: true }, { showSuccess: true });
+                          }
+                        }}
+                        style={{
+                          background: "#aa3bff",
+                          color: "#fff",
+                          border: "none",
+                          padding: "8px 16px",
+                          borderRadius: "8px",
+                          fontSize: "0.85rem",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        검증 배지 승인하기
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
 
             <section className="admin-interpreter-memo-card">
               <div className="admin-interpreter-section-title">

@@ -1,6 +1,6 @@
 .interpreter-auth-page {
   min-height: 100vh;
-  width: 100vw;
+  width: 100%;
   box-sizing: border-box;
   display: grid;
   place-items: center;
@@ -150,7 +150,7 @@
 
 .interpreter-mypage {
   min-height: 100vh;
-  width: 100vw;
+  width: 100%;
   box-sizing: border-box;
   padding: 36px 18px 64px;
   background: linear-gradient(180deg, #fcfcff 0%, #f7f7fb 100%);
@@ -159,7 +159,7 @@
 }
 
 .interpreter-mypage-shell {
-  width: min(100%, 1100px);
+  width: min(100%, 1240px);
   margin: 0 auto;
 }
 
@@ -806,4 +806,170 @@
     gap: 6px;
     padding: 12px 0;
   }
+}
+
+.form-group-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-subgroup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .form-group-grid,
+  .form-subgroup-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Verification Badge and Resume Cards */
+.mypage-verification-card {
+  margin-top: 24px;
+  padding: 28px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
+  text-align: left;
+}
+
+.mypage-verification-card h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.verification-status-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  transition: all 0.25s ease;
+}
+
+.verification-status-box.unsubmitted {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+}
+
+.verification-status-box.pending {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+}
+
+.verification-status-box.verified {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  box-shadow: 0 4px 15px rgba(217, 119, 6, 0.05);
+}
+
+.verification-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.verification-status-badge.unsubmitted {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.verification-status-badge.pending {
+  background: #c084fc;
+  color: #ffffff;
+}
+
+.verification-status-badge.verified {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.verification-status-details {
+  flex: 1;
+}
+
+.verification-status-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.verification-status-desc {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.resume-submit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.resume-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.resume-input-group label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.resume-input-group input {
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.resume-input-group input:focus {
+  border-color: #5b5cf0;
+  box-shadow: 0 0 0 3px rgba(91, 92, 240, 0.12);
+}
+
+.resume-submit-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #5b5cf0, #8b5cf6);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  align-self: flex-end;
+  box-shadow: 0 4px 12px rgba(91, 92, 240, 0.2);
+  transition: all 0.2s;
+}
+
+.resume-submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(91, 92, 240, 0.3);
+}
+
+.resume-submit-btn:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }

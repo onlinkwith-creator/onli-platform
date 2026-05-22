@@ -446,7 +446,7 @@ function RouteMessage({
 const routeMessageStyles = {
   page: {
     minHeight: "100vh",
-    width: "100vw",
+    width: "100%",
     boxSizing: "border-box",
     display: "grid",
     placeItems: "center",

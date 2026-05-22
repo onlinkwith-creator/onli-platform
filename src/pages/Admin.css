@@ -1,6 +1,6 @@
 .admin-page {
   min-height: 100vh;
-  width: 100vw;
+  width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
   padding: 22px 32px;
