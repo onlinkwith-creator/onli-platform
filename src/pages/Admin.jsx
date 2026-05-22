@@ -3612,7 +3612,8 @@ function InterpreterModal({
                 <InterpreterDetailItem label="성별" value={interpreter.gender} />
                 <InterpreterDetailItem label="나이" value={interpreter.age} />
                 <InterpreterDetailItem label="레벨" value={levelLabel} />
-                <InterpreterDetailItem label="승인 상태" value={approvalStatus} />
+                <InterpreterDetailItem label="승인 상태" value={approvalLabel} />
+                <InterpreterDetailItem label="검증된 통역사 뱃지" value={interpreter.approved ? "검증 완료" : "미검증"} />
                 <InterpreterDetailItem label="공개 활동 상태" value={activityLabel} />
               </InterpreterDetailSection>
 
@@ -3711,16 +3712,6 @@ function InterpreterModal({
               </FieldControl>
               <FieldControl label="승인 상태">
                 <InlineSelect
-                  options={[
-                    { label: "승인 대기", value: "false" },
-                    { label: "승인 완료", value: "true" },
-                  ]}
-                  value={draft?.approved || "false"}
-                  onChange={(value) => onChangeDraft("approved", value)}
-                />
-              </FieldControl>
-              <FieldControl label="활동 상태">
-                <InlineSelect
                   options={INTERPRETER_STATUSES.map((status) => ({
                     value: status,
                     label: getInterpreterStatusLabel({
@@ -3730,6 +3721,16 @@ function InterpreterModal({
                   }))}
                   value={draft?.status || "pending"}
                   onChange={(value) => onChangeDraft("status", value)}
+                />
+              </FieldControl>
+              <FieldControl label="검증된 통역사 뱃지">
+                <InlineSelect
+                  options={[
+                    { label: "일반 통역사 (뱃지 미노출)", value: "false" },
+                    { label: "검증 완료 (뱃지 노출)", value: "true" },
+                  ]}
+                  value={draft?.approved || "false"}
+                  onChange={(value) => onChangeDraft("approved", value)}
                 />
               </FieldControl>
               <FieldControl label="공개 활동 상태">
