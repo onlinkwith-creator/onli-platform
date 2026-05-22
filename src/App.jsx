@@ -242,8 +242,8 @@ function App() {
         <RouteMessage
           title="로그인 상태를 확인 중입니다."
           description="통역사 등록은 로그인 후 이용할 수 있습니다."
-          primaryText="통역사 로그인"
-          onPrimaryClick={() => navigate("interpreterLogin", null, null)}
+          primaryText="로그인하기"
+          onPrimaryClick={() => navigate("login", null, null)}
           onHomeClick={() => navigate("home", null, null)}
         />
       )}
@@ -271,7 +271,7 @@ function App() {
       {page === "login" && (
         <Login
           onBackClick={() => navigate("home", null, null)}
-          onLoginSuccess={() => navigate("interpreterMypage", null, null)}
+          onLoginSuccess={() => navigate("home", null, null)}
         />
       )}
 

@@ -396,7 +396,7 @@ function getInterpreterActivityStatus(interpreter = {}) {
 }
 
 function getPlatformTestLabel(interpreter) {
-  if (interpreter.approved === false) return "검토 중";
+  if (interpreter.status !== "active" && interpreter.status !== "승인 완료" && interpreter.status !== "활동중") return "검토 중";
   if (interpreter.platform_test === false || interpreter.test_completed === false) {
     return "확인 중";
   }

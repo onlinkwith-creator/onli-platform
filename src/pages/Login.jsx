@@ -40,7 +40,7 @@ function Login({ onBackClick, onLoginSuccess }) {
 
       if (error) {
         console.error("Login failed", error);
-        setErrorMessage("이메일 또는 비밀번호를 확인해주세요.");
+        setErrorMessage("로그인에 실패했습니다. 이메일 인증 여부를 확인해주세요.");
         return;
       }
 
@@ -56,21 +56,35 @@ function Login({ onBackClick, onLoginSuccess }) {
       const { data, error } = await supabase.auth.signUp({
         email: form.email.trim(),
         password: form.password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
       });
       setIsSubmitting(false);
 
       if (error) {
         console.error("Signup failed", error);
-        setErrorMessage(error.message || "회원가입에 실패했습니다.");
+        // Handle duplicate email gracefully
+        if (error.code === "user_already_exists" || error.message?.includes("already registered")) {
+          setErrorMessage("이미 등록된 이메일입니다. 로그인을 시도해주세요.");
+          setIsLoginMode(true);
+        } else {
+          setErrorMessage(error.message || "회원가입에 실패했습니다.");
+        }
         return;
       }
 
       if (data?.session) {
-        setMessage("계정이 생성되었습니다. 로그인 중입니다...");
+        // Email confirmation is disabled – logged in immediately
+        setMessage("회원가입 및 로그인이 완료되었습니다.");
         onLoginSuccess?.();
+      } else if (data?.user?.identities?.length === 0) {
+        // User exists but not confirmed – duplicate signup attempt
+        setErrorMessage("이미 등록된 이메일입니다. 로그인을 시도해주세요.");
+        setIsLoginMode(true);
       } else {
-        setMessage("회원가입이 완료되었습니다. 이메일 인증이 필요할 수 있습니다.");
-        alert("회원가입 완료! 로그인 상태로 전환합니다.");
+        // Email confirmation is ON – user created but needs to verify email
+        setMessage("회원가입이 완료되었습니다. 이메일 인증 후 다시 로그인해주세요.");
         setIsLoginMode(true);
       }
     }

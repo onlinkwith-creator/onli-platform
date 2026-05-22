@@ -685,10 +685,18 @@ function InterpreterMypage({
                           value={
                             <span
                               className={`status-badge ${
-                                interpreter.approved ? "badge-green" : "badge-yellow"
+                                interpreter.status === "active" || interpreter.status === "승인 완료" || interpreter.status === "활동중"
+                                  ? "badge-green"
+                                  : interpreter.status === "rejected" || interpreter.status === "반려"
+                                  ? "badge-red"
+                                  : "badge-yellow"
                               }`}
                             >
-                              {interpreter.approved ? "승인 완료" : "승인 대기"}
+                              {interpreter.status === "active" || interpreter.status === "승인 완료" || interpreter.status === "활동중"
+                                ? "승인 완료"
+                                : interpreter.status === "rejected" || interpreter.status === "반려"
+                                ? "반려"
+                                : "승인 대기"}
                             </span>
                           }
                         />

@@ -1,26 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
-  <defs>
-    <!-- Premium Gradients -->
-    <linearGradient id="grad-ol-1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4F46E5" />
-      <stop offset="100%" stop-color="#7C3AED" />
-    </linearGradient>
-    <linearGradient id="grad-ol-2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#818CF8" />
-      <stop offset="100%" stop-color="#C084FC" />
-    </linearGradient>
-    <!-- Soft Glow Shadow for Premium Web Feel -->
-    <filter id="glow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#4F46E5" flood-opacity="0.25" />
-    </filter>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background square with brand color -->
+  <rect width="512" height="512" rx="110" fill="#4F46E5"/>
 
-  <!-- Main Monogram Group with Shadow Glow -->
-  <g filter="url(#glow)">
-    <!-- 'O' - Elegant Outer Ring -->
-    <circle cx="256" cy="256" r="180" stroke="url(#grad-ol-1)" stroke-width="48" fill="none" stroke-linecap="round" />
-    
-    <!-- 'L' - Sleek Offset Inner Path with lighter depth gradient -->
-    <path d="M 216 166 V 326 H 326" stroke="url(#grad-ol-2)" stroke-width="48" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-  </g>
+  <!-- 'O' ring - white bold stroke -->
+  <circle cx="220" cy="256" r="120" stroke="white" stroke-width="52" fill="none"/>
+
+  <!-- 'L' path - white bold stroke -->
+  <path d="M 356 160 V 340 H 440" stroke="white" stroke-width="52" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

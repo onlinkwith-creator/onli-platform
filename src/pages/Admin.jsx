@@ -117,6 +117,7 @@ const INTERPRETER_UPDATE_COLUMNS = new Set([
   "available_tasks",
   "specialties",
   "available_regions",
+  "admin_memo",
 ]);
 const INTERPRETER_STATUS_VALUES = new Set(INTERPRETER_STATUSES);
 const REQUEST_STATUSES = [
@@ -675,10 +676,9 @@ function Admin() {
 
     const interpreter = interpreters.find((item) => item.id === id);
     const isNewApproval =
-      payload.approved === true &&
       payload.status === "active" &&
       interpreter &&
-      !interpreter.approved;
+      interpreter.status !== "active";
     const nextInterpreter = data || { ...interpreter, ...payload };
 
     setInterpreters((current) =>
@@ -3324,11 +3324,11 @@ function InterpreterManagement({
           }
         >
           <option value="all">전체 상태</option>
-          {INTERPRETER_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {getInterpreterStatusLabel({ status, approved: status === "active" })}
-            </option>
-          ))}
+          <option value="pending">승인 대기</option>
+          <option value="active">승인 완료</option>
+          <option value="rejected">반려</option>
+          <option value="warning">경고</option>
+          <option value="suspended">정지</option>
         </select>
         <select
           value={filters.activity}
@@ -3349,9 +3349,9 @@ function InterpreterManagement({
             setFilters((current) => ({ ...current, approved: event.target.value }))
           }
         >
-          <option value="all">전체 승인</option>
-          <option value="false">승인 대기</option>
-          <option value="true">승인 완료</option>
+          <option value="all">전체 뱃지</option>
+          <option value="false">뱃지 미노출</option>
+          <option value="true">검증 뱃지 노출</option>
         </select>
         <select
           value={filters.duplicate}
@@ -3422,7 +3422,7 @@ function InterpreterCard({
       <dl className="admin-card-summary">
         <Info label="통역사번호" value={formatManagementNumber(interpreter.interpreter_no)} />
         <Info label="레벨" value={normalizeLevel(interpreter.level)} />
-        <Info label="승인 상태" value={interpreter.approved ? "승인 완료" : "승인 대기"} />
+        <Info label="승인 상태" value={approvalLabel} />
         <Info label="활동 상태" value={activityLabel} />
         <Info label="활동 지역" value={formatListOrMissing(interpreter.available_regions)} />
         <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
@@ -3472,7 +3472,6 @@ function InterpreterCard({
           disabled={isSaving}
           onClick={() =>
             updateInterpreter(interpreter.id, {
-              approved: true,
               status: "active",
               activity_status: INTERPRETER_ACTIVITY_STATUS.ACTIVE,
             })
@@ -3486,7 +3485,6 @@ function InterpreterCard({
           disabled={isSaving}
           onClick={() =>
             updateInterpreter(interpreter.id, {
-              approved: false,
               status: "rejected",
             })
           }
@@ -3521,7 +3519,7 @@ function InterpreterModal({
 
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const levelLabel = normalizeLevel(interpreter.level);
-  const approvalStatus = interpreter.approved ? "승인 완료" : "승인 대기";
+  const approvalStatus = approvalLabel;
   const activityStatus = getInterpreterActivityStatus(interpreter);
   const activityLabel = getInterpreterActivityStatusLabel(activityStatus);
   const duplicateTitle = duplicateReasons.join(", ");
@@ -3712,13 +3710,13 @@ function InterpreterModal({
               </FieldControl>
               <FieldControl label="승인 상태">
                 <InlineSelect
-                  options={INTERPRETER_STATUSES.map((status) => ({
-                    value: status,
-                    label: getInterpreterStatusLabel({
-                      status,
-                      approved: status === "active",
-                    }),
-                  }))}
+                  options={[
+                    { value: "pending", label: "승인 대기" },
+                    { value: "active", label: "승인 완료" },
+                    { value: "rejected", label: "반려" },
+                    { value: "warning", label: "경고" },
+                    { value: "suspended", label: "정지" },
+                  ]}
                   value={draft?.status || "pending"}
                   onChange={(value) => onChangeDraft("status", value)}
                 />
@@ -5821,8 +5819,11 @@ function getExperienceLabel(interpreter) {
 }
 
 function getInterpreterFilterStatus(interpreter = {}) {
-  if (interpreter.status === "rejected") return "rejected";
-  if (interpreter.approved) return interpreter.status || "active";
+  const status = String(interpreter.status || "").toLowerCase().trim();
+  if (status === "rejected" || status === "반려") return "rejected";
+  if (status === "active" || status === "활동중" || status === "승인 완료") return "active";
+  if (status === "suspended" || status === "정지") return "suspended";
+  if (status === "warning" || status === "경고") return "warning";
   return "pending";
 }
 
@@ -5833,15 +5834,17 @@ function getInterpreterActivityStatus(interpreter = {}) {
 }
 
 function isPendingInterpreter(interpreter = {}) {
-  const status = String(interpreter.status || "").toLowerCase();
-  return !interpreter.approved && !["rejected", "suspended", "반려"].includes(status);
+  const status = String(interpreter.status || "").toLowerCase().trim();
+  return status === "pending" || status === "승인 대기" || status === "";
 }
 
 function getInterpreterStatusLabel(interpreter = {}) {
-  if (interpreter.status === "rejected") return "반려";
-  if (isPendingInterpreter(interpreter)) return "승인 대기";
-  if (interpreter.approved) return "승인 완료";
-  return getStatusLabel(interpreter.status) || "승인 대기";
+  const status = String(interpreter.status || "").toLowerCase().trim();
+  if (status === "rejected" || status === "반려") return "반려";
+  if (status === "active" || status === "활동중" || status === "승인 완료") return "승인 완료";
+  if (status === "suspended" || status === "정지") return "정지";
+  if (status === "warning" || status === "경고") return "경고";
+  return "승인 대기";
 }
 
 function sortInterpretersForAdmin(a, b) {

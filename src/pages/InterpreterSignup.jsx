@@ -36,20 +36,33 @@ function InterpreterSignup({ onBackClick, onLoginClick, onSignupSuccess }) {
     const { data, error } = await supabase.auth.signUp({
       email: form.email.trim(),
       password: form.password,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
     });
     setIsSubmitting(false);
 
     if (error) {
       console.error("Interpreter signup failed", error);
-      setErrorMessage(error.message || "회원가입에 실패했습니다.");
+      if (error.code === "user_already_exists" || error.message?.includes("already registered")) {
+        setErrorMessage("이미 등록된 이메일입니다. 로그인을 시도해주세요.");
+        onLoginClick?.();
+      } else {
+        setErrorMessage(error.message || "회원가입에 실패했습니다.");
+      }
       return;
     }
 
     if (data?.session) {
+      // Email confirmation disabled – directly logged in
       setMessage("계정이 생성되었습니다. 마이페이지로 이동합니다.");
       onSignupSuccess?.();
+    } else if (data?.user?.identities?.length === 0) {
+      // Duplicate – user exists but not confirmed
+      setErrorMessage("이미 등록된 이메일입니다. 로그인을 시도해주세요.");
     } else {
-      setMessage("회원가입이 접수되었습니다. 이메일 확인 후 로그인해주세요.");
+      // Email confirmation enabled
+      setMessage("회원가입이 완료되었습니다. 등록하신 이메일을 확인하여 인증 후 로그인해주세요.");
     }
   };
 
