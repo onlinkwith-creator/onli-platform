@@ -76,6 +76,7 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
     jlpt: "N1 보유",
     stayPeriod: "",
     has_experience: false,
+    experience_count: 0,
     specialties: [],
     availableRegions: [],
     availableTasks: "",
@@ -85,7 +86,12 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
     const { name, value } = event.target;
     setForm((current) => ({
       ...current,
-      [name]: name === "has_experience" ? value === "true" : value,
+      ...(name === "has_experience"
+        ? {
+            has_experience: value === "true",
+            experience_count: value === "true" ? "" : 0,
+          }
+        : { [name]: value }),
     }));
   };
 
@@ -136,6 +142,11 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       return;
     }
 
+    if (form.has_experience && String(form.experience_count).trim() === "") {
+      setErrorMessage("통역 경험 횟수를 입력해주세요.");
+      return;
+    }
+
     if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
       return;
@@ -156,6 +167,7 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
       jlpt: form.jlpt,
       stay_period: form.stayPeriod,
       has_experience: form.has_experience,
+      experience_count: form.has_experience ? Number(form.experience_count || 0) : 0,
       specialties: form.specialties,
       available_regions: form.availableRegions,
       available_tasks: form.availableTasks,
@@ -348,6 +360,28 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
                 </select>
               </Field>
               <Field label="학교 및 전공" name="school" value={form.school} onChange={handleChange} />
+              <Field label="통역 경험 여부">
+                <select
+                  name="has_experience"
+                  value={String(form.has_experience)}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="true">통역 경험 있음</option>
+                  <option value="false">통역 경험 없음</option>
+                </select>
+              </Field>
+              <Field label="통역 경험 횟수">
+                <input
+                  name="experience_count"
+                  type="number"
+                  min="0"
+                  value={form.experience_count}
+                  onChange={handleChange}
+                  disabled={!form.has_experience}
+                  required={form.has_experience}
+                />
+              </Field>
             </FormSectionCard>
 
             <FormSectionCard
@@ -383,24 +417,6 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
 
             <FormSectionCard
               icon="05"
-              title="통역 경험 정보"
-              description="기존 통역 경험 여부를 알려주세요."
-            >
-              <Field label="통역 경험 여부">
-                <select
-                  name="has_experience"
-                  value={String(form.has_experience)}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="true">통역 경험 있음</option>
-                  <option value="false">통역 경험 없음</option>
-                </select>
-              </Field>
-            </FormSectionCard>
-
-            <FormSectionCard
-              icon="06"
               title="추가 정보 및 동의"
               description="약관 동의 후 등록을 제출할 수 있습니다."
             >

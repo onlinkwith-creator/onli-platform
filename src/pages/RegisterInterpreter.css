@@ -463,6 +463,12 @@
   opacity: 1;
 }
 
+.register-field input:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .register-field input:focus,
 .register-field select:focus {
   border-color: #5b5cf0;
