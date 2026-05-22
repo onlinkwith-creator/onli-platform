@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import JobCard from "../components/JobCard";
-import { supabase } from "../supabase";
+import { publicSupabase } from "../supabase";
 import { fetchPublicJobs } from "../utils/jobsApi";
 import "./Home.css";
 import "./Jobs.css";
@@ -19,7 +19,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
     setErrorMessage("");
 
     try {
-      const { data, error } = await fetchPublicJobs(supabase);
+      const { data, error } = await fetchPublicJobs(publicSupabase);
 
       if (error) throw error;
 

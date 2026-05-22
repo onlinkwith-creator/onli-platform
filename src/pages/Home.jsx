@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import JobCard from "../components/JobCard";
-import { supabase, supabaseConfigError } from "../supabase";
+import { publicSupabase, supabaseConfigError } from "../supabase";
 import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusBadgeClass,
@@ -27,6 +27,12 @@ import {
 
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
+}
+
+function isApprovedPublicInterpreter(interpreter = {}) {
+  const status = String(interpreter.status || "").trim().toLowerCase();
+  const approved = interpreter.approved === true || String(interpreter.approved) === "true";
+  return approved && ["active", "warning", "approved", ""].includes(status);
 }
 
 function Home({
@@ -57,24 +63,26 @@ function Home({
     setInterpreterErrorMessage("");
 
     try {
-      if (!supabase) throw supabaseConfigError;
+      if (!publicSupabase) throw supabaseConfigError;
 
-      const { data, error } = await supabase
+      const { data, error } = await publicSupabase
         .from("interpreters")
         .select(PUBLIC_INTERPRETER_SELECT)
         .eq("approved", true)
-        .in("status", ["active", "warning"])
-        .order("id", { ascending: false })
-        .limit(10);
+        .in("status", ["active", "warning", "approved"]);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase select error:", error);
+        throw error;
+      }
 
-      setFeaturedInterpreters(data || []);
+      const publicInterpreters = (data || []).filter(isApprovedPublicInterpreter);
+      setFeaturedInterpreters(publicInterpreters.slice(0, 10));
     } catch (error) {
       console.error(error);
       setFeaturedInterpreters([]);
       setInterpreterErrorMessage(
-        getSupabaseErrorMessage(error, "통역사 정보를 불러오지 못했습니다.")
+        getSupabaseErrorMessage(error, "데이터를 불러오지 못했습니다.")
       );
     } finally {
       setInterpreterLoading(false);
@@ -86,16 +94,19 @@ function Home({
     setJobsErrorMessage("");
 
     try {
-      const { data, error } = await fetchPublicJobs(supabase, { limit: 7 });
+      const { data, error } = await fetchPublicJobs(publicSupabase, { limit: 7 });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase select error:", error);
+        throw error;
+      }
 
       setFeaturedJobs(data || []);
     } catch (error) {
       console.error("jobs fetch error:", error);
       setFeaturedJobs([]);
       setJobsErrorMessage(
-        getSupabaseErrorMessage(error, "통역 공고를 불러오지 못했습니다.")
+        getSupabaseErrorMessage(error, "데이터를 불러오지 못했습니다.")
       );
     } finally {
       setJobsLoading(false);
@@ -282,7 +293,7 @@ function Home({
         ) : jobsErrorMessage ? (
           <div className="home-empty">{jobsErrorMessage}</div>
         ) : featuredJobs.length === 0 ? (
-          <div className="home-empty">현재 표시할 공고가 없습니다.</div>
+          <div className="home-empty">현재 등록된 공고가 없습니다.</div>
         ) : (
           <HomeCarousel
             railClassName="home-job-carousel"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase, supabaseConfigError } from "../supabase";
+import { publicSupabase, supabaseConfigError } from "../supabase";
 import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import {
   INTERPRETER_ACTIVITY_STATUS,
@@ -61,6 +61,12 @@ const ageOptions = [
   { value: "50plus", label: "50대 이상" },
 ];
 
+function isApprovedPublicInterpreter(interpreter = {}) {
+  const status = String(interpreter.status || "").trim().toLowerCase();
+  const approved = interpreter.approved === true || String(interpreter.approved) === "true";
+  return approved && ["active", "warning", "approved", ""].includes(status);
+}
+
 function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
   const [interpreters, setInterpreters] = useState([]);
   const [filters, setFilters] = useState(initialFilters);
@@ -72,27 +78,27 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
       setLoading(true);
       setErrorMessage("");
 
-      if (!supabase) {
+      if (!publicSupabase) {
         setErrorMessage(supabaseConfigError.message);
         setLoading(false);
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await publicSupabase
         .from("interpreters")
         .select(PUBLIC_INTERPRETER_SELECT)
         .eq("approved", true)
-        .in("status", ["active", "warning"])
-        .order("id", { ascending: false });
+        .in("status", ["active", "warning", "approved"]);
 
       if (error) {
-        console.error(error);
+        console.error("Supabase select error:", error);
         setErrorMessage("통역사 정보를 불러오지 못했습니다.");
         setLoading(false);
         return;
       }
 
-      setInterpreters(data || []);
+      const publicInterpreters = (data || []).filter(isApprovedPublicInterpreter);
+      setInterpreters(publicInterpreters);
       setLoading(false);
     };
 
