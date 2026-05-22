@@ -17,6 +17,7 @@ import {
   Star,
   User,
   X,
+} from "lucide-react";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
 import MonthFilterInput from "../components/MonthFilterInput";
@@ -2313,6 +2314,7 @@ function Admin() {
             )}
           
           </>
+        )}
       </div>
     </div>
   );

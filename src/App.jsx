@@ -11,6 +11,7 @@ import JobDetail from "./pages/JobDetail";
 import InterpreterLogin from "./pages/InterpreterLogin";
 import InterpreterSignup from "./pages/InterpreterSignup";
 import InterpreterMypage from "./pages/InterpreterMypage";
+import Login from "./pages/Login";
 import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
 import { useAuth } from "./hooks/useAuth";
 import { supabase } from "./supabase";
@@ -31,6 +32,7 @@ function getInitialPage() {
   if (path === "/request") return "jobCreate";
   if (path === "/jobs") return "jobs";
   if (path === "/jobs/create") return "jobCreate";
+  if (path === "/login") return "login";
   if (path === "/interpreter-login") return "interpreterLogin";
   if (path === "/interpreter-signup") return "interpreterSignup";
   if (path === "/interpreter-mypage") return "interpreterMypage";
@@ -77,6 +79,7 @@ function getPath(page, interpreter, jobId, policyKey) {
   if (page === "jobs") return "/jobs";
   if (page === "jobCreate") return "/request";
   if (page === "jobDetail" && jobId) return `/jobs/${jobId}`;
+  if (page === "login") return "/login";
   if (page === "interpreterLogin") return "/interpreter-login";
   if (page === "interpreterSignup") return "/interpreter-signup";
   if (page === "interpreterMypage") return "/interpreter-mypage";
@@ -132,11 +135,16 @@ function App() {
     navigate("interpreterLogin", null, null);
   };
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate("home", null, null);
+  };
+
   const openInterpreterRegister = () => {
     if (authLoading) return;
     if (!user) {
-      alert("로그인해주세요.");
-      navigate("interpreterLogin", null, null);
+      alert("로그인 후 이용 가능합니다.");
+      navigate("login", null, null);
       return;
     }
     navigate("register", null, null);
@@ -161,6 +169,13 @@ function App() {
       window.removeEventListener("popstate", handlePopState);
     };
   }, []);
+
+  useEffect(() => {
+    if (!authLoading && !user && page === "register") {
+      alert("로그인 후 이용 가능합니다.");
+      navigate("login", null, null);
+    }
+  }, [user, authLoading, page]);
 
   useEffect(() => {
     const fetchInterpreter = async () => {
@@ -191,6 +206,8 @@ function App() {
     <>
       {page === "home" && (
         <Home
+          user={user}
+          onLogoutClick={handleLogout}
           onRegisterClick={openInterpreterRegister}
           onAboutClick={() => navigate("about", null, null)}
           onListClick={() => navigate("list", null)}
@@ -207,8 +224,8 @@ function App() {
             }, 0);
           }}
           onRequestClick={() => navigate("jobCreate", null, null)}
-          onInterpreterLoginClick={() => navigate("interpreterLogin", null, null)}
-          onInterpreterSignupClick={() => navigate("interpreterSignup", null, null)}
+          onInterpreterLoginClick={() => navigate("login", null, null)}
+          onInterpreterSignupClick={() => navigate("login", null, null)}
         />
       )}
 
@@ -232,10 +249,10 @@ function App() {
 
       {page === "register" && !authLoading && !user && (
         <RouteMessage
-          title="로그인이 필요합니다."
-          description="통역사 등록은 통역사 계정으로 로그인한 뒤 이용할 수 있습니다."
-          primaryText="통역사 로그인"
-          onPrimaryClick={() => navigate("interpreterLogin", null, null)}
+          title="로그인 후 이용 가능합니다."
+          description="통역사 등록은 로그인 후 이용 가능합니다."
+          primaryText="로그인하기"
+          onPrimaryClick={() => navigate("login", null, null)}
           onHomeClick={() => navigate("home", null, null)}
         />
       )}
@@ -245,8 +262,15 @@ function App() {
           authUser={user}
           onBackClick={() => navigate("home", null)}
           onSubmitSuccess={() => navigate("home", null)}
-          onLoginClick={() => navigate("interpreterLogin", null, null)}
-          onSignupClick={() => navigate("interpreterSignup", null, null)}
+          onLoginClick={() => navigate("login", null, null)}
+          onSignupClick={() => navigate("login", null, null)}
+        />
+      )}
+
+      {page === "login" && (
+        <Login
+          onBackClick={() => navigate("home", null, null)}
+          onLoginSuccess={() => navigate("home", null, null)}
         />
       )}
 

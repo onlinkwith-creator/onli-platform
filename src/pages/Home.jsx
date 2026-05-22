@@ -28,6 +28,8 @@ function getSupabaseErrorMessage(error, fallback) {
 }
 
 function Home({
+  user,
+  onLogoutClick,
   onAboutClick,
   onRegisterClick,
   onListClick,
@@ -156,12 +158,20 @@ function Home({
           <button type="button" onClick={() => scrollToSection("contact")}>
             문의하기
           </button>
-          <button type="button" onClick={onInterpreterLoginClick}>
-            통역사 로그인
-          </button>
-          <button type="button" onClick={onInterpreterSignupClick}>
-            회원가입
-          </button>
+          {user ? (
+            <>
+              <span className="home-user-email" style={{ color: '#4f46e5', fontWeight: 700, fontSize: '14px', marginRight: '8px' }}>
+                {user.email}
+              </span>
+              <button type="button" onClick={onLogoutClick}>
+                로그아웃
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={onInterpreterLoginClick}>
+              로그인
+            </button>
+          )}
         </nav>
       </header>
 
@@ -246,9 +256,15 @@ function Home({
             <button type="button" onClick={onListClick} className="home-secondary">
               등록된 통역사 보기
             </button>
-            <button type="button" onClick={onInterpreterLoginClick} className="home-secondary">
-              통역사 로그인
-            </button>
+            {user ? (
+              <button type="button" onClick={onLogoutClick} className="home-secondary">
+                로그아웃
+              </button>
+            ) : (
+              <button type="button" onClick={onInterpreterLoginClick} className="home-secondary">
+                통역사 로그인
+              </button>
+            )}
           </div>
         </div>
       </section>
