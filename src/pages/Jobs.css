@@ -554,3 +554,91 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ========================================================
+   Interpreter Profile Summary Card & Textarea Enhancement
+   ======================================================== */
+
+.interpreter-profile-summary-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+  text-align: left;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.interpreter-profile-summary-card .summary-title {
+  margin: 0 0 12px 0;
+  color: #4f46e5;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.interpreter-profile-summary-card .summary-title::before {
+  content: "✓";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: #4f46e5;
+  color: #ffffff;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.interpreter-profile-summary-card .summary-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+}
+
+.interpreter-profile-summary-card .summary-details span {
+  font-size: 13.5px;
+  color: #334155;
+  font-weight: 600;
+  line-height: 1.4;
+  display: block;
+}
+
+.interpreter-profile-summary-card .summary-details strong {
+  color: #64748b;
+  font-weight: 700;
+  margin-right: 6px;
+  display: inline-block;
+  min-width: 48px;
+}
+
+.interpreter-profile-summary-card .summary-footer {
+  margin: 10px 0 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.job-apply-card textarea {
+  line-height: 1.6 !important;
+  font-size: 14px !important;
+  padding: 14px 16px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 14px !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.job-apply-card textarea:focus {
+  border-color: #4f46e5 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1) !important;
+}
+
