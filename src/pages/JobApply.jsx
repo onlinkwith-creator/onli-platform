@@ -4,6 +4,7 @@ import TermsAgreement, {
   initialTermsAgreement,
 } from "../components/TermsAgreement";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
+import { useAuth } from "../hooks/useAuth";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
@@ -42,6 +43,9 @@ function getSupabaseErrorMessage(error, fallback) {
 }
 
 function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
+  const { user, loading: authLoading } = useAuth();
+  const [interpreterProfile, setInterpreterProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [job, setJob] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [agreements, setAgreements] = useState(initialTermsAgreement);
@@ -100,6 +104,58 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
     queueMicrotask(fetchJob);
   }, [fetchJob]);
 
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user || !supabase) {
+        setInterpreterProfile(null);
+        return;
+      }
+      setProfileLoading(true);
+      try {
+        const normalizedEmail = String(user.email || "").toLowerCase().trim();
+        const { data, error } = await supabase
+          .from("interpreters")
+          .select("*")
+          .ilike("email", normalizedEmail);
+
+        if (error) {
+          console.error("Failed to fetch interpreter profile for application", error);
+          return;
+        }
+
+        const matched = (data || []).find(
+          (item) => String(item.email || "").toLowerCase().trim() === normalizedEmail
+        );
+
+        if (matched) {
+          setInterpreterProfile(matched);
+          setForm({
+            name: matched.name || "",
+            phone: matched.phone || "",
+            email: matched.email || user.email || "",
+            gender: matched.gender === "남자" ? "남성" : matched.gender === "여자" ? "여성" : (matched.gender || ""),
+            japaneseLevel: matched.level || "LV1",
+            experience: [
+              matched.school ? `출신학교/전공: ${matched.school}` : "",
+              matched.jlpt ? `JLPT: ${matched.jlpt}` : "",
+              matched.experience_count ? `통역 경험 횟수: ${matched.experience_count}회` : "",
+              matched.available_tasks ? `수행 가능 업무: ${matched.available_tasks}` : "",
+            ].filter(Boolean).join("\n") || "프로필 정보 참고",
+            message: "",
+          });
+        } else {
+          setInterpreterProfile(null);
+        }
+      } catch (err) {
+        console.error("Error loading interpreter profile", err);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    queueMicrotask(loadProfile);
+  }, [user]);
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
@@ -142,7 +198,7 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
     const applicantEmail = normalizeApplicationEmail(form.email);
     const applicantPhone = normalizeApplicationPhone(form.phone);
 
-    const matchedInterpreter = await findInterpreterByEmail(applicantEmail);
+    const matchedInterpreter = interpreterProfile || (await findInterpreterByEmail(applicantEmail));
     const application = {
       job_id: job.id,
       interpreter_id: matchedInterpreter?.id || null,
@@ -402,63 +458,78 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
             <aside className="job-apply-card">
               <h2>지원하기</h2>
               <form onSubmit={handleSubmit}>
-                <label>
-                  <span>이름</span>
-                  <input name="name" value={form.name} onChange={handleChange} required />
-                </label>
+                {interpreterProfile ? (
+                  <div className="interpreter-profile-summary-card">
+                    <p className="summary-title">통역사 정보 자동 입력됨</p>
+                    <div className="summary-details">
+                      <span><strong>이름:</strong> {interpreterProfile.name}</span>
+                      <span><strong>연락처:</strong> {interpreterProfile.phone}</span>
+                      <span><strong>이메일:</strong> {interpreterProfile.email}</span>
+                      <span><strong>레벨:</strong> {interpreterProfile.level || "LV1"}</span>
+                    </div>
+                    <p className="summary-footer">프로필 등록 정보로 자동 지원됩니다.</p>
+                  </div>
+                ) : (
+                  <>
+                    <label>
+                      <span>이름</span>
+                      <input name="name" value={form.name} onChange={handleChange} required />
+                    </label>
 
-                <label>
-                  <span>연락처</span>
-                  <input name="phone" value={form.phone} onChange={handleChange} required />
-                </label>
+                    <label>
+                      <span>연락처</span>
+                      <input name="phone" value={form.phone} onChange={handleChange} required />
+                    </label>
 
-                <label>
-                  <span>이메일</span>
-                  <input
-                    name="email"
-                    type="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    required
-                  />
-                </label>
+                    <label>
+                      <span>이메일</span>
+                      <input
+                        name="email"
+                        type="email"
+                        value={form.email}
+                        onChange={handleChange}
+                        required
+                      />
+                    </label>
 
-                <label>
-                  <span>성별</span>
-                  <select name="gender" value={form.gender} onChange={handleChange} required>
-                    <option value="">선택해주세요</option>
-                    <option value="여성">여성</option>
-                    <option value="남성">남성</option>
-                    <option value="기타/응답 안 함">기타/응답 안 함</option>
-                  </select>
-                </label>
+                    <label>
+                      <span>성별</span>
+                      <select name="gender" value={form.gender} onChange={handleChange} required>
+                        <option value="">선택해주세요</option>
+                        <option value="여성">여성</option>
+                        <option value="남성">남성</option>
+                        <option value="기타/응답 안 함">기타/응답 안 함</option>
+                      </select>
+                    </label>
 
-                <label>
-                  <span>일본어 수준</span>
-                  <select
-                    name="japaneseLevel"
-                    value={form.japaneseLevel}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="">선택해주세요</option>
-                    <option value="LV1">LV1</option>
-                    <option value="LV2">LV2</option>
-                    <option value="LV3">LV3</option>
-                    <option value="LV4">LV4</option>
-                  </select>
-                </label>
+                    <label>
+                      <span>일본어 수준</span>
+                      <select
+                        name="japaneseLevel"
+                        value={form.japaneseLevel}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">선택해주세요</option>
+                        <option value="LV1">LV1</option>
+                        <option value="LV2">LV2</option>
+                        <option value="LV3">LV3</option>
+                        <option value="LV4">LV4</option>
+                      </select>
+                    </label>
 
-                <label>
-                  <span>통역 경험</span>
-                  <textarea
-                    name="experience"
-                    value={form.experience}
-                    onChange={handleChange}
-                    rows={4}
-                    required
-                  />
-                </label>
+                    <label>
+                      <span>통역 경험</span>
+                      <textarea
+                        name="experience"
+                        value={form.experience}
+                        onChange={handleChange}
+                        rows={4}
+                        required
+                      />
+                    </label>
+                  </>
+                )}
 
                 <label>
                   <span>지원 메모</span>

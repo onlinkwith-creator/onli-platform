@@ -40,6 +40,7 @@ function Home({
   onRequestClick,
   onInterpreterLoginClick,
   onInterpreterSignupClick,
+  onMypageClick,
 }) {
   const [featuredInterpreters, setFeaturedInterpreters] = useState([]);
   const [featuredJobs, setFeaturedJobs] = useState([]);
@@ -163,6 +164,9 @@ function Home({
               <span className="home-user-email" style={{ color: '#4f46e5', fontWeight: 700, fontSize: '14px', marginRight: '8px' }}>
                 {user.email}
               </span>
+              <button type="button" onClick={onMypageClick} style={{ color: '#4f46e5', fontWeight: 800 }}>
+                마이페이지
+              </button>
               <button type="button" onClick={onLogoutClick}>
                 로그아웃
               </button>
@@ -257,9 +261,14 @@ function Home({
               등록된 통역사 보기
             </button>
             {user ? (
-              <button type="button" onClick={onLogoutClick} className="home-secondary">
-                로그아웃
-              </button>
+              <>
+                <button type="button" onClick={onMypageClick} className="home-secondary" style={{ border: '1px solid #4f46e5', color: '#4f46e5' }}>
+                  마이페이지
+                </button>
+                <button type="button" onClick={onLogoutClick} className="home-secondary">
+                  로그아웃
+                </button>
+              </>
             ) : (
               <button type="button" onClick={onInterpreterLoginClick} className="home-secondary">
                 통역사 로그인

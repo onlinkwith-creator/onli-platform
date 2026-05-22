@@ -226,6 +226,7 @@ function App() {
           onRequestClick={() => navigate("jobCreate", null, null)}
           onInterpreterLoginClick={() => navigate("login", null, null)}
           onInterpreterSignupClick={() => navigate("login", null, null)}
+          onMypageClick={() => navigate("interpreterMypage", null, null)}
         />
       )}
 
@@ -270,7 +271,7 @@ function App() {
       {page === "login" && (
         <Login
           onBackClick={() => navigate("home", null, null)}
-          onLoginSuccess={() => navigate("home", null, null)}
+          onLoginSuccess={() => navigate("interpreterMypage", null, null)}
         />
       )}
 
