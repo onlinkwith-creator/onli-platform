@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { publicSupabase, supabaseConfigError } from "../supabase";
+import { supabase, supabaseConfigError } from "../supabase";
 import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
 } from "../utils/status";
 import {
-  PUBLIC_INTERPRETER_SELECT,
   getPrimaryPublicInterpreterInfo,
 } from "../utils/publicInterpreter";
 import "./InterpreterList.css";
@@ -61,12 +60,6 @@ const ageOptions = [
   { value: "50plus", label: "50대 이상" },
 ];
 
-function isApprovedPublicInterpreter(interpreter = {}) {
-  const status = String(interpreter.status || "").trim().toLowerCase();
-  const approved = interpreter.approved === true || String(interpreter.approved) === "true";
-  return approved && ["active", "warning", "approved", ""].includes(status);
-}
-
 function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
   const [interpreters, setInterpreters] = useState([]);
   const [filters, setFilters] = useState(initialFilters);
@@ -78,27 +71,25 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
       setLoading(true);
       setErrorMessage("");
 
-      if (!publicSupabase) {
+      if (!supabase) {
         setErrorMessage(supabaseConfigError.message);
         setLoading(false);
         return;
       }
 
-      const { data, error } = await publicSupabase
+      const { data, error } = await supabase
         .from("interpreters")
-        .select(PUBLIC_INTERPRETER_SELECT)
-        .eq("approved", true)
-        .in("status", ["active", "warning", "approved"]);
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Supabase select error:", error);
-        setErrorMessage("통역사 정보를 불러오지 못했습니다.");
+        console.error("Failed to fetch interpreters:", error);
+        setErrorMessage(`데이터를 불러오지 못했습니다. (${error.message})`);
         setLoading(false);
         return;
       }
 
-      const publicInterpreters = (data || []).filter(isApprovedPublicInterpreter);
-      setInterpreters(publicInterpreters);
+      setInterpreters(data || []);
       setLoading(false);
     };
 

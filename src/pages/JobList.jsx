@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import JobCard from "../components/JobCard";
-import { publicSupabase } from "../supabase";
-import { fetchPublicJobs } from "../utils/jobsApi";
+import { supabase } from "../supabase";
 import "./Home.css";
 import "./Jobs.css";
 
@@ -19,9 +18,17 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
     setErrorMessage("");
 
     try {
-      const { data, error } = await fetchPublicJobs(publicSupabase);
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Failed to fetch jobs:", error);
+        setErrorMessage(getSupabaseErrorMessage(error, "데이터를 불러오지 못했습니다."));
+        setJobs([]);
+        return;
+      }
 
       setJobs(data || []);
     } catch (error) {
