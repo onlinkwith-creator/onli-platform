@@ -98,6 +98,27 @@ const TABS = [
 ];
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
+const INTERPRETER_UPDATE_COLUMNS = new Set([
+  "name",
+  "email",
+  "gender",
+  "age",
+  "region",
+  "level",
+  "approved",
+  "status",
+  "activity_status",
+  "warning_count",
+  "jlpt",
+  "stay_period",
+  "school",
+  "has_experience",
+  "experience_count",
+  "available_tasks",
+  "specialties",
+  "available_regions",
+]);
+const INTERPRETER_STATUS_VALUES = new Set(INTERPRETER_STATUSES);
 const REQUEST_STATUSES = [
   MATCHING_STATUS.DRAFT,
   MATCHING_STATUS.ASSIGNED,
@@ -600,37 +621,66 @@ function Admin() {
     setActiveTab(card.targetTab);
   };
 
-  const updateInterpreter = async (id, changes) => {
+  const updateInterpreter = async (id, changes, options = {}) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
-      return;
+      return false;
+    }
+
+    if (!id) {
+      alert("통역사 ID가 없어 수정할 수 없습니다.");
+      return false;
+    }
+
+    const { payload, errorMessage: payloadErrorMessage } =
+      prepareInterpreterUpdatePayload(changes);
+
+    if (payloadErrorMessage) {
+      alert(payloadErrorMessage);
+      return false;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      alert("저장할 수 있는 변경 항목이 없습니다.");
+      return false;
     }
 
     setSavingKey(`interpreter-${id}`);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("interpreters")
-      .update(changes)
-      .eq("id", id);
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
     setSavingKey("");
 
     if (error) {
-      console.error(error);
-      alert("통역사 정보 변경에 실패했습니다.");
-      return;
+      console.error("Interpreter update failed", {
+        id,
+        payload,
+        error,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      alert(`수정 실패: ${error.message}`);
+      return false;
     }
 
     const interpreter = interpreters.find((item) => item.id === id);
     const isNewApproval =
-      changes.approved === true &&
-      changes.status === "active" &&
+      payload.approved === true &&
+      payload.status === "active" &&
       interpreter &&
       !interpreter.approved;
+    const nextInterpreter = data || { ...interpreter, ...payload };
 
     setInterpreters((current) =>
-      current.map((item) => (item.id === id ? { ...item, ...changes } : item))
+      current.map((item) => (item.id === id ? { ...item, ...nextInterpreter } : item))
     );
     setSelectedInterpreter((current) =>
-      current?.id === id ? { ...current, ...changes } : current
+      current?.id === id ? { ...current, ...nextInterpreter } : current
     );
 
     if (isNewApproval) {
@@ -643,6 +693,12 @@ function Admin() {
         specialties: formatListOrMissing(interpreter.specialties),
       });
     }
+
+    if (options.showSuccess) {
+      alert("통역사 정보가 수정되었습니다.");
+    }
+
+    return true;
   };
 
   const deleteInterpreter = async (id) => {
@@ -676,7 +732,12 @@ function Admin() {
   const updateInterpreterEditDraft = (name, value) => {
     setInterpreterEditDraft((current) => ({
       ...current,
-      [name]: value,
+      ...(name === "has_experience"
+        ? {
+            has_experience: value,
+            experience_count: value === "true" ? current?.experience_count || "" : 0,
+          }
+        : { [name]: value }),
     }));
   };
 
@@ -703,11 +764,12 @@ function Admin() {
   const saveInterpreterEditDraft = async () => {
     if (!selectedInterpreter || !interpreterEditDraft) return;
 
-    await updateInterpreter(
+    const isSaved = await updateInterpreter(
       selectedInterpreter.id,
-      getInterpreterChangesFromDraft(interpreterEditDraft)
+      getInterpreterChangesFromDraft(interpreterEditDraft),
+      { showSuccess: true }
     );
-    if (interpreterModalType === "edit") closeInterpreterModal();
+    if (isSaved && interpreterModalType === "edit") closeInterpreterModal();
   };
 
   const updateRequest = async (id, changes) => {
@@ -3740,6 +3802,15 @@ function InterpreterModal({
                   onChange={(value) => onChangeDraft("has_experience", value)}
                 />
               </FieldControl>
+              <FieldControl label="통역 경험 횟수">
+                <input
+                  type="number"
+                  min="0"
+                  value={draft?.experience_count || 0}
+                  disabled={draft?.has_experience !== "true"}
+                  onChange={(event) => onChangeDraft("experience_count", event.target.value)}
+                />
+              </FieldControl>
               <FieldControl label="가능 업무">
                 <textarea
                   rows={3}
@@ -5489,6 +5560,89 @@ function isMissingColumnError(error) {
   );
 }
 
+function cleanPayload(payload) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(
+      ([key, value]) => INTERPRETER_UPDATE_COLUMNS.has(key) && value !== undefined
+    )
+  );
+}
+
+function prepareInterpreterUpdatePayload(changes = {}) {
+  const payload = cleanPayload(changes);
+
+  if ("age" in payload && String(payload.age || "").trim() !== "") {
+    const age = toNonNegativeInteger(payload.age);
+    if (age === null) return { payload: {}, errorMessage: "숫자 항목은 숫자로 입력해주세요." };
+    payload.age = String(age);
+  }
+
+  if ("warning_count" in payload) {
+    const count = toNonNegativeInteger(payload.warning_count);
+    if (count === null) return { payload: {}, errorMessage: "숫자 항목은 숫자로 입력해주세요." };
+    payload.warning_count = count;
+  }
+
+  if ("experience_count" in payload) {
+    const count = toNonNegativeInteger(payload.experience_count);
+    if (count === null) return { payload: {}, errorMessage: "숫자 항목은 숫자로 입력해주세요." };
+    payload.experience_count = count;
+  }
+
+  if ("has_experience" in payload) {
+    payload.has_experience = normalizeBoolean(payload.has_experience);
+    if (!payload.has_experience) payload.experience_count = 0;
+  }
+
+  if (payload.has_experience && String(changes.experience_count ?? "").trim() === "") {
+    return { payload: {}, errorMessage: "통역 경험 횟수를 입력해주세요." };
+  }
+
+  if ("approved" in payload) {
+    payload.approved = normalizeBoolean(payload.approved);
+  }
+
+  if ("status" in payload) {
+    payload.status = normalizeInterpreterStatus(payload.status);
+  }
+
+  if ("activity_status" in payload) {
+    payload.activity_status = normalizeInterpreterActivityStatus(payload.activity_status);
+  }
+
+  return { payload, errorMessage: "" };
+}
+
+function toNonNegativeInteger(value) {
+  const text = String(value ?? "").trim();
+  if (text === "") return 0;
+  if (!/^\d+$/.test(text)) return null;
+  return Math.max(0, Number(text));
+}
+
+function normalizeBoolean(value) {
+  return value === true || value === "true";
+}
+
+function normalizeInterpreterStatus(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (["승인 대기", "대기", "pending"].includes(normalized)) return "pending";
+  if (["승인 완료", "승인", "활동중", "approved", "active"].includes(normalized)) return "active";
+  if (["거절", "반려", "rejected"].includes(normalized)) return "rejected";
+  if (INTERPRETER_STATUS_VALUES.has(normalized)) return normalized;
+  return "pending";
+}
+
+function normalizeInterpreterActivityStatus(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (["활동중", "active"].includes(normalized)) return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
+  if (["비활성", "inactive"].includes(normalized)) return INTERPRETER_ACTIVITY_STATUS.INACTIVE;
+  if (["일시중지", "paused"].includes(normalized)) return INTERPRETER_ACTIVITY_STATUS.PAUSED;
+  if (["활동불가", "unavailable"].includes(normalized)) return INTERPRETER_ACTIVITY_STATUS.UNAVAILABLE;
+  if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(normalized)) return normalized;
+  return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
+}
+
 function withoutOperationFlowColumns(payload) {
   const legacyPayload = { ...payload };
   delete legacyPayload.assignment_status;
@@ -5595,6 +5749,7 @@ function createInterpreterEditDraft(interpreter = {}) {
     stay_period: interpreter.stay_period || "",
     school: interpreter.school || "",
     has_experience: String(Boolean(interpreter.has_experience)),
+    experience_count: interpreter.experience_count || 0,
     available_tasks: interpreter.available_tasks || "",
     specialties: listToDraftText(interpreter.specialties),
     available_regions: listToDraftText(interpreter.available_regions),
@@ -5623,6 +5778,7 @@ function getInterpreterChangesFromDraft(draft = {}) {
     stay_period: draft.stay_period,
     school: draft.school,
     has_experience: draft.has_experience === "true",
+    experience_count: draft.has_experience === "true" ? draft.experience_count : 0,
     available_tasks: draft.available_tasks,
     specialties: draftTextToList(draft.specialties),
     available_regions: draftTextToList(draft.available_regions),
