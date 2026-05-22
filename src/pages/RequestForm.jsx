@@ -146,14 +146,14 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     }
 
     if (!form.startDate) {
-      const message = "시작일을 선택해주세요.";
+      const message = "행사 시작일을 선택해주세요.";
       setErrorMessage(message);
       alert(message);
       return;
     }
 
     if (!form.endDate) {
-      const message = "종료일을 선택해주세요.";
+      const message = "행사 종료일을 선택해주세요.";
       setErrorMessage(message);
       alert(message);
       return;

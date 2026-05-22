@@ -1,4 +1,6 @@
-import { useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { DayPicker } from "react-day-picker";
+import { ko } from "react-day-picker/locale";
 import {
   addDays,
   formatDisplayDate,
@@ -17,10 +19,17 @@ function DateRangeInput({
   required = false,
   error = "",
 }) {
-  const startInputRef = useRef(null);
-  const endInputRef = useRef(null);
+  const pickerRef = useRef(null);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const normalizedStart = normalizeDateToISO(startDate);
   const normalizedEnd = normalizeDateToISO(endDate);
+  const selectedRange = useMemo(
+    () => ({
+      from: dateFromISO(normalizedStart),
+      to: singleDateMode ? dateFromISO(normalizedStart) : dateFromISO(normalizedEnd),
+    }),
+    [normalizedEnd, normalizedStart, singleDateMode]
+  );
   const validationMessage = error || getValidationMessage({
     startDate: normalizedStart,
     endDate: normalizedEnd,
@@ -35,45 +44,83 @@ function DateRangeInput({
     });
   };
 
-  const openPicker = (ref) => {
-    const input = ref.current;
-    if (!input) return;
-    if (typeof input.showPicker === "function") {
-      input.showPicker();
-      return;
-    }
-    input.click();
-    input.focus();
-  };
-
   const applyQuickRange = (days) => {
     if (!normalizedStart) return;
     updateRange(normalizedStart, addDays(normalizedStart, days - 1));
   };
 
+  const applyWeekRange = (weekOffset) => {
+    const { start, end } = getWeekRange(weekOffset);
+    updateRange(start, end);
+  };
+
+  const handleSelect = (range) => {
+    const nextStartDate = isoFromDate(range?.from);
+    const nextEndDate = singleDateMode
+      ? nextStartDate
+      : isoFromDate(range?.to) || (range?.from ? "" : "");
+
+    updateRange(nextStartDate, nextEndDate);
+
+    if (singleDateMode || (nextStartDate && nextEndDate)) {
+      setIsPickerOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isPickerOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (pickerRef.current?.contains(event.target)) return;
+      setIsPickerOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isPickerOpen]);
+
   return (
     <div className={`date-range-input${validationMessage ? " has-error" : ""}`}>
       <div className="date-range-head">
         <span>{label}</span>
-        <strong>{formatDisplayDateRange(normalizedStart, normalizedEnd)}</strong>
+        <strong>
+          선택 결과: {formatDisplayDateRange(normalizedStart, normalizedEnd)}
+        </strong>
       </div>
 
-      <div className="date-range-fields">
-        <DatePickerButton
-          inputRef={startInputRef}
-          label={singleDateMode ? "날짜" : "시작일"}
-          value={normalizedStart}
-          onClick={() => openPicker(startInputRef)}
-          onChange={(value) => updateRange(value, normalizedEnd || value)}
-        />
-        {!singleDateMode && (
+      <div className="date-range-picker-shell" ref={pickerRef}>
+        <div className="date-range-fields">
           <DatePickerButton
-            inputRef={endInputRef}
-            label="종료일"
-            value={normalizedEnd}
-            onClick={() => openPicker(endInputRef)}
-            onChange={(value) => updateRange(normalizedStart, value)}
+            label={singleDateMode ? "날짜" : "시작일"}
+            value={normalizedStart}
+            active={isPickerOpen}
+            onClick={() => setIsPickerOpen((current) => !current)}
           />
+          {!singleDateMode && (
+            <DatePickerButton
+              label="종료일"
+              value={normalizedEnd}
+              active={isPickerOpen}
+              onClick={() => setIsPickerOpen((current) => !current)}
+            />
+          )}
+        </div>
+
+        {isPickerOpen && (
+          <div className="date-range-calendar-panel">
+            <DayPicker
+              mode="range"
+              locale={ko}
+              selected={selectedRange.from ? selectedRange : undefined}
+              defaultMonth={selectedRange.from || new Date()}
+              onSelect={handleSelect}
+              numberOfMonths={1}
+              weekStartsOn={1}
+              fixedWeeks
+              resetOnSelect
+              showOutsideDays
+            />
+          </div>
         )}
       </div>
 
@@ -84,11 +131,18 @@ function DateRangeInput({
               key={days}
               type="button"
               disabled={!normalizedStart}
+              className={isMatchingRange(normalizedStart, normalizedEnd, days) ? "is-active" : ""}
               onClick={() => applyQuickRange(days)}
             >
               {days === 1 ? "하루 일정" : `${days}일 일정`}
             </button>
           ))}
+          <button type="button" onClick={() => applyWeekRange(0)}>
+            이번 주
+          </button>
+          <button type="button" onClick={() => applyWeekRange(1)}>
+            다음 주
+          </button>
         </div>
       )}
 
@@ -97,33 +151,68 @@ function DateRangeInput({
   );
 }
 
-function DatePickerButton({ inputRef, label, value, onClick, onChange }) {
+function DatePickerButton({ label, value, active, onClick }) {
   return (
     <div className="date-picker-card">
       <span>{label}</span>
-      <button type="button" onClick={onClick}>
+      <button
+        type="button"
+        className={active ? "is-active" : ""}
+        onClick={onClick}
+        aria-expanded={active}
+      >
         {value ? formatDisplayDate(value) : `${label} 선택`}
       </button>
-      <input
-        ref={inputRef}
-        tabIndex={-1}
-        type="date"
-        value={value || ""}
-        onChange={(event) => onChange(event.target.value)}
-        aria-hidden="true"
-      />
     </div>
   );
 }
 
 function getValidationMessage({ startDate, endDate, required, singleDateMode }) {
   if (!required) return "";
-  if (!startDate) return "시작일을 선택해주세요.";
-  if (!singleDateMode && !endDate) return "종료일을 선택해주세요.";
+  if (!startDate) return "행사 시작일을 선택해주세요.";
+  if (!singleDateMode && !endDate) return "행사 종료일을 선택해주세요.";
   if (!singleDateMode && endDate < startDate) {
     return "종료일은 시작일보다 빠를 수 없습니다.";
   }
   return "";
+}
+
+function dateFromISO(dateValue) {
+  const isoDate = normalizeDateToISO(dateValue);
+  if (!isoDate) return undefined;
+
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function isoFromDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekRange(weekOffset) {
+  const today = new Date();
+  const day = today.getDay() || 7;
+  const start = new Date(today);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(today.getDate() - day + 1 + weekOffset * 7);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return {
+    start: isoFromDate(start),
+    end: isoFromDate(end),
+  };
+}
+
+function isMatchingRange(startDate, endDate, days) {
+  if (!startDate || !endDate) return false;
+  return endDate === addDays(startDate, days - 1);
 }
 
 export default DateRangeInput;

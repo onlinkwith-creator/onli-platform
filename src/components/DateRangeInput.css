@@ -3,6 +3,10 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid #dbe3f0;
+  border-radius: 14px;
+  background: #ffffff;
 }
 
 .date-range-head {
@@ -24,6 +28,11 @@
   font-size: 12px;
   font-weight: 900;
   text-align: right;
+}
+
+.date-range-picker-shell {
+  position: relative;
+  min-width: 0;
 }
 
 .date-range-fields {
@@ -56,22 +65,124 @@
   font-weight: 800;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.date-picker-card button:hover {
-  border-color: #5b5cf0;
-  box-shadow: 0 0 0 3px rgba(91, 92, 240, 0.12);
+.date-picker-card button:hover,
+.date-picker-card button.is-active {
+  border-color: #4f46e5;
+  background: #f8faff;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
-.date-picker-card input {
+.date-range-calendar-panel {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
+  z-index: 20;
+  top: calc(100% + 10px);
+  left: 0;
+  width: min(100%, 356px);
+  padding: 12px;
+  border: 1px solid #dbe3f0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+}
+
+.date-range-calendar-panel .rdp-root {
+  --rdp-accent-color: #4f46e5;
+  --rdp-day-height: 38px;
+  --rdp-day-width: 38px;
+  --rdp-today-color: #4f46e5;
+  margin: 0;
+  width: 100%;
+}
+
+.date-range-calendar-panel .rdp-months,
+.date-range-calendar-panel .rdp-month,
+.date-range-calendar-panel .rdp-month_grid {
+  width: 100%;
+}
+
+.date-range-calendar-panel .rdp-month_caption {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 42px;
+}
+
+.date-range-calendar-panel .rdp-caption_label {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.date-range-calendar-panel .rdp-nav {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.date-range-calendar-panel .rdp-button_previous,
+.date-range-calendar-panel .rdp-button_next {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #dbe3f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.date-range-calendar-panel .rdp-weekday {
+  height: 30px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.date-range-calendar-panel .rdp-day {
+  padding: 1px;
+}
+
+.date-range-calendar-panel .rdp-day_button {
+  width: 100%;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.date-range-calendar-panel .rdp-day_button:hover {
+  background: #f8faff;
+  color: #4f46e5;
+}
+
+.date-range-calendar-panel .rdp-outside .rdp-day_button {
+  color: #c7ccd6;
+}
+
+.date-range-calendar-panel .rdp-today .rdp-day_button {
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.34);
+}
+
+.date-range-calendar-panel .rdp-selected .rdp-day_button,
+.date-range-calendar-panel .rdp-range_start .rdp-day_button,
+.date-range-calendar-panel .rdp-range_end .rdp-day_button {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.date-range-calendar-panel .rdp-range_middle .rdp-day_button {
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #4f46e5;
 }
 
 .date-range-quick {
@@ -93,8 +204,15 @@
   cursor: pointer;
 }
 
-.date-range-quick button:hover:not(:disabled) {
+.date-range-quick button:hover:not(:disabled),
+.date-range-quick button.is-active {
   border-color: rgba(91, 92, 240, 0.34);
+  background: #5b5cf0;
+  color: #ffffff;
+}
+
+.date-range-quick button:hover:not(:disabled):not(.is-active) {
+  background: #f8faff;
   color: #5b5cf0;
 }
 
@@ -116,7 +234,8 @@
 }
 
 .date-picker-card button:focus-visible,
-.date-range-quick button:focus-visible {
+.date-range-quick button:focus-visible,
+.date-range-calendar-panel button:focus-visible {
   outline: 3px solid rgba(91, 92, 240, 0.22);
   outline-offset: 2px;
 }
@@ -130,5 +249,9 @@
 
   .date-range-fields {
     grid-template-columns: 1fr;
+  }
+
+  .date-range-calendar-panel {
+    width: 100%;
   }
 }
