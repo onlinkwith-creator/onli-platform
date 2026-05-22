@@ -71,11 +71,13 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
   return (
     <section className="profile-hero-card" aria-labelledby="interpreter-profile-title">
       <div className="profile-hero-main">
-        <div className="profile-verified-kicker">
-          <BadgeCheck size={17} aria-hidden="true" />
-          <span>검증된 통역사</span>
-          <em>VERIFIED INTERPRETER</em>
-        </div>
+        {interpreter.approved && (
+          <div className="profile-verified-kicker">
+            <BadgeCheck size={17} aria-hidden="true" />
+            <span>검증된 통역사</span>
+            <em>VERIFIED INTERPRETER</em>
+          </div>
+        )}
 
         <h1 id="interpreter-profile-title">{profile.name}</h1>
         <p className="profile-summary">{profile.summary}</p>
@@ -93,8 +95,17 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
 
       <aside className="profile-hero-side" aria-label="프로필 인증 및 의뢰">
         <div className="profile-level-badge">
-          <ShieldCheck size={30} aria-hidden="true" />
-          <span>VERIFIED</span>
+          {interpreter.approved ? (
+            <>
+              <ShieldCheck size={30} aria-hidden="true" />
+              <span>VERIFIED</span>
+            </>
+          ) : (
+            <>
+              <Languages size={30} aria-hidden="true" />
+              <span>INTERPRETER</span>
+            </>
+          )}
           <strong>{profile.level}</strong>
         </div>
         <span className={`profile-status-badge ${profile.statusClass}`}>
@@ -222,7 +233,7 @@ function ProfileCTA({ interpreter, name, onBackClick, onRequestClick }) {
   return (
     <section className="profile-bottom-cta" aria-label="프로필 하단 액션">
       <div>
-        <span>ON-LI Verified Interpreter</span>
+        <span>{interpreter.approved ? "ON-LI Verified Interpreter" : "ON-LI Interpreter"}</span>
         <strong>{name} 통역사와 의뢰를 시작해보세요.</strong>
       </div>
       <div className="profile-bottom-actions">
