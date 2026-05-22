@@ -8,7 +8,11 @@ import RequestForm from "./pages/RequestForm";
 import Admin from "./pages/Admin";
 import JobList from "./pages/JobList";
 import JobDetail from "./pages/JobDetail";
+import InterpreterLogin from "./pages/InterpreterLogin";
+import InterpreterSignup from "./pages/InterpreterSignup";
+import InterpreterMypage from "./pages/InterpreterMypage";
 import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
+import { useAuth } from "./hooks/useAuth";
 import { supabase } from "./supabase";
 import { PUBLIC_INTERPRETER_SELECT } from "./utils/publicInterpreter";
 
@@ -27,6 +31,9 @@ function getInitialPage() {
   if (path === "/request") return "jobCreate";
   if (path === "/jobs") return "jobs";
   if (path === "/jobs/create") return "jobCreate";
+  if (path === "/interpreter-login") return "interpreterLogin";
+  if (path === "/interpreter-signup") return "interpreterSignup";
+  if (path === "/interpreter-mypage") return "interpreterMypage";
   if (path.startsWith("/jobs/") && path.endsWith("/apply")) {
     // /jobs/:id/apply를 /jobs/:id#apply로 리다이렉트
     const jobId = path.split("/")[2];
@@ -70,6 +77,9 @@ function getPath(page, interpreter, jobId, policyKey) {
   if (page === "jobs") return "/jobs";
   if (page === "jobCreate") return "/request";
   if (page === "jobDetail" && jobId) return `/jobs/${jobId}`;
+  if (page === "interpreterLogin") return "/interpreter-login";
+  if (page === "interpreterSignup") return "/interpreter-signup";
+  if (page === "interpreterMypage") return "/interpreter-mypage";
   if (page === "list") return "/interpreters";
   if (page === "detail" && interpreter?.id) {
     return `/interpreters/${interpreter.id}`;
@@ -86,6 +96,7 @@ function App() {
   const [selectedInterpreterId, setSelectedInterpreterId] = useState(getInitialInterpreterId);
   const [selectedJobId, setSelectedJobId] = useState(getInitialJobId);
   const [selectedPolicyKey, setSelectedPolicyKey] = useState(getInitialPolicyKey);
+  const { user, loading: authLoading, signOut } = useAuth();
 
   const navigate = (
     nextPage,
@@ -114,6 +125,11 @@ function App() {
     setPage("admin");
     window.history.pushState({ page: "admin" }, "", "/admin/jobs");
     window.scrollTo({ top: 0, behavior: "instant" });
+  };
+
+  const handleInterpreterSignOut = async () => {
+    await signOut();
+    navigate("interpreterLogin", null, null);
   };
 
   useEffect(() => {
@@ -181,6 +197,8 @@ function App() {
             }, 0);
           }}
           onRequestClick={() => navigate("jobCreate", null, null)}
+          onInterpreterLoginClick={() => navigate("interpreterLogin", null, null)}
+          onInterpreterSignupClick={() => navigate("interpreterSignup", null, null)}
         />
       )}
 
@@ -196,6 +214,34 @@ function App() {
         <RegisterInterpreter
           onBackClick={() => navigate("home", null)}
           onSubmitSuccess={() => navigate("home", null)}
+          onLoginClick={() => navigate("interpreterLogin", null, null)}
+          onSignupClick={() => navigate("interpreterSignup", null, null)}
+        />
+      )}
+
+      {page === "interpreterLogin" && (
+        <InterpreterLogin
+          onBackClick={() => navigate("home", null, null)}
+          onSignupClick={() => navigate("interpreterSignup", null, null)}
+          onLoginSuccess={() => navigate("interpreterMypage", null, null)}
+        />
+      )}
+
+      {page === "interpreterSignup" && (
+        <InterpreterSignup
+          onBackClick={() => navigate("home", null, null)}
+          onLoginClick={() => navigate("interpreterLogin", null, null)}
+          onSignupSuccess={() => navigate("interpreterMypage", null, null)}
+        />
+      )}
+
+      {page === "interpreterMypage" && (
+        <InterpreterMypage
+          authLoading={authLoading}
+          user={user}
+          onLoginClick={() => navigate("interpreterLogin", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+          onSignOut={handleInterpreterSignOut}
         />
       )}
 

@@ -38,6 +38,8 @@ function Home({
   onJobDetailClick,
   onJobApplyClick,
   onRequestClick,
+  onInterpreterLoginClick,
+  onInterpreterSignupClick,
 }) {
   const [featuredInterpreters, setFeaturedInterpreters] = useState([]);
   const [featuredJobs, setFeaturedJobs] = useState([]);
@@ -132,6 +134,12 @@ function Home({
           <button type="button" onClick={() => scrollToSection("contact")}>
             문의하기
           </button>
+          <button type="button" onClick={onInterpreterLoginClick}>
+            통역사 로그인
+          </button>
+          <button type="button" onClick={onInterpreterSignupClick}>
+            회원가입
+          </button>
         </nav>
       </header>
 
@@ -215,6 +223,9 @@ function Home({
             </button>
             <button type="button" onClick={onListClick} className="home-secondary">
               등록된 통역사 보기
+            </button>
+            <button type="button" onClick={onInterpreterLoginClick} className="home-secondary">
+              통역사 로그인
             </button>
           </div>
         </div>

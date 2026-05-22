@@ -60,7 +60,7 @@ const levelSystemCards = [
   },
 ];
 
-function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
+function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSignupClick }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [agreements, setAgreements] = useState(initialTermsAgreement);
@@ -435,6 +435,14 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess }) {
               <div>
                 <strong>입력하신 정보는 ON-LI 운영팀 검토 후 승인 여부가 안내됩니다.</strong>
                 <p>승인된 통역사만 공개 프로필에 표시되며 매칭 기회가 제공됩니다.</p>
+                <div className="register-account-actions">
+                  <button type="button" onClick={onLoginClick}>
+                    통역사 로그인
+                  </button>
+                  <button type="button" onClick={onSignupClick}>
+                    계정 만들기
+                  </button>
+                </div>
               </div>
               <button
                 type="submit"
