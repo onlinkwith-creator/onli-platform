@@ -1,7 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const rawUrl = import.meta.env.VITE_SUPABASE_URL;
+const rawAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const supabaseUrl = rawUrl?.trim();
+const supabaseAnonKey = rawAnonKey?.trim();
+
+console.log("Supabase env check:", {
+  hasUrl: Boolean(supabaseUrl),
+  hasAnonKey: Boolean(supabaseAnonKey),
+  url: supabaseUrl,
+});
 
 function isValidSupabaseUrl(value) {
   return typeof value === "string" && /^https:\/\/.+\.supabase\.co\/?$/.test(value);
@@ -19,19 +28,17 @@ export const isSupabaseConfigured =
   supabaseAnonKey.trim().length > 0;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Missing Supabase env vars", {
-    url: Boolean(supabaseUrl),
-    anonKey: Boolean(supabaseAnonKey),
-  });
+  console.error("Missing Supabase environment variables");
 }
 
-if (!isSupabaseConfigured) {
+if (supabaseUrl && !supabaseUrl.startsWith("https://")) {
+  console.error("Invalid Supabase URL format:", supabaseUrl);
+}
+
+if (supabaseUrl && supabaseUrl.includes("/rest/v1")) {
   console.error(
-    "Invalid Supabase env vars",
-    {
-      url: supabaseUrl || "missing",
-      anonKey: supabaseAnonKey ? "present" : "missing",
-    }
+    "VITE_SUPABASE_URL must be project URL only, not REST URL:",
+    supabaseUrl
   );
 }
 

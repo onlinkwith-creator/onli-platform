@@ -20,11 +20,15 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
     try {
       const { data, error } = await supabase
         .from("jobs")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .select("*");
 
       if (error) {
-        console.error("Failed to fetch jobs:", error);
+        console.error("Jobs fetch error:", {
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+          code: error?.code,
+        });
         setErrorMessage(getSupabaseErrorMessage(error, "데이터를 불러오지 못했습니다."));
         setJobs([]);
         return;

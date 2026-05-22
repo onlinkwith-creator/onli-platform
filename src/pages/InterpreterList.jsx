@@ -79,11 +79,15 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
 
       const { data, error } = await supabase
         .from("interpreters")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .select("*");
 
       if (error) {
-        console.error("Failed to fetch interpreters:", error);
+        console.error("Interpreters fetch error:", {
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+          code: error?.code,
+        });
         setErrorMessage(`데이터를 불러오지 못했습니다. (${error.message})`);
         setLoading(false);
         return;
