@@ -15,11 +15,8 @@ import {
   Building2,
   Camera,
   Clock,
-  Handshake,
-  Lock,
   Mail,
   MessageCircle,
-  ShieldCheck,
   UserRound,
 } from "lucide-react";
 
@@ -423,26 +420,8 @@ function Home({
           </a>
         </nav>
 
-        <div className="home-footer-trust" aria-label="서비스 신뢰 포인트">
-          <div className="home-footer-trust-item">
-            <ShieldCheck size={24} aria-hidden="true" />
-            <strong>검증 통역사</strong>
-            <span>Verified Interpreter</span>
-          </div>
-          <div className="home-footer-trust-item">
-            <Handshake size={24} aria-hidden="true" />
-            <strong>직접 매칭</strong>
-            <span>Direct Match</span>
-          </div>
-          <div className="home-footer-trust-item">
-            <Lock size={24} aria-hidden="true" />
-            <strong>안전 운영</strong>
-            <span>Safe Service</span>
-          </div>
-        </div>
-
         <div className="home-footer-divider" aria-hidden="true" />
-        <span className="home-footer-copy">© 2025 ON-LI. All rights reserved.</span>
+        <span className="home-footer-copy">© 2025 ON-LI. All rights reserved. | 사업자등록번호: 141-15-02905</span>
       </footer>
     </div>
   );

@@ -37,6 +37,92 @@ function InterpreterMypage({
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
+  // Profile Edit Mode States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    phone: "",
+    gender: "",
+    level: "Lv1",
+  });
+  const [specialtiesInput, setSpecialtiesInput] = useState("");
+  const [regionsInput, setRegionsInput] = useState("");
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  const handleStartEdit = () => {
+    if (!interpreter) return;
+    setEditForm({
+      name: interpreter.name || "",
+      phone: interpreter.phone || "",
+      gender: interpreter.gender || "",
+      level: interpreter.level || "Lv1",
+    });
+    setSpecialtiesInput(
+      Array.isArray(interpreter.specialties)
+        ? interpreter.specialties.filter(Boolean).join(", ")
+        : ""
+    );
+    setRegionsInput(
+      Array.isArray(interpreter.available_regions)
+        ? interpreter.available_regions.filter(Boolean).join(", ")
+        : ""
+    );
+    setIsEditingProfile(true);
+  };
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+  };
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    if (isUpdatingProfile || !supabase || !interpreter) return;
+    setIsUpdatingProfile(true);
+
+    const specialties = specialtiesInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const available_regions = regionsInput
+      .split(",")
+      .map((r) => r.trim())
+      .filter(Boolean);
+
+    const payload = {
+      name: editForm.name,
+      phone: editForm.phone,
+      gender: editForm.gender,
+      level: editForm.level,
+      specialties,
+      available_regions,
+    };
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Failed to update interpreter profile", error);
+      alert("프로필 수정에 실패했습니다. 다시 시도해주세요.");
+    } else {
+      setInterpreter(data);
+      setIsEditingProfile(false);
+      alert("프로필 정보가 성공적으로 수정되었습니다.");
+    }
+    setIsUpdatingProfile(false);
+  };
+
   const fetchApplicationsData = async (interpreterId) => {
     if (!supabase) return [];
     
@@ -450,102 +536,226 @@ function InterpreterMypage({
                   <article className="interpreter-mypage-card animate-fade-in">
                     <div className="card-header-with-action">
                       <h2>프로필 정보</h2>
-                      <div className="status-selector-wrapper">
-                        <label htmlFor="activity-status-select">활동 상태 수정:</label>
-                        <select
-                          id="activity-status-select"
-                          value={activityStatus}
-                          disabled={isUpdatingStatus}
-                          onChange={(e) => handleUpdateActivityStatus(e.target.value)}
-                          className="interpreter-status-select"
-                        >
-                          <option value="active">활동중 (공고 매칭 수신)</option>
-                          <option value="paused">일시중지 (배정 제외)</option>
-                          <option value="inactive">비활성 (활동 안함)</option>
-                        </select>
+                      <div className="profile-header-actions" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                        {!isEditingProfile && (
+                          <button
+                            type="button"
+                            className="interpreter-auth-secondary edit-btn"
+                            onClick={handleStartEdit}
+                            style={{ padding: "6px 12px", fontSize: "13px", height: "36px", display: "flex", alignItems: "center", gap: "6px", margin: 0 }}
+                          >
+                            ✏️ 프로필 수정
+                          </button>
+                        )}
+                        <div className="status-selector-wrapper">
+                          <label htmlFor="activity-status-select">활동 상태 수정:</label>
+                          <select
+                            id="activity-status-select"
+                            value={activityStatus}
+                            disabled={isUpdatingStatus}
+                            onChange={(e) => handleUpdateActivityStatus(e.target.value)}
+                            className="interpreter-status-select"
+                          >
+                            <option value="active">활동중 (공고 매칭 수신)</option>
+                            <option value="paused">일시중지 (배정 제외)</option>
+                            <option value="inactive">비활성 (활동 안함)</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 
-                    <dl className="interpreter-profile-list">
-                      <ProfileRow label="이름" value={interpreter.name || "미입력"} />
-                      <ProfileRow label="이메일" value={interpreter.email || user.email} />
-                      <ProfileRow label="연락처" value={interpreter.phone || "미입력"} />
-                      <ProfileRow label="성별" value={interpreter.gender || "미입력"} />
-                      <ProfileRow
-                        label="승인 상태"
-                        value={
-                          <span
-                            className={`status-badge ${
-                              interpreter.approved ? "badge-green" : "badge-yellow"
-                            }`}
-                          >
-                            {interpreter.approved ? "승인 완료" : "승인 대기"}
-                          </span>
-                        }
-                      />
-                      <ProfileRow
-                        label="활동 상태"
-                        value={
-                          <span
-                            className={`status-badge ${
-                              activityStatus === "active"
-                                ? "badge-green"
-                                : activityStatus === "paused"
-                                ? "badge-yellow"
-                                : "badge-gray"
-                            }`}
-                          >
-                            {getInterpreterActivityStatusLabel(activityStatus)}
-                          </span>
-                        }
-                      />
-                      <ProfileRow
-                        label="일본어 레벨"
-                        value={
-                          <span className="interpreter-tag-level">
-                            {normalizeLevel(interpreter.level || "Lv1")}
-                          </span>
-                        }
-                      />
-                      <ProfileRow
-                        label="전문 분야"
-                        value={
-                          <div className="interpreter-specialties-tags">
-                            {Array.isArray(interpreter.specialties) &&
-                            interpreter.specialties.filter(Boolean).length > 0 ? (
-                              interpreter.specialties
-                                .filter(Boolean)
-                                .map((spec, i) => (
-                                  <span key={i} className="interpreter-tag spec">
-                                    {spec}
-                                  </span>
-                                ))
-                            ) : (
-                              <span className="no-tags">등록된 분야가 없습니다.</span>
-                            )}
+                    {isEditingProfile ? (
+                      <form onSubmit={handleUpdateProfile} className="interpreter-edit-profile-form" style={{ marginTop: "20px" }}>
+                        <div className="form-group-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+                          <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
+                            <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>이름</span>
+                            <input
+                              type="text"
+                              name="name"
+                              value={editForm.name}
+                              onChange={handleEditFormChange}
+                              required
+                              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                            />
+                          </label>
+                          <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
+                            <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>연락처</span>
+                            <input
+                              type="text"
+                              name="phone"
+                              value={editForm.phone}
+                              onChange={handleEditFormChange}
+                              required
+                              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                            />
+                          </label>
+                          <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
+                            <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>이메일 (수정 불가)</span>
+                            <input
+                              type="email"
+                              value={interpreter.email}
+                              disabled
+                              className="disabled-input"
+                              style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "14px", background: "#f3f4f6", color: "#9ca3af", cursor: "not-allowed" }}
+                            />
+                          </label>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                            <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
+                              <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>성별</span>
+                              <select
+                                name="gender"
+                                value={editForm.gender}
+                                onChange={handleEditFormChange}
+                                required
+                                style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px", height: "42px" }}
+                              >
+                                <option value="여성">여성</option>
+                                <option value="남성">남성</option>
+                                <option value="기타/응답 안 함">기타/응답 안 함</option>
+                              </select>
+                            </label>
+                            <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
+                              <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>일본어 레벨</span>
+                              <select
+                                name="level"
+                                value={editForm.level}
+                                onChange={handleEditFormChange}
+                                required
+                                style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px", height: "42px" }}
+                              >
+                                <option value="Lv1">Lv1</option>
+                                <option value="Lv2">Lv2</option>
+                                <option value="Lv3">Lv3</option>
+                                <option value="Lv4">Lv4</option>
+                              </select>
+                            </label>
                           </div>
-                        }
-                      />
-                      <ProfileRow
-                        label="활동 가능 지역"
-                        value={
-                          <div className="interpreter-regions-tags">
-                            {Array.isArray(interpreter.available_regions) &&
-                            interpreter.available_regions.filter(Boolean).length > 0 ? (
-                              interpreter.available_regions
-                                .filter(Boolean)
-                                .map((reg, i) => (
-                                  <span key={i} className="interpreter-tag region">
-                                    {reg}
-                                  </span>
-                                ))
-                            ) : (
-                              <span className="no-tags">등록된 지역이 없습니다.</span>
-                            )}
-                          </div>
-                        }
-                      />
-                    </dl>
+                        </div>
+
+                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>전문 분야 (쉼표로 구분)</span>
+                          <input
+                            type="text"
+                            value={specialtiesInput}
+                            onChange={(e) => setSpecialtiesInput(e.target.value)}
+                            placeholder="예: IT, 의료, 제조, 비즈니스 미팅"
+                            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                          />
+                        </label>
+
+                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "24px" }}>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>활동 가능 지역 (쉼표로 구분)</span>
+                          <input
+                            type="text"
+                            value={regionsInput}
+                            onChange={(e) => setRegionsInput(e.target.value)}
+                            placeholder="예: 도쿄, 오사카, 서울, 후쿠오카"
+                            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                          />
+                        </label>
+
+                        <div className="edit-form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+                          <button
+                            type="button"
+                            className="interpreter-auth-secondary"
+                            onClick={handleCancelEdit}
+                            disabled={isUpdatingProfile}
+                            style={{ padding: "10px 20px", borderRadius: "10px", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}
+                          >
+                            취소
+                          </button>
+                          <button
+                            type="submit"
+                            className="interpreter-auth-primary"
+                            disabled={isUpdatingProfile}
+                            style={{ padding: "10px 20px", borderRadius: "10px", fontSize: "14px", fontWeight: "700", cursor: "pointer", background: "#4f46e5", color: "#ffffff", border: "none" }}
+                          >
+                            {isUpdatingProfile ? "저장 중..." : "변경사항 저장"}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <dl className="interpreter-profile-list">
+                        <ProfileRow label="이름" value={interpreter.name || "미입력"} />
+                        <ProfileRow label="이메일" value={interpreter.email || user.email} />
+                        <ProfileRow label="연락처" value={interpreter.phone || "미입력"} />
+                        <ProfileRow label="성별" value={interpreter.gender || "미입력"} />
+                        <ProfileRow
+                          label="승인 상태"
+                          value={
+                            <span
+                              className={`status-badge ${
+                                interpreter.approved ? "badge-green" : "badge-yellow"
+                              }`}
+                            >
+                              {interpreter.approved ? "승인 완료" : "승인 대기"}
+                            </span>
+                          }
+                        />
+                        <ProfileRow
+                          label="활동 상태"
+                          value={
+                            <span
+                              className={`status-badge ${
+                                activityStatus === "active"
+                                  ? "badge-green"
+                                  : activityStatus === "paused"
+                                  ? "badge-yellow"
+                                  : "badge-gray"
+                              }`}
+                            >
+                              {getInterpreterActivityStatusLabel(activityStatus)}
+                            </span>
+                          }
+                        />
+                        <ProfileRow
+                          label="일본어 레벨"
+                          value={
+                            <span className="interpreter-tag-level">
+                              {normalizeLevel(interpreter.level || "Lv1")}
+                            </span>
+                          }
+                        />
+                        <ProfileRow
+                          label="전문 분야"
+                          value={
+                            <div className="interpreter-specialties-tags">
+                              {Array.isArray(interpreter.specialties) &&
+                              interpreter.specialties.filter(Boolean).length > 0 ? (
+                                interpreter.specialties
+                                  .filter(Boolean)
+                                  .map((spec, i) => (
+                                    <span key={i} className="interpreter-tag spec">
+                                      {spec}
+                                    </span>
+                                  ))
+                              ) : (
+                                <span className="no-tags">등록된 분야가 없습니다.</span>
+                              )}
+                            </div>
+                          }
+                        />
+                        <ProfileRow
+                          label="활동 가능 지역"
+                          value={
+                            <div className="interpreter-regions-tags">
+                              {Array.isArray(interpreter.available_regions) &&
+                              interpreter.available_regions.filter(Boolean).length > 0 ? (
+                                interpreter.available_regions
+                                  .filter(Boolean)
+                                  .map((reg, i) => (
+                                    <span key={i} className="interpreter-tag region">
+                                      {reg}
+                                    </span>
+                                  ))
+                              ) : (
+                                <span className="no-tags">등록된 지역이 없습니다.</span>
+                              )}
+                            </div>
+                          }
+                        />
+                      </dl>
+                    )}
                   </article>
                 )}
 
