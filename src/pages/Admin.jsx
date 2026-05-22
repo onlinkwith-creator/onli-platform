@@ -17,8 +17,6 @@ import {
   Star,
   User,
   X,
-} from "lucide-react";
-import SupabaseDebugBox from "../components/SupabaseDebugBox";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
 import MonthFilterInput from "../components/MonthFilterInput";
@@ -2315,9 +2313,7 @@ function Admin() {
             )}
           
           </>
-        )}
       </div>
-      <SupabaseDebugBox label="Admin" />
     </div>
   );
 }
