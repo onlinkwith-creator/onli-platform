@@ -391,8 +391,12 @@ function Home({
               <Camera size={22} aria-hidden="true" />
               <span>Instagram</span>
             </a>
-            {/* TODO: 실제 KakaoTalk 채널 링크가 확정되면 href를 교체합니다. */}
-            <a className="home-footer-contact-item" href="#">
+            <a
+              className="home-footer-contact-item"
+              href="http://pf.kakao.com/_xeNxfxhX"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <MessageCircle size={22} aria-hidden="true" />
               <span>KakaoTalk</span>
             </a>
