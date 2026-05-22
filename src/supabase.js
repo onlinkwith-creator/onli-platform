@@ -4,12 +4,9 @@ const rawUrl = import.meta.env.VITE_SUPABASE_URL;
 const rawAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 let cleanedUrl = rawUrl?.trim() || "";
-if (cleanedUrl.endsWith("/")) {
-  cleanedUrl = cleanedUrl.slice(0, -1);
-}
-if (cleanedUrl.endsWith("/rest/v1")) {
-  cleanedUrl = cleanedUrl.slice(0, -8);
-}
+cleanedUrl = cleanedUrl.replace(/\/+$/, "");
+cleanedUrl = cleanedUrl.replace(/\/rest\/v1\/?$/, "");
+cleanedUrl = cleanedUrl.replace(/\/+$/, "");
 const supabaseUrl = cleanedUrl;
 const supabaseAnonKey = rawAnonKey?.trim();
 
