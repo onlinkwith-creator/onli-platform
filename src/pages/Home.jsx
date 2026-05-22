@@ -260,16 +260,7 @@ function Home({
             <button type="button" onClick={onListClick} className="home-secondary">
               등록된 통역사 보기
             </button>
-            {user ? (
-              <>
-                <button type="button" onClick={onMypageClick} className="home-secondary" style={{ border: '1px solid #4f46e5', color: '#4f46e5' }}>
-                  마이페이지
-                </button>
-                <button type="button" onClick={onLogoutClick} className="home-secondary">
-                  로그아웃
-                </button>
-              </>
-            ) : (
+            {!user && (
               <button type="button" onClick={onInterpreterLoginClick} className="home-secondary">
                 통역사 로그인
               </button>
