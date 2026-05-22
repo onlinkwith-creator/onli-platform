@@ -1,5 +1,5 @@
-const RESEND_API_URL = "https://api.resend.com/emails";
-const FROM_EMAIL = "ON-LI <onboarding@resend.dev>";
+import nodemailer from "npm:nodemailer@8.0.7";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +27,17 @@ const subjects = {
 type EmailType = keyof typeof subjects;
 type Payload = Record<string, unknown>;
 
+type MailOptions = {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+};
+
+type MailTransporter = {
+  sendMail: (mailOptions: MailOptions) => Promise<unknown>;
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -37,44 +48,63 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-async function readJsonOrText(response: Response) {
-  const text = await response.text();
-  if (!text) return {};
+function getPayloadRequestId(payload: Payload) {
+  const value =
+    payload.requestId ||
+    payload.request_id ||
+    payload.applicationId ||
+    payload.application_id ||
+    payload.interpreterId ||
+    payload.interpreter_id ||
+    payload.jobId ||
+    payload.job_id ||
+    payload.dedupeKey;
 
-  try {
-    return JSON.parse(text);
-  } catch (_error) {
-    return { message: text };
-  }
+  return value === undefined || value === null || value === ""
+    ? ""
+    : String(value);
 }
 
-async function sendWithResend(
-  apiKey: string,
-  to: string,
-  subject: string,
-  html: string
-) {
-  const response = await fetch(RESEND_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: FROM_EMAIL,
-      to,
-      subject,
-      html,
-    }),
-  });
-  const result = await readJsonOrText(response);
+async function sendMailOnce({
+  supabase,
+  transporter,
+  mailType,
+  relatedId,
+  recipientEmail,
+  mailOptions,
+}: {
+  supabase: SupabaseClient;
+  transporter: MailTransporter;
+  mailType: EmailType;
+  relatedId: string;
+  recipientEmail: string;
+  mailOptions: MailOptions;
+}) {
+  const recipient = recipientEmail.trim().toLowerCase();
+  const dedupeKey = `${mailType}:${relatedId}:${recipient}`;
 
-  return {
-    ok: response.ok,
-    status: response.status,
-    to,
-    result,
-  };
+  const { error } = await supabase
+    .from("mail_logs")
+    .insert({
+      dedupe_key: dedupeKey,
+      mail_type: mailType,
+      recipient,
+      related_id: relatedId || null,
+    });
+
+  if (error) {
+    if (error.code === "23505") {
+      console.log("[MAIL_DUPLICATE_BLOCKED]", dedupeKey);
+      return { skipped: true, dedupeKey };
+    }
+
+    throw error;
+  }
+
+  console.log("[MAIL_SEND_ONCE]", dedupeKey);
+
+  const result = await transporter.sendMail(mailOptions);
+  return { sent: true, dedupeKey, result };
 }
 
 function escapeHtml(value: unknown) {
@@ -345,7 +375,10 @@ Deno.serve(async (request) => {
     const payload = body?.payload && typeof body.payload === "object"
       ? (body.payload as Payload)
       : {};
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const gmailUser = Deno.env.get("GMAIL_USER");
+    const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     console.log("REQUEST BODY", {
       type,
@@ -353,11 +386,24 @@ Deno.serve(async (request) => {
       payload,
     });
     console.log("TO:", to);
-    console.log("HAS API KEY", !!resendApiKey);
+    console.log("HAS GMAIL USER", !!gmailUser);
+    console.log("HAS GMAIL APP PASSWORD", !!gmailAppPassword);
+    console.log("HAS SUPABASE URL", !!supabaseUrl);
+    console.log("HAS SUPABASE SERVICE ROLE KEY", !!serviceRoleKey);
 
-    if (!resendApiKey) {
-      console.error("SEND EMAIL FUNCTION ERROR", "Missing RESEND_API_KEY");
-      return jsonResponse({ error: "Missing RESEND_API_KEY" }, 500);
+    if (!gmailUser || !gmailAppPassword || !supabaseUrl || !serviceRoleKey) {
+      console.error("SEND EMAIL FUNCTION ERROR", "Missing required email secrets");
+      return jsonResponse({
+        ok: false,
+        source: "gmail",
+        error: "Missing required email secrets",
+        missing: {
+          GMAIL_USER: !gmailUser,
+          GMAIL_APP_PASSWORD: !gmailAppPassword,
+          SUPABASE_URL: !supabaseUrl,
+          SUPABASE_SERVICE_ROLE_KEY: !serviceRoleKey,
+        },
+      }, 500);
     }
 
     if (!type) {
@@ -376,46 +422,73 @@ Deno.serve(async (request) => {
     const html = buildHtml(type, payload);
     const subject = subjects[type];
 
-    const recipients = Array.isArray(to) ? to : [to];
+    const recipients = (Array.isArray(to) ? to : [to])
+      .map((recipient) => recipient.trim())
+      .filter(Boolean);
+    const requestId = getPayloadRequestId(payload);
+    const relatedId = requestId || String(payload.dedupeKey || "");
+    const smtpUser = gmailUser.trim();
+    const smtpPassword = gmailAppPassword.replace(/\s+/g, "");
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: smtpUser,
+        pass: smtpPassword,
+      },
+    });
+
+    console.log("[EDGE_FUNCTION_START]", relatedId);
+
+    console.log("[MAIL_SEND_START]", {
+      type,
+      targetEmail: recipients,
+      relatedId,
+      createdAt: new Date().toISOString(),
+    });
+
     const results = [];
 
-    for (const recipient of recipients) {
-      const resendResult = await sendWithResend(
-        resendApiKey,
-        recipient,
-        subject,
-        html
-      );
-      results.push(resendResult);
-      console.log("RESEND RESULT", resendResult);
-      console.log("RESEND RESPONSE", {
-        to: recipient,
-        status: resendResult.status,
-        result: resendResult.result,
+    for (const recipientEmail of recipients) {
+      const result = await sendMailOnce({
+        supabase,
+        transporter,
+        mailType: type,
+        relatedId,
+        recipientEmail,
+        mailOptions: {
+          from: `"ON-LI" <${smtpUser}>`,
+          to: recipientEmail,
+          subject,
+          html,
+        },
+      });
+
+      results.push({
+        recipient: recipientEmail,
+        ...result,
       });
     }
 
-    const successes = results.filter((result) => result.ok);
-    const failures = results.filter((result) => !result.ok);
-
-    if (failures.length > 0) {
-      console.error("RESEND SEND FAILED", failures);
-    }
-
-    if (successes.length === 0) {
-      const firstFailure = failures[0];
-      return jsonResponse({
-        error: "Resend send failed",
-        detail: firstFailure?.result || failures,
-      }, firstFailure?.status || 500);
-    }
+    console.log("GMAIL SMTP RESPONSE", {
+      to: recipients,
+      results,
+    });
 
     return jsonResponse({
-      ok: failures.length === 0,
-      result: Array.isArray(to) ? results : results[0]?.result,
-      id: successes[0]?.result?.id,
-      failures,
-    }, failures.length > 0 ? 207 : 200);
+      ok: true,
+      source: "gmail",
+      results,
+      sentCount: results.filter((result) => "sent" in result && result.sent).length,
+      skippedCount: results.filter((result) =>
+        "skipped" in result && result.skipped
+      ).length,
+    }, 200);
   } catch (error) {
     console.error("FUNCTION ERROR", error);
     console.error("SEND EMAIL FUNCTION ERROR", error);

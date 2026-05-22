@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, supabaseConfigError } from "../supabase";
+import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
 import MonthFilterInput from "../components/MonthFilterInput";
 import {
@@ -152,15 +152,21 @@ function AdminJobs({
     setErrorMessage("");
 
     try {
-      if (!supabase) throw supabaseConfigError;
+      if (!publicSupabase) throw supabaseConfigError;
 
       const [jobResult, applicationData] = await Promise.all([
-        supabase.from("jobs").select("*").order("created_at", { ascending: false }),
-        fetchJobApplications(),
+        publicSupabase.from("jobs").select("*").order("created_at", { ascending: false }),
+        fetchJobApplications(publicSupabase),
       ]);
 
-      if (jobResult.error) throw jobResult.error;
+      if (jobResult.error) {
+        console.error("Supabase select error:", jobResult.error);
+        alert(jobResult.error.message);
+        throw jobResult.error;
+      }
 
+      console.log("loaded jobs:", jobResult.data || []);
+      console.log("loaded applications:", applicationData || []);
       setJobs(jobResult.data || []);
       setApplications(applicationData);
     } catch (error) {

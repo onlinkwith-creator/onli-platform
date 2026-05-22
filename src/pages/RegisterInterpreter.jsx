@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
@@ -60,9 +60,11 @@ const levelSystemCards = [
   },
 ];
 
-function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSignupClick }) {
+function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginClick, onSignupClick }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [form, setForm] = useState({
     name: "",
@@ -81,6 +83,12 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSig
     availableRegions: [],
     availableTasks: "",
   });
+  const authEmail = normalizeEmail(authUser?.email);
+
+  useEffect(() => {
+    if (!authEmail) return;
+    setForm((current) => ({ ...current, email: authEmail }));
+  }, [authEmail]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -114,6 +122,12 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSig
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+
+    try {
     console.log("REGISTER SUBMIT START");
     console.log("REGISTER FORM DATA", form);
 
@@ -152,6 +166,24 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSig
       return;
     }
 
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    const userEmail = normalizeEmail(user?.email);
+
+    if (userError) {
+      console.error("Interpreter register auth user fetch error:", userError);
+    }
+
+    if (!user || !userEmail) {
+      const message = "로그인해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      onLoginClick?.();
+      return;
+    }
+
     console.log("BEFORE DB INSERT");
 
     const managementConfig = MANAGEMENT_NUMBER_CONFIG.interpreters;
@@ -160,7 +192,7 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSig
       gender: form.gender,
       age: form.age,
       region: form.region,
-      email: form.email,
+      email: userEmail,
       phone: form.phone,
       school: form.school,
       kakao_or_line: form.kakaoOrLine,
@@ -180,28 +212,20 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSig
     let payload = await addManagementNumber({
       supabase,
       table: "interpreters",
-      payload: basePayload,
+      payload: { ...basePayload, auth_user_id: user.id },
       ...managementConfig,
     });
 
-    let { data, error } = await supabase
-      .from("interpreters")
-      .insert([payload])
-      .select("id")
-      .single();
+    let { data, error } = await insertInterpreter(payload);
 
     if (isManagementNumberConflict(error, managementConfig.column)) {
       payload = await addManagementNumber({
         supabase,
         table: "interpreters",
-        payload: basePayload,
+        payload: { ...basePayload, auth_user_id: user.id },
         ...managementConfig,
       });
-      const retryResult = await supabase
-        .from("interpreters")
-        .insert([payload])
-        .select("id")
-        .single();
+      const retryResult = await insertInterpreter(payload);
       data = retryResult.data;
       error = retryResult.error;
     }
@@ -215,6 +239,7 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSig
       if (isAgreementColumnError(error)) {
         console.error("약관 동의 저장 실패:", error);
       }
+      console.error("Interpreter insert error:", error);
       console.error("DB INSERT ERROR", error);
       console.error("insert failed", {
         table: "interpreters",
@@ -222,79 +247,83 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSig
         error,
       });
       console.error("등록 실패 원인:", error.message);
-      alert("제출에 실패했습니다.");
+      alert(`등록 실패: ${error.message}`);
       return;
     }
 
-    const emailPayload = {
-      name: form.name,
-      gender: form.gender,
-      age: form.age,
+    console.log("INTERPRETER REGISTER SUCCESS");
+    console.log("REGISTER FORM EMAIL CHECK", {
       email: form.email,
-      phone: form.phone,
-      region: form.region,
-      regions: form.availableRegions.join(", "),
-      jlpt: form.jlpt,
-      experience: form.has_experience ? "통역 경험 있음" : "통역 경험 없음",
-      hasExperience: form.has_experience ? "통역 경험 있음" : "통역 경험 없음",
-      specialties: form.specialties.join(", "),
-      availableRegions: form.availableRegions.join(", "),
-      createdAt: new Date().toISOString(),
-    };
+      mail: form.mail,
+      interpreter_email: form.interpreter_email,
+      contact_email: form.contact_email,
+    });
+
     const interpreterEmail = (
       form.email ||
-      form.contact_email ||
       form.mail ||
+      form.interpreter_email ||
+      form.contact_email ||
       ""
     ).trim();
 
-    console.log("INTERPRETER REGISTER SUCCESS - START EMAILS");
-    console.log("START EMAIL FLOW");
-    console.log("USER EMAIL START", interpreterEmail);
-    console.log("INTERPRETER EMAIL TARGET:", interpreterEmail);
+    console.log("INTERPRETER USER EMAIL TARGET", interpreterEmail);
 
-    try {
-      if (interpreterEmail) {
-        const result = await sendAutoEmail(
-          "interpreter_registered_user",
-          interpreterEmail,
-          emailPayload
-        );
-        if (!result.ok) console.error("Interpreter user email failed", result.error || result);
-      } else {
-        console.warn("NO INTERPRETER EMAIL FOUND", form);
-        console.warn("Interpreter email missing", form);
-        console.warn("SKIP interpreter_registered_user: no email", form);
+    if (interpreterEmail) {
+      try {
+        console.log("SEND interpreter_registered_user START", interpreterEmail);
+
+        const result = await sendAutoEmail("interpreter_registered_user", interpreterEmail, {
+          requestId: data?.id || "",
+          interpreterId: data?.id || "",
+          name: form.name,
+          email: interpreterEmail,
+        });
+
+        if (!result.ok) {
+          console.error("interpreter_registered_user failed", result.error || result);
+        }
+
+        console.log("SEND interpreter_registered_user DONE");
+      } catch (e) {
+        console.error("interpreter_registered_user failed", e);
       }
-    } catch (error) {
-      console.error("USER EMAIL FAILED", error);
-      console.error("Interpreter user email failed", error);
+    } else {
+      console.warn("SKIP interpreter_registered_user: no interpreter email", form);
     }
 
     try {
-      console.log("ADMIN EMAIL START");
-      const result = await sendAutoEmail(
-        "interpreter_registered_admin",
-        ADMIN_EMAILS,
-        {
-          ...emailPayload,
-          name: form.name,
-          email: interpreterEmail,
-          phone: form.phone,
-        }
-      );
-      if (!result.ok) console.error("Interpreter admin email failed", result.error || result);
-    } catch (error) {
-      console.error("ADMIN EMAIL FAILED", error);
-      console.error("Interpreter admin email failed", error);
+      console.log("SEND interpreter_registered_admin START");
+
+      const result = await sendAutoEmail("interpreter_registered_admin", ADMIN_EMAILS, {
+        requestId: data?.id || "",
+        interpreterId: data?.id || "",
+        name: form.name,
+        email: interpreterEmail,
+        phone: form.phone,
+      });
+
+      if (!result.ok) {
+        console.error("interpreter_registered_admin failed", result.error || result);
+      }
+
+      console.log("SEND interpreter_registered_admin DONE");
+    } catch (e) {
+      console.error("interpreter_registered_admin failed", e);
     }
 
     setAgreements(initialTermsAgreement);
-    setSuccessMessage("등록이 완료되었습니다. 메인 페이지로 이동합니다.");
+    setSuccessMessage(
+      "등록 신청이 완료되었습니다. 승인 후 마이페이지 이용을 위해 통역사 계정을 생성해주세요."
+    );
     setTimeout(() => {
       onSubmitSuccess?.();
       if (!onSubmitSuccess) onBackClick?.();
     }, 700);
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -343,7 +372,15 @@ function RegisterInterpreter({ onBackClick, onSubmitSuccess, onLoginClick, onSig
               title="연락처 정보"
               description="운영팀 안내와 매칭 연락에 사용할 정보를 입력해주세요."
             >
-              <Field label="이메일" name="email" type="email" value={form.email} onChange={handleChange} required />
+              <Field
+                label="이메일"
+                name="email"
+                type="email"
+                value={authEmail || form.email}
+                onChange={handleChange}
+                readOnly={Boolean(authEmail)}
+                required
+              />
               <Field label="전화번호" name="phone" value={form.phone} onChange={handleChange} required />
               <Field label="카카오/라인 ID" name="kakaoOrLine" value={form.kakaoOrLine} onChange={handleChange} />
             </FormSectionCard>
@@ -473,6 +510,40 @@ function isAgreementColumnError(error) {
     error?.code === "PGRST204" ||
     /agreed_|column|schema cache/i.test(error?.message || "")
   );
+}
+
+function isMissingColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column|schema cache/i.test(error?.message || "")
+  );
+}
+
+async function insertInterpreter(payload) {
+  const { data, error } = await supabase
+    .from("interpreters")
+    .insert([payload])
+    .select("id")
+    .single();
+
+  if (!error || !isMissingColumnError(error) || !("auth_user_id" in payload)) {
+    return { data, error };
+  }
+
+  console.warn("Retry interpreter insert without auth_user_id column", error);
+  const legacyPayload = { ...payload };
+  delete legacyPayload.auth_user_id;
+
+  return supabase
+    .from("interpreters")
+    .insert([legacyPayload])
+    .select("id")
+    .single();
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function FormSectionCard({ icon, title, description, children }) {

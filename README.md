@@ -17,13 +17,18 @@ If you are developing a production application, we recommend using TypeScript wi
 
 ## Automated Email Sending
 
-ON-LI 자동 메일은 브라우저에서 Resend를 직접 호출하지 않고 Supabase Edge Function `send-email`을 통해 발송합니다.
+ON-LI 자동 메일은 브라우저에서 SMTP/메일 API를 직접 호출하지 않고 Supabase Edge Function `send-email`을 통해 Gmail SMTP로 발송합니다.
 
-Required Supabase secret:
+Required Supabase secrets:
 
 ```bash
-supabase secrets set RESEND_API_KEY=re_xxxxxxxxx
+supabase secrets set GMAIL_USER=your-gmail-address@gmail.com
+supabase secrets set GMAIL_APP_PASSWORD=your-gmail-app-password
+supabase secrets set SUPABASE_URL=https://your-project.supabase.co
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
+
+Duplicate sends are blocked by inserting a unique `dedupe_key` into `public.mail_logs` immediately before SMTP sending. Apply the Supabase migrations before deploying the function.
 
 Deploy the Edge Function:
 
@@ -80,8 +85,8 @@ Schedule reminders are template-ready through `interpreter_schedule_reminder`; a
 
 Security notes:
 
-- Do not expose `RESEND_API_KEY` as a `VITE_` frontend variable.
-- Do not call the Resend SDK or API directly from browser code.
+- Do not expose Gmail SMTP credentials or a mail API key as `VITE_` frontend variables.
+- Do not call SMTP, the Resend SDK, or any mail API directly from browser code.
 - Do not place a Supabase `service_role` key in frontend code.
 - Email failures are logged but must not block interpreter registration or job application submission.
-- The current sender is `onboarding@resend.dev`; after domain verification it can be changed in `supabase/functions/send-email/index.ts`.
+- The current sender is `GMAIL_USER`; it can be changed in `supabase/functions/send-email/index.ts`.

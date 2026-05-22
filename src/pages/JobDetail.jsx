@@ -3,7 +3,7 @@ import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
 } from "../components/TermsAgreement";
-import { supabase, supabaseConfigError } from "../supabase";
+import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
@@ -57,24 +57,27 @@ function JobDetail({ jobId, onBackClick }) {
     setLoading(true);
     setErrorMessage("");
 
-    if (!supabase) {
+    if (!publicSupabase) {
       setErrorMessage(supabaseConfigError.message);
       setLoading(false);
       return;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await publicSupabase
       .from("jobs")
       .select("*")
       .eq("id", jobId)
       .single();
 
     if (error) {
-      console.error(error);
+      console.error("Supabase select error:", error);
+      alert(error.message);
       setErrorMessage("공고 정보를 불러오지 못했습니다.");
       setLoading(false);
       return;
     }
+
+    console.log("loaded jobs:", data ? [data] : []);
 
     if (!isPublicJob(data)) {
       setJob(null);
@@ -83,7 +86,7 @@ function JobDetail({ jobId, onBackClick }) {
       return;
     }
 
-    const [jobWithCounts] = await attachPublicJobCounts(supabase, [data]);
+    const [jobWithCounts] = await attachPublicJobCounts(publicSupabase, [data]);
     setJob(jobWithCounts || data);
     setLoading(false);
   }, [jobId]);

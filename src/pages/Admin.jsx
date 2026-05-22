@@ -18,7 +18,8 @@ import {
   User,
   X,
 } from "lucide-react";
-import { supabase, supabaseConfigError } from "../supabase";
+import SupabaseDebugBox from "../components/SupabaseDebugBox";
+import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
 import MonthFilterInput from "../components/MonthFilterInput";
 import AdminJobs from "./AdminJobs";
@@ -161,7 +162,7 @@ const STATUS_LABELS = {
 };
 
 async function fetchJobApplicationsWithJobs(jobs = []) {
-  const joinedResult = await supabase
+  const joinedResult = await publicSupabase
     .from("job_applications")
     .select(
       `
@@ -199,7 +200,7 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
 
   console.error("job_applications joined fetch error:", joinedResult.error);
 
-  const fallbackData = await fetchBaseJobApplications(supabase);
+  const fallbackData = await fetchBaseJobApplications(publicSupabase);
 
   const jobsById = new Map(jobs.map((job) => [job.id, job]));
   return {
@@ -257,7 +258,7 @@ function Admin() {
     setLoading(true);
     setErrorMessage("");
 
-    if (!supabase) {
+    if (!publicSupabase) {
       setErrorMessage(supabaseConfigError.message);
       setLoading(false);
       return;
@@ -265,24 +266,24 @@ function Admin() {
 
     const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult] =
       await Promise.all([
-        supabase.from("requests").select("*").order("created_at", {
+        publicSupabase.from("requests").select("*").order("created_at", {
           ascending: false,
           nullsFirst: false,
         }),
-        supabase.from("jobs").select("*").order("created_at", {
+        publicSupabase.from("jobs").select("*").order("created_at", {
           ascending: false,
           nullsFirst: false,
         }),
-        supabase.from("interpreters").select("*").order("id", {
+        publicSupabase.from("interpreters").select("*").order("id", {
           ascending: false,
         }),
-        supabase
+        publicSupabase
           .from("request_interpreters")
           .select(
             "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
           )
           .order("id", { ascending: false }),
-        supabase
+        publicSupabase
           .from("matchings")
           .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
           .order("created_at", { ascending: false }),
@@ -294,12 +295,13 @@ function Admin() {
       interpreterResult.error ||
       assignmentResult.error
     ) {
-      console.error(
+      const error =
         requestResult.error ||
-          jobResult.error ||
-          interpreterResult.error ||
-          assignmentResult.error
-      );
+        jobResult.error ||
+        interpreterResult.error ||
+        assignmentResult.error;
+      console.error("Supabase select error:", error);
+      alert(error.message);
       setErrorMessage("관리자 데이터를 불러오지 못했습니다.");
       setLoading(false);
       return;
@@ -311,12 +313,16 @@ function Admin() {
 
     const jobApplicationResult = await fetchJobApplicationsWithJobs(jobResult.data || []);
     if (jobApplicationResult.error) {
-      console.error("job_applications fetch error:", jobApplicationResult.error);
+      console.error("Supabase select error:", jobApplicationResult.error);
+      alert(jobApplicationResult.error.message);
       setErrorMessage("관리자 데이터를 불러오지 못했습니다.");
       setLoading(false);
       return;
     }
 
+    console.log("loaded jobs:", jobResult.data || []);
+    console.log("loaded interpreters:", interpreterResult.data || []);
+    console.log("loaded applications:", jobApplicationResult.data || []);
     setRequests(requestResult.data || []);
     setJobs(jobResult.data || []);
     setInterpreters(interpreterResult.data || []);
@@ -2311,6 +2317,7 @@ function Admin() {
           </>
         )}
       </div>
+      <SupabaseDebugBox label="Admin" />
     </div>
   );
 }

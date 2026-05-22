@@ -469,6 +469,11 @@
   cursor: not-allowed;
 }
 
+.register-field input[readonly] {
+  background: #f8fafc;
+  color: #4b5563;
+}
+
 .register-field input:focus,
 .register-field select:focus {
   border-color: #5b5cf0;

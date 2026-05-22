@@ -132,6 +132,16 @@ function App() {
     navigate("interpreterLogin", null, null);
   };
 
+  const openInterpreterRegister = () => {
+    if (authLoading) return;
+    if (!user) {
+      alert("로그인해주세요.");
+      navigate("interpreterLogin", null, null);
+      return;
+    }
+    navigate("register", null, null);
+  };
+
   useEffect(() => {
     const handlePopState = (event) => {
       const statePage = event.state?.page || getInitialPage();
@@ -181,7 +191,7 @@ function App() {
     <>
       {page === "home" && (
         <Home
-          onRegisterClick={() => navigate("register", null)}
+          onRegisterClick={openInterpreterRegister}
           onAboutClick={() => navigate("about", null, null)}
           onListClick={() => navigate("list", null)}
           onInterpreterClick={(person) => navigate("detail", person)}
@@ -210,8 +220,29 @@ function App() {
         />
       )}
 
-      {page === "register" && (
+      {page === "register" && authLoading && (
+        <RouteMessage
+          title="로그인 상태를 확인 중입니다."
+          description="통역사 등록은 로그인 후 이용할 수 있습니다."
+          primaryText="통역사 로그인"
+          onPrimaryClick={() => navigate("interpreterLogin", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+        />
+      )}
+
+      {page === "register" && !authLoading && !user && (
+        <RouteMessage
+          title="로그인이 필요합니다."
+          description="통역사 등록은 통역사 계정으로 로그인한 뒤 이용할 수 있습니다."
+          primaryText="통역사 로그인"
+          onPrimaryClick={() => navigate("interpreterLogin", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+        />
+      )}
+
+      {page === "register" && !authLoading && user && (
         <RegisterInterpreter
+          authUser={user}
           onBackClick={() => navigate("home", null)}
           onSubmitSuccess={() => navigate("home", null)}
           onLoginClick={() => navigate("interpreterLogin", null, null)}
@@ -240,6 +271,7 @@ function App() {
           authLoading={authLoading}
           user={user}
           onLoginClick={() => navigate("interpreterLogin", null, null)}
+          onRegisterClick={openInterpreterRegister}
           onHomeClick={() => navigate("home", null, null)}
           onSignOut={handleInterpreterSignOut}
         />
@@ -288,7 +320,7 @@ function App() {
       {page === "list" && (
         <InterpreterList
           onBackClick={() => navigate("home", null)}
-          onRegisterClick={() => navigate("register", null)}
+          onRegisterClick={openInterpreterRegister}
           onDetailClick={(person) => {
             navigate("detail", person);
           }}

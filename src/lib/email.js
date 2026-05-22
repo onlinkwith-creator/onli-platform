@@ -3,7 +3,6 @@ import { supabase } from "../supabase";
 // TODO: 추후 .env 또는 Supabase secrets 기반 관리로 이동해주세요.
 export const ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
-  "Onlinkcp@gmail.com",
 ];
 
 function normalizeRecipients(to) {
@@ -16,6 +15,21 @@ function normalizeRecipients(to) {
 
 export function getEmailRecipient(...values) {
   return normalizeRecipients(values).at(0) || "";
+}
+
+function getPayloadRequestId(payload) {
+  return (
+    payload.requestId ||
+    payload.request_id ||
+    payload.applicationId ||
+    payload.application_id ||
+    payload.interpreterId ||
+    payload.interpreter_id ||
+    payload.jobId ||
+    payload.job_id ||
+    payload.dedupeKey ||
+    ""
+  );
 }
 
 export async function sendAutoEmail(type, to, payload = {}) {
@@ -40,6 +54,7 @@ export async function sendAutoEmail(type, to, payload = {}) {
   }
 
   try {
+    console.log("[FRONT_MAIL_API_CALL]", getPayloadRequestId(payload));
     console.log("EMAIL INVOKE START");
 
     const { data, error } = await supabase.functions.invoke("send-email", {
@@ -49,6 +64,8 @@ export async function sendAutoEmail(type, to, payload = {}) {
         payload,
       },
     });
+
+    console.log("EMAIL INVOKE RESULT RAW", { data, error });
 
     console.log("EMAIL INVOKE RESULT", {
       data,
@@ -61,6 +78,7 @@ export async function sendAutoEmail(type, to, payload = {}) {
     });
 
     if (error) {
+      console.error("EMAIL ERROR DETAIL", JSON.stringify(error, null, 2));
       console.error("EMAIL INVOKE ERROR", error);
       throw error;
     }

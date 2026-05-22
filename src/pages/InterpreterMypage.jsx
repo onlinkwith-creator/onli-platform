@@ -7,52 +7,100 @@ import {
 import { normalizeLevel } from "../utils/levelBadge";
 import "./InterpreterAuth.css";
 
-function InterpreterMypage({ authLoading, user, onLoginClick, onHomeClick, onSignOut }) {
+function InterpreterMypage({
+  authLoading,
+  user,
+  onLoginClick,
+  onRegisterClick,
+  onHomeClick,
+  onSignOut,
+}) {
   const [interpreter, setInterpreter] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [status, setStatus] = useState("loading");
 
   useEffect(() => {
     const fetchInterpreter = async () => {
       if (authLoading) return;
 
       if (!user) {
+        setStatus("signedOut");
         setLoading(false);
         return;
       }
 
       if (!supabase) {
         setMessage(supabaseConfigError.message);
+        setStatus("error");
+        setLoading(false);
+        return;
+      }
+
+      const normalizedUserEmail = normalizeEmail(user.email);
+      if (!normalizedUserEmail) {
+        setMessage("로그인 계정 이메일을 확인할 수 없습니다.");
+        setStatus("error");
         setLoading(false);
         return;
       }
 
       setLoading(true);
       setMessage("");
+      setStatus("loading");
+      console.log("current user:", user);
 
       const { data, error } = await supabase
         .from("interpreters")
         .select("*")
-        .eq("email", user.email);
+        .ilike("email", normalizedUserEmail);
 
       if (error) {
         console.error("Interpreter profile fetch failed", error);
         setMessage("통역사 정보를 불러오지 못했습니다.");
+        setStatus("error");
         setLoading(false);
         return;
       }
 
-      if ((data || []).length > 1) {
+      let matches = (data || []).filter(
+        (item) => normalizeEmail(item.email) === normalizedUserEmail
+      );
+
+      if (matches.length === 0) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("interpreters")
+          .select("*");
+
+        if (fallbackError) {
+          console.error("Interpreter profile fallback fetch failed", fallbackError);
+          setMessage("통역사 정보를 불러오지 못했습니다.");
+          setStatus("error");
+          setLoading(false);
+          return;
+        }
+
+        matches = (fallbackData || []).filter(
+          (item) => normalizeEmail(item.email) === normalizedUserEmail
+        );
+      }
+
+      if (matches.length > 1) {
         console.warn("Duplicate interpreter email found", {
-          email: user.email,
-          ids: data.map((item) => item.id),
+          email: normalizedUserEmail,
+          ids: matches.map((item) => item.id),
         });
       }
 
-      const nextInterpreter = data?.[0] || null;
+      const nextInterpreter = matches[0] || null;
       setInterpreter(nextInterpreter);
+      setStatus(nextInterpreter ? "ready" : "notRegistered");
 
-      if (nextInterpreter && !nextInterpreter.auth_user_id) {
+      if (
+        nextInterpreter &&
+        Object.prototype.hasOwnProperty.call(nextInterpreter, "auth_user_id") &&
+        !nextInterpreter.auth_user_id
+      ) {
         const { data: updated, error: updateError } = await supabase
           .from("interpreters")
           .update({ auth_user_id: user.id })
@@ -126,12 +174,14 @@ function InterpreterMypage({ authLoading, user, onLoginClick, onHomeClick, onSig
           </div>
         </section>
 
-        {message && <p className="interpreter-auth-message is-error">{message}</p>}
+        {status === "error" && message && (
+          <p className="interpreter-auth-message is-error">{message}</p>
+        )}
 
         <section className="interpreter-mypage-grid">
           <article className="interpreter-mypage-card">
             <h2>프로필 상태</h2>
-            {interpreter ? (
+            {status === "ready" && interpreter ? (
               <dl className="interpreter-profile-list">
                 <ProfileRow label="이름" value={interpreter.name || "미입력"} />
                 <ProfileRow label="이메일" value={interpreter.email || user.email} />
@@ -141,11 +191,24 @@ function InterpreterMypage({ authLoading, user, onLoginClick, onHomeClick, onSig
                 <ProfileRow label="전문 분야" value={formatList(interpreter.specialties)} />
                 <ProfileRow label="활동 가능 지역" value={formatList(interpreter.available_regions)} />
               </dl>
+            ) : status === "notRegistered" ? (
+              <>
+                <p>
+                  아직 이 계정으로 등록된 통역사 프로필이 없습니다.
+                  통역사 등록을 먼저 완료해주세요.
+                </p>
+                <div className="interpreter-mypage-actions">
+                  <button
+                    type="button"
+                    className="interpreter-auth-primary"
+                    onClick={onRegisterClick}
+                  >
+                    통역사 등록하기
+                  </button>
+                </div>
+              </>
             ) : (
-              <p>
-                로그인 이메일과 일치하는 통역사 등록 정보를 찾지 못했습니다.
-                통역사 등록 신청 이메일과 같은 계정으로 로그인해주세요.
-              </p>
+              <p>통역사 프로필 상태를 확인할 수 없습니다.</p>
             )}
           </article>
 
@@ -181,6 +244,10 @@ function MypageTile({ title, text }) {
 function formatList(value) {
   if (Array.isArray(value)) return value.filter(Boolean).join(", ") || "미입력";
   return value || "미입력";
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function getActivityStatus(interpreter) {

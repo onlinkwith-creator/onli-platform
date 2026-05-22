@@ -26,6 +26,17 @@ begin
 
     alter table public.matchings
     add constraint matchings_status_check
-    check (status in ('pending', 'accepted', 'rejected', 'assigned', 'cancelled'));
+    check (status in (
+      'pending',
+      'accepted',
+      'rejected',
+      'assigned',
+      'confirmed',
+      'in_progress',
+      'completed',
+      'cancelled',
+      'settled',
+      'draft'
+    ));
   end if;
 end $$;

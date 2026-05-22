@@ -3,7 +3,7 @@ import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
 } from "../components/TermsAgreement";
-import { supabase, supabaseConfigError } from "../supabase";
+import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
@@ -62,15 +62,21 @@ function JobApply({ jobId, onBackClick, onSubmitSuccess, onHomeClick }) {
     setErrorMessage("");
 
     try {
-      if (!supabase) throw supabaseConfigError;
+      if (!publicSupabase) throw supabaseConfigError;
 
-      const { data, error } = await supabase
+      const { data, error } = await publicSupabase
         .from("jobs")
         .select("*")
         .eq("id", jobId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase select error:", error);
+        alert(error.message);
+        throw error;
+      }
+
+      console.log("loaded jobs:", data ? [data] : []);
 
       if (!isPublicJob(data)) {
         setJob(null);
