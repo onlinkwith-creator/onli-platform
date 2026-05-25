@@ -182,9 +182,6 @@ function App() {
         } else if (page === "interpreterMypage") {
           alert("로그인 후 이용 가능합니다.");
           navigate("interpreterLogin", null, null);
-        } else if (page === "admin") {
-          alert("관리자 권한이 필요합니다.");
-          navigate("login", null, null);
         }
       } else if (!isAdmin && page === "admin") {
         alert("관리자 권한이 없습니다.");
@@ -354,7 +351,14 @@ function App() {
         />
       )}
 
-      {page === "admin" && !authLoading && (!user || !isAdmin) && (
+      {page === "admin" && !authLoading && !user && (
+        <Login
+          onBackClick={() => navigate("home", null, null)}
+          onLoginSuccess={() => {}}
+        />
+      )}
+
+      {page === "admin" && !authLoading && user && !isAdmin && (
         <RouteMessage
           title="관리자 권한이 필요합니다."
           description="관리자 계정으로 로그인해주세요."
