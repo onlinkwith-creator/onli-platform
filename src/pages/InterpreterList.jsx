@@ -65,6 +65,8 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
   const [filters, setFilters] = useState(initialFilters);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [sortBy, setSortBy] = useState("latest");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const fetchInterpreters = async () => {
@@ -129,6 +131,50 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
     [filters, interpreters]
   );
 
+  const sortedInterpreters = useMemo(() => {
+    let result = [...filteredInterpreters];
+    if (sortBy === "experience") {
+      result.sort((a, b) => {
+        const aCount = Number(a.experience_count || 0);
+        const bCount = Number(b.experience_count || 0);
+        if (bCount !== aCount) return bCount - aCount;
+        const aExp = a.has_experience ? 1 : 0;
+        const bExp = b.has_experience ? 1 : 0;
+        return bExp - aExp;
+      });
+    } else if (sortBy === "level") {
+      result.sort((a, b) => {
+        const parseLv = (lvl) => {
+          const m = String(lvl || "").match(/lv\s*(\d)/i);
+          return m ? Number(m[1]) : 0;
+        };
+        return parseLv(b.level) - parseLv(a.level);
+      });
+    } else {
+      // latest (default)
+      result.sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (bTime !== aTime) return bTime - aTime;
+        return Number(b.id || 0) - Number(a.id || 0);
+      });
+    }
+    return result;
+  }, [filteredInterpreters, sortBy]);
+
+  // Reset pagination on filter or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, sortBy]);
+
+  // Paginate items (9 items per page)
+  const paginatedInterpreters = useMemo(() => {
+    const start = (currentPage - 1) * 9;
+    return sortedInterpreters.slice(start, start + 9);
+  }, [sortedInterpreters, currentPage]);
+
+  const totalPages = Math.ceil(sortedInterpreters.length / 9);
+
   const updateFilter = (name, value) => {
     setFilters((current) => ({
       ...current,
@@ -144,22 +190,27 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
           ← 메인으로
         </button>
 
-        <div className="interpreter-list-header">
-          <div>
-            <p className="interpreter-list-kicker">ON-LI INTERPRETERS</p>
-            <h1 className="interpreter-list-title">등록 통역사</h1>
-            <p className="interpreter-list-description">
-              검증된 한일 비즈니스 통역 인력을 확인하세요.
+        {/* Premium Recruiter Hero Section */}
+        <div className="interpreter-list-hero-content">
+          <div className="interpreter-list-hero-text">
+            <span className="interpreter-list-hero-label">검증된 전문가와 함께하세요</span>
+            <h1 className="interpreter-list-hero-title">등록 통역사</h1>
+            <p className="interpreter-list-hero-subtitle">
+              전문성과 경험을 갖춘 검증된 통역사들을 확인하고,<br />
+              귀사의 비즈니스에 최적의 파트너를 찾아보세요.
             </p>
           </div>
-
-          <button
-            type="button"
-            onClick={onRegisterClick}
-            className="interpreter-list-register-button"
-          >
-            통역사 등록
-          </button>
+          <div className="interpreter-list-hero-illustration">
+            <div className="illustration-glow-circle-1" />
+            <div className="illustration-glow-circle-2" />
+            <div className="illustration-card-mockup">
+              <span className="mockup-badge">Lv4 Verified</span>
+              <div className="mockup-lines">
+                <div className="mockup-line-1" />
+                <div className="mockup-line-2" />
+              </div>
+            </div>
+          </div>
         </div>
 
         {loading ? (
@@ -168,13 +219,9 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
           <div className="interpreter-list-empty-card error">
             <p>{errorMessage}</p>
           </div>
-        ) : interpreters.length === 0 ? (
-          <div className="interpreter-list-empty-card empty">
-            <div className="empty-icon">📂</div>
-            <p>현재 표시할 데이터가 없습니다.</p>
-          </div>
         ) : (
           <>
+            {/* Glassmorphic Filters */}
             <div className="interpreter-list-filter-card">
               <div className="interpreter-list-filter-head">
                 <h2 className="interpreter-list-filter-title">통역사 검색 필터</h2>
@@ -229,49 +276,122 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
               </label>
             </div>
 
-            <p className="interpreter-list-result-text">
-              총 {filteredInterpreters.length}명의 통역사가 표시됩니다
-            </p>
+            {/* Grid stats & sorting select */}
+            <div className="interpreter-list-toolbar">
+              <p className="interpreter-list-result-text">
+                총 {sortedInterpreters.length}명의 통역사가 표시됩니다
+              </p>
+              
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="interpreter-list-sort-select"
+              >
+                <option value="latest">최신 등록순</option>
+                <option value="experience">경험 많은순</option>
+                <option value="level">Lv 높은순</option>
+              </select>
+            </div>
 
-            {filteredInterpreters.length === 0 ? (
+            {sortedInterpreters.length === 0 ? (
               <div className="interpreter-list-empty-card empty">
                 <div className="empty-icon">📂</div>
                 <p>현재 표시할 데이터가 없습니다.</p>
               </div>
             ) : (
-              <div className="interpreter-list-grid">
-                {filteredInterpreters.map((person) => (
-                  <div key={person.id} className="interpreter-list-card">
-                    <div className="interpreter-list-card-head">
-                      <h2>{person.name || "이름 미입력"}</h2>
+              <>
+                <div className="interpreter-list-grid">
+                  {paginatedInterpreters.map((person) => {
+                    const specialties = Array.isArray(person.specialties)
+                      ? person.specialties
+                      : typeof person.specialties === "string"
+                      ? person.specialties.split(",").map(s => s.trim())
+                      : [];
+                    const tagBadges = specialties.length > 0 ? specialties.slice(0, 3) : ["일반 비즈니스", "전시회", "B2B"];
+                    
+                    return (
+                      <div key={person.id} className="interpreter-list-card">
+                        <div className="interpreter-list-card-head">
+                          <h2>{person.name || "이름 미입력"}</h2>
 
-                      <span style={getLevelBadgeStyle(person.level)}>
-                        {normalizeLevel(person.level)}
-                      </span>
-                    </div>
+                          <span className={`interpreter-list-card-level ${getLevelClass(person.level)}`}>
+                            {normalizeLevel(person.level)}
+                          </span>
+                        </div>
 
-                    <Info label="활동 상태" value={getInterpreterStatusLabel(person)} />
-                    <Info label="활동 가능 지역" value={formatList(person.available_regions)} />
-                    <Info label="전문 분야" value={formatList(person.specialties)} />
-                    <Info label="가능 언어" value={person.language_level || person.jlpt || "한국어 · 일본어"} />
-                    <Info
-                      label="통역 경험"
-                      value={getExperienceLabel(person)}
-                    />
-                    <Info
-                      label={getPrimaryPublicInterpreterInfo(person).label}
-                      value={getPrimaryPublicInterpreterInfo(person).value}
-                    />
+                        <div className="interpreter-list-activity-status">
+                          {getInterpreterStatusLabel(person)}
+                        </div>
 
+                        <div className="interpreter-list-info-section">
+                          <Info label="활동 가능 지역" value={formatList(person.available_regions)} />
+                          <Info label="전문 분야" value={formatList(person.specialties)} />
+                          <Info label="가능 언어" value={person.language_level || person.jlpt || "한국어 · 일본어"} />
+                          <Info
+                            label="통역 경험"
+                            value={person.experience_count ? `통역 경험 ${person.experience_count}회` : getExperienceLabel(person)}
+                          />
+                          <Info
+                            label={getPrimaryPublicInterpreterInfo(person).label}
+                            value={getPrimaryPublicInterpreterInfo(person).value}
+                          />
+                        </div>
+
+                        {/* Skill tag lists */}
+                        <div className="interpreter-list-tags">
+                          {tagBadges.map((badge, idx) => (
+                            <span key={idx} className="interpreter-list-tag">
+                              #{badge}
+                            </span>
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={() => onDetailClick(person)}
+                          className="interpreter-list-card-button"
+                        >
+                          상세 보기
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Circular Pagination indicator */}
+                {totalPages > 1 && (
+                  <div className="interpreter-list-pagination">
                     <button
-                      onClick={() => onDetailClick(person)}
-                      className="interpreter-list-card-button"
+                      type="button"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      className="interpreter-list-page-btn"
                     >
-                      상세 보기
+                      &lt;
+                    </button>
+                    {Array.from({ length: totalPages }).map((_, idx) => {
+                      const pageNum = idx + 1;
+                      return (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`interpreter-list-page-btn ${currentPage === pageNum ? "active" : ""}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      className="interpreter-list-page-btn"
+                    >
+                      &gt;
                     </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -477,6 +597,14 @@ function getInterpreterStatusLabel(person) {
     return getInterpreterActivityStatusLabel(status);
   }
   return getInterpreterActivityStatusLabel(INTERPRETER_ACTIVITY_STATUS.ACTIVE);
+}
+
+function getLevelClass(level) {
+  const lv = String(level || "").toLowerCase();
+  if (lv.includes("lv4") || lv.includes("level4") || lv.includes("4")) return "lv4";
+  if (lv.includes("lv3") || lv.includes("level3") || lv.includes("3")) return "lv3";
+  if (lv.includes("lv2") || lv.includes("level2") || lv.includes("2")) return "lv2";
+  return "lv1";
 }
 
 export default InterpreterList;
