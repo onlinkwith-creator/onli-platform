@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import "./InterpreterAuth.css";
 
-function Login({ onBackClick, onLoginSuccess }) {
+function Login({ onBackClick, onLoginSuccess, isAdminMode = false }) {
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [form, setForm] = useState({
     email: "",
@@ -94,9 +94,11 @@ function Login({ onBackClick, onLoginSuccess }) {
     <main className="interpreter-auth-page">
       <section className="interpreter-auth-card">
         <p className="interpreter-auth-kicker">ON-LI AUTHENTICATION</p>
-        <h1>{isLoginMode ? "로그인" : "ON-LI 계정 만들기"}</h1>
+        <h1>{isAdminMode ? "관리자 페이지 로그인" : isLoginMode ? "로그인" : "ON-LI 계정 만들기"}</h1>
         <p>
-          {isLoginMode
+          {isAdminMode
+            ? "관리자 이메일 주소와 비밀번호로 로그인해주세요."
+            : isLoginMode
             ? "이메일 주소와 비밀번호로 로그인해주세요."
             : "새로운 계정을 만들고 편리한 온리 플랫폼을 이용하세요."}
         </p>
@@ -156,16 +158,18 @@ function Login({ onBackClick, onLoginSuccess }) {
         {errorMessage && <p className="interpreter-auth-message is-error">{errorMessage}</p>}
 
         <div className="interpreter-auth-links">
-          <button
-            type="button"
-            onClick={() => {
-              setIsLoginMode(!isLoginMode);
-              setMessage("");
-              setErrorMessage("");
-            }}
-          >
-            {isLoginMode ? "계정 만들기" : "이미 계정이 있으신가요? 로그인"}
-          </button>
+          {!isAdminMode && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsLoginMode(!isLoginMode);
+                setMessage("");
+                setErrorMessage("");
+              }}
+            >
+              {isLoginMode ? "계정 만들기" : "이미 계정이 있으신가요? 로그인"}
+            </button>
+          )}
           <button type="button" onClick={onBackClick}>
             메인으로 돌아가기
           </button>

@@ -355,6 +355,7 @@ function App() {
         <Login
           onBackClick={() => navigate("home", null, null)}
           onLoginSuccess={() => {}}
+          isAdminMode={true}
         />
       )}
 

@@ -5,6 +5,7 @@ export const ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
   "hyundle69@gmail.com",
   "onlinkcp@gmail.com",
+  "sonwoonha1@naver.com",
 ];
 
 function normalizeRecipients(to) {
