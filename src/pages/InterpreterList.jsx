@@ -203,11 +203,13 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
           <div className="interpreter-list-hero-illustration">
             <div className="illustration-glow-circle-1" />
             <div className="illustration-glow-circle-2" />
-            <div className="illustration-card-mockup">
-              <span className="mockup-badge">Lv4 Verified</span>
-              <div className="mockup-lines">
-                <div className="mockup-line-1" />
-                <div className="mockup-line-2" />
+            <div className="illustration-card-mockup verified-system-card">
+              <span className="mockup-badge">ON-LI VERIFIED</span>
+              <h3 className="mockup-card-title">실무형 통역사 검증 시스템</h3>
+              <div className="mockup-bullets">
+                <span>✓ 전시회</span>
+                <span>✓ 상담회</span>
+                <span>✓ 비즈니스 미팅 대응</span>
               </div>
             </div>
           </div>
@@ -312,28 +314,36 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                     return (
                       <div key={person.id} className="interpreter-list-card">
                         <div className="interpreter-list-card-head">
-                          <h2>{person.name || "이름 미입력"}</h2>
+                          <div className="interpreter-list-card-meta-left">
+                            <h2>{person.name || "이름 미입력"}</h2>
+                            <span className="interpreter-list-activity-badge">
+                              <span className="dot" />
+                              {getInterpreterStatusLabel(person)}
+                            </span>
+                          </div>
 
                           <span className={`interpreter-list-card-level ${getLevelClass(person.level)}`}>
                             {normalizeLevel(person.level)}
                           </span>
                         </div>
 
-                        <div className="interpreter-list-activity-status">
-                          {getInterpreterStatusLabel(person)}
-                        </div>
-
                         <div className="interpreter-list-info-section">
+                          <Info
+                            label="검증 상태"
+                            value={
+                              person.approved ? (
+                                <span className="interpreter-verification-badge verified">✔ 검증 완료</span>
+                              ) : (
+                                <span className="interpreter-verification-badge regular">○ 일반 등록</span>
+                              )
+                            }
+                          />
                           <Info label="활동 가능 지역" value={formatList(person.available_regions)} />
                           <Info label="전문 분야" value={formatList(person.specialties)} />
                           <Info label="가능 언어" value={person.language_level || person.jlpt || "한국어 · 일본어"} />
                           <Info
                             label="통역 경험"
-                            value={person.experience_count ? `통역 경험 ${person.experience_count}회` : getExperienceLabel(person)}
-                          />
-                          <Info
-                            label={getPrimaryPublicInterpreterInfo(person).label}
-                            value={getPrimaryPublicInterpreterInfo(person).value}
+                            value={person.experience_count ? `${person.experience_count}회` : person.has_experience ? "경험 있음" : "경험 없음"}
                           />
                         </div>
 

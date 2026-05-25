@@ -2,6 +2,7 @@ import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/j
 import { formatDateRange } from "../utils/dateRange";
 import { getJobSpecialty } from "../utils/jobDisplay";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
+import { Calendar, MapPin, Users, Award, Briefcase } from "lucide-react";
 
 function JobCard({ job, onApplyClick, onDetailClick }) {
   const status = normalizeJobStatus(job);
@@ -25,29 +26,37 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
       aria-label={`${job.event_name || job.title || "통역 공고"} 상세 보기`}
     >
       <div>
-        <span className={`home-job-status ${status}`}>
+        <div className={`home-job-status ${status}`}>
           {badge}
-        </span>
-        <h3>{job.event_name || job.title || "공고 제목 미입력"}</h3>
+        </div>
         <p className="home-job-company">{job.company_name || "기업명 확인 중"}</p>
+        <h3>{job.event_name || job.title || "공고 제목 미입력"}</h3>
       </div>
 
-      <dl>
-        <JobInfo
-          label="날짜"
-          value={formatDateRange(
-            job.start_date,
-            job.end_date,
-            job.event_date || job.date
-          )}
-        />
-        <JobInfo label="장소" value={job.location || job.event_location} />
-        <JobInfo label="모집 인원" value={getRecruitmentCountDisplay(job)} />
-        <JobInfo label="요구 레벨" value={getRequiredLevelDisplay(job)} />
-        <JobInfo label="분야" value={getJobSpecialty(job)} />
-      </dl>
+      <div className="home-job-info-list">
+        <div className="home-job-info-item">
+          <Calendar size={15} aria-hidden="true" />
+          <span>{formatDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-"}</span>
+        </div>
+        <div className="home-job-info-item">
+          <MapPin size={15} aria-hidden="true" />
+          <span>{job.location || job.event_location || "-"}</span>
+        </div>
+        <div className="home-job-info-item">
+          <Users size={15} aria-hidden="true" />
+          <span>{getRecruitmentCountDisplay(job) || "-"}</span>
+        </div>
+        <div className="home-job-info-item">
+          <Award size={15} aria-hidden="true" />
+          <span>{getRequiredLevelDisplay(job) || "-"}</span>
+        </div>
+        <div className="home-job-info-item">
+          <Briefcase size={15} aria-hidden="true" />
+          <span>{getJobSpecialty(job) || "-"}</span>
+        </div>
+      </div>
 
-      <p className="home-job-level-note">요구 레벨 기준 일급 적용</p>
+      <p className="home-job-level-note">Lv 기준 통역 단가 적용</p>
 
       <button
         type="button"
@@ -56,19 +65,11 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
           onApplyClick?.(job);
         }}
         disabled={!canApply}
+        className={canApply ? "apply-btn-active" : "apply-btn-disabled"}
       >
         {canApply ? "지원하기" : badge}
       </button>
     </article>
-  );
-}
-
-function JobInfo({ label, value }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value || "-"}</dd>
-    </div>
   );
 }
 
