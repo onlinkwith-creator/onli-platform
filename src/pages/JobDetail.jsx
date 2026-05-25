@@ -9,7 +9,7 @@ import {
   checkInterpreterScheduleConflict,
   getScheduleRange,
 } from "../utils/scheduleConflict";
-import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
+import { canApplyToJob, getJobStatusLabel, isPublicJob, normalizeJobStatus } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import { attachPublicJobCounts } from "../utils/jobsApi";
@@ -415,6 +415,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
 
   return (
     <div className="jobs-page">
+      <div className="home-bg-glow" />
       <div className="jobs-shell">
         <button type="button" onClick={onBackClick} className="jobs-back">
           ← 공고 목록으로
@@ -426,18 +427,32 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
           <MessageBox text={errorMessage} />
         ) : (
           <div className="job-detail-layout">
-            <article className="job-detail-card">
-              <div className="job-detail-title-row">
-                <p className="jobs-kicker">JOB DETAIL</p>
-                <span className="job-detail-status">{getJobStatusLabel(job)}</span>
+            {/* Hero Section */}
+            <header className="job-detail-hero">
+              <div className="job-detail-hero-label-row">
+                <span className="job-detail-hero-kicker">JOB DETAIL</span>
+                <span className={`home-job-status ${normalizeJobStatus(job)}`}>
+                  {getJobStatusLabel(job)}
+                </span>
               </div>
-              <h1>{job.event_name || job.title || "공고 제목 미입력"}</h1>
-              <p className="job-detail-lead">
-                {job.company_name || "기업명 확인 중"} ·{" "}
-                {job.language || "한국어/일본어"} · {getJobLevelSummary(job)}
+              <h1 className="job-detail-hero-title">
+                {job.event_name || job.title || "공고 제목 미입력"}
+              </h1>
+              <p className="job-detail-hero-meta">
+                <span>{job.company_name || "기업명 확인 중"}</span>
+                <span>·</span>
+                <span>{job.language || "한국어/일본어"}</span>
+                <span>·</span>
+                <span>{getJobLevelSummary(job)}</span>
+                <span>·</span>
+                <span>{getJobSpecialty(job)}</span>
               </p>
+            </header>
 
-              <div className="job-detail-grid">
+            {/* 핵심 정보 카드 */}
+            <section className="job-detail-card-premium">
+              <h2 className="job-detail-section-title">공고 핵심 정보</h2>
+              <div className="job-detail-grid-premium">
                 <Info label="기업명" value={job.company_name} />
                 <Info
                   label="날짜"
@@ -456,61 +471,62 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
                 <Info label="지원 마감일" value={job.deadline || "상시"} />
                 <Info label="상태" value={getJobStatusLabel(job)} />
               </div>
+            </section>
 
-              <p className="job-detail-level-note">
-                요구 레벨에 맞는 일급 기준이 적용됩니다.
-              </p>
-
-              <section>
-                <h2>행사 설명</h2>
+            {/* 업무 내용 / 안내 사항 카드 */}
+            <section className="job-detail-card-premium">
+              <div className="job-detail-desc-block">
+                <h2 className="job-detail-section-title">행사 설명</h2>
                 <p>
                   {job.description ||
                     job.job_description ||
                     "ON-LI 운영팀이 행사 목적과 현장 난이도를 확인한 뒤 적합한 통역사를 매칭합니다."}
                 </p>
-              </section>
+              </div>
 
-              <section>
-                <h2>이런 통역사를 찾고 있습니다</h2>
+              <div className="job-detail-desc-block">
+                <h2 className="job-detail-section-title">이런 통역사를 찾고 있습니다</h2>
                 <p>
                   {job.preference ||
                     `${getJobLevelSummary(job)} 역량을 바탕으로 한일 비즈니스 현장에서 안정적으로 소통할 수 있는 분을 찾고 있습니다.`}
                 </p>
-              </section>
+              </div>
 
-              <section className="job-detail-process">
-                <h2>진행 일정</h2>
-                <div>
-                  <span>공고 확인</span>
-                  <span>운영팀 검토</span>
-                  <span>최종 배정</span>
-                  <span>현장 안내</span>
+              {job.dress_code || job.preferred_gender ? (
+                <div className="job-detail-desc-block">
+                  <h2 className="job-detail-section-title">우대 사항 및 안내</h2>
+                  <p>{job.dress_code || job.preferred_gender}</p>
                 </div>
-              </section>
+              ) : null}
 
-              <section>
-                <h2>우대 사항 및 안내</h2>
-                <p>{job.dress_code || job.preferred_gender || "상세 안내는 매칭 확정 후 운영팀을 통해 전달됩니다."}</p>
-              </section>
-            </article>
+              <div className="job-detail-desc-block">
+                <h2 className="job-detail-section-title">추가 안내 사항</h2>
+                <ul className="job-detail-bullets-list">
+                  <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
+                  <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
+                  <li>운영팀 확인 후 최종 연락드립니다.</li>
+                </ul>
+              </div>
+            </section>
 
-            <aside className="job-apply-card">
-              <div className="job-apply-summary">
-                <p className="jobs-kicker">ON-LI MATCHING</p>
+            {/* 지원 CTA 카드 */}
+            <aside className="job-apply-card-premium">
+              <div className="job-apply-header">
+                <p className="job-detail-hero-kicker">ON-LI MATCHING</p>
                 <h2>{canApplyToJob(job) ? "지원 가능한 공고입니다" : getJobStatusLabel(job)}</h2>
                 <p>레벨에 따라 프로젝트와 활동 조건이 달라지며, 지원 내용은 ON-LI 운영팀 검토 후 매칭에 반영됩니다.</p>
               </div>
+
               {submitted ? (
                 <div className="jobs-success-inline">
                   <h2>지원 완료</h2>
                   <p>지원이 완료되었습니다. 담당자가 검토 후 연락드립니다.</p>
-                  <button type="button" onClick={onBackClick}>
+                  <button type="button" onClick={onBackClick} className="jobs-create-btn">
                     공고 목록으로 돌아가기
                   </button>
                 </div>
               ) : (
                 <>
-                  <h2 id="apply">{canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}</h2>
                   {authLoading || profileLoading ? (
                     <div className="jobs-success-inline">
                       <h2>지원 자격 확인 중</h2>
@@ -520,7 +536,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
                     <div className="jobs-success-inline">
                       <h2>로그인이 필요합니다</h2>
                       <p>회원가입 및 로그인 후 통역 공고에 지원할 수 있습니다.</p>
-                      <button type="button" onClick={onLoginClick}>
+                      <button type="button" onClick={onLoginClick} className="jobs-create-btn">
                         로그인 / 회원가입
                       </button>
                     </div>
@@ -528,13 +544,12 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
                     <div className="jobs-success-inline">
                       <h2>통역사 등록이 필요합니다</h2>
                       <p>통역사 프로필 등록을 완료한 계정만 공고에 지원할 수 있습니다.</p>
-                      <button type="button" onClick={onRegisterClick}>
+                      <button type="button" onClick={onRegisterClick} className="jobs-create-btn">
                         통역사 등록하기
                       </button>
                     </div>
                   ) : (
-                  <form onSubmit={handleSubmit}>
-                    {interpreterProfile ? (
+                    <form onSubmit={handleSubmit}>
                       <div className="interpreter-profile-summary-card">
                         <p className="summary-title">통역사 정보 자동 입력됨</p>
                         <div className="summary-details">
@@ -545,119 +560,42 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
                         </div>
                         <p className="summary-footer">프로필 등록 정보로 자동 지원됩니다.</p>
                       </div>
-                    ) : (
-                      <>
-                        <label>
-                          <span>이름</span>
-                          <input
-                            name="name"
-                            value={form.name}
-                            onChange={handleChange}
-                            required
-                          />
-                        </label>
-                        <label>
-                          <span>연락처</span>
-                          <input
-                            name="phone"
-                            value={form.phone}
-                            onChange={handleChange}
-                            required
-                          />
-                        </label>
-                        <label>
-                          <span>이메일</span>
-                          <input
-                            name="email"
-                            type="email"
-                            value={form.email}
-                            onChange={handleChange}
-                            required
-                          />
-                        </label>
-                        <label>
-                          <span>성별</span>
-                          <select
-                            name="gender"
-                            value={form.gender}
-                            onChange={handleChange}
-                            required
-                          >
-                            <option value="">선택해주세요</option>
-                            <option value="여성">여성</option>
-                            <option value="남성">남성</option>
-                            <option value="기타/응답 안 함">기타/응답 안 함</option>
-                          </select>
-                        </label>
-                        <label>
-                          <span>일본어 수준</span>
-                          <select
-                            name="japaneseLevel"
-                            value={form.japaneseLevel}
-                            onChange={handleChange}
-                            required
-                          >
-                            <option value="">선택해주세요</option>
-                            <option value="LV1">LV1</option>
-                            <option value="LV2">LV2</option>
-                            <option value="LV3">LV3</option>
-                            <option value="LV4">LV4</option>
-                          </select>
-                        </label>
-                        <label>
-                          <span>통역 경험</span>
-                          <textarea
-                            name="experience"
-                            value={form.experience}
-                            onChange={handleChange}
-                            rows={4}
-                            required
-                          />
-                        </label>
-                      </>
-                    )}
-                    <label>
-                      <span>지원 메모</span>
-                      <textarea
-                        name="message"
-                        value={form.message}
-                        onChange={handleChange}
-                        rows={5}
-                        required
+
+                      <label>
+                        <span>지원 메모</span>
+                        <textarea
+                          name="message"
+                          value={form.message}
+                          onChange={handleChange}
+                          rows={5}
+                          placeholder="비즈니스 현장 참여 경험 및 간략한 자기소개를 기재해주세요."
+                          required
+                        />
+                      </label>
+
+                      {errorMessage && <p className="jobs-error">{errorMessage}</p>}
+
+                      <TermsAgreement
+                        agreements={agreements}
+                        onChange={handleAgreementChange}
+                        role="interpreter"
                       />
-                    </label>
 
-                    {errorMessage && <p className="jobs-error">{errorMessage}</p>}
-
-                    <TermsAgreement
-                      agreements={agreements}
-                      onChange={handleAgreementChange}
-                      role="interpreter"
-                    />
-
-                    <p className="jobs-notice">
-                      지원 내용은 ON-LI 운영팀을 통해 전달됩니다.
-                    </p>
-
-                    <button
-                      type="submit"
-                      disabled={
-                        submitting ||
-                        authLoading ||
-                        profileLoading ||
-                        !user ||
-                        !interpreterProfile ||
-                        !canApplyToJob(job) ||
-                        !areTermsAgreed(agreements)
-                      }
-                    >
-                      {canApplyToJob(job)
-                        ? submitting
-                          ? "지원 중..."
-                          : "지원하기"
-                        : getJobStatusLabel(job)}
-                    </button>
-                  </form>
+                      <button
+                        type="submit"
+                        disabled={
+                          submitting ||
+                          !canApplyToJob(job) ||
+                          !areTermsAgreed(agreements)
+                        }
+                      >
+                        {canApplyToJob(job)
+                          ? submitting
+                            ? "지원 중..."
+                            : "지원하기"
+                          : getJobStatusLabel(job)}
+                      </button>
+                    </form>
                   )}
                 </>
               )}
@@ -671,9 +609,9 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
 
 function Info({ label, value }) {
   return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value || "-"}</dd>
+    <div className="job-detail-row-premium">
+      <span className="label">{label}</span>
+      <span className="value">{value || "-"}</span>
     </div>
   );
 }

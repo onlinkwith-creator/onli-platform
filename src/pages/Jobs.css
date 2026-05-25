@@ -744,3 +744,303 @@
     border-radius: 20px;
   }
 }
+
+/* ==========================================================================
+   Premium Job Detail Redesign Styles
+   ========================================================================== */
+
+.job-detail-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+}
+
+.job-detail-hero {
+  text-align: left;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.job-detail-hero-label-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.job-detail-hero-kicker {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #6366f1;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.job-detail-hero-title {
+  margin: 0 0 16px;
+  font-size: clamp(28px, 4vw, 38px);
+  font-weight: 800;
+  color: #111827 !important;
+  line-height: 1.25;
+  opacity: 1 !important;
+  text-align: left;
+}
+
+.job-detail-hero-meta {
+  color: #4b5563;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+/* Premium Rounded Cards with blur & shadow */
+.job-detail-card-premium {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 28px;
+  padding: 32px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+/* Responsive 2-column info grid */
+.job-detail-grid-premium {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: 48px;
+  row-gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .job-detail-grid-premium {
+    grid-template-columns: 1fr;
+    row-gap: 16px;
+  }
+}
+
+.job-detail-row-premium {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(241, 245, 249, 0.8);
+}
+
+.job-detail-row-premium:last-child {
+  border-bottom: none;
+}
+
+.job-detail-row-premium .label {
+  color: #888888;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.job-detail-row-premium .value {
+  color: #111827;
+  font-weight: 700;
+  font-size: 14.5px;
+  text-align: right;
+}
+
+/* Section titles and spacing */
+.job-detail-section-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 20px;
+  border-left: 4px solid #6366f1;
+  padding-left: 12px;
+  text-align: left;
+}
+
+.job-detail-desc-block {
+  margin-bottom: 28px;
+}
+
+.job-detail-desc-block:last-child {
+  margin-bottom: 0;
+}
+
+.job-detail-desc-block p {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: #374151;
+  word-break: keep-all;
+  margin: 0;
+  text-align: left;
+}
+
+/* Bullet list inside description cards */
+.job-detail-bullets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding-left: 20px;
+  text-align: left;
+}
+
+.job-detail-bullets-list li {
+  font-size: 14px;
+  color: #4b5563;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+/* Apply Card Form Premium CTA Container */
+.job-apply-card-premium {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 28px;
+  padding: 32px;
+  border: 1px solid rgba(124, 92, 255, 0.1);
+  box-shadow: 0 20px 48px rgba(124, 92, 255, 0.08);
+  box-sizing: border-box;
+  text-align: left;
+  margin-bottom: 32px;
+}
+
+.job-apply-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.job-apply-header h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111827;
+  margin: 8px 0 16px;
+}
+
+.job-apply-header p {
+  font-size: 13.5px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Form controls inside apply card */
+.job-apply-card-premium form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.job-apply-card-premium label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.job-apply-card-premium label span {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #4b5563;
+}
+
+.job-apply-card-premium input,
+.job-apply-card-premium select,
+.job-apply-card-premium textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.job-apply-card-premium input:focus,
+.job-apply-card-premium select:focus,
+.job-apply-card-premium textarea:focus {
+  border-color: #6366f1;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.interpreter-profile-summary-card {
+  border-radius: 16px;
+  background: rgba(124, 92, 255, 0.04);
+  border: 1px solid rgba(124, 92, 255, 0.08);
+  padding: 20px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.interpreter-profile-summary-card .summary-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #6d28d9;
+}
+
+.summary-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-details span {
+  font-size: 13.5px;
+  color: #4b5563;
+}
+
+.summary-details span strong {
+  color: #1f2937;
+}
+
+.interpreter-profile-summary-card .summary-footer {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Submit CTA buttons */
+.job-apply-card-premium button[type="submit"] {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.job-apply-card-premium button[type="submit"]:not(:disabled) {
+  background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
+}
+
+.job-apply-card-premium button[type="submit"]:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 20px rgba(79, 70, 229, 0.3);
+  filter: brightness(1.05);
+}
+
+.job-apply-card-premium button[type="submit"]:disabled {
+  background: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  border: 1px solid #cbd5e1 !important;
+  cursor: not-allowed;
+  box-shadow: none;
+}
