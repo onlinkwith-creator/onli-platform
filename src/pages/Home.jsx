@@ -141,7 +141,10 @@ function Home({
         <div className="home-header-inner">
           <div className="home-logo-area" onClick={() => window.location.href = "/"} style={{ cursor: "pointer" }}>
             <img src="/logo.png" alt="ON-LI Logo" className="home-header-logo" />
-            <span className="home-header-brand-title">ON-LI</span>
+            <div className="home-header-brand-text-group">
+              <span className="home-header-brand-title">ON-LI</span>
+              <span className="home-header-brand-subtitle">On-Link Interpretation</span>
+            </div>
           </div>
           <nav className="home-nav" aria-label="메인 메뉴">
             <button type="button" onClick={onAboutClick}>

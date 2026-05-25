@@ -119,10 +119,27 @@
   flex-shrink: 0;
 }
 
+.home-header-brand-text-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
 .home-header-brand-title {
-  font-size: 18.5px;
-  font-weight: 850;
+  font-size: 30px;
+  font-weight: 800;
   color: #111827;
+  letter-spacing: -0.03em;
+  line-height: 1.0;
+}
+
+.home-header-brand-subtitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 3px;
+  line-height: 1.0;
   letter-spacing: -0.01em;
 }
 
@@ -1355,6 +1372,19 @@
     margin-left: 0;
     flex-wrap: wrap;
     gap: 12px;
+  }
+
+  .home-header-logo {
+    height: 28px !important;
+  }
+
+  .home-header-brand-title {
+    font-size: 22px !important;
+  }
+
+  .home-header-brand-subtitle {
+    font-size: 10.5px !important;
+    margin-top: 2px !important;
   }
 
   .home-cta-stack {
