@@ -875,6 +875,7 @@
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .home-job-company {
@@ -1080,6 +1081,7 @@
   line-height: 1.58;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .home-interpreter-card button,
@@ -1162,43 +1164,66 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  min-width: 220px;
+  gap: 12px;
+  min-width: 240px;
   text-align: left;
 }
 
-.home-footer-brand > span {
-  color: #6b7280;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.5;
-  word-break: keep-all;
-}
-
-.home-footer-logo-row {
-  display: inline-flex;
+.home-footer-logo-area {
+  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 10px;
+  user-select: none;
 }
 
 .home-footer-logo {
-  width: auto;
-  height: 36px;
+  height: 33px;
+  width: 33px;
   object-fit: contain;
-  flex: 0 0 auto;
+  flex-shrink: 0;
+  opacity: 1;
+  filter: contrast(1.03);
 }
 
-.home-footer strong {
+.home-footer-brand-text-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.home-footer-brand-title {
+  font-size: 28px;
+  font-weight: 700;
   color: #111827;
-  font-size: 24px;
-  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.0;
+}
+
+.home-footer-brand-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-top: 2px;
+  line-height: 1.0;
+  letter-spacing: -0.01em;
+}
+
+.home-footer-brand-desc {
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 4px;
+  line-height: 1.4;
+  word-break: keep-all;
 }
 
 .home-footer-contact {
   display: grid;
   grid-template-columns: repeat(4, minmax(112px, 1fr));
-  gap: 12px;
-  width: min(100%, 700px);
+  gap: 16px;
+  width: min(100%, 750px);
 }
 
 .home-footer-contact-item {
@@ -1209,40 +1234,50 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 12px;
-  border: 1px solid rgba(124, 58, 237, 0.1);
+  padding: 16px 22px;
+  border: 1px solid #E2E8F0;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.62);
+  background: #FFFFFF;
   color: #374151;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 13.5px;
+  font-weight: 700;
   line-height: 1.35;
   text-decoration: none;
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease, background-color 150ms ease;
   word-break: keep-all;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
 }
 
 .home-footer-contact-item svg {
-  color: #6d5dfc;
+  color: #6366f1;
   flex: 0 0 auto;
-  stroke-width: 2.2;
+  stroke-width: 2.0;
 }
 
 .home-footer-contact-item:hover {
-  border-color: rgba(124, 58, 237, 0.16);
-  background: rgba(124, 58, 237, 0.06);
-  box-shadow: 0 10px 24px rgba(109, 93, 252, 0.08);
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
   transform: translateY(-2px);
+}
+
+span.home-footer-contact-item {
+  cursor: default;
+}
+
+span.home-footer-contact-item:hover {
+  transform: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  border-color: #E2E8F0;
+  background: #FFFFFF;
 }
 
 .home-footer-contact-item:focus-visible,
 .home-footer-link:focus-visible {
-  outline: 2px solid rgba(109, 93, 252, 0.35);
+  outline: 2px solid rgba(99, 102, 241, 0.35);
   outline-offset: 3px;
-}
-
-.home-footer-email-short {
-  display: none;
 }
 
 .home-footer-policies {
@@ -1658,8 +1693,23 @@
     text-align: center;
   }
 
-  .home-footer-brand > span {
-    font-size: 14px;
+  .home-footer-logo-area {
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .home-footer-brand-title {
+    font-size: 22px !important;
+  }
+
+  .home-footer-brand-subtitle {
+    font-size: 11px !important;
+  }
+
+  .home-footer-brand-desc {
+    font-size: 13px !important;
+    margin-top: 6px !important;
+    font-weight: 500 !important;
   }
 
   .home-footer-contact {
@@ -1670,17 +1720,9 @@
 
   .home-footer-contact-item {
     min-height: 70px;
-    padding: 12px 8px;
+    padding: 14px 10px;
     border-radius: 16px;
     font-size: 12.5px;
-  }
-
-  .home-footer-email-full {
-    display: none;
-  }
-
-  .home-footer-email-short {
-    display: inline;
   }
 
   .home-footer-policies {
@@ -1721,7 +1763,8 @@
   }
 
   .home-footer-logo {
-    height: 30px;
+    height: 28px !important;
+    width: 28px !important;
   }
 
   .home-footer-copy {

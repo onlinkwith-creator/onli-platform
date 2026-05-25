@@ -381,11 +381,14 @@ function Home({
       <footer className="home-footer" id="contact">
         <div className="home-footer-top">
           <div className="home-footer-brand" aria-label="ON-LI 브랜드">
-            <div className="home-footer-logo-row">
-              <img className="home-footer-logo" src="/logo.png" alt="ON-LI" />
-              <strong>ON-LI</strong>
+            <div className="home-footer-logo-area">
+              <img src="/logo.png" alt="ON-LI Logo" className="home-footer-logo" />
+              <div className="home-footer-brand-text-group">
+                <span className="home-footer-brand-title">ON-LI</span>
+                <span className="home-footer-brand-subtitle">On-Link Interpretation</span>
+              </div>
             </div>
-            <span>한일 비즈니스 통역 매칭 플랫폼</span>
+            <span className="home-footer-brand-desc">한일 비즈니스 통역 매칭 플랫폼</span>
           </div>
           <div className="home-footer-contact" aria-label="운영 문의">
             <a
@@ -406,10 +409,9 @@ function Home({
               <MessageCircle size={22} aria-hidden="true" />
               <span>KakaoTalk</span>
             </a>
-            <a className="home-footer-contact-item" href="mailto:onlinkwith@gmail.com">
+            <a className="home-footer-contact-item" href="mailto:onlinkwith@gmail.com,onlinkcp@gmail.com">
               <Mail size={22} aria-hidden="true" />
-              <span className="home-footer-email-full">onlinkwith@gmail.com</span>
-              <span className="home-footer-email-short">메일 문의</span>
+              <span>메일 문의</span>
             </a>
             <span className="home-footer-contact-item" aria-label="운영시간">
               <Clock size={22} aria-hidden="true" />
