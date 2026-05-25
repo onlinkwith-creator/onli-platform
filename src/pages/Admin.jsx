@@ -3402,6 +3402,21 @@ function InterpreterCard({
   const isSaving = savingKey === `interpreter-${interpreter.id}`;
   const duplicateTitle = duplicateReasons.join(", ");
 
+  const handleDownloadFile = async (filePath, fileName) => {
+    if (!supabase || !filePath) return;
+    try {
+      const { data, error } = await supabase.storage
+        .from("resume-files")
+        .createSignedUrl(filePath, 60);
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank");
+    } catch (err) {
+      console.error("Failed to generate signed URL", err);
+      alert("이력서 파일을 다운로드할 수 없습니다. 권한이 없거나 링크가 만료되었습니다.");
+    }
+  };
+
   return (
     <article className="admin-list-card admin-interpreter-card">
       <div className="admin-list-card-head">
@@ -3415,7 +3430,7 @@ function InterpreterCard({
               ✨ 검증 완료
             </span>
           )}
-          {!interpreter.approved && interpreter.resume_url && (
+          {!interpreter.approved && (interpreter.resume_url || interpreter.resume_file_url) && (
             <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a' }}>
               ⏳ 심사 대기
             </span>
@@ -3440,13 +3455,39 @@ function InterpreterCard({
           value={
             interpreter.approved ? (
               <span style={{ color: "#15803d", fontWeight: "bold" }}>✨ 검증 완료</span>
-            ) : interpreter.resume_url ? (
-              <span style={{ color: "#a16207", fontWeight: "bold" }}>⏳ 심사 대기</span>
+            ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span style={{ color: "#a16207", fontWeight: "bold" }}>
+                  ⏳ 심사 대기 (
+                  {interpreter.resume_url && interpreter.resume_file_url ? "링크+파일" : interpreter.resume_file_url ? "파일" : "링크"}
+                  )
+                </span>
+                {interpreter.resume_url && (
+                  <a href={interpreter.resume_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#3b82f6", textDecoration: "underline", wordBreak: "break-all" }}>
+                    🔗 포트폴리오 링크
+                  </a>
+                )}
+                {interpreter.resume_file_url && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadFile(interpreter.resume_file_url, interpreter.resume_file_name)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#5b5cf0", color: "#ffffff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer", marginTop: "2px", width: "fit-content" }}
+                  >
+                    📥 파일 다운로드
+                  </button>
+                )}
+              </div>
             ) : (
               <span style={{ color: "#6b7280" }}>미제출</span>
             )
           }
         />
+        {interpreter.resume_submitted_at && (
+          <Info
+            label="제출일"
+            value={new Date(interpreter.resume_submitted_at).toLocaleDateString()}
+          />
+        )}
         <Info label="활동 지역" value={formatListOrMissing(interpreter.available_regions)} />
         <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
         <Info label="통역 경험" value={getExperienceLabel(interpreter)} />
@@ -3540,6 +3581,21 @@ function InterpreterModal({
   updateInterpreter,
 }) {
   if (!interpreter || !modalType) return null;
+
+  const handleDownloadFile = async (filePath, fileName) => {
+    if (!supabase || !filePath) return;
+    try {
+      const { data, error } = await supabase.storage
+        .from("resume-files")
+        .createSignedUrl(filePath, 60);
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank");
+    } catch (err) {
+      console.error("Failed to generate signed URL", err);
+      alert("이력서 파일을 다운로드할 수 없습니다. 권한이 없거나 링크가 만료되었습니다.");
+    }
+  };
 
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const levelLabel = normalizeLevel(interpreter.level);
@@ -3638,20 +3694,38 @@ function InterpreterModal({
                 <InterpreterDetailItem
                   label="제출된 이력서"
                   value={
-                    interpreter.resume_url ? (
-                      <a
-                        href={interpreter.resume_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          color: "#aa3bff",
-                          textDecoration: "underline",
-                          fontWeight: "600",
-                          wordBreak: "break-all",
-                        }}
-                      >
-                        이력서 보기 ↗
-                      </a>
+                    (interpreter.resume_url || interpreter.resume_file_url) ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {interpreter.resume_url && (
+                          <a
+                            href={interpreter.resume_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: "#aa3bff",
+                              textDecoration: "underline",
+                              fontWeight: "600",
+                              wordBreak: "break-all",
+                            }}
+                          >
+                            포트폴리오 링크 ↗
+                          </a>
+                        )}
+                        {interpreter.resume_file_url && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "13px", color: "#4b5563", fontWeight: "700" }}>
+                              📎 {interpreter.resume_file_name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadFile(interpreter.resume_file_url, interpreter.resume_file_name)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#5b5cf0", color: "#ffffff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
+                            >
+                              📥 다운로드
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       "미제출"
                     )
@@ -3740,22 +3814,38 @@ function InterpreterModal({
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <h4 style={{ margin: "0 0 6px 0", fontSize: "0.95rem", color: "var(--text-h)" }}>제출된 이력서 / 포트폴리오</h4>
-                    {interpreter.resume_url ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <a
-                          href={interpreter.resume_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            color: "#aa3bff",
-                            textDecoration: "underline",
-                            fontWeight: "600",
-                            fontSize: "0.95rem",
-                            wordBreak: "break-all"
-                          }}
-                        >
-                          {interpreter.resume_url} ↗
-                        </a>
+                    {(interpreter.resume_url || interpreter.resume_file_url) ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {interpreter.resume_url && (
+                          <a
+                            href={interpreter.resume_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: "#aa3bff",
+                              textDecoration: "underline",
+                              fontWeight: "600",
+                              fontSize: "0.95rem",
+                              wordBreak: "break-all"
+                            }}
+                          >
+                            포트폴리오 링크 ↗
+                          </a>
+                        )}
+                        {interpreter.resume_file_url && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "13px", color: "var(--text-h)", fontWeight: "700" }}>
+                              📎 {interpreter.resume_file_name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadFile(interpreter.resume_file_url, interpreter.resume_file_name)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#5b5cf0", color: "#ffffff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
+                            >
+                              📥 다운로드
+                            </button>
+                          </div>
+                        )}
                         {interpreter.resume_submitted_at && (
                           <span style={{ fontSize: "0.8rem", color: "var(--text)" }}>
                             제출 일시: {formatDateTime(interpreter.resume_submitted_at)}
@@ -3774,7 +3864,7 @@ function InterpreterModal({
                         <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
                           ✨ 검증 완료
                         </span>
-                      ) : interpreter.resume_url ? (
+                      ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
                         <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
                           ⏳ 심사 대기중
                         </span>

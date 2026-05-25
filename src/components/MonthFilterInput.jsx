@@ -2,6 +2,9 @@ import { formatDisplayMonth } from "../utils/date";
 import "./MonthFilterInput.css";
 
 function MonthFilterInput({ value, onChange, label = "월 선택" }) {
+  const currentMonth = getCurrentMonthValue();
+  const nextMonth = getNextMonthValue();
+
   return (
     <div className="month-filter-input">
       <label>
@@ -14,13 +17,25 @@ function MonthFilterInput({ value, onChange, label = "월 선택" }) {
         />
       </label>
       <div className="month-filter-actions" aria-label="빠른 월 이동">
-        <button type="button" onClick={() => onChange(getCurrentMonthValue())}>
+        <button
+          type="button"
+          className={value === currentMonth ? "is-active" : ""}
+          onClick={() => onChange(currentMonth)}
+        >
           이번 달
         </button>
-        <button type="button" onClick={() => onChange(getNextMonthValue())}>
+        <button
+          type="button"
+          className={value === nextMonth ? "is-active" : ""}
+          onClick={() => onChange(nextMonth)}
+        >
           다음 달
         </button>
-        <button type="button" onClick={() => onChange("")}>
+        <button
+          type="button"
+          className={value === "" ? "is-active" : ""}
+          onClick={() => onChange("")}
+        >
           전체
         </button>
       </div>

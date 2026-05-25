@@ -52,6 +52,8 @@ function InterpreterMypage({
   // Resume Submission States
   const [resumeUrl, setResumeUrl] = useState("");
   const [isSubmittingResume, setIsSubmittingResume] = useState(false);
+  const [resumeFile, setResumeFile] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const handleStartEdit = () => {
     if (!interpreter) return;
@@ -133,20 +135,84 @@ function InterpreterMypage({
     }
   }, [interpreter]);
 
+  const handleFileSelection = (file) => {
+    if (!file) return;
+
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert("파일 크기는 최대 10MB까지 가능합니다.");
+      return;
+    }
+
+    const allowedExtensions = ["pdf", "doc", "docx", "png", "jpg", "jpeg"];
+    const fileExtension = file.name.split(".").pop().toLowerCase();
+    if (!allowedExtensions.includes(fileExtension)) {
+      alert("허용되지 않는 파일 형식입니다. (PDF, DOC, DOCX, PNG, JPG 파일만 가능)");
+      return;
+    }
+
+    setResumeFile(file);
+  };
+
+  const handleDownloadResume = async (filePath, fileName) => {
+    if (!supabase || !filePath) return;
+    try {
+      const { data, error } = await supabase.storage
+        .from("resume-files")
+        .createSignedUrl(filePath, 60);
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank");
+    } catch (err) {
+      console.error("Failed to generate signed URL", err);
+      alert("이력서 파일을 다운로드할 수 없습니다. 권한이 없거나 링크가 만료되었습니다.");
+    }
+  };
+
   const handleUpdateResume = async (e) => {
     e.preventDefault();
     if (isSubmittingResume || !supabase || !interpreter) return;
-    
-    if (!resumeUrl.trim()) {
-      alert("이력서 링크 또는 내용을 입력해주세요.");
+
+    if (!resumeUrl.trim() && !resumeFile) {
+      alert("이력서 링크를 입력하거나 이력서 파일을 업로드해주세요.");
       return;
     }
 
     setIsSubmittingResume(true);
-    
+
+    let fileUrl = interpreter.resume_file_url || "";
+    let fileName = interpreter.resume_file_name || "";
+
+    if (resumeFile) {
+      try {
+        const cleanedName = resumeFile.name.replace(/[^a-zA-Z0-9.]/g, "_");
+        const filePath = `${interpreter.id}/${Date.now()}_${cleanedName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("resume-files")
+          .upload(filePath, resumeFile, {
+            upsert: true,
+          });
+
+        if (uploadError) throw uploadError;
+
+        fileUrl = filePath;
+        fileName = resumeFile.name;
+      } catch (uploadError) {
+        console.error("Storage upload failed", uploadError);
+        alert("이력서 파일 업로드에 실패했습니다. 다시 시도해주세요.");
+        setIsSubmittingResume(false);
+        return;
+      }
+    }
+
     const payload = {
       resume_url: resumeUrl.trim(),
+      resume_file_url: fileUrl,
+      resume_file_name: fileName,
+      resume_uploaded_at: resumeFile ? new Date().toISOString() : interpreter.resume_uploaded_at,
       resume_submitted_at: new Date().toISOString(),
+      status: "pending",
     };
 
     const { data, error } = await supabase
@@ -161,7 +227,8 @@ function InterpreterMypage({
       alert("이력서 제출에 실패했습니다. 다시 시도해주세요.");
     } else {
       setInterpreter(data);
-      alert("이력서가 성공적으로 제출되었습니다. 운영팀 검토 후 검증 배지가 수여됩니다.");
+      alert("이력서가 정상 제출되었습니다. 운영팀 검토 후 검증 배지가 수여됩니다.");
+      setResumeFile(null);
     }
     setIsSubmittingResume(false);
   };
@@ -823,9 +890,14 @@ function InterpreterMypage({
                             귀하는 ON-LI 공식 인증을 받은 신뢰할 수 있는 통역사입니다. 
                             프로필에 검증 완료 배지가 표시되며 공고 추천 및 매칭에서 우선 순위를 얻게 됩니다.
                           </p>
+                          {interpreter.resume_file_name && (
+                            <div className="verification-status-file-link" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer", marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "6px", color: "#d97706", fontWeight: "700", fontSize: "13px" }}>
+                              📎 {interpreter.resume_file_name} (이력서 보기)
+                            </div>
+                          )}
                         </div>
                       </div>
-                    ) : interpreter.resume_url ? (
+                    ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
                       <div className="verification-status-box pending">
                         <span className="verification-status-badge pending">⏳ 심사 대기 중</span>
                         <div className="verification-status-details">
@@ -834,6 +906,11 @@ function InterpreterMypage({
                             제출하신 이력서를 바탕으로 운영팀에서 검증 절차를 진행 중입니다. 
                             심사는 영업일 기준 1~3일 소요됩니다.
                           </p>
+                          {interpreter.resume_file_name && (
+                            <div className="verification-status-file-link" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer", marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "6px", color: "#5b5cf0", fontWeight: "700", fontSize: "13px" }}>
+                              📎 {interpreter.resume_file_name} (이력서 다운로드)
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -851,23 +928,95 @@ function InterpreterMypage({
 
                     {!interpreter.approved && (
                       <form onSubmit={handleUpdateResume} className="resume-submit-form">
+                        
+                        {/* File Upload Zone */}
                         <div className="resume-input-group">
-                          <label htmlFor="resume-url-input">이력서 또는 포트폴리오 링크 (구글 드라이브, 노션, PDF 링크 등)</label>
+                          <label>이력서 파일 업로드 (선택)</label>
+                          <div 
+                            className={`resume-upload-zone ${isDragOver ? "is-dragover" : ""}`}
+                            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                            onDragLeave={() => setIsDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsDragOver(false);
+                              const file = e.dataTransfer.files[0];
+                              if (file) handleFileSelection(file);
+                            }}
+                          >
+                            <input
+                              id="resume-file-input"
+                              type="file"
+                              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) handleFileSelection(file);
+                              }}
+                              style={{ display: "none" }}
+                            />
+                            
+                            <label htmlFor="resume-file-input" className="resume-upload-label">
+                              <span className="upload-icon">📤</span>
+                              <strong>PDF / DOCX / 포트폴리오 파일 업로드</strong>
+                              <span className="upload-tip">허용 형식: PDF, DOC, DOCX, PNG, JPG (최대 10MB)</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Selected File Preview */}
+                        {resumeFile && (
+                          <div className="resume-selected-file-card">
+                            <span className="file-icon">📄</span>
+                            <div className="file-details">
+                              <span className="file-name">{resumeFile.name}</span>
+                              <span className="file-size">{(resumeFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                            </div>
+                            <button 
+                              type="button" 
+                              className="file-remove-btn"
+                              onClick={() => setResumeFile(null)}
+                            >
+                              ❌
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Previously Uploaded File Preview */}
+                        {!resumeFile && interpreter.resume_file_name && (
+                          <div className="resume-selected-file-card uploaded">
+                            <span className="file-icon">✅</span>
+                            <div className="file-details" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer" }}>
+                              <span className="file-name">{interpreter.resume_file_name}</span>
+                              <span className="file-uploaded-at">제출일: {interpreter.resume_uploaded_at ? new Date(interpreter.resume_uploaded_at).toLocaleDateString() : "확인 불가"}</span>
+                            </div>
+                            <button 
+                              type="button" 
+                              className="file-download-btn"
+                              onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)}
+                              title="다운로드"
+                            >
+                              📥
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Portfolio Link input */}
+                        <div className="resume-input-group">
+                          <label htmlFor="resume-url-input">포트폴리오 링크 (선택)</label>
                           <input
                             id="resume-url-input"
                             type="url"
                             value={resumeUrl}
                             onChange={(e) => setResumeUrl(e.target.value)}
                             placeholder="예: https://notion.so/my-resume"
-                            required
                           />
                         </div>
+
                         <button
                           type="submit"
                           className="resume-submit-btn"
                           disabled={isSubmittingResume}
                         >
-                          {isSubmittingResume ? "제출 중..." : interpreter.resume_url ? "이력서 수정 및 재제출" : "이력서 제출하기"}
+                          {isSubmittingResume ? "제출 중..." : interpreter.resume_url || interpreter.resume_file_url ? "이력서 수정 및 재제출" : "이력서 제출하기"}
                         </button>
                       </form>
                     )}
