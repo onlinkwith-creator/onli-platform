@@ -360,7 +360,10 @@ function App() {
       )}
 
       {page === "policy" && selectedPolicyKey && (
-        <PolicyPage policyKey={selectedPolicyKey} />
+        <PolicyPage
+          policyKey={selectedPolicyKey}
+          onNavigate={(targetPage, targetPolicyKey) => navigate(targetPage, null, null, targetPolicyKey)}
+        />
       )}
 
       {page === "jobs" && (
