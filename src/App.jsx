@@ -12,6 +12,7 @@ import InterpreterLogin from "./pages/InterpreterLogin";
 import InterpreterSignup from "./pages/InterpreterSignup";
 import InterpreterMypage from "./pages/InterpreterMypage";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
 import { useAuth } from "./hooks/useAuth";
 import { supabase } from "./supabase";
@@ -36,6 +37,7 @@ function getInitialPage() {
   if (path === "/interpreter-login") return "interpreterLogin";
   if (path === "/interpreter-signup") return "interpreterSignup";
   if (path === "/interpreter-mypage") return "interpreterMypage";
+  if (path === "/reset-password") return "resetPassword";
   if (path.startsWith("/jobs/") && path.endsWith("/apply")) {
     // /jobs/:id/apply를 /jobs/:id#apply로 리다이렉트
     const jobId = path.split("/")[2];
@@ -83,6 +85,7 @@ function getPath(page, interpreter, jobId, policyKey) {
   if (page === "interpreterLogin") return "/interpreter-login";
   if (page === "interpreterSignup") return "/interpreter-signup";
   if (page === "interpreterMypage") return "/interpreter-mypage";
+  if (page === "resetPassword") return "/reset-password";
   if (page === "list") return "/interpreters";
   if (page === "detail" && interpreter?.id) {
     return `/interpreters/${interpreter.id}`;
@@ -285,6 +288,12 @@ function App() {
         <Login
           onBackClick={() => navigate("home", null, null)}
           onLoginSuccess={() => navigate("home", null, null)}
+        />
+      )}
+
+      {page === "resetPassword" && (
+        <ResetPassword
+          onBackToLogin={() => navigate("login", null, null)}
         />
       )}
 
