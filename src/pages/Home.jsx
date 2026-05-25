@@ -18,6 +18,7 @@ import {
   Mail,
   MessageCircle,
   UserRound,
+  User,
 } from "lucide-react";
 
 function getSupabaseErrorMessage(error, fallback) {
@@ -137,44 +138,45 @@ function Home({
       <div className="home-bg-glow" />
 
       <header className="home-header">
-        <div className="home-logo-area" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "16px" }}>
-          <img src="/logo.png" alt="ON-LI Logo" style={{ height: "48px", width: "48px", objectFit: "contain" }} />
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-            <div className="home-brand-sub" style={{ margin: 0, marginBottom: "4px" }}>ON-LI</div>
-            <h2 className="home-brand-title">On-Link Interpretation</h2>
+        <div className="home-header-inner">
+          <div className="home-logo-area" onClick={() => window.location.href = "/"} style={{ cursor: "pointer" }}>
+            <img src="/logo.png" alt="ON-LI Logo" className="home-header-logo" />
+            <span className="home-header-brand-title">ON-LI</span>
           </div>
-        </div>
-      <nav className="home-nav" aria-label="메인 메뉴">
-          <button type="button" onClick={onAboutClick}>
-            ON-LI 소개
-          </button>
-          <button type="button" onClick={onListClick}>
-            통역사
-          </button>
-          <button type="button" onClick={onJobsClick}>
-            통역 공고
-          </button>
-          <button type="button" onClick={() => scrollToSection("contact")}>
-            문의하기
-          </button>
-          {user ? (
-            <>
-              <span className="home-user-email" style={{ color: '#4f46e5', fontWeight: 700, fontSize: '14px', marginRight: '8px' }}>
-                {user.email}
-              </span>
-              <button type="button" onClick={onMypageClick} style={{ color: '#4f46e5', fontWeight: 800 }}>
-                마이페이지
-              </button>
-              <button type="button" onClick={onLogoutClick}>
-                로그아웃
-              </button>
-            </>
-          ) : (
-            <button type="button" onClick={onInterpreterLoginClick}>
-              로그인
+          <nav className="home-nav" aria-label="메인 메뉴">
+            <button type="button" onClick={onAboutClick}>
+              ON-LI 소개
             </button>
-          )}
-        </nav>
+            <button type="button" onClick={onListClick}>
+              통역사
+            </button>
+            <button type="button" onClick={onJobsClick}>
+              통역 공고
+            </button>
+            <button type="button" onClick={() => scrollToSection("contact")}>
+              문의하기
+            </button>
+            {user ? (
+              <div className="home-header-user-zone">
+                <span className="home-user-email">
+                  <User size={14} style={{ marginRight: "4px", verticalAlign: "middle" }} />
+                  {user.email}
+                </span>
+                <span className="home-header-divider">|</span>
+                <button type="button" className="home-header-mypage-btn" onClick={onMypageClick}>
+                  마이페이지
+                </button>
+                <button type="button" className="home-header-logout-btn" onClick={onLogoutClick}>
+                  로그아웃
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="home-header-login-btn" onClick={onInterpreterLoginClick}>
+                로그인
+              </button>
+            )}
+          </nav>
+        </div>
       </header>
 
       <main className="home-main" id="about-onli">
