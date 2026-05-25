@@ -52,6 +52,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
 
   return (
     <div className="jobs-page">
+      <div className="home-bg-glow" />
       <div className="jobs-shell">
         <button type="button" onClick={onBackClick} className="jobs-back main-return-button">
           ← 메인으로
@@ -73,11 +74,16 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
         </header>
 
         {loading ? (
-          <MessageBox text="공고를 불러오는 중입니다..." />
+          <JobSkeletonGrid />
         ) : errorMessage ? (
-          <MessageBox text={errorMessage} />
+          <div className="jobs-message-card error">
+            <p>{errorMessage}</p>
+          </div>
         ) : jobs.length === 0 ? (
-          <MessageBox text="현재 등록된 공고가 없습니다." />
+          <div className="jobs-message-card empty">
+            <div className="empty-icon">📂</div>
+            <p>현재 표시할 데이터가 없습니다.</p>
+          </div>
         ) : (
           <div className="home-job-grid jobs-card-grid">
             {jobs.map((job) => (
@@ -95,8 +101,22 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
   );
 }
 
-function MessageBox({ text }) {
-  return <div className="jobs-message">{text}</div>;
+function JobSkeletonGrid() {
+  return (
+    <div className="jobs-card-grid">
+      {[1, 2, 3].map((n) => (
+        <div key={n} className="job-skeleton-card">
+          <div className="skeleton-badge"></div>
+          <div className="skeleton-title"></div>
+          <div className="skeleton-company"></div>
+          <div className="skeleton-info-row"></div>
+          <div className="skeleton-info-row"></div>
+          <div className="skeleton-info-row"></div>
+          <div className="skeleton-button"></div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default JobList;
