@@ -50,7 +50,6 @@ function InterpreterMypage({
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   // Resume Submission States
-  const [resumeUrl, setResumeUrl] = useState("");
   const [isSubmittingResume, setIsSubmittingResume] = useState(false);
   const [resumeFile, setResumeFile] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -129,11 +128,6 @@ function InterpreterMypage({
     setIsUpdatingProfile(false);
   };
 
-  useEffect(() => {
-    if (interpreter) {
-      setResumeUrl(interpreter.resume_url || "");
-    }
-  }, [interpreter]);
 
   const handleFileSelection = (file) => {
     if (!file) return;
@@ -171,47 +165,48 @@ function InterpreterMypage({
 
   const handleUpdateResume = async (e) => {
     e.preventDefault();
-    if (isSubmittingResume || !supabase || !interpreter) return;
+    if (isSubmittingResume || !supabase || !interpreter || !user) return;
 
-    if (!resumeUrl.trim() && !resumeFile) {
-      alert("이력서 링크를 입력하거나 이력서 파일을 업로드해주세요.");
+    if (!resumeFile) {
+      alert("업로드할 이력서 파일을 선택해주세요.");
       return;
     }
 
     setIsSubmittingResume(true);
 
-    let fileUrl = interpreter.resume_file_url || "";
-    let fileName = interpreter.resume_file_name || "";
+    let fileUrl = "";
+    let fileName = "";
 
-    if (resumeFile) {
-      try {
-        const cleanedName = resumeFile.name.replace(/[^a-zA-Z0-9.]/g, "_");
-        const filePath = `${interpreter.id}/${Date.now()}_${cleanedName}`;
+    // Supabase Storage에서 resume-files bucket 생성 필요
+    try {
+      const safeFileName = resumeFile.name
+        .replace(/\s+/g, "_")
+        .replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ_.-]/g, "");
+      const filePath = `${user.id}/${Date.now()}_${safeFileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("resume-files")
-          .upload(filePath, resumeFile, {
-            upsert: true,
-          });
+      const { error: uploadError } = await supabase.storage
+        .from("resume-files")
+        .upload(filePath, resumeFile, {
+          upsert: true,
+        });
 
-        if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-        fileUrl = filePath;
-        fileName = resumeFile.name;
-      } catch (uploadError) {
-        console.error("Storage upload failed", uploadError);
-        alert("이력서 파일 업로드에 실패했습니다. 다시 시도해주세요.");
-        setIsSubmittingResume(false);
-        return;
-      }
+      fileUrl = filePath;
+      fileName = resumeFile.name;
+    } catch (uploadError) {
+      console.error("Storage upload failed:", uploadError);
+      alert("이력서 파일 업로드에 실패했습니다. 다시 시도해주세요.");
+      setIsSubmittingResume(false);
+      return;
     }
 
     const payload = {
-      resume_url: resumeUrl.trim(),
       resume_file_url: fileUrl,
       resume_file_name: fileName,
-      resume_uploaded_at: resumeFile ? new Date().toISOString() : interpreter.resume_uploaded_at,
+      resume_uploaded_at: new Date().toISOString(),
       resume_submitted_at: new Date().toISOString(),
+      badge_review_status: "review_pending",
       status: "pending",
     };
 
@@ -227,7 +222,7 @@ function InterpreterMypage({
       alert("이력서 제출에 실패했습니다. 다시 시도해주세요.");
     } else {
       setInterpreter(data);
-      alert("이력서가 정상 제출되었습니다. 운영팀 검토 후 검증 배지가 수여됩니다.");
+      alert("이력서가 정상 제출되었습니다.");
       setResumeFile(null);
     }
     setIsSubmittingResume(false);
@@ -899,7 +894,7 @@ function InterpreterMypage({
                       </div>
                     ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
                       <div className="verification-status-box pending">
-                        <span className="verification-status-badge pending">⏳ 심사 대기 중</span>
+                        <span className="verification-status-badge pending">⏳ 검토 대기</span>
                         <div className="verification-status-details">
                           <h4 className="verification-status-title">이력서 검토 중</h4>
                           <p className="verification-status-desc">
@@ -919,7 +914,7 @@ function InterpreterMypage({
                         <div className="verification-status-details">
                           <h4 className="verification-status-title">검증 배지 미보유</h4>
                           <p className="verification-status-desc">
-                            검증된 통역사 배지를 획득하려면 아래에서 이력서(경력 소개서) 또는 포트폴리오 링크를 제출해주세요. 
+                            검증된 통역사 배지를 획득하려면 아래에서 이력서(경력 소개서) 파일을 업로드해주세요. 
                             운영팀의 심사를 거쳐 배지가 수여됩니다.
                           </p>
                         </div>
@@ -931,7 +926,7 @@ function InterpreterMypage({
                         
                         {/* File Upload Zone */}
                         <div className="resume-input-group">
-                          <label>이력서 파일 업로드 (선택)</label>
+                          <label>이력서 파일 업로드</label>
                           <div 
                             className={`resume-upload-zone ${isDragOver ? "is-dragover" : ""}`}
                             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
@@ -999,24 +994,12 @@ function InterpreterMypage({
                           </div>
                         )}
 
-                        {/* Portfolio Link input */}
-                        <div className="resume-input-group">
-                          <label htmlFor="resume-url-input">포트폴리오 링크 (선택)</label>
-                          <input
-                            id="resume-url-input"
-                            type="url"
-                            value={resumeUrl}
-                            onChange={(e) => setResumeUrl(e.target.value)}
-                            placeholder="예: https://notion.so/my-resume"
-                          />
-                        </div>
-
                         <button
                           type="submit"
                           className="resume-submit-btn"
                           disabled={isSubmittingResume}
                         >
-                          {isSubmittingResume ? "제출 중..." : interpreter.resume_url || interpreter.resume_file_url ? "이력서 수정 및 재제출" : "이력서 제출하기"}
+                          {isSubmittingResume ? "제출 중..." : interpreter.resume_file_url ? "이력서 수정 및 재제출" : "이력서 제출하기"}
                         </button>
                       </form>
                     )}
