@@ -1164,8 +1164,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
-  min-width: 240px;
+  gap: 14px;
+  min-width: 280px;
   text-align: left;
 }
 
@@ -1173,17 +1173,17 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 9px;
+  gap: 13px;
   user-select: none;
 }
 
 .home-footer-logo {
-  height: 29px;
-  width: 29px;
+  height: 42px;
+  width: 42px;
   object-fit: contain;
   flex-shrink: 0;
-  opacity: 0.88;
-  filter: contrast(0.98);
+  opacity: 1;
+  filter: contrast(1.04);
 }
 
 .home-footer-brand-text-group {
@@ -1194,19 +1194,19 @@
 }
 
 .home-footer-brand-title {
-  font-size: 23px;
-  font-weight: 600;
+  font-size: 31px;
+  font-weight: 700;
   color: #111827;
   letter-spacing: -0.03em;
-  line-height: 1.05;
+  line-height: 1.0;
 }
 
 .home-footer-brand-subtitle {
-  font-size: 10.5px;
+  font-size: 13px;
   font-weight: 500;
   color: #94a3b8;
-  margin-top: 1px;
-  line-height: 1.05;
+  margin-top: 2px;
+  line-height: 1.0;
   letter-spacing: 0;
 }
 
@@ -1696,15 +1696,15 @@ span.home-footer-contact-item:hover {
 
   .home-footer-logo-area {
     justify-content: center;
-    gap: 8px;
+    gap: 10px;
   }
 
   .home-footer-brand-title {
-    font-size: 19px !important;
+    font-size: 24px !important;
   }
 
   .home-footer-brand-subtitle {
-    font-size: 9.5px !important;
+    font-size: 11.5px !important;
   }
 
   .home-footer-brand-desc {
@@ -1764,8 +1764,9 @@ span.home-footer-contact-item:hover {
   }
 
   .home-footer-logo {
-    height: 25px !important;
-    width: 25px !important;
+    height: 32px !important;
+    width: 32px !important;
+    opacity: 1 !important;
   }
 
   .home-footer-copy {
