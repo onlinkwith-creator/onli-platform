@@ -42,7 +42,7 @@ const initialForm = {
 
 // TODO: 실서비스 전에는 Supabase Auth 기반으로 통역사 본인 계정만 지원 가능하게 해야 함.
 
-function JobDetail({ jobId, onBackClick }) {
+function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
   const { user, loading: authLoading } = useAuth();
   const [interpreterProfile, setInterpreterProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -176,6 +176,28 @@ function JobDetail({ jobId, onBackClick }) {
       setErrorMessage("지원할 수 없는 공고입니다.");
       return;
     }
+    if (authLoading) {
+      setErrorMessage("로그인 상태를 확인 중입니다.");
+      return;
+    }
+    if (!user) {
+      const message = "회원가입 및 로그인 후 지원 가능합니다.";
+      setErrorMessage(message);
+      alert(message);
+      onLoginClick?.();
+      return;
+    }
+    if (profileLoading) {
+      setErrorMessage("통역사 등록 정보를 확인 중입니다.");
+      return;
+    }
+    if (!interpreterProfile) {
+      const message = "통역사 등록을 완료한 계정만 공고에 지원할 수 있습니다.";
+      setErrorMessage(message);
+      alert(message);
+      onRegisterClick?.();
+      return;
+    }
 
     if (!areTermsAgreed(agreements)) {
       const message = "약관 동의 후 제출 가능합니다.";
@@ -198,7 +220,7 @@ function JobDetail({ jobId, onBackClick }) {
     const applicantEmail = normalizeApplicationEmail(form.email);
     const applicantPhone = normalizeApplicationPhone(form.phone);
 
-    const matchedInterpreter = interpreterProfile || (await findInterpreterByEmail(applicantEmail));
+    const matchedInterpreter = interpreterProfile;
 
     const application = {
       job_id: job.id,
@@ -489,6 +511,28 @@ function JobDetail({ jobId, onBackClick }) {
               ) : (
                 <>
                   <h2 id="apply">{canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}</h2>
+                  {authLoading || profileLoading ? (
+                    <div className="jobs-success-inline">
+                      <h2>지원 자격 확인 중</h2>
+                      <p>로그인 및 통역사 등록 정보를 확인하고 있습니다.</p>
+                    </div>
+                  ) : !user ? (
+                    <div className="jobs-success-inline">
+                      <h2>로그인이 필요합니다</h2>
+                      <p>회원가입 및 로그인 후 통역 공고에 지원할 수 있습니다.</p>
+                      <button type="button" onClick={onLoginClick}>
+                        로그인 / 회원가입
+                      </button>
+                    </div>
+                  ) : !interpreterProfile ? (
+                    <div className="jobs-success-inline">
+                      <h2>통역사 등록이 필요합니다</h2>
+                      <p>통역사 프로필 등록을 완료한 계정만 공고에 지원할 수 있습니다.</p>
+                      <button type="button" onClick={onRegisterClick}>
+                        통역사 등록하기
+                      </button>
+                    </div>
+                  ) : (
                   <form onSubmit={handleSubmit}>
                     {interpreterProfile ? (
                       <div className="interpreter-profile-summary-card">
@@ -599,6 +643,10 @@ function JobDetail({ jobId, onBackClick }) {
                       type="submit"
                       disabled={
                         submitting ||
+                        authLoading ||
+                        profileLoading ||
+                        !user ||
+                        !interpreterProfile ||
                         !canApplyToJob(job) ||
                         !areTermsAgreed(agreements)
                       }
@@ -610,6 +658,7 @@ function JobDetail({ jobId, onBackClick }) {
                         : getJobStatusLabel(job)}
                     </button>
                   </form>
+                  )}
                 </>
               )}
             </aside>
@@ -639,23 +688,6 @@ function isAgreementColumnError(error) {
     error?.code === "PGRST204" ||
     /agreed_|column|schema cache/i.test(error?.message || "")
   );
-}
-
-async function findInterpreterByEmail(email) {
-  if (!email || !supabase) return null;
-
-  const { data, error } = await supabase
-    .from("interpreters")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (error) {
-    console.warn("지원자 통역사 정보 확인 실패:", error);
-    return null;
-  }
-
-  return data || null;
 }
 
 export default JobDetail;

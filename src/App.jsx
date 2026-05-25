@@ -417,6 +417,8 @@ function App() {
         <JobDetail
           jobId={selectedJobId}
           onBackClick={() => navigate("jobs", null, null)}
+          onLoginClick={() => navigate("login", null, null)}
+          onRegisterClick={openInterpreterRegister}
         />
       )}
 
