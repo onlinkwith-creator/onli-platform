@@ -151,9 +151,17 @@ function InterpreterMypage({
   const handleDownloadResume = async (filePath, fileName) => {
     if (!supabase || !filePath) return;
     try {
+      let resolvedPath = filePath;
+      if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+        const parts = filePath.split("/resume-files/");
+        if (parts.length > 1) {
+          resolvedPath = parts[1].split("?")[0];
+        }
+      }
+
       const { data, error } = await supabase.storage
         .from("resume-files")
-        .createSignedUrl(filePath, 60);
+        .createSignedUrl(resolvedPath, 60);
 
       if (error) throw error;
       window.open(data.signedUrl, "_blank");
@@ -174,33 +182,68 @@ function InterpreterMypage({
 
     setIsSubmittingResume(true);
 
+    // 1. Supabase Storage bucket 존재 여부 확인
+    try {
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      if (bucketsError) throw bucketsError;
+      
+      const bucketExists = buckets?.some(b => b.id === "resume-files");
+      if (!bucketExists) {
+        console.error("resume-files bucket not found");
+      }
+    } catch (err) {
+      console.error("Failed to check storage buckets:", err);
+    }
+
+    let filePath = "";
     let fileUrl = "";
     let fileName = "";
 
+    // 4. safe filename 처리
+    const safeFileName = resumeFile.name
+      .replace(/\s+/g, "_")
+      .replace(/[^\w.-]/g, "");
+
+    // 5. 업로드 경로 수정
+    filePath = `${user.id}/${Date.now()}_${safeFileName}`;
+    fileName = resumeFile.name;
+
+    // 3. Storage upload 실행
+    // authenticated user upload 허용 필요
     // Supabase Storage에서 resume-files bucket 생성 필요
     try {
-      const safeFileName = resumeFile.name
-        .replace(/\s+/g, "_")
-        .replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ_.-]/g, "");
-      const filePath = `${user.id}/${Date.now()}_${safeFileName}`;
-
-      const { error: uploadError } = await supabase.storage
+      const { data, error } = await supabase.storage
         .from("resume-files")
         .upload(filePath, resumeFile, {
           upsert: true,
         });
 
-      if (uploadError) throw uploadError;
+      if (error) {
+        console.error("Resume upload error message:", error.message);
+        throw error;
+      }
 
-      fileUrl = filePath;
-      fileName = resumeFile.name;
+      // 8. public URL 생성 수정
+      const {
+        data: { publicUrl },
+      } = supabase.storage
+        .from("resume-files")
+        .getPublicUrl(filePath);
+
+      fileUrl = publicUrl;
     } catch (uploadError) {
-      console.error("Storage upload failed:", uploadError);
+      console.error("Resume upload error:", uploadError);
+      console.error("Details: ", {
+        uploadError,
+        filePath,
+        userId: user.id,
+      });
       alert("이력서 파일 업로드에 실패했습니다. 다시 시도해주세요.");
       setIsSubmittingResume(false);
       return;
     }
 
+    // 7. DB 저장은 업로드 성공 후만 실행
     const payload = {
       resume_file_url: fileUrl,
       resume_file_name: fileName,
@@ -210,18 +253,23 @@ function InterpreterMypage({
       status: "pending",
     };
 
-    const { data, error } = await supabase
+    const { data: dbData, error: dbError } = await supabase
       .from("interpreters")
       .update(payload)
       .eq("id", interpreter.id)
       .select("*")
       .single();
 
-    if (error) {
-      console.error("Failed to submit resume", error);
+    if (dbError) {
+      console.error("Failed to submit resume to DB", dbError);
+      console.error("Details: ", {
+        dbError,
+        payload,
+        userId: user.id,
+      });
       alert("이력서 제출에 실패했습니다. 다시 시도해주세요.");
     } else {
-      setInterpreter(data);
+      setInterpreter(dbData);
       alert("이력서가 정상 제출되었습니다.");
       setResumeFile(null);
     }

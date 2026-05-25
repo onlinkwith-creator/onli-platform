@@ -3405,9 +3405,17 @@ function InterpreterCard({
   const handleDownloadFile = async (filePath, fileName) => {
     if (!supabase || !filePath) return;
     try {
+      let resolvedPath = filePath;
+      if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+        const parts = filePath.split("/resume-files/");
+        if (parts.length > 1) {
+          resolvedPath = parts[1].split("?")[0];
+        }
+      }
+
       const { data, error } = await supabase.storage
         .from("resume-files")
-        .createSignedUrl(filePath, 60);
+        .createSignedUrl(resolvedPath, 60);
 
       if (error) throw error;
       window.open(data.signedUrl, "_blank");
@@ -3585,9 +3593,17 @@ function InterpreterModal({
   const handleDownloadFile = async (filePath, fileName) => {
     if (!supabase || !filePath) return;
     try {
+      let resolvedPath = filePath;
+      if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+        const parts = filePath.split("/resume-files/");
+        if (parts.length > 1) {
+          resolvedPath = parts[1].split("?")[0];
+        }
+      }
+
       const { data, error } = await supabase.storage
         .from("resume-files")
-        .createSignedUrl(filePath, 60);
+        .createSignedUrl(resolvedPath, 60);
 
       if (error) throw error;
       window.open(data.signedUrl, "_blank");
