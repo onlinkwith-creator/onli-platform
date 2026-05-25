@@ -99,7 +99,7 @@ function App() {
   const [selectedInterpreterId, setSelectedInterpreterId] = useState(getInitialInterpreterId);
   const [selectedJobId, setSelectedJobId] = useState(getInitialJobId);
   const [selectedPolicyKey, setSelectedPolicyKey] = useState(getInitialPolicyKey);
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut, isAdmin } = useAuth();
 
   const navigate = (
     nextPage,
@@ -171,11 +171,24 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && !user && page === "register") {
-      alert("로그인 후 이용 가능합니다.");
-      navigate("login", null, null);
+    if (!authLoading) {
+      if (!user) {
+        if (page === "register") {
+          alert("로그인 후 이용 가능합니다.");
+          navigate("login", null, null);
+        } else if (page === "interpreterMypage") {
+          alert("로그인 후 이용 가능합니다.");
+          navigate("interpreterLogin", null, null);
+        } else if (page === "admin") {
+          alert("관리자 권한이 필요합니다.");
+          navigate("login", null, null);
+        }
+      } else if (!isAdmin && page === "admin") {
+        alert("관리자 권한이 없습니다.");
+        navigate("home", null, null);
+      }
     }
-  }, [user, authLoading, page]);
+  }, [user, authLoading, page, isAdmin]);
 
   useEffect(() => {
     const fetchInterpreter = async () => {
@@ -291,7 +304,27 @@ function App() {
         />
       )}
 
-      {page === "interpreterMypage" && (
+      {page === "interpreterMypage" && authLoading && (
+        <RouteMessage
+          title="로그인 상태를 확인 중입니다."
+          description="마이페이지는 로그인 후 이용 가능합니다."
+          primaryText="로그인하기"
+          onPrimaryClick={() => navigate("interpreterLogin", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+        />
+      )}
+
+      {page === "interpreterMypage" && !authLoading && !user && (
+        <RouteMessage
+          title="로그인이 필요합니다."
+          description="통역사 마이페이지는 로그인 후 이용 가능합니다."
+          primaryText="통역사 로그인하기"
+          onPrimaryClick={() => navigate("interpreterLogin", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+        />
+      )}
+
+      {page === "interpreterMypage" && !authLoading && user && (
         <InterpreterMypage
           authLoading={authLoading}
           user={user}
@@ -302,7 +335,27 @@ function App() {
         />
       )}
 
-      {page === "admin" && (
+      {page === "admin" && authLoading && (
+        <RouteMessage
+          title="로그인 상태를 확인 중입니다."
+          description="관리자 기능은 로그인 후 권한 확인이 완료되면 이용 가능합니다."
+          primaryText="로그인하기"
+          onPrimaryClick={() => navigate("login", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+        />
+      )}
+
+      {page === "admin" && !authLoading && (!user || !isAdmin) && (
+        <RouteMessage
+          title="관리자 권한이 필요합니다."
+          description="관리자 계정으로 로그인해주세요."
+          primaryText="로그인하기"
+          onPrimaryClick={() => navigate("login", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+        />
+      )}
+
+      {page === "admin" && !authLoading && user && isAdmin && (
         <Admin onBackClick={() => navigate("home", null)} />
       )}
 

@@ -384,7 +384,7 @@
 .admin-interpreter-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-request-card-grid > .admin-request-card,
@@ -1523,6 +1523,7 @@
   font: inherit;
   font-size: 13px;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .admin-tabs button.is-active {
@@ -2147,7 +2148,10 @@
 
 .admin-interpreter-detail-modal {
   max-width: 960px;
+  max-height: 90vh;
+  overflow-y: auto;
   padding: 28px;
+  box-sizing: border-box;
 }
 
 .admin-interpreter-modal-head {
@@ -2700,7 +2704,17 @@
     width: calc(100vw - 32px);
     max-width: calc(100vw - 32px);
     max-height: 85vh;
+    overflow-y: auto;
     padding: 18px;
+    box-sizing: border-box;
+  }
+
+  .admin-interpreter-avatar {
+    align-self: flex-start;
+  }
+
+  .admin-modal-icon-close {
+    align-self: flex-end;
   }
 
   .admin-interpreter-modal-head {
@@ -2933,7 +2947,10 @@
   .admin-interpreter-detail-modal {
     width: calc(100vw - 20px);
     max-width: calc(100vw - 20px);
+    max-height: 85vh;
+    overflow-y: auto;
     padding: 14px;
+    box-sizing: border-box;
   }
 
   .admin-applicant-detail-item {

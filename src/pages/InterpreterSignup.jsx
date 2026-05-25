@@ -55,14 +55,16 @@ function InterpreterSignup({ onBackClick, onLoginClick, onSignupSuccess }) {
 
     if (data?.session) {
       // Email confirmation disabled – directly logged in
-      setMessage("계정이 생성되었습니다. 마이페이지로 이동합니다.");
+      setMessage("회원가입 및 로그인이 완료되었습니다. 마이페이지로 이동합니다.");
       onSignupSuccess?.();
     } else if (data?.user?.identities?.length === 0) {
       // Duplicate – user exists but not confirmed
       setErrorMessage("이미 등록된 이메일입니다. 로그인을 시도해주세요.");
+      setTimeout(() => onLoginClick?.(), 2000);
     } else {
       // Email confirmation enabled
-      setMessage("회원가입이 완료되었습니다. 등록하신 이메일을 확인하여 인증 후 로그인해주세요.");
+      setMessage("회원가입이 완료되었습니다. 발송된 이메일 링크를 확인하여 인증을 완료한 후 로그인해주세요.");
+      setTimeout(() => onLoginClick?.(), 3000);
     }
   };
 

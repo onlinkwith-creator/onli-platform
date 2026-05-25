@@ -76,7 +76,7 @@ function Login({ onBackClick, onLoginSuccess }) {
 
       if (data?.session) {
         // Email confirmation is disabled – logged in immediately
-        setMessage("회원가입 및 로그인이 완료되었습니다.");
+        setMessage("회원가입 및 로그인이 완료되었습니다. 홈으로 이동합니다.");
         onLoginSuccess?.();
       } else if (data?.user?.identities?.length === 0) {
         // User exists but not confirmed – duplicate signup attempt
@@ -84,7 +84,7 @@ function Login({ onBackClick, onLoginSuccess }) {
         setIsLoginMode(true);
       } else {
         // Email confirmation is ON – user created but needs to verify email
-        setMessage("회원가입이 완료되었습니다. 이메일 인증 후 다시 로그인해주세요.");
+        setMessage("회원가입이 완료되었습니다. 발송된 이메일 링크를 확인하여 인증을 완료한 후 로그인해주세요.");
         setIsLoginMode(true);
       }
     }
