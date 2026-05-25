@@ -40,6 +40,7 @@ function Home({
   onInterpreterLoginClick,
   onInterpreterSignupClick,
   onMypageClick,
+  onAdminClick,
 }) {
   const [featuredInterpreters, setFeaturedInterpreters] = useState([]);
   const [featuredJobs, setFeaturedJobs] = useState([]);
@@ -168,7 +169,7 @@ function Home({
                 </span>
                 <span className="home-header-divider">|</span>
                 {isAdmin ? (
-                  <button type="button" className="home-header-mypage-btn" onClick={() => window.location.href = "/admin"}>
+                  <button type="button" className="home-header-mypage-btn" onClick={onAdminClick}>
                     관리자 페이지
                   </button>
                 ) : (

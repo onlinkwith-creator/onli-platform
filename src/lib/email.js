@@ -3,9 +3,7 @@ import { supabase } from "../supabase";
 // TODO: 추후 .env 또는 Supabase secrets 기반 관리로 이동해주세요.
 export const ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
-  "hyundle69@gmail.com",
   "onlinkcp@gmail.com",
-  "sonwoonha1@naver.com",
 ];
 
 function normalizeRecipients(to) {

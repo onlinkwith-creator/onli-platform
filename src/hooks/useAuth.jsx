@@ -2,9 +2,7 @@ import { createContext, useContext, useCallback, useEffect, useState } from "rea
 import { supabase, supabaseConfigError } from "../supabase";
 export const ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
-  "hyundle69@gmail.com",
   "onlinkcp@gmail.com",
-  "sonwoonha1@naver.com",
 ];
 
 const AuthContext = createContext({
@@ -146,4 +144,3 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-

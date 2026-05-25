@@ -185,7 +185,7 @@ function App() {
         }
       } else if (!isAdmin && page === "admin") {
         alert("관리자 권한이 없습니다.");
-        navigate("home", null, null);
+        navigate("interpreterMypage", null, null);
       }
     }
   }, [user, authLoading, page, isAdmin]);
@@ -241,6 +241,13 @@ function App() {
           onInterpreterLoginClick={() => navigate("login", null, null)}
           onInterpreterSignupClick={() => navigate("login", null, null)}
           onMypageClick={() => navigate("interpreterMypage", null, null)}
+          onAdminClick={() => {
+            if (isAdmin) {
+              navigateAdminJobs();
+              return;
+            }
+            navigate("interpreterMypage", null, null);
+          }}
         />
       )}
 
@@ -363,9 +370,9 @@ function App() {
       {page === "admin" && !authLoading && user && !isAdmin && (
         <RouteMessage
           title="관리자 권한이 필요합니다."
-          description="관리자 계정으로 로그인해주세요."
-          primaryText="로그인하기"
-          onPrimaryClick={() => navigate("login", null, null)}
+          description="관리자 권한이 없는 계정은 마이페이지로 이동합니다."
+          primaryText="마이페이지로 이동"
+          onPrimaryClick={() => navigate("interpreterMypage", null, null)}
           onHomeClick={() => navigate("home", null, null)}
         />
       )}
