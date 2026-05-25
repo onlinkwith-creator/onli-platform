@@ -27,6 +27,7 @@ function getSupabaseErrorMessage(error, fallback) {
 
 function Home({
   user,
+  isAdmin,
   onLogoutClick,
   onAboutClick,
   onRegisterClick,
@@ -166,9 +167,15 @@ function Home({
                   {user.email}
                 </span>
                 <span className="home-header-divider">|</span>
-                <button type="button" className="home-header-mypage-btn" onClick={onMypageClick}>
-                  마이페이지
-                </button>
+                {isAdmin ? (
+                  <button type="button" className="home-header-mypage-btn" onClick={() => window.location.href = "/admin"}>
+                    관리자 페이지
+                  </button>
+                ) : (
+                  <button type="button" className="home-header-mypage-btn" onClick={onMypageClick}>
+                    마이페이지
+                  </button>
+                )}
                 <button type="button" className="home-header-logout-btn" onClick={onLogoutClick}>
                   로그아웃
                 </button>

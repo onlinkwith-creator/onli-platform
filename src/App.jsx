@@ -220,6 +220,7 @@ function App() {
       {page === "home" && (
         <Home
           user={user}
+          isAdmin={isAdmin}
           onLogoutClick={handleLogout}
           onRegisterClick={openInterpreterRegister}
           onAboutClick={() => navigate("about", null, null)}
