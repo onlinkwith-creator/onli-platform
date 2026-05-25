@@ -1,6 +1,10 @@
 import { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
-import { ADMIN_EMAILS } from "../lib/email";
+export const ADMIN_EMAILS = [
+  "onlinkwith@gmail.com",
+  "hyundle69@gmail.com",
+  "onlinkcp@gmail.com",
+];
 
 const AuthContext = createContext({
   session: null,
