@@ -414,192 +414,244 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
   };
 
   return (
-    <div className="jobs-page">
+    <div className="job-detail-page">
       <div className="home-bg-glow" />
-      <div className="jobs-shell">
+      <div className="job-detail-container">
         {loading ? (
           <MessageBox text="공고 정보를 불러오는 중입니다..." />
         ) : errorMessage && !job ? (
           <MessageBox text={errorMessage} />
         ) : (
           <div className="job-detail-layout">
-            {/* Hero Section */}
+            
+            {/* 상단 Hero 영역 */}
             <header className="job-detail-hero">
-              <button type="button" onClick={onBackClick} className="jobs-back">
-                ← 공고 목록으로
-              </button>
-              
-              <div className="job-detail-hero-label-row">
-                <span className="job-detail-hero-kicker">JOB DETAIL</span>
-                <span className={`home-job-status ${normalizeJobStatus(job)}`}>
-                  {getJobStatusLabel(job)}
-                </span>
+              <div className="job-detail-hero-content">
+                <div className="job-detail-hero-left">
+                  <div className="job-detail-actions-row">
+                    <button type="button" onClick={onBackClick} className="jobs-back-btn">
+                      ← 공고 목록으로
+                    </button>
+                  </div>
+                  
+                  <div className="job-detail-hero-label-row">
+                    <span className="job-detail-hero-kicker">JOB DETAIL</span>
+                    <span className={`home-job-status ${normalizeJobStatus(job)}`}>
+                      {getJobStatusLabel(job)}
+                    </span>
+                  </div>
+                  
+                  <h1 className="job-detail-hero-title">
+                    {job.event_name || job.title || "공고 제목 미입력"}
+                  </h1>
+                  
+                  <p className="job-detail-hero-meta">
+                    <span>{job.company_name || "기업명 확인 중"}</span>
+                    <span className="divider">·</span>
+                    <span>{job.language || "한국어/일본어"}</span>
+                    <span className="divider">·</span>
+                    <span>{getJobLevelSummary(job)}</span>
+                    <span className="divider">·</span>
+                    <span>{getJobSpecialty(job)}</span>
+                    <span className="divider">·</span>
+                    <span>{job.location || job.event_location || "장소 확인 중"}</span>
+                  </p>
+                </div>
+                
+                <div className="job-detail-hero-visual">
+                  <div className="jobs-hero-illustration">
+                    <div className="illustration-glow-circle-1" />
+                    <div className="illustration-glow-circle-2" />
+                    <div className="illustration-card-mockup">
+                      <span className="mockup-badge">ON-LI MATCHING</span>
+                      <div className="mockup-lines">
+                        <div className="mockup-line-1" />
+                        <div className="mockup-line-2" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h1 className="job-detail-hero-title">
-                {job.event_name || job.title || "공고 제목 미입력"}
-              </h1>
-              <p className="job-detail-hero-meta">
-                <span>{job.company_name || "기업명 확인 중"}</span>
-                <span>·</span>
-                <span>{job.language || "한국어/일본어"}</span>
-                <span>·</span>
-                <span>{getJobLevelSummary(job)}</span>
-                <span>·</span>
-                <span>{getJobSpecialty(job)}</span>
-              </p>
             </header>
 
-            {/* 핵심 정보 카드 */}
-            <section className="job-detail-card-premium">
-              <h2 className="job-detail-section-title">공고 핵심 정보</h2>
-              <div className="job-detail-grid-premium">
-                <Info label="기업명" value={job.company_name} />
-                <Info
-                  label="날짜"
-                  value={formatDateRange(
-                    job.start_date,
-                    job.end_date,
-                    job.event_date || job.date
-                  )}
-                />
-                <Info label="장소" value={job.location || job.event_location} />
-                <Info label="언어" value={job.language || "한국어/일본어"} />
-                <Info label="필요 레벨" value={getJobLevelSummary(job)} />
-                <Info label="일급" value={getJobPayDisplay(job)} />
-                <Info label="모집 인원" value={getRecruitmentCountDisplay(job)} />
-                <Info label="전문 분야" value={getJobSpecialty(job)} />
-                <Info label="지원 마감일" value={job.deadline || "상시"} />
-                <Info label="상태" value={getJobStatusLabel(job)} />
-              </div>
-            </section>
+            {/* 메인 콘텐츠 영역 (2열 구조) */}
+            <div className="job-detail-main-content">
+              {/* 좌측 메인 정보 컬럼 */}
+              <div className="job-main-column">
+                
+                {/* 공고 핵심 정보 카드 */}
+                <section className="job-info-card">
+                  <h2 className="job-detail-section-title">공고 핵심 정보</h2>
+                  <div className="job-info-grid">
+                    <Info label="기업명" value={job.company_name} />
+                    <Info
+                      label="날짜"
+                      value={formatDateRange(
+                        job.start_date,
+                        job.end_date,
+                        job.event_date || job.date
+                      )}
+                    />
+                    <Info label="장소" value={job.location || job.event_location} />
+                    <Info label="언어" value={job.language || "한국어/일본어"} />
+                    <Info label="필요 레벨" value={getJobLevelSummary(job)} />
+                    <Info label="일급" value={getJobPayDisplay(job)} />
+                    <Info label="모집 인원" value={getRecruitmentCountDisplay(job)} />
+                    <Info label="전문 분야" value={getJobSpecialty(job)} />
+                    <Info label="지원 마감일" value={job.deadline || "상시"} />
+                    <Info label="상태" value={getJobStatusLabel(job)} />
+                  </div>
+                </section>
 
-            {/* 업무 내용 / 안내 사항 카드 */}
-            <section className="job-detail-card-premium">
-              <div className="job-detail-desc-block">
-                <h2 className="job-detail-section-title">행사 설명</h2>
-                <p>
-                  {job.description ||
-                    job.job_description ||
-                    "ON-LI 운영팀이 행사 목적과 현장 난이도를 확인한 뒤 적합한 통역사를 매칭합니다."}
-                </p>
-              </div>
+                {/* 행사 설명 카드 */}
+                <section className="job-section-card">
+                  <h2 className="job-section-title">행사 설명</h2>
+                  <div className="job-detail-desc-block">
+                    <p>
+                      {job.description ||
+                        job.job_description ||
+                        "ON-LI 운영팀이 행사 목적과 현장 난이도를 확인한 뒤 적합한 통역사를 매칭합니다."}
+                    </p>
+                  </div>
+                </section>
 
-              <div className="job-detail-desc-block">
-                <h2 className="job-detail-section-title">이런 통역사를 찾고 있습니다</h2>
-                <p>
-                  {job.preference ||
-                    `${getJobLevelSummary(job)} 역량을 바탕으로 한일 비즈니스 현장에서 안정적으로 소통할 수 있는 분을 찾고 있습니다.`}
-                </p>
-              </div>
+                {/* 찾는 통역사 카드 */}
+                <section className="job-section-card">
+                  <h2 className="job-section-title">이런 통역사를 찾고 있습니다</h2>
+                  <div className="job-detail-desc-block">
+                    <p>
+                      {job.preference ||
+                        `${getJobLevelSummary(job)} 역량을 바탕으로 한일 비즈니스 현장에서 안정적으로 소통할 수 있는 분을 찾고 있습니다.`}
+                    </p>
+                  </div>
+                </section>
 
-              {job.dress_code || job.preferred_gender ? (
-                <div className="job-detail-desc-block">
-                  <h2 className="job-detail-section-title">우대 사항 및 안내</h2>
-                  <p>{job.dress_code || job.preferred_gender}</p>
-                </div>
-              ) : null}
-
-              <div className="job-detail-desc-block">
-                <h2 className="job-detail-section-title">추가 안내 사항</h2>
-                <ul className="job-detail-bullets-list">
-                  <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
-                  <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
-                  <li>운영팀 확인 후 최종 연락드립니다.</li>
-                </ul>
-              </div>
-            </section>
-
-            {/* 지원 CTA 카드 */}
-            <aside className="job-apply-card-premium">
-              <div className="job-apply-header">
-                <p className="job-detail-hero-kicker">ON-LI MATCHING</p>
-                <h2>{canApplyToJob(job) ? "지원 가능한 공고입니다" : getJobStatusLabel(job)}</h2>
-                <p>레벨에 따라 프로젝트와 활동 조건이 달라지며, 지원 내용은 ON-LI 운영팀 검토 후 매칭에 반영됩니다.</p>
-              </div>
-
-              {submitted ? (
-                <div className="jobs-success-inline">
-                  <h2>지원 완료</h2>
-                  <p>지원이 완료되었습니다. 담당자가 검토 후 연락드립니다.</p>
-                  <button type="button" onClick={onBackClick} className="jobs-create-btn">
-                    공고 목록으로 돌아가기
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {authLoading || profileLoading ? (
-                    <div className="jobs-success-inline">
-                      <h2>지원 자격 확인 중</h2>
-                      <p>로그인 및 통역사 등록 정보를 확인하고 있습니다.</p>
+                {/* 우대사항 및 안내 카드 */}
+                {job.dress_code || job.preferred_gender ? (
+                  <section className="job-section-card">
+                    <h2 className="job-section-title">우대 사항 및 안내</h2>
+                    <div className="job-detail-desc-block">
+                      <p>{job.dress_code || job.preferred_gender}</p>
                     </div>
-                  ) : !user ? (
-                    <div className="jobs-success-inline">
-                      <h2>로그인이 필요합니다</h2>
-                      <p>회원가입 및 로그인 후 통역 공고에 지원할 수 있습니다.</p>
-                      <button type="button" onClick={onLoginClick} className="jobs-create-btn">
-                        로그인 / 회원가입
-                      </button>
+                  </section>
+                ) : null}
+
+                {/* 추가 안내 사항 카드 */}
+                <section className="job-section-card">
+                  <h2 className="job-section-title">추가 안내 사항</h2>
+                  <div className="job-detail-desc-block">
+                    <ul className="job-detail-bullets-list">
+                      <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
+                      <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
+                      <li>운영팀 확인 후 최종 연락드립니다.</li>
+                    </ul>
+                  </div>
+                </section>
+                
+              </div>
+
+              {/* 우측 사이드 패널 컬럼 */}
+              <div className="job-side-column">
+                <aside className="job-apply-sidebar">
+                  <div className="job-apply-card">
+                    <div className="job-apply-header">
+                      <p className="job-detail-hero-kicker">ON-LI MATCHING</p>
+                      <h2>{canApplyToJob(job) ? "지원 가능한 공고입니다" : getJobStatusLabel(job)}</h2>
+                      <p>
+                        레벨에 따라 프로젝트와 활동 조건이 달라지며,
+                        지원 내용은 ON-LI 운영팀 검토 후 매칭에 반영됩니다.
+                      </p>
                     </div>
-                  ) : !interpreterProfile ? (
-                    <div className="jobs-success-inline">
-                      <h2>통역사 등록이 필요합니다</h2>
-                      <p>통역사 프로필 등록을 완료한 계정만 공고에 지원할 수 있습니다.</p>
-                      <button type="button" onClick={onRegisterClick} className="jobs-create-btn">
-                        통역사 등록하기
-                      </button>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleSubmit}>
-                      <div className="interpreter-profile-summary-card">
-                        <p className="summary-title">통역사 정보 자동 입력됨</p>
-                        <div className="summary-details">
-                          <span><strong>이름:</strong> {interpreterProfile.name}</span>
-                          <span><strong>연락처:</strong> {interpreterProfile.phone}</span>
-                          <span><strong>이메일:</strong> {interpreterProfile.email}</span>
-                          <span><strong>레벨:</strong> {interpreterProfile.level || "LV1"}</span>
-                        </div>
-                        <p className="summary-footer">프로필 등록 정보로 자동 지원됩니다.</p>
+
+                    {submitted ? (
+                      <div className="jobs-success-inline">
+                        <h2>지원 완료</h2>
+                        <p>지원이 완료되었습니다. 담당자가 검토 후 연락드립니다.</p>
+                        <button type="button" onClick={onBackClick} className="jobs-create-btn">
+                          공고 목록으로 돌아가기
+                        </button>
                       </div>
+                    ) : (
+                      <>
+                        {authLoading || profileLoading ? (
+                          <div className="jobs-success-inline">
+                            <h2>지원 자격 확인 중</h2>
+                            <p>로그인 및 통역사 등록 정보를 확인하고 있습니다.</p>
+                          </div>
+                        ) : !user ? (
+                          <div className="jobs-success-inline">
+                            <h2>로그인이 필요합니다</h2>
+                            <p>회원가입 및 로그인 후 통역 공고에 지원할 수 있습니다.</p>
+                            <button type="button" onClick={onLoginClick} className="jobs-create-btn">
+                              로그인 / 회원가입
+                            </button>
+                          </div>
+                        ) : !interpreterProfile ? (
+                          <div className="jobs-success-inline">
+                            <h2>통역사 등록이 필요합니다</h2>
+                            <p>통역사 프로필 등록을 완료한 계정만 공고에 지원할 수 있습니다.</p>
+                            <button type="button" onClick={onRegisterClick} className="jobs-create-btn">
+                              통역사 등록하기
+                            </button>
+                          </div>
+                        ) : (
+                          <form onSubmit={handleSubmit}>
+                            <div className="interpreter-profile-summary-card">
+                              <p className="summary-title">통역사 정보 자동 입력됨</p>
+                              <div className="summary-details">
+                                <span><strong>이름:</strong> {interpreterProfile.name}</span>
+                                <span><strong>연락처:</strong> {interpreterProfile.phone}</span>
+                                <span><strong>이메일:</strong> {interpreterProfile.email}</span>
+                                <span><strong>레벨:</strong> {interpreterProfile.level || "LV1"}</span>
+                              </div>
+                              <p className="summary-footer">프로필 등록 정보로 자동 지원됩니다.</p>
+                            </div>
 
-                      <label>
-                        <span>지원 메모</span>
-                        <textarea
-                          name="message"
-                          value={form.message}
-                          onChange={handleChange}
-                          rows={5}
-                          placeholder="비즈니스 현장 참여 경험 및 간략한 자기소개를 기재해주세요."
-                          required
-                        />
-                      </label>
+                            <label>
+                              <span>지원 메모</span>
+                              <textarea
+                                name="message"
+                                value={form.message}
+                                onChange={handleChange}
+                                rows={5}
+                                placeholder="비즈니스 현장 참여 경험 및 간략한 자기소개를 기재해주세요."
+                                required
+                              />
+                            </label>
 
-                      {errorMessage && <p className="jobs-error">{errorMessage}</p>}
+                            {errorMessage && <p className="jobs-error">{errorMessage}</p>}
 
-                      <TermsAgreement
-                        agreements={agreements}
-                        onChange={handleAgreementChange}
-                        role="interpreter"
-                      />
+                            <TermsAgreement
+                              agreements={agreements}
+                              onChange={handleAgreementChange}
+                              role="interpreter"
+                            />
 
-                      <button
-                        type="submit"
-                        disabled={
-                          submitting ||
-                          !canApplyToJob(job) ||
-                          !areTermsAgreed(agreements)
-                        }
-                      >
-                        {canApplyToJob(job)
-                          ? submitting
-                            ? "지원 중..."
-                            : "지원하기"
-                          : getJobStatusLabel(job)}
-                      </button>
-                    </form>
-                  )}
-                </>
-              )}
-            </aside>
+                            <button
+                              type="submit"
+                              className="job-apply-submit-btn"
+                              disabled={
+                                submitting ||
+                                !canApplyToJob(job) ||
+                                !areTermsAgreed(agreements)
+                              }
+                            >
+                              {canApplyToJob(job)
+                                ? submitting
+                                  ? "지원 중..."
+                                  : "지원하기"
+                                : getJobStatusLabel(job)}
+                            </button>
+                          </form>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </aside>
+              </div>
+
+            </div>
+
           </div>
         )}
       </div>
@@ -609,7 +661,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
 
 function Info({ label, value }) {
   return (
-    <div className="job-detail-row-premium">
+    <div className="job-info-row">
       <span className="label">{label}</span>
       <span className="value">{value || "-"}</span>
     </div>
