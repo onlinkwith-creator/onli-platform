@@ -71,6 +71,55 @@ export function AuthProvider({ children }) {
     return { error };
   }, []);
 
+  useEffect(() => {
+    if (!supabase || !user) return undefined;
+
+    let lastActivityTime = Date.now();
+    const timeoutDuration = 30 * 60 * 1000; // 30 minutes
+
+    const updateActivity = () => {
+      lastActivityTime = Date.now();
+    };
+
+    const activityEvents = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart",
+    ];
+
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, updateActivity, { passive: true });
+    });
+
+    const interval = setInterval(async () => {
+      const elapsed = Date.now() - lastActivityTime;
+      if (elapsed >= timeoutDuration) {
+        clearInterval(interval);
+        activityEvents.forEach((event) => {
+          window.removeEventListener(event, updateActivity);
+        });
+
+        try {
+          await supabase.auth.signOut();
+        } catch (err) {
+          console.error("Auto sign out failed", err);
+        }
+
+        alert("30분 이상 활동이 없어 자동 로그아웃되었습니다.");
+        window.location.href = "/login";
+      }
+    }, 10000); // Check inactivity every 10 seconds
+
+    return () => {
+      clearInterval(interval);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, updateActivity);
+      });
+    };
+  }, [user]);
+
   const userEmail = user?.email ? normalizeEmail(user.email) : "";
   const isAdmin = Boolean(
     userEmail &&
