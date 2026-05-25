@@ -137,18 +137,8 @@ function Home({
       <div className="home-bg-glow" />
 
       <header className="home-header">
-        <div className="home-logo-area" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style={{ width: "42px", height: "42px", flexShrink: 0 }} aria-hidden="true">
-            <defs>
-              <linearGradient id="logo-grad-header" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#4F46E5" />
-                <stop offset="100%" stopColor="#7C3AED" />
-              </linearGradient>
-            </defs>
-            <rect x="0" y="0" width="100" height="100" rx="24" fill="url(#logo-grad-header)" />
-            <circle cx="43" cy="50" r="21" stroke="white" strokeWidth="9.5" fill="none" />
-            <path d="M 66 32 V 68 H 80" stroke="white" strokeWidth="9.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+        <div className="home-logo-area" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "16px" }}>
+          <img src="/logo.png" alt="ON-LI Logo" style={{ height: "48px", width: "48px", objectFit: "contain" }} />
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
             <div className="home-brand-sub" style={{ margin: 0, marginBottom: "4px" }}>ON-LI</div>
             <h2 className="home-brand-title">On-Link Interpretation</h2>
@@ -387,17 +377,7 @@ function Home({
         <div className="home-footer-top">
           <div className="home-footer-brand" aria-label="ON-LI 브랜드">
             <div className="home-footer-logo-row">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style={{ width: "36px", height: "36px", flexShrink: 0 }} aria-hidden="true">
-                <defs>
-                  <linearGradient id="logo-grad-footer" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#4F46E5" />
-                    <stop offset="100%" stopColor="#7C3AED" />
-                  </linearGradient>
-                </defs>
-                <rect x="0" y="0" width="100" height="100" rx="24" fill="url(#logo-grad-footer)" />
-                <circle cx="43" cy="50" r="21" stroke="white" strokeWidth="9.5" fill="none" />
-                <path d="M 66 32 V 68 H 80" stroke="white" strokeWidth="9.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <img className="home-footer-logo" src="/logo.png" alt="ON-LI" />
               <strong>ON-LI</strong>
             </div>
             <span>한일 비즈니스 통역 매칭 플랫폼</span>
