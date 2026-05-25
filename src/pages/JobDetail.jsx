@@ -417,10 +417,6 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
     <div className="jobs-page">
       <div className="home-bg-glow" />
       <div className="jobs-shell">
-        <button type="button" onClick={onBackClick} className="jobs-back">
-          ← 공고 목록으로
-        </button>
-
         {loading ? (
           <MessageBox text="공고 정보를 불러오는 중입니다..." />
         ) : errorMessage && !job ? (
@@ -429,6 +425,10 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
           <div className="job-detail-layout">
             {/* Hero Section */}
             <header className="job-detail-hero">
+              <button type="button" onClick={onBackClick} className="jobs-back">
+                ← 공고 목록으로
+              </button>
+              
               <div className="job-detail-hero-label-row">
                 <span className="job-detail-hero-kicker">JOB DETAIL</span>
                 <span className={`home-job-status ${normalizeJobStatus(job)}`}>

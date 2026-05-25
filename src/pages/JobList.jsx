@@ -46,6 +46,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
   const [errorMessage, setErrorMessage] = useState("");
   const [filters, setFilters] = useState(initialFilters);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState("latest");
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -132,18 +133,42 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
     });
   }, [jobs, filters]);
 
-  // Reset page when filter shifts
+  // Reset page when filter or sort shifts
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
+  }, [filters, sortBy]);
+
+  // Client-side sorting logic
+  const sortedJobs = useMemo(() => {
+    let result = [...filteredJobs];
+    if (sortBy === "pay") {
+      result.sort((a, b) => {
+        const parsePay = (jb) => {
+          const val = jb.pay || jb.dailyPay || jb.daily_pay || jb.wage || jb.price || "";
+          const num = Number(String(val).replace(/[^0-9]/g, ""));
+          return isNaN(num) ? 0 : num;
+        };
+        return parsePay(b) - parsePay(a);
+      });
+    } else {
+      // default: latest
+      result.sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (bTime !== aTime) return bTime - aTime;
+        return Number(b.id || 0) - Number(a.id || 0);
+      });
+    }
+    return result;
+  }, [filteredJobs, sortBy]);
 
   // Client-side pagination (9 cards per page)
   const paginatedJobs = useMemo(() => {
     const start = (currentPage - 1) * 9;
-    return filteredJobs.slice(start, start + 9);
-  }, [filteredJobs, currentPage]);
+    return sortedJobs.slice(start, start + 9);
+  }, [sortedJobs, currentPage]);
 
-  const totalPages = Math.ceil(filteredJobs.length / 9);
+  const totalPages = Math.ceil(sortedJobs.length / 9);
 
   const updateFilter = (name, value) => {
     setFilters((current) => ({
@@ -159,37 +184,37 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
         
         {/* Premium Recruiter Hero Section */}
         <div className="jobs-hero-container">
-          <div className="jobs-hero-header">
+          <div className="jobs-hero-left">
             <button type="button" onClick={onBackClick} className="jobs-back-btn">
-              메인으로
+              ← 메인으로
             </button>
-            <button
-              type="button"
-              className="jobs-create-btn"
-              onClick={onCreateJobClick}
-            >
-              통역공고 등록
-            </button>
+            <span className="jobs-kicker">ON-LI JOBS</span>
+            <h1 className="jobs-hero-title">전체 통역 공고</h1>
+            <p className="jobs-hero-subtitle">
+              전시회·상담회·비즈니스 현장에 맞는<br />
+              통역 공고를 확인하세요.
+            </p>
           </div>
 
-          <div className="jobs-hero-body">
-            <div className="jobs-hero-text">
-              <span className="jobs-kicker">ON-LI JOBS</span>
-              <h1 className="jobs-hero-title">전체 통역 공고</h1>
-              <p className="jobs-hero-subtitle">
-                전시회·상담회·비즈니스 현장에 맞는<br />
-                통역 공고를 확인하세요.
-              </p>
-            </div>
+          <div className="jobs-hero-right">
+            <div className="jobs-hero-illustration-wrapper">
+              <button
+                type="button"
+                className="jobs-create-btn"
+                onClick={onCreateJobClick}
+              >
+                통역공고 등록
+              </button>
 
-            <div className="jobs-hero-illustration">
-              <div className="illustration-glow-circle-1" />
-              <div className="illustration-glow-circle-2" />
-              <div className="illustration-card-mockup">
-                <span className="mockup-badge">Recruiting</span>
-                <div className="mockup-lines">
-                  <div className="mockup-line-1" />
-                  <div className="mockup-line-2" />
+              <div className="jobs-hero-illustration">
+                <div className="illustration-glow-circle-1" />
+                <div className="illustration-glow-circle-2" />
+                <div className="illustration-card-mockup">
+                  <span className="mockup-badge">Recruiting</span>
+                  <div className="mockup-lines">
+                    <div className="mockup-line-1" />
+                    <div className="mockup-line-2" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -222,54 +247,65 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
                 </button>
               </div>
 
-              <FilterSelect
-                label="통역 분야"
-                value={filters.field}
-                onChange={(val) => updateFilter("field", val)}
-                options={fieldOptions}
-              />
-              <FilterSelect
-                label="활동 지역"
-                value={filters.region}
-                onChange={(val) => updateFilter("region", val)}
-                options={regionOptions}
-              />
-              <FilterSelect
-                label="요구 레벨"
-                value={filters.level}
-                onChange={(val) => updateFilter("level", val)}
-                options={levelOptions}
-              />
-              <label className="jobs-filter-field">
-                <span className="jobs-filter-label">날짜 선택</span>
-                <input
-                  type="month"
-                  value={filters.date}
-                  onChange={(e) => updateFilter("date", e.target.value)}
-                  className="jobs-filter-input"
+              <div className="jobs-filter-grid">
+                <FilterSelect
+                  label="통역 분야"
+                  value={filters.field}
+                  onChange={(val) => updateFilter("field", val)}
+                  options={fieldOptions}
                 />
-              </label>
-              <FilterSelect
-                label="모집 상태"
-                value={filters.status}
-                onChange={(val) => updateFilter("status", val)}
-                options={statusOptions}
-              />
-              <label className="jobs-filter-field">
-                <span className="jobs-filter-label">키워드 검색</span>
-                <input
-                  value={filters.keyword}
-                  onChange={(e) => updateFilter("keyword", e.target.value)}
-                  placeholder="공고명, 기업명, 장소 검색"
-                  className="jobs-filter-input"
+                <FilterSelect
+                  label="활동 지역"
+                  value={filters.region}
+                  onChange={(val) => updateFilter("region", val)}
+                  options={regionOptions}
                 />
-              </label>
+                <FilterSelect
+                  label="요구 레벨"
+                  value={filters.level}
+                  onChange={(val) => updateFilter("level", val)}
+                  options={levelOptions}
+                />
+                <label className="jobs-filter-field">
+                  <span className="jobs-filter-label">날짜 선택</span>
+                  <input
+                    type="month"
+                    value={filters.date}
+                    onChange={(e) => updateFilter("date", e.target.value)}
+                    className="jobs-filter-input"
+                  />
+                </label>
+                <FilterSelect
+                  label="모집 상태"
+                  value={filters.status}
+                  onChange={(val) => updateFilter("status", val)}
+                  options={statusOptions}
+                />
+                <label className="jobs-filter-field">
+                  <span className="jobs-filter-label">키워드 검색</span>
+                  <input
+                    value={filters.keyword}
+                    onChange={(e) => updateFilter("keyword", e.target.value)}
+                    placeholder="공고명, 기업명, 장소 검색"
+                    className="jobs-filter-input"
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="jobs-toolbar">
               <p className="jobs-result-text">
-                총 {filteredJobs.length}개의 통역 공고가 표시됩니다
+                총 {sortedJobs.length}개의 통역 공고가 표시됩니다
               </p>
+              
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="jobs-sort-select"
+              >
+                <option value="latest">최신 등록순</option>
+                <option value="pay">일급 높은순</option>
+              </select>
             </div>
 
             {filteredJobs.length === 0 ? (
