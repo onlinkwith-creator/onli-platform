@@ -795,6 +795,10 @@
 
 .job-detail-actions-row {
   margin-bottom: 22px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .job-detail-actions-row .jobs-back-btn {

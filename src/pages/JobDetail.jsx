@@ -59,7 +59,7 @@ const initialForm = {
 
 // TODO: 실서비스 전에는 Supabase Auth 기반으로 통역사 본인 계정만 지원 가능하게 해야 함.
 
-function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
+function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeClick }) {
   const { user, loading: authLoading } = useAuth();
   const [interpreterProfile, setInterpreterProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -446,6 +446,10 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick }) {
               <div className="job-detail-hero-content">
                 <div className="job-detail-hero-left">
                   <div className="job-detail-actions-row">
+                    <button type="button" onClick={onHomeClick} className="jobs-back-btn">
+                      <ArrowLeft size={16} />
+                      메인으로
+                    </button>
                     <button type="button" onClick={onBackClick} className="jobs-back-btn">
                       <ArrowLeft size={16} />
                       공고 목록으로
