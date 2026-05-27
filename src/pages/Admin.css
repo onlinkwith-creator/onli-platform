@@ -74,7 +74,6 @@
 }
 
 .admin-refresh,
-.admin-email-test,
 .admin-save,
 .admin-assign-row button {
   padding: 10px 14px;
@@ -82,13 +81,6 @@
   background: #4f46e5;
   color: #ffffff;
   white-space: nowrap;
-}
-
-.admin-email-test {
-  border: 1px solid #c7d2fe;
-  background: #ffffff;
-  color: #4f46e5;
-  font-size: 12px;
 }
 
 .admin-metrics {
@@ -2652,7 +2644,6 @@
   }
 
   .admin-refresh,
-  .admin-email-test,
   .admin-save,
   .admin-assign-row button,
   .admin-link-button,
@@ -2662,7 +2653,6 @@
   }
 
   .admin-refresh,
-  .admin-email-test,
   .admin-save {
     width: 100%;
   }

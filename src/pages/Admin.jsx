@@ -2095,17 +2095,6 @@ function Admin() {
     if (applicationResult.error) throw applicationResult.error;
   };
 
-  const sendTestEmail = async () => {
-    try {
-      const result = await sendAutoEmail("test", "onlinkwith@gmail.com", {
-        name: "ON-LI TEST",
-      });
-      console.log("메일 테스트 결과", result);
-    } catch (error) {
-      console.error("메일 테스트 실패", error);
-    }
-  };
-
   return (
     <div className="admin-page">
       <div className="admin-shell">
@@ -2117,9 +2106,6 @@ function Admin() {
           </div>
 
           <div className="admin-header-actions">
-            <button type="button" onClick={sendTestEmail} className="admin-email-test">
-              메일 테스트
-            </button>
             <button type="button" onClick={fetchAdminData} className="admin-refresh">
               새로고침
             </button>
