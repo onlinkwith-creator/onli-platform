@@ -8,6 +8,10 @@ import { useAuth } from "../hooks/useAuth";
 import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
+import {
+  isInterpreterApprovedForApplication,
+  pickCurrentUserInterpreterProfile,
+} from "../utils/interpreterApproval";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
@@ -132,11 +136,7 @@ function JobApply({
           return;
         }
 
-        const matched = (data || []).find(
-          (item) =>
-            String(item.auth_user_id || "") === String(user.id) ||
-            String(item.email || "").toLowerCase().trim() === normalizedEmail
-        );
+        const matched = pickCurrentUserInterpreterProfile(data || [], user);
 
         if (matched) {
           setInterpreterProfile(matched);
@@ -208,7 +208,7 @@ function JobApply({
       return;
     }
 
-    if (!interpreterProfile.approved) {
+    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
       const message = "관리자 승인 완료 후 지원할 수 있습니다.";
       setErrorMessage(message);
       alert(message);
@@ -501,7 +501,7 @@ function JobApply({
                     통역사 등록하기
                   </button>
                 </div>
-              ) : !interpreterProfile.approved ? (
+              ) : !isInterpreterApprovedForApplication(interpreterProfile) ? (
                 <div className="jobs-success-inline">
                   <h2>관리자 승인 대기 중입니다</h2>
                   <p>관리자 승인 완료 후 공고에 지원할 수 있습니다.</p>

@@ -31,6 +31,10 @@ import { formatDateRange } from "../utils/dateRange";
 import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import { attachPublicJobCounts } from "../utils/jobsApi";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
+import {
+  isInterpreterApprovedForApplication,
+  pickCurrentUserInterpreterProfile,
+} from "../utils/interpreterApproval";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
@@ -141,11 +145,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
           return;
         }
 
-        const matched = (data || []).find(
-          (item) =>
-            String(item.auth_user_id || "") === String(user.id) ||
-            String(item.email || "").toLowerCase().trim() === normalizedEmail
-        );
+        const matched = pickCurrentUserInterpreterProfile(data || [], user);
 
         if (matched) {
           setInterpreterProfile(matched);
@@ -218,7 +218,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       return;
     }
 
-    if (!interpreterProfile.approved) {
+    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
       const message = "관리자 승인 완료 후 지원할 수 있습니다.";
       setErrorMessage(message);
       alert(message);
@@ -611,7 +611,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
                               통역사 등록하기 <ArrowRight size={16} />
                             </button>
                           </div>
-                        ) : !interpreterProfile.approved ? (
+                        ) : !isInterpreterApprovedForApplication(interpreterProfile) ? (
                           <div className="job-register-required-box">
                             <h2>관리자 승인 대기 중입니다</h2>
                             <p>관리자 승인 완료 후 공고에 지원할 수 있습니다.</p>
