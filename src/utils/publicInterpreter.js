@@ -59,14 +59,14 @@ function formatExperienceCount(interpreter) {
   const count = interpreter.experience_count;
   if (count !== null && count !== undefined && count !== "") {
     const numericCount = Number(count);
-    if (Number.isFinite(numericCount)) return `통역 ${numericCount}회`;
-    return `통역 ${count}`;
+    if (Number.isFinite(numericCount)) return `${numericCount}회`;
+    return `${count}`;
   }
 
   const experience = String(interpreter.experience || "").trim();
   if (experience) return experience;
 
-  if (interpreter.has_experience) return "통역 경험 있음";
+  if (interpreter.has_experience) return "경험 있음";
 
   return "";
 }

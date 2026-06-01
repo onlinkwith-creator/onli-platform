@@ -529,10 +529,26 @@ function Step({ number, title, text }) {
 }
 
 function InterpreterCard({ interpreter, onProfileClick }) {
-  const specialties = Array.isArray(interpreter.specialties)
-    ? interpreter.specialties
-    : [];
+  const getSpecialtiesList = (value) => {
+    if (Array.isArray(value)) {
+      return value
+        .flatMap(item => typeof item === "string" ? item.split(/[,/]/) : [item])
+        .map(String)
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+    if (!value) return [];
+    return String(value)
+      .split(/[,/]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+  };
+
+  const specialties = getSpecialtiesList(interpreter.specialties);
   const specialtyBadges = specialties.length > 0 ? specialties : ["일반 비즈니스"];
+  const visibleSpecialties = specialtyBadges.slice(0, 2);
+  const hiddenCount = specialtyBadges.length - visibleSpecialties.length;
+
   const availableRegionLabel = getAvailableRegionLabel(interpreter);
   const experience = getExperienceLabel(interpreter);
   const activityStatus = getInterpreterActivityStatus(interpreter);
@@ -569,9 +585,11 @@ function InterpreterCard({ interpreter, onProfileClick }) {
         </div>
 
         <div className="home-interpreter-badges">
-          <span>{specialtyBadges[0]}</span>
-          {specialtyBadges.length > 1 && (
-            <span>+{specialtyBadges.length - 1}</span>
+          {visibleSpecialties.map((badge, idx) => (
+            <span key={idx}>{badge}</span>
+          ))}
+          {hiddenCount > 0 && (
+            <span>+{hiddenCount}</span>
           )}
         </div>
 
@@ -585,9 +603,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
             <Briefcase size={15} aria-hidden="true" />
             <span className="info-label">전문 분야</span>
             <span className="info-value specialties-text truncate">
-              {specialtyBadges.length > 1
-                ? `${specialtyBadges[0]} +${specialtyBadges.length - 1}`
-                : specialtyBadges[0]}
+              {visibleSpecialties.join(" / ") + (hiddenCount > 0 ? ` +${hiddenCount}` : "")}
             </span>
           </div>
           <div className="home-interpreter-info-item min-w-0">
@@ -597,7 +613,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
           </div>
           <div className="home-interpreter-info-item min-w-0">
             <Award size={15} aria-hidden="true" />
-            <span className="info-label">통역 경험</span>
+            <span className="info-label">통역 횟수</span>
             <span className="info-value truncate">{experience}</span>
           </div>
           {publicInfo?.label && (
@@ -653,7 +669,13 @@ function getAvailableRegionLabel(interpreter) {
 }
 
 function getExperienceLabel(interpreter) {
-  return interpreter.has_experience ? "통역 경험 있음" : "통역 경험 없음";
+  const count = interpreter.experience_count;
+  if (count !== null && count !== undefined && count !== "") {
+    const numericCount = Number(count);
+    if (Number.isFinite(numericCount)) return `${numericCount}회`;
+    return `${count}`;
+  }
+  return interpreter.has_experience ? "경험 있음" : "경험 없음";
 }
 
 function getInterpreterActivityStatus(interpreter = {}) {
