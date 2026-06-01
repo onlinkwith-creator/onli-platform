@@ -304,9 +304,9 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-areas:
-    "people level"
-    "field level"
-    "gender guide";
+    "people right"
+    "field right"
+    "gender right";
   gap: 24px;
 }
 
@@ -318,12 +318,10 @@
   grid-area: people;
 }
 
-.request-grid-area-level {
-  grid-area: level;
-}
-
-.request-grid-area-guide {
-  grid-area: guide;
+.request-grid-area-right {
+  grid-area: right;
+  display: grid;
+  gap: 16px;
 }
 
 .request-grid-area-field {
@@ -481,8 +479,7 @@
     grid-template-columns: 1fr;
     grid-template-areas:
       "people"
-      "level"
-      "guide"
+      "right"
       "field"
       "gender";
   }
