@@ -289,7 +289,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       ]
         .filter(Boolean)
         .join("\n\n"),
-      status: "지원완료",
+      status: "pending",
       agreed_terms: true,
       agreed_policy: true,
       agreed_at: new Date().toISOString(),

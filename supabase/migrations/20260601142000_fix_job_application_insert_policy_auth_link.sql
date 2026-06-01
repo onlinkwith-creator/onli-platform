@@ -55,7 +55,7 @@ with check (
   auth.uid() is not null
   and job_id is not null
   and interpreter_id is not null
-  and status = '지원완료'
+  and status in ('pending', '지원완료')
   and exists (
     select 1
     from public.interpreters i
