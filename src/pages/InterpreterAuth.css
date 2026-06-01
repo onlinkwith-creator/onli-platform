@@ -379,37 +379,45 @@
 /* Profile List styling */
 .interpreter-profile-list {
   display: grid;
-  gap: 0;
-  margin: 10px 0 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0 0;
 }
 
-.interpreter-profile-list div {
+.interpreter-profile-list > div {
   display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid #f1f5f9;
+  grid-template-columns: minmax(96px, auto) 1fr;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  background: #ffffff;
   align-items: center;
+  min-width: 0;
 }
 
-.interpreter-profile-list div:last-child {
-  border-bottom: none;
+.interpreter-profile-list > div:last-child {
+  border-bottom: 1px solid #eef2f7;
 }
 
 .interpreter-profile-list dt {
   color: #64748b;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   text-align: left;
+  white-space: nowrap;
 }
 
 .interpreter-profile-list dd {
   margin: 0;
   color: #1e293b;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
-  text-align: left;
+  text-align: right;
   line-height: 1.5;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 /* Specialties / Regions Tags */
@@ -417,15 +425,23 @@
 .interpreter-regions-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 100%;
 }
 
 .interpreter-tag {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 6px;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.25;
+  white-space: normal;
+  word-break: keep-all;
 }
 
 .interpreter-tag.spec {
@@ -441,14 +457,18 @@
 }
 
 .interpreter-tag-level {
-  display: inline-block;
-  padding: 4px 10px;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  padding: 6px 12px;
   background: #faf5ff;
   color: #7c3aed;
   border: 1px solid #f3e8ff;
-  border-radius: 6px;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 900;
+  line-height: 1.25;
 }
 
 .no-tags {
@@ -460,13 +480,17 @@
 /* Status badges inside MyPage */
 .status-badge {
   display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
   align-items: center;
   justify-content: center;
-  padding: 4px 10px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
   border: 1px solid transparent;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .status-badge.badge-green {
@@ -801,10 +825,22 @@
     flex: 1;
   }
   
-  .interpreter-profile-list div {
+  .interpreter-profile-list {
+    grid-template-columns: 1fr;
+  }
+
+  .interpreter-profile-list > div {
     grid-template-columns: 1fr;
     gap: 6px;
-    padding: 12px 0;
+    padding: 12px;
+    align-items: start;
+  }
+
+  .interpreter-profile-list dd,
+  .interpreter-specialties-tags,
+  .interpreter-regions-tags {
+    justify-content: flex-start;
+    text-align: left;
   }
 }
 
