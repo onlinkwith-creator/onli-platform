@@ -560,6 +560,25 @@
   flex-direction: column;
 }
 
+/* Text Truncation Utilities */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.min-w-0 {
+  min-width: 0 !important;
+}
+
 /* Buttons inside Card */
 .home-job-card button {
   width: 100%;

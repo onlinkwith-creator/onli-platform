@@ -559,9 +559,9 @@ function InterpreterCard({ interpreter, onProfileClick }) {
     >
       <div className="home-interpreter-card-body">
         <div className="home-interpreter-head">
-          <div>
-            <h3>{interpreter.name || "이름 미입력"}</h3>
-            <p>{availableRegionLabel}</p>
+          <div className="min-w-0">
+            <h3 className="line-clamp-2">{interpreter.name || "이름 미입력"}</h3>
+            <p className="truncate">{availableRegionLabel}</p>
           </div>
           <span style={getLevelBadgeStyle(interpreter.level)}>
             {normalizeLevel(interpreter.level || "Lv1")}
@@ -575,31 +575,31 @@ function InterpreterCard({ interpreter, onProfileClick }) {
         </div>
 
         <div className="home-interpreter-info-list">
-          <div className="home-interpreter-info-item">
+          <div className="home-interpreter-info-item min-w-0">
             <MapPin size={15} aria-hidden="true" />
             <span className="info-label">활동 지역</span>
-            <span className="info-value">{availableRegionLabel}</span>
+            <span className="info-value truncate">{availableRegionLabel}</span>
           </div>
-          <div className="home-interpreter-info-item">
+          <div className="home-interpreter-info-item min-w-0">
             <Briefcase size={15} aria-hidden="true" />
             <span className="info-label">전문 분야</span>
-            <span className="info-value specialties-text">{specialtyBadges.join(", ")}</span>
+            <span className="info-value specialties-text truncate">{specialtyBadges.join(", ")}</span>
           </div>
-          <div className="home-interpreter-info-item">
+          <div className="home-interpreter-info-item min-w-0">
             <Languages size={15} aria-hidden="true" />
             <span className="info-label">가능 언어</span>
-            <span className="info-value">{interpreter.language_level || interpreter.jlpt || "한국어 · 일본어"}</span>
+            <span className="info-value truncate">{interpreter.language_level || interpreter.jlpt || "한국어 · 일본어"}</span>
           </div>
-          <div className="home-interpreter-info-item">
+          <div className="home-interpreter-info-item min-w-0">
             <Award size={15} aria-hidden="true" />
             <span className="info-label">통역 경험</span>
-            <span className="info-value">{experience}</span>
+            <span className="info-value truncate">{experience}</span>
           </div>
           {publicInfo?.label && (
-            <div className="home-interpreter-info-item">
+            <div className="home-interpreter-info-item min-w-0">
               <User size={15} aria-hidden="true" />
               <span className="info-label">{publicInfo.label}</span>
-              <span className="info-value">{publicInfo.value}</span>
+              <span className="info-value truncate">{publicInfo.value}</span>
             </div>
           )}
         </div>
