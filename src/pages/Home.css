@@ -1700,11 +1700,48 @@ span.home-footer-contact-item:hover {
     display: none;
   }
 
+  /* ── 통역 공고 / 통역사 카드: 모바일 1장씩 ── */
   .home-job-card,
   .home-interpreter-card {
-    flex-basis: 86%;
-    min-height: 390px;
-    padding: 18px;
+    flex: 0 0 min(340px, calc(100vw - 48px));
+    width: min(340px, calc(100vw - 48px));
+    max-width: 360px;
+    min-height: 0;
+    padding: 20px;
+    scroll-snap-align: center;
+  }
+
+  /* 캐러셀 레일 중앙 정렬 + 스냅 */
+  .home-carousel {
+    gap: 12px;
+    margin: 0 -16px;
+    padding: 2px 16px 14px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 공고 카드 캐러셀 가로 중앙 패딩 */
+  .home-job-carousel {
+    justify-content: flex-start;
+    padding-inline: max(16px, calc((100vw - min(340px, calc(100vw - 48px))) / 2));
+    scroll-padding-inline: 16px;
+  }
+
+  /* 통역사 캐러셀 (interpreter grid) */
+  .home-interpreter-grid {
+    justify-content: flex-start;
+    padding-inline: max(16px, calc((100vw - min(340px, calc(100vw - 48px))) / 2));
+    scroll-padding-inline: 16px;
+  }
+
+  /* 섹션 간 겹침 방지 */
+  .home-jobs-preview {
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  .home-interpreters {
+    margin-top: var(--home-section-gap);
   }
 
   .home-nav button {
@@ -1733,6 +1770,7 @@ span.home-footer-contact-item:hover {
     text-align: left;
   }
 
+  /* 진행 프로세스: 세로 1열 */
   .home-process {
     margin-top: var(--home-section-gap);
   }
@@ -1775,46 +1813,6 @@ span.home-footer-contact-item:hover {
 
   .home-step-copy {
     padding-top: 2px;
-  }
-
-  .home-carousel-wrap {
-    grid-template-columns: 1fr;
-  }
-
-  .home-carousel {
-    gap: 12px;
-    margin: 0 -16px;
-    padding: 2px 16px 14px;
-    scroll-snap-type: x mandatory;
-  }
-
-  .home-job-carousel {
-    justify-content: flex-start;
-    padding-inline: calc((100vw - min(380px, calc(100vw - 48px))) / 2);
-    scroll-padding-inline: 24px;
-  }
-
-  .home-carousel-button {
-    display: none;
-  }
-
-  .home-job-card,
-  .home-interpreter-card {
-    flex-basis: min(330px, calc(100vw - 48px));
-    min-height: 0;
-    padding: 20px;
-  }
-
-  .home-job-carousel .home-job-card {
-    flex-basis: min(380px, calc(100vw - 48px));
-    max-width: 380px;
-    min-width: 0;
-    margin-inline: 0;
-    scroll-snap-align: center;
-  }
-
-  .home-interpreters {
-    margin-top: var(--home-section-gap);
   }
 
   .home-footer {
@@ -2012,12 +2010,18 @@ span.home-footer-contact-item:hover {
 
   .home-job-card,
   .home-interpreter-card {
-    flex-basis: calc(100vw - 44px);
+    flex: 0 0 calc(100vw - 44px);
+    width: calc(100vw - 44px);
+    max-width: 360px;
     padding: 18px;
   }
 
-  .home-job-carousel .home-job-card {
-    flex-basis: min(380px, calc(100vw - 48px));
+  .home-job-carousel {
+    padding-inline: max(14px, calc((100vw - min(360px, calc(100vw - 44px))) / 2));
+  }
+
+  .home-interpreter-grid {
+    padding-inline: max(14px, calc((100vw - min(360px, calc(100vw - 44px))) / 2));
   }
 
   .home-footer {
