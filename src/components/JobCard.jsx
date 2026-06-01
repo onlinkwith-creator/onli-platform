@@ -56,7 +56,9 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
         </div>
       </div>
 
-      <p className="home-job-level-note">Lv 기준 통역 단가 적용</p>
+      <p className="home-job-level-note">
+        💎 {getRequiredLevelDisplay(job).includes("추천") || !getRequiredLevelDisplay(job) ? "선택 레벨 기준 단가 적용" : `${getRequiredLevelDisplay(job)} 기준 단가 적용`}
+      </p>
 
       <button
         type="button"

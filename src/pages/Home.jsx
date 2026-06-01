@@ -552,60 +552,63 @@ function InterpreterCard({ interpreter, onProfileClick }) {
       onKeyDown={handleCardKeyDown}
       aria-label={`${interpreter.name || "통역사"} 프로필 보기`}
     >
-      <div className="home-interpreter-head">
-        <div>
-          <h3>{interpreter.name || "이름 미입력"}</h3>
-          <p>{availableRegionLabel}</p>
+      <div className="home-interpreter-card-body">
+        <div className="home-interpreter-head">
+          <div>
+            <h3>{interpreter.name || "이름 미입력"}</h3>
+            <p>{availableRegionLabel}</p>
+          </div>
+          <span style={getLevelBadgeStyle(interpreter.level)}>
+            {normalizeLevel(interpreter.level || "Lv1")}
+          </span>
         </div>
-        <span style={getLevelBadgeStyle(interpreter.level)}>
-          {normalizeLevel(interpreter.level || "Lv1")}
-        </span>
+
+        <div className="home-interpreter-badges">
+          {specialtyBadges.slice(0, 3).map((badge) => (
+            <span key={badge}>{badge}</span>
+          ))}
+        </div>
+
+        <dl>
+          <div>
+            <dt>전문 분야</dt>
+            <dd className="interpreter-specialties-text">{specialtyBadges.join(", ")}</dd>
+          </div>
+          <div>
+            <dt>가능 언어</dt>
+            <dd>{interpreter.language_level || interpreter.jlpt || "한국어 · 일본어"}</dd>
+          </div>
+          <div>
+            <dt>통역 경험</dt>
+            <dd>{experience}</dd>
+          </div>
+          <div>
+            <dt>{publicInfo.label}</dt>
+            <dd>{publicInfo.value}</dd>
+          </div>
+        </dl>
       </div>
 
-      <div className="home-interpreter-badges">
-        {specialtyBadges.slice(0, 3).map((badge) => (
-          <span key={badge}>{badge}</span>
-        ))}
+      <div className="home-interpreter-card-footer">
+        <div className="home-interpreter-status-row">
+          <span className="home-interpreter-status-label">활동 상태</span>
+          <span
+            className={`home-activity-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}
+          >
+            {statusLabel}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            openProfile();
+          }}
+        >
+          프로필 보기
+        </button>
       </div>
-
-      <dl>
-        <div>
-          <dt>전문 분야</dt>
-          <dd>{specialtyBadges.join(", ")}</dd>
-        </div>
-        <div>
-          <dt>가능 언어</dt>
-          <dd>{interpreter.language_level || interpreter.jlpt || "한국어 · 일본어"}</dd>
-        </div>
-        <div>
-          <dt>통역 경험</dt>
-          <dd>{experience}</dd>
-        </div>
-        <div>
-          <dt>{publicInfo.label}</dt>
-          <dd>{publicInfo.value}</dd>
-        </div>
-        <div>
-          <dt>활동 상태</dt>
-          <dd>
-            <span
-              className={`home-activity-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}
-            >
-              {statusLabel}
-            </span>
-          </dd>
-        </div>
-      </dl>
-
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          openProfile();
-        }}
-      >
-        프로필 보기
-      </button>
     </article>
   );
 }

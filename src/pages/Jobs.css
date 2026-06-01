@@ -538,15 +538,19 @@
 
 /* Pricing Note soft banner */
 .home-job-level-note {
+  display: inline-flex;
+  width: fit-content;
   margin: 0 0 20px;
-  padding: 10px 14px;
-  border: 1px solid rgba(124, 58, 237, 0.08);
-  border-radius: 14px;
-  background: rgba(124, 58, 237, 0.04);
+  padding: 6px 12px;
+  border: 1px solid #e9d5ff;
+  border-radius: 999px;
+  background: #f5f3ff;
   color: #6d28d9;
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 800;
-  text-align: center;
+  line-height: 1.4;
+  word-break: keep-all;
+  cursor: default;
 }
 
 /* Buttons inside Card */
