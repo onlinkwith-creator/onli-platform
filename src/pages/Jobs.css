@@ -595,14 +595,22 @@
 }
 
 .home-job-card button.apply-btn-active {
-  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
-  color: #ffffff;
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.22);
+  background: #ffffff;
+  color: #4f46e5;
+  border: 1px solid rgba(79, 70, 229, 0.35);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
 .home-job-card button.apply-btn-active:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #ffffff;
+  border-color: transparent;
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.28);
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.18);
+}
+
+.home-job-card button.apply-btn-active:active {
+  transform: translateY(0);
 }
 
 .home-job-card button.apply-btn-disabled {
