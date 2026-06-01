@@ -9,6 +9,12 @@ import {
 } from "../utils/status";
 import { normalizeLevel } from "../utils/levelBadge";
 import "./InterpreterAuth.css";
+import {
+  Award,
+  BriefcaseBusiness,
+  CircleCheck,
+  FileText,
+} from "lucide-react";
 
 const TABS = [
   { id: "profile", label: "프로필 정보", icon: "👤" },
@@ -627,14 +633,18 @@ function InterpreterMypage({
             {/* Quick Metrics Dashboard Row */}
             <section className="interpreter-mypage-stats">
               <div className="mypage-stat-card">
-                <span className="stat-icon">📄</span>
+                <span className="stat-icon">
+                  <FileText size={24} aria-hidden="true" />
+                </span>
                 <div className="stat-details">
                   <span className="stat-label">총 지원 건수</span>
                   <span className="stat-value">{applications.length}건</span>
                 </div>
               </div>
               <div className="mypage-stat-card">
-                <span className="stat-icon">💼</span>
+                <span className="stat-icon">
+                  <BriefcaseBusiness size={24} aria-hidden="true" />
+                </span>
                 <div className="stat-details">
                   <span className="stat-label">배정 완료</span>
                   <span className="stat-value">
@@ -649,14 +659,18 @@ function InterpreterMypage({
                 </div>
               </div>
               <div className="mypage-stat-card">
-                <span className="stat-icon">🌟</span>
+                <span className="stat-icon">
+                  <Award size={24} aria-hidden="true" />
+                </span>
                 <div className="stat-details">
-                  <span className="stat-label">전문 레벨</span>
+                  <span className="stat-label">통역사 레벨</span>
                   <span className="stat-value">{normalizeLevel(interpreter?.level || "Lv1")}</span>
                 </div>
               </div>
               <div className="mypage-stat-card">
-                <span className="stat-icon">🟢</span>
+                <span className="stat-icon">
+                  <CircleCheck size={24} aria-hidden="true" />
+                </span>
                 <div className="stat-details">
                   <span className="stat-label">활동 상태</span>
                   <span className={`stat-value status-${activityStatus}`}>
@@ -769,7 +783,7 @@ function InterpreterMypage({
                               </select>
                             </label>
                             <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
-                              <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>일본어 레벨</span>
+                              <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>통역사 레벨</span>
                               <select
                                 name="level"
                                 value={editForm.level}
@@ -871,7 +885,7 @@ function InterpreterMypage({
                           }
                         />
                         <ProfileRow
-                          label="일본어 레벨"
+                          label="통역사 레벨"
                           value={
                             <span className="interpreter-tag-level">
                               {normalizeLevel(interpreter.level || "Lv1")}

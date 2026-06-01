@@ -263,14 +263,16 @@
 }
 
 .stat-icon {
-  font-size: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  flex: 0 0 48px;
+  border-radius: 999px;
   background: #f5f3ff;
+  color: #5b5cf0;
+  border: 1px solid #e9d5ff;
 }
 
 .stat-details {
@@ -295,15 +297,33 @@
 }
 
 .stat-value.status-active {
-  color: #10b981;
+  color: #047857;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  font-size: 14px;
 }
 
 .stat-value.status-paused {
-  color: #f59e0b;
+  color: #b45309;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 14px;
 }
 
 .stat-value.status-inactive {
-  color: #64748b;
+  color: #475569;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
 }
 
 /* Tabs column styling */
