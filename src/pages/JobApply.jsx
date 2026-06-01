@@ -205,6 +205,13 @@ function JobApply({
       return;
     }
 
+    if (!interpreterProfile.approved) {
+      const message = "관리자 승인 완료 후 지원할 수 있습니다.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
+
     if (!areTermsAgreed(agreements)) {
       const message = "약관 동의 후 제출 가능합니다.";
       setErrorMessage(message);
@@ -492,6 +499,11 @@ function JobApply({
                   <button type="button" onClick={onRegisterClick || onHomeClick}>
                     통역사 등록하기
                   </button>
+                </div>
+              ) : !interpreterProfile.approved ? (
+                <div className="jobs-success-inline">
+                  <h2>관리자 승인 대기 중입니다</h2>
+                  <p>관리자 승인 완료 후 공고에 지원할 수 있습니다.</p>
                 </div>
               ) : (
               <form onSubmit={handleSubmit}>

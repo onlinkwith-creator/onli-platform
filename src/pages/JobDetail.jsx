@@ -215,6 +215,13 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       return;
     }
 
+    if (!interpreterProfile.approved) {
+      const message = "관리자 승인 완료 후 지원할 수 있습니다.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
+
     if (!areTermsAgreed(agreements)) {
       const message = "약관 동의 후 제출 가능합니다.";
       setErrorMessage(message);
@@ -588,6 +595,11 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
                             <button type="button" onClick={onRegisterClick} className="job-register-outline-btn">
                               통역사 등록하기 <ArrowRight size={16} />
                             </button>
+                          </div>
+                        ) : !interpreterProfile.approved ? (
+                          <div className="job-register-required-box">
+                            <h2>관리자 승인 대기 중입니다</h2>
+                            <p>관리자 승인 완료 후 공고에 지원할 수 있습니다.</p>
                           </div>
                         ) : (
                           <form onSubmit={handleSubmit}>
