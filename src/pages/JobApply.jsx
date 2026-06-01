@@ -12,11 +12,12 @@ import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
   findExistingJobApplication,
+  getJobApplicationSubmitErrorMessage,
+  getSupabaseErrorDetails,
   isDuplicateApplicationError,
   normalizeApplicationEmail,
   normalizeApplicationPhone,
 } from "../utils/applicationContact";
-import { APPLICATION_STATUS } from "../utils/status";
 import {
   checkInterpreterScheduleConflict,
   getScheduleRange,
@@ -174,8 +175,6 @@ function JobApply({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    console.log("JOB APPLY SUBMIT START");
-    console.log("JOB APPLY FORM DATA", form);
 
     if (submittingRef.current || submitting || submitted) return;
     if (!job) return;
@@ -244,7 +243,7 @@ function JobApply({
       ]
         .filter(Boolean)
         .join("\n\n"),
-      status: APPLICATION_STATUS.PENDING,
+      status: "지원완료",
       agreed_terms: true,
       agreed_policy: true,
       agreed_at: new Date().toISOString(),
@@ -283,7 +282,6 @@ function JobApply({
         }
       }
 
-      console.log("JOB APPLY BEFORE DB INSERT");
       let insertPayload = await addManagementNumber({
         supabase,
         table: "job_applications",
@@ -325,22 +323,15 @@ function JobApply({
         error = fallbackResult.error;
       }
 
-      console.log("JOB APPLY DB INSERT RESULT", {
-        data,
-        error,
-      });
-
       if (error) {
-        if (isAgreementColumnError(error)) {
-          console.error("약관 동의 저장 실패:", error);
-        }
-        console.error("JOB APPLY DB INSERT ERROR", error);
-        console.error("insert failed", {
+        const errorDetails = getSupabaseErrorDetails(error);
+        console.error("지원서 제출 실패:", {
+          ...errorDetails,
           table: "job_applications",
-          payload: insertPayload,
-          error,
+          payloadKeys: Object.keys(insertPayload || {}),
+          status: insertPayload?.status,
+          interpreter_id: insertPayload?.interpreter_id,
         });
-        console.error("지원 실패:", error);
         throw error;
       }
 
@@ -357,10 +348,6 @@ function JobApply({
           .filter(Boolean)
           .join(" / "),
       };
-      console.log("JOB APPLICATION SUCCESS - START EMAILS", applicantEmail);
-      console.log("JOB APPLY START EMAIL FLOW");
-      console.log("APPLICANT EMAIL TARGET:", applicantEmail);
-
       try {
         if (applicantEmail) {
           const result = await sendAutoEmail(
@@ -382,7 +369,6 @@ function JobApply({
       }
 
       try {
-        console.log("JOB APPLY ADMIN EMAIL START");
         const result = await sendAutoEmail("job_applied_admin", ADMIN_EMAILS, {
           ...emailPayload,
           name: form.name,
@@ -401,7 +387,7 @@ function JobApply({
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
     } catch (error) {
-      console.error("지원 실패:", error);
+      console.error("지원 실패:", getSupabaseErrorDetails(error));
       if (isDuplicateApplicationError(error)) {
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
@@ -409,9 +395,9 @@ function JobApply({
         submittingRef.current = false;
         return;
       }
-      const message = error?.message || "지원서 제출에 실패했습니다. 입력값을 확인해주세요.";
+      const message = getJobApplicationSubmitErrorMessage(error);
       setErrorMessage(message);
-      alert("제출에 실패했습니다.");
+      alert(message);
       setSubmitting(false);
       submittingRef.current = false;
       return;

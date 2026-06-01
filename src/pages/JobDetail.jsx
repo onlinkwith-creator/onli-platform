@@ -35,11 +35,12 @@ import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
   findExistingJobApplication,
+  getJobApplicationSubmitErrorMessage,
+  getSupabaseErrorDetails,
   isDuplicateApplicationError,
   normalizeApplicationEmail,
   normalizeApplicationPhone,
 } from "../utils/applicationContact";
-import { APPLICATION_STATUS } from "../utils/status";
 import {
   MANAGEMENT_NUMBER_CONFIG,
   addManagementNumber,
@@ -183,8 +184,6 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    console.log("JOB DETAIL APPLY SUBMIT START");
-    console.log("JOB DETAIL APPLY FORM DATA", form);
 
     if (submittingRef.current || submitting || submitted) return;
 
@@ -227,7 +226,8 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
     submittingRef.current = true;
     setErrorMessage("");
 
-    if (!supabase) {
+    try {
+      if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
       setSubmitting(false);
       submittingRef.current = false;
@@ -255,28 +255,13 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       ]
         .filter(Boolean)
         .join("\n\n"),
-      status: APPLICATION_STATUS.PENDING,
+      status: "지원완료",
       agreed_terms: true,
       agreed_policy: true,
       agreed_at: new Date().toISOString(),
     };
 
-    try {
-      const existingApplication = await findExistingJobApplication(supabase, {
-        jobId: job.id,
-        email: applicantEmail,
-        phone: applicantPhone,
-      });
-
-      if (existingApplication) {
-        setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
-        alert(DUPLICATE_APPLICATION_MESSAGE);
-        setSubmitting(false);
-        submittingRef.current = false;
-        return;
-      }
-
-      if (matchedInterpreter?.id) {
+    if (matchedInterpreter?.id) {
         const range = getScheduleRange(job);
         const { conflicts, error: conflictError } = await checkInterpreterScheduleConflict({
           interpreterId: matchedInterpreter.id,
@@ -301,7 +286,6 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
         ...managementConfig,
       });
 
-      console.log("JOB DETAIL APPLY BEFORE DB INSERT");
       let { data, error } = await supabase
         .from("job_applications")
         .insert([insertPayload])
@@ -337,22 +321,15 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
         error = fallbackResult.error;
       }
 
-      console.log("JOB DETAIL APPLY DB INSERT RESULT", {
-        data,
-        error,
-      });
-
       if (error) {
-        if (isAgreementColumnError(error)) {
-          console.error("약관 동의 저장 실패:", error);
-        }
-        console.error("JOB DETAIL APPLY DB INSERT ERROR", error);
-        console.error("insert failed", {
+        const errorDetails = getSupabaseErrorDetails(error);
+        console.error("지원서 제출 실패:", {
+          ...errorDetails,
           table: "job_applications",
-          payload: insertPayload,
-          error,
+          payloadKeys: Object.keys(insertPayload || {}),
+          status: insertPayload?.status,
+          interpreter_id: insertPayload?.interpreter_id,
         });
-        console.error("지원 실패:", error);
         throw error;
       }
 
@@ -369,10 +346,6 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
           .filter(Boolean)
           .join(" / "),
       };
-
-      console.log("JOB APPLICATION SUCCESS - START EMAILS", applicantEmail);
-      console.log("JOB DETAIL APPLY START EMAIL FLOW");
-      console.log("APPLICANT EMAIL TARGET:", applicantEmail);
 
       try {
         if (applicantEmail) {
@@ -395,7 +368,6 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       }
 
       try {
-        console.log("JOB DETAIL APPLY ADMIN EMAIL START");
         const result = await sendAutoEmail("job_applied_admin", ADMIN_EMAILS, {
           ...emailPayload,
           name: form.name,
@@ -414,7 +386,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
     } catch (error) {
-      console.error("지원 실패:", error);
+      console.error("지원 실패:", getSupabaseErrorDetails(error));
       if (isDuplicateApplicationError(error)) {
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
@@ -422,9 +394,10 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
         submittingRef.current = false;
         return;
       }
-      const message = error?.message || "지원 접수에 실패했습니다. 입력값을 확인해주세요.";
+
+      const message = getJobApplicationSubmitErrorMessage(error);
       setErrorMessage(message);
-      alert("제출에 실패했습니다.");
+      alert(message);
       setSubmitting(false);
       submittingRef.current = false;
     }
