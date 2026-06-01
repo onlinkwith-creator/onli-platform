@@ -45,7 +45,12 @@ export function getJobApplicationSubmitErrorMessage(error) {
     return DUPLICATE_APPLICATION_MESSAGE;
   }
 
-  if (/row-level security policy/i.test(error?.message || "")) {
+  if (
+    error?.code === "42501" ||
+    /row-level security policy|violates row-level security|permission denied|401|403/i.test(
+      error?.message || ""
+    )
+  ) {
     return "권한 설정 문제로 제출이 완료되지 않았습니다. 관리자에게 문의해주세요.";
   }
 
