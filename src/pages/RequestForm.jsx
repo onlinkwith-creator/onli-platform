@@ -461,38 +461,49 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
           </SectionBlock>
 
           <SectionBlock meta={sectionMeta.request}>
-            <div className="request-grid request-grid-2">
-              <Field label="필요 인원 수" name="requestedPeopleCount" type="number" min="1" placeholder="예: 3" value={form.requestedPeopleCount} onChange={handleChange} required />
-              <div className="level-with-guide">
-                <TabField
-                  label="희망 통역 레벨"
-                  value={form.requestedLevel}
-                  onChange={(value) => updateFormValue("requestedLevel", value)}
-                  options={levelOptions}
-                  helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
-                />
-                <div className="level-guide-box">
-                  <div className="level-guide-title">레벨 선택 가이드</div>
-                  <div className="level-guide-list">
-                    <div className="level-guide-item"><strong>LV1</strong> 현장 보조 · 안내 · 자료 배포</div>
-                    <div className="level-guide-item"><strong>LV2</strong> 제품 설명 · 고객 응대 · 상담 정리</div>
-                    <div className="level-guide-item"><strong>LV3</strong> 바이어 상담 · 상담 흐름 관리 · 유효 리드 선별</div>
-                    <div className="level-guide-item"><strong>LV4</strong> 전문 산업 통역 · 조건 협의 · 고난도 Q&A</div>
-                  </div>
-                  <div className="level-guide-note">레벨 선택이 어렵다면 운영팀 추천받기를 선택해주세요.</div>
-                </div>
-              </div>
-              <TabField
-                label="희망 성별"
-                value={form.preferredGender}
-                onChange={(value) => updateFormValue("preferredGender", value)}
-                options={["성별 무관", "여성 희망", "남성 희망"]}
+            <div className="request-grid request-grid-2 request-grid-request">
+              <Field
+                className="request-grid-area request-grid-area-people"
+                label="필요 인원 수"
+                name="requestedPeopleCount"
+                type="number"
+                min="1"
+                placeholder="예: 3"
+                value={form.requestedPeopleCount}
+                onChange={handleChange}
+                required
               />
               <TabField
+                className="request-grid-area request-grid-area-level"
+                label="희망 통역 레벨"
+                value={form.requestedLevel}
+                onChange={(value) => updateFormValue("requestedLevel", value)}
+                options={levelOptions}
+                helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
+              />
+              <div className="level-guide-box request-grid-area request-grid-area-guide">
+                <div className="level-guide-title">레벨 선택 가이드</div>
+                <div className="level-guide-list">
+                  <div className="level-guide-item"><strong>LV1</strong> 현장 보조 · 안내 · 자료 배포</div>
+                  <div className="level-guide-item"><strong>LV2</strong> 제품 설명 · 고객 응대 · 상담 정리</div>
+                  <div className="level-guide-item"><strong>LV3</strong> 바이어 상담 · 상담 흐름 관리 · 유효 리드 선별</div>
+                  <div className="level-guide-item"><strong>LV4</strong> 전문 산업 통역 · 조건 협의 · 고난도 Q&A</div>
+                </div>
+                <div className="level-guide-note">레벨 선택이 어렵다면 운영팀 추천받기를 선택해주세요.</div>
+              </div>
+              <TabField
+                className="request-grid-area request-grid-area-field"
                 label="통역 분야"
                 value={form.interpretationField}
                 onChange={(value) => updateFormValue("interpretationField", value)}
                 options={fieldOptions}
+              />
+              <TabField
+                className="request-grid-area request-grid-area-gender"
+                label="희망 성별"
+                value={form.preferredGender}
+                onChange={(value) => updateFormValue("preferredGender", value)}
+                options={["성별 무관", "여성 희망", "남성 희망"]}
               />
             </div>
           </SectionBlock>
@@ -560,18 +571,18 @@ function isAgreementColumnError(error) {
   );
 }
 
-function Field({ label, ...inputProps }) {
+function Field({ label, className, ...inputProps }) {
   return (
-    <label className="request-field">
+    <label className={`request-field${className ? ` ${className}` : ""}`}>
       <span className="request-field-label">{label}</span>
       <input className="request-input" {...inputProps} />
     </label>
   );
 }
 
-function TabField({ label, options, value, onChange, helpText }) {
+function TabField({ label, options, value, onChange, helpText, className }) {
   return (
-    <div className="request-field">
+    <div className={`request-field${className ? ` ${className}` : ""}`}>
       <span className="request-field-label">{label}</span>
       <div className="request-pill-group">
         {options.map((option) => (
