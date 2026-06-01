@@ -1036,10 +1036,12 @@
 
 .home-interpreter-badges {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
   margin-bottom: 12px;
+  overflow: hidden;
+  width: 100%;
 }
 
 .home-interpreter-badges span {
@@ -1055,8 +1057,11 @@
   font-weight: 800;
   line-height: 1.2;
   border: 1px solid #e5e7eb;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .home-interpreter-card dl {

@@ -569,9 +569,10 @@ function InterpreterCard({ interpreter, onProfileClick }) {
         </div>
 
         <div className="home-interpreter-badges">
-          {specialtyBadges.slice(0, 3).map((badge) => (
-            <span key={badge}>{badge}</span>
-          ))}
+          <span>{specialtyBadges[0]}</span>
+          {specialtyBadges.length > 1 && (
+            <span>+{specialtyBadges.length - 1}</span>
+          )}
         </div>
 
         <div className="home-interpreter-info-list">
@@ -583,7 +584,11 @@ function InterpreterCard({ interpreter, onProfileClick }) {
           <div className="home-interpreter-info-item min-w-0">
             <Briefcase size={15} aria-hidden="true" />
             <span className="info-label">전문 분야</span>
-            <span className="info-value specialties-text truncate">{specialtyBadges.join(", ")}</span>
+            <span className="info-value specialties-text truncate">
+              {specialtyBadges.length > 1
+                ? `${specialtyBadges[0]} +${specialtyBadges.length - 1}`
+                : specialtyBadges[0]}
+            </span>
           </div>
           <div className="home-interpreter-info-item min-w-0">
             <Languages size={15} aria-hidden="true" />
