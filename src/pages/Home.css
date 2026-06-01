@@ -1193,11 +1193,7 @@
 }
 
 .home-interpreter-info-item .info-value.specialties-text {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }

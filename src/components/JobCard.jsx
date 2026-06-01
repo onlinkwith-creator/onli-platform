@@ -31,7 +31,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
             {badge}
           </div>
           <p className="home-job-company truncate">{job.company_name || "기업명 확인 중"}</p>
-          <h3 className="line-clamp-2">{job.event_name || job.title || "공고 제목 미입력"}</h3>
+          <h3 className="truncate">{job.event_name || job.title || "공고 제목 미입력"}</h3>
         </div>
 
         <div className="home-job-info-list">
