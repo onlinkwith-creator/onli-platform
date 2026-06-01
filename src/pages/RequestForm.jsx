@@ -96,6 +96,9 @@ const sectionMeta = {
 function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const isGeneralRequest = !interpreter;
   const [form, setForm] = useState(initialForm);
+  const requestedLevel = isGeneralRequest
+    ? form.requestedLevel
+    : interpreter?.level || null;
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -192,7 +195,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       end_date: form.endDate,
       event_location: form.eventLocation,
       work_hours: 0,
-      requested_level: form.requestedLevel,
+      requested_level: requestedLevel,
       requested_people_count: Number(form.requestedPeopleCount || 1),
       preferred_gender: form.preferredGender,
       interpretation_field: form.interpretationField,
@@ -209,7 +212,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       job_description: requestDetails,
       job_field: form.interpretationField,
       required_level:
-        form.requestedLevel === "운영팀 추천받기" ? null : form.requestedLevel,
+        requestedLevel === "운영팀 추천받기" ? null : requestedLevel,
       required_count: Number(form.requestedPeopleCount || 1),
       interpreter_fee: interpreterPay,
       agreed_terms: true,
@@ -461,7 +464,11 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
           </SectionBlock>
 
           <SectionBlock meta={sectionMeta.request}>
-            <div className="request-grid request-grid-2 request-grid-request">
+            <div
+              className={`request-grid request-grid-2 request-grid-request${
+                isGeneralRequest ? "" : " request-grid-request-designated"
+              }`}
+            >
               <Field
                 className="request-grid-area request-grid-area-people"
                 label="필요 인원 수"
@@ -473,26 +480,28 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                 onChange={handleChange}
                 required
               />
-              <div className="request-grid-area request-grid-area-right">
-                <TabField
-                  className="request-grid-area request-grid-area-level"
-                  label="희망 통역 레벨"
-                  value={form.requestedLevel}
-                  onChange={(value) => updateFormValue("requestedLevel", value)}
-                  options={levelOptions}
-                  helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
-                />
-                <div className="level-guide-box">
-                  <div className="level-guide-title">레벨 선택 가이드</div>
-                  <div className="level-guide-list">
-                    <div className="level-guide-item"><strong>LV1</strong> 현장 보조 · 안내 · 자료 배포</div>
-                    <div className="level-guide-item"><strong>LV2</strong> 제품 설명 · 고객 응대 · 상담 정리</div>
-                    <div className="level-guide-item"><strong>LV3</strong> 바이어 상담 · 상담 흐름 관리 · 유효 리드 선별</div>
-                    <div className="level-guide-item"><strong>LV4</strong> 전문 산업 통역 · 조건 협의 · 고난도 Q&A</div>
+              {isGeneralRequest && (
+                <div className="request-grid-area request-grid-area-right">
+                  <TabField
+                    className="request-grid-area request-grid-area-level"
+                    label="희망 통역 레벨"
+                    value={form.requestedLevel}
+                    onChange={(value) => updateFormValue("requestedLevel", value)}
+                    options={levelOptions}
+                    helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
+                  />
+                  <div className="level-guide-box">
+                    <div className="level-guide-title">레벨 선택 가이드</div>
+                    <div className="level-guide-list">
+                      <div className="level-guide-item"><strong>LV1</strong> 현장 서포트 · 운영 지원 · 기본 응대</div>
+                      <div className="level-guide-item"><strong>LV2</strong> 고객 응대 · 바이어 상담 · 제품 설명</div>
+                      <div className="level-guide-item"><strong>LV3</strong> 바이어 상담 · 현장 운영 관리 · 시장조사</div>
+                      <div className="level-guide-item"><strong>LV4</strong> B2B 통역 · 비지니스 협의 · 수행통역</div>
+                    </div>
+                    <div className="level-guide-note">레벨 선택이 어렵다면 운영팀 추천받기를 선택해주세요.</div>
                   </div>
-                  <div className="level-guide-note">레벨 선택이 어렵다면 운영팀 추천받기를 선택해주세요.</div>
                 </div>
-              </div>
+              )}
               <TabField
                 className="request-grid-area request-grid-area-field"
                 label="통역 분야"
