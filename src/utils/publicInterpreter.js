@@ -22,7 +22,7 @@ const FALLBACK_TEXT = "정보 확인 중";
 export function getPublicInterpreterInfos(interpreter = {}) {
   return [
     {
-      label: "통역 경험 횟수",
+      label: "통역 횟수",
       value: formatExperienceCount(interpreter),
     },
     {
@@ -59,8 +59,8 @@ function formatExperienceCount(interpreter) {
   const count = interpreter.experience_count;
   if (count !== null && count !== undefined && count !== "") {
     const numericCount = Number(count);
-    if (Number.isFinite(numericCount)) return `통역 경험 ${numericCount}회`;
-    return `통역 경험 ${count}`;
+    if (Number.isFinite(numericCount)) return `통역 ${numericCount}회`;
+    return `통역 ${count}`;
   }
 
   const experience = String(interpreter.experience || "").trim();
