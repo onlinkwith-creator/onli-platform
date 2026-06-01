@@ -401,12 +401,18 @@
   overflow-wrap: anywhere;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
+  cursor: pointer;
 }
 
 .interpreter-list-card:hover {
   transform: translateY(-6px);
   border-color: rgba(124, 92, 255, 0.18);
   box-shadow: 0 20px 40px rgba(124, 92, 255, 0.12);
+}
+
+.interpreter-list-card:focus {
+  outline: 2px solid rgba(99, 102, 241, 0.6);
+  outline-offset: 4px;
 }
 
 .interpreter-list-card-head {

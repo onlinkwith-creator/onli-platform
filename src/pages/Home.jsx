@@ -38,7 +38,6 @@ function Home({
   onJobApplyClick,
   onRequestClick,
   onInterpreterLoginClick,
-  onInterpreterSignupClick,
   onMypageClick,
   onAdminClick,
 }) {
@@ -533,9 +532,25 @@ function InterpreterCard({ interpreter, onProfileClick }) {
   const activityStatus = getInterpreterActivityStatus(interpreter);
   const statusLabel = getInterpreterActivityStatusLabel(activityStatus);
   const publicInfo = getPrimaryPublicInterpreterInfo(interpreter);
+  const openProfile = () => {
+    onProfileClick?.();
+  };
+  const handleCardKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openProfile();
+    }
+  };
 
   return (
-    <article className="home-interpreter-card">
+    <article
+      className="home-interpreter-card"
+      role="button"
+      tabIndex={0}
+      onClick={openProfile}
+      onKeyDown={handleCardKeyDown}
+      aria-label={`${interpreter.name || "통역사"} 프로필 보기`}
+    >
       <div className="home-interpreter-head">
         <div>
           <h3>{interpreter.name || "이름 미입력"}</h3>
@@ -581,7 +596,13 @@ function InterpreterCard({ interpreter, onProfileClick }) {
         </div>
       </dl>
 
-      <button type="button" onClick={onProfileClick}>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          openProfile();
+        }}
+      >
         프로필 보기
       </button>
     </article>

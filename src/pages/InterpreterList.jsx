@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
-import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
+import { normalizeLevel } from "../utils/levelBadge";
 import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
 } from "../utils/status";
-import {
-  getPrimaryPublicInterpreterInfo,
-} from "../utils/publicInterpreter";
 import "./InterpreterList.css";
 
 const initialFilters = {
@@ -60,7 +57,7 @@ const ageOptions = [
   { value: "50plus", label: "50대 이상" },
 ];
 
-function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
+function InterpreterList({ onBackClick, onDetailClick }) {
   const [interpreters, setInterpreters] = useState([]);
   const [filters, setFilters] = useState(initialFilters);
   const [loading, setLoading] = useState(true);
@@ -310,9 +307,34 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                       ? person.specialties.split(",").map(s => s.trim())
                       : [];
                     const tagBadges = specialties.length > 0 ? specialties.slice(0, 3) : ["일반 비즈니스", "전시회", "B2B"];
-                    
+                    const openDetail = () => {
+                      if (onDetailClick) {
+                        onDetailClick(person);
+                        return;
+                      }
+
+                      if (person?.id) {
+                        window.history.pushState({}, "", `/interpreters/${person.id}`);
+                        window.location.reload();
+                      }
+                    };
+                    const handleCardKeyDown = (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openDetail();
+                      }
+                    };
+
                     return (
-                      <div key={person.id} className="interpreter-list-card">
+                      <div
+                        key={person.id}
+                        className="interpreter-list-card"
+                        role="button"
+                        tabIndex={0}
+                        onClick={openDetail}
+                        onKeyDown={handleCardKeyDown}
+                        aria-label={`${person.name || "통역사"} 상세 보기`}
+                      >
                         <div className="interpreter-list-card-head">
                           <div className="interpreter-list-card-meta-left">
                             <h2>{person.name || "이름 미입력"}</h2>
@@ -357,7 +379,11 @@ function InterpreterList({ onBackClick, onDetailClick, onRegisterClick }) {
                         </div>
 
                         <button
-                          onClick={() => onDetailClick(person)}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openDetail();
+                          }}
                           className="interpreter-list-card-button"
                         >
                           상세 보기
