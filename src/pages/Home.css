@@ -582,7 +582,7 @@
 
 .home-jobs-preview {
   margin-top: var(--home-section-gap);
-  padding: 0 var(--home-section-padding-x);
+  padding: 0 var(--home-section-padding-x) 48px;
 }
 
 .home-cta-stack {
@@ -935,7 +935,7 @@
 }
 
 .home-job-card {
-  height: 410px;
+  height: 460px;
   box-sizing: border-box;
 }
 
