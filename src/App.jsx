@@ -416,6 +416,7 @@ function App() {
       {page === "jobDetail" && (
         <JobDetail
           jobId={selectedJobId}
+          isAdmin={isAdmin}
           onBackClick={() => navigate("jobs", null, null)}
           onHomeClick={() => navigate("home", null, null)}
           onLoginClick={() => navigate("login", null, null)}

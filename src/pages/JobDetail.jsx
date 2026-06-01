@@ -66,7 +66,7 @@ const initialForm = {
 
 // TODO: 실서비스 전에는 Supabase Auth 기반으로 통역사 본인 계정만 지원 가능하게 해야 함.
 
-function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeClick }) {
+function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick, onHomeClick }) {
   const { user, loading: authLoading } = useAuth();
   const [interpreterProfile, setInterpreterProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -113,9 +113,9 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
 
     console.log("loaded jobs:", data ? [data] : []);
 
-    if (!isPublicJob(data)) {
+    if (!isPublicJob(data) && !isAdmin) {
       setJob(null);
-      setErrorMessage("지원할 수 없는 공고입니다.");
+      setErrorMessage("현재 공개되지 않은 통역공고입니다.");
       setLoading(false);
       return;
     }

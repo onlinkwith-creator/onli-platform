@@ -55,7 +55,8 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
     try {
       const { data, error } = await supabase
         .from("jobs")
-        .select("*");
+        .select("*")
+        .eq("visibility", "public");
 
       if (error) {
         console.error("Jobs fetch error:", {

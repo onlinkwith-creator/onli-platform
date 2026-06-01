@@ -22,6 +22,7 @@ const subjects = {
   interpreter_approved: "[ON-LI] 통역사 등록이 승인되었습니다",
   interpreter_matching_confirmed: "[ON-LI] 통역 배정이 확정되었습니다",
   interpreter_schedule_reminder: "[ON-LI] 통역 일정 안내드립니다",
+  designated_request_received_interpreter: "[ON-LI] 지정 통역 의뢰가 도착했습니다",
 } as const;
 
 type EmailType = keyof typeof subjects;
@@ -343,6 +344,24 @@ function buildHtml(type: EmailType, payload: Payload) {
             ["기업명", field(payload, "companyName")],
             ["일정", field(payload, "date")],
             ["장소", field(payload, "location")],
+          ])}
+        `
+      );
+    case "designated_request_received_interpreter":
+      return layout(
+        "지정 통역 의뢰가 도착했습니다",
+        `
+          <p>${field(payload, "interpreterName", "통역사")}님,</p>
+          <p>새로운 지정 통역 의뢰가 도착했습니다.<br/>
+          의뢰 내용을 확인하신 후, 일정 가능 여부를 회신해 주세요.</p>
+          <p>만약 일정이 어렵거나 조건상 진행이 어려운 경우, ON-LI 운영팀이 다른 통역사로 재배정할 수 있으니 부담 없이 알려주시기 바랍니다.</p>
+          ${infoTable([
+            ["회사명", field(payload, "companyName")],
+            ["행사명", field(payload, "eventName")],
+            ["일정", field(payload, "date")],
+            ["장소", field(payload, "location")],
+            ["요청 인원", field(payload, "requestedPeopleCount")],
+            ["통역 분야", field(payload, "interpretationField")],
           ])}
         `
       );

@@ -292,12 +292,11 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         error,
       });
       console.error("request insert error:", error);
-      const message =
-        error.code === "42501"
-          ? "의뢰 저장 권한 설정이 필요합니다. Supabase requests 테이블의 insert 정책을 확인해주세요."
-          : `의뢰저장 실패: ${error.message || "입력값을 확인한 뒤 다시 시도해주세요."}`;
+      const message = isSupabasePermissionError(error)
+        ? "통역사는 통역 의뢰를 할 수 없습니다."
+        : "의뢰 저장에 실패했습니다. 다시 시도해주세요.";
       setErrorMessage(message);
-      alert("제출에 실패했습니다.");
+      alert(message);
       return;
     }
 
@@ -354,6 +353,40 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     } catch (error) {
       console.error("USER EMAIL FAILED", error);
       console.error("Company email failed", error);
+    }
+
+    if (interpreter?.id) {
+      try {
+        console.log("DESIGNATED INTERPRETER EMAIL START");
+        const { data: interpreterData, error: interpreterError } = await supabase
+          .from("interpreters")
+          .select("email")
+          .eq("id", interpreter.id)
+          .single();
+
+        if (interpreterError) {
+          console.error("Failed to query interpreter email:", interpreterError);
+        } else if (interpreterData?.email) {
+          const interpreterEmail = interpreterData.email;
+          const result = await sendAutoEmail(
+            "designated_request_received_interpreter",
+            interpreterEmail,
+            {
+              ...emailPayload,
+              interpreterName: interpreter.name || "",
+            }
+          );
+          if (!result.ok) {
+            console.error("Designated interpreter email failed", result.error || result);
+          } else {
+            console.log("Designated interpreter email sent successfully to:", interpreterEmail);
+          }
+        } else {
+          console.warn("Designated interpreter email is empty for interpreter:", interpreter.id);
+        }
+      } catch (error) {
+        console.error("DESIGNATED INTERPRETER EMAIL FAILED", error);
+      }
     }
 
     try {
@@ -573,7 +606,17 @@ function isMissingColumnError(error) {
     /column|schema cache/i.test(error?.message || "")
   );
 }
-
+function isSupabasePermissionError(error) {
+  if (!error) return false;
+  const message = String(error.message || "").toLowerCase();
+  return (
+    error.code === "42501" ||
+    error.status === 403 ||
+    /permission|policy|access denied|not authorized|forbidden|rls|row level security/.test(
+      message
+    )
+  );
+}
 function isAgreementColumnError(error) {
   return (
     error?.code === "42703" ||
