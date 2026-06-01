@@ -463,22 +463,24 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
           <SectionBlock meta={sectionMeta.request}>
             <div className="request-grid request-grid-2">
               <Field label="필요 인원 수" name="requestedPeopleCount" type="number" min="1" placeholder="예: 3" value={form.requestedPeopleCount} onChange={handleChange} required />
-              <TabField
-                label="희망 통역 레벨"
-                value={form.requestedLevel}
-                onChange={(value) => updateFormValue("requestedLevel", value)}
-                options={levelOptions}
-                helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
-              />
-              <div className="level-guide-box">
-                <div className="level-guide-title">레벨 선택 가이드</div>
-                <div className="level-guide-list">
-                  <div className="level-guide-item"><strong>LV1</strong> 현장 보조 · 안내 · 자료 배포</div>
-                  <div className="level-guide-item"><strong>LV2</strong> 제품 설명 · 고객 응대 · 상담 정리</div>
-                  <div className="level-guide-item"><strong>LV3</strong> 바이어 상담 · 상담 흐름 관리 · 유효 리드 선별</div>
-                  <div className="level-guide-item"><strong>LV4</strong> 전문 산업 통역 · 조건 협의 · 고난도 Q&A</div>
+              <div className="level-with-guide">
+                <TabField
+                  label="희망 통역 레벨"
+                  value={form.requestedLevel}
+                  onChange={(value) => updateFormValue("requestedLevel", value)}
+                  options={levelOptions}
+                  helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
+                />
+                <div className="level-guide-box">
+                  <div className="level-guide-title">레벨 선택 가이드</div>
+                  <div className="level-guide-list">
+                    <div className="level-guide-item"><strong>LV1</strong> 현장 보조 · 안내 · 자료 배포</div>
+                    <div className="level-guide-item"><strong>LV2</strong> 제품 설명 · 고객 응대 · 상담 정리</div>
+                    <div className="level-guide-item"><strong>LV3</strong> 바이어 상담 · 상담 흐름 관리 · 유효 리드 선별</div>
+                    <div className="level-guide-item"><strong>LV4</strong> 전문 산업 통역 · 조건 협의 · 고난도 Q&A</div>
+                  </div>
+                  <div className="level-guide-note">레벨 선택이 어렵다면 운영팀 추천받기를 선택해주세요.</div>
                 </div>
-                <div className="level-guide-note">레벨 선택이 어렵다면 운영팀 추천받기를 선택해주세요.</div>
               </div>
               <TabField
                 label="희망 성별"
