@@ -801,14 +801,15 @@
   padding: 20px;
   border-radius: var(--onli-card-radius);
   background: rgba(255, 255, 255, 0.66);
-  border: 1px solid var(--onli-border);
-  box-shadow: var(--onli-card-shadow);
+  border: 1px solid #eef2f7;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
   backdrop-filter: blur(16px);
   cursor: pointer;
   transition:
     filter 160ms ease,
     box-shadow 160ms ease,
-    border-color 160ms ease;
+    border-color 160ms ease,
+    transform 160ms ease;
   scroll-snap-align: start;
   text-align: left;
 }
@@ -816,8 +817,9 @@
 .home-job-card:hover,
 .home-interpreter-card:hover {
   filter: brightness(1.015);
-  border-color: var(--onli-border-hover);
-  box-shadow: var(--onli-card-shadow-hover);
+  border-color: #e2e8f0;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  transform: translateY(-3px);
 }
 
 .home-job-card:focus-visible,
@@ -1008,8 +1010,9 @@
 .home-interpreter-head h3 {
   margin: 0;
   color: #111827;
-  font-size: 19px;
-  font-weight: 900;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -1017,9 +1020,9 @@
 .home-interpreter-head p {
   overflow: hidden;
   margin-top: 6px;
-  color: #6b7280;
-  font-size: 14px;
-  font-weight: 700;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1049,14 +1052,14 @@
   width: fit-content;
   align-items: center;
   justify-content: center;
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: 999px;
   background: #f8fafc;
   color: #4b5563;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
-  border: 1px solid #e5e7eb;
+  border: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1134,24 +1137,22 @@
 .home-interpreter-card button {
   width: 100%;
   margin-top: auto;
-  min-height: 44px;
+  height: 46px;
   padding: 11px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(79, 70, 229, 0.35);
-  font-weight: 700;
-  background: #ffffff;
-  color: #4f46e5;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  background: #111827;
+  color: #ffffff;
   box-shadow: none;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
 }
 
 .home-interpreter-card button:hover {
-  background: linear-gradient(135deg, #4f46e5 0%, #6d5dfc 100%);
-  color: #ffffff;
-  border-color: transparent;
+  background: #312e81;
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.18);
 }
 
 .home-interpreter-card {
@@ -1175,7 +1176,7 @@
 .home-interpreter-info-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin: 12px 0 16px;
 }
 
@@ -1184,26 +1185,26 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #111827;
+  color: #334155;
 }
 
 .home-interpreter-info-item svg {
-  color: #5b5cf0;
+  color: #94a3b8;
   flex-shrink: 0;
 }
 
 .home-interpreter-info-item .info-label {
-  color: #6b7280;
-  font-size: 12.5px;
-  font-weight: 800;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
   width: 60px;
   flex-shrink: 0;
 }
 
 .home-interpreter-info-item .info-value {
-  color: #111827;
-  font-size: 12.5px;
-  font-weight: 800;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

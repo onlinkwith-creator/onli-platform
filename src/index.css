@@ -253,8 +253,9 @@ html,
 body,
 #root,
 #root * {
-  font-family: "Inter", "Noto Sans KR", "Noto Sans JP", sans-serif !important;
+  font-family: "Inter", "Pretendard", "Noto Sans KR", "Noto Sans JP", sans-serif !important;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
@@ -262,7 +263,7 @@ button,
 input,
 textarea,
 select {
-  font-family: "Inter", "Noto Sans KR", "Noto Sans JP", sans-serif !important;
+  font-family: "Inter", "Pretendard", "Noto Sans KR", "Noto Sans JP", sans-serif !important;
 }
 
 h1,
@@ -272,6 +273,6 @@ h4,
 .hero-title,
 .logo,
 .section-title {
-  font-family: "Inter", "Noto Sans KR", "Noto Sans JP", sans-serif !important;
+  font-family: "Inter", "Pretendard", "Noto Sans KR", "Noto Sans JP", sans-serif !important;
   font-weight: 800;
 }

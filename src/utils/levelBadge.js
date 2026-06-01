@@ -4,7 +4,6 @@ export function normalizeLevel(level) {
 }
 
 export function getLevelBadgeStyle(level) {
-  const normalized = normalizeLevel(level).toLowerCase();
   const base = {
     display: "inline-flex",
     alignItems: "center",
@@ -12,21 +11,13 @@ export function getLevelBadgeStyle(level) {
     padding: "5px 10px",
     borderRadius: "999px",
     fontSize: "12px",
-    fontWeight: 900,
+    fontWeight: 700,
     lineHeight: 1,
     whiteSpace: "nowrap",
-    border: "1px solid transparent",
+    background: "rgba(99, 102, 241, 0.08)",
+    color: "#4f46e5",
+    border: "1px solid rgba(99, 102, 241, 0.15)",
   };
 
-  if (normalized === "lv2") {
-    return { ...base, background: "#eff6ff", color: "#1d4ed8", borderColor: "#bfdbfe" };
-  }
-  if (normalized === "lv3") {
-    return { ...base, background: "#ecfdf5", color: "#047857", borderColor: "#bbf7d0" };
-  }
-  if (normalized === "lv4") {
-    return { ...base, background: "#f5f3ff", color: "#6d28d9", borderColor: "#ddd6fe" };
-  }
-
-  return { ...base, background: "#f3f4f6", color: "#4b5563", borderColor: "#e5e7eb" };
+  return base;
 }
