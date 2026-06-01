@@ -9,6 +9,7 @@ import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatu
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import {
+  ensureInterpreterAuthLink,
   isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
@@ -136,7 +137,11 @@ function JobApply({
           return;
         }
 
-        const matched = pickCurrentUserInterpreterProfile(data || [], user);
+        const matched = await ensureInterpreterAuthLink(
+          supabase,
+          pickCurrentUserInterpreterProfile(data || [], user),
+          user
+        );
 
         if (matched) {
           setInterpreterProfile(matched);
@@ -236,7 +241,27 @@ function JobApply({
     const applicantEmail = normalizeApplicationEmail(form.email);
     const applicantPhone = normalizeApplicationPhone(form.phone);
 
-    const matchedInterpreter = interpreterProfile;
+    const {
+      data: { user: currentUser },
+      error: currentUserError,
+    } = await supabase.auth.getUser();
+
+    if (currentUserError || !currentUser?.id || currentUser.id !== user.id) {
+      const message = "지원 처리 권한이 없습니다. 로그인 상태와 통역사 승인 상태를 확인해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      setSubmitting(false);
+      submittingRef.current = false;
+      return;
+    }
+
+    const matchedInterpreter = await ensureInterpreterAuthLink(
+      supabase,
+      interpreterProfile,
+      currentUser
+    );
+    setInterpreterProfile(matchedInterpreter);
+
     const application = {
       job_id: job.id,
       interpreter_id: matchedInterpreter?.id || null,
@@ -263,6 +288,7 @@ function JobApply({
     try {
       const existingApplication = await findExistingJobApplication(supabase, {
         jobId: job.id,
+        interpreterId: matchedInterpreter?.id,
         email: applicantEmail,
         phone: applicantPhone,
       });

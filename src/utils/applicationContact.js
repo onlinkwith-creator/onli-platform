@@ -51,7 +51,7 @@ export function getJobApplicationSubmitErrorMessage(error) {
       error?.message || ""
     )
   ) {
-    return "권한 설정 문제로 제출이 완료되지 않았습니다. 관리자에게 문의해주세요.";
+    return "지원 처리 권한이 없습니다. 로그인 상태와 통역사 승인 상태를 확인해주세요.";
   }
 
   if (/column .* does not exist|relation .* does not exist|schema cache/i.test(error?.message || "")) {
@@ -88,9 +88,24 @@ export function buildLegacyJobApplicationPayload(error, payload) {
   return nextPayload;
 }
 
-export async function findExistingJobApplication(supabase, { jobId, email, phone }) {
+export async function findExistingJobApplication(
+  supabase,
+  { jobId, interpreterId, email, phone }
+) {
   const normalizedEmail = normalizeApplicationEmail(email);
   const normalizedPhone = normalizeApplicationPhone(phone);
+
+  if (interpreterId) {
+    const { data, error } = await supabase
+      .from("job_applications")
+      .select("id")
+      .eq("job_id", jobId)
+      .eq("interpreter_id", interpreterId)
+      .limit(1);
+
+    if (error) throw error;
+    if (data?.length) return data[0];
+  }
 
   if (normalizedEmail) {
     const { data, error } = await supabase

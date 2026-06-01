@@ -32,6 +32,7 @@ import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/
 import { attachPublicJobCounts } from "../utils/jobsApi";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
+  ensureInterpreterAuthLink,
   isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
@@ -145,7 +146,11 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
           return;
         }
 
-        const matched = pickCurrentUserInterpreterProfile(data || [], user);
+        const matched = await ensureInterpreterAuthLink(
+          supabase,
+          pickCurrentUserInterpreterProfile(data || [], user),
+          user
+        );
 
         if (matched) {
           setInterpreterProfile(matched);
@@ -247,7 +252,26 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
     const applicantEmail = normalizeApplicationEmail(form.email);
     const applicantPhone = normalizeApplicationPhone(form.phone);
 
-    const matchedInterpreter = interpreterProfile;
+    const {
+      data: { user: currentUser },
+      error: currentUserError,
+    } = await supabase.auth.getUser();
+
+    if (currentUserError || !currentUser?.id || currentUser.id !== user.id) {
+      const message = "지원 처리 권한이 없습니다. 로그인 상태와 통역사 승인 상태를 확인해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      setSubmitting(false);
+      submittingRef.current = false;
+      return;
+    }
+
+    const matchedInterpreter = await ensureInterpreterAuthLink(
+      supabase,
+      interpreterProfile,
+      currentUser
+    );
+    setInterpreterProfile(matchedInterpreter);
 
     const application = {
       job_id: job.id,
@@ -273,6 +297,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
 
     const existingApplication = await findExistingJobApplication(supabase, {
       jobId: job.id,
+      interpreterId: matchedInterpreter?.id,
       email: applicantEmail,
       phone: applicantPhone,
     });

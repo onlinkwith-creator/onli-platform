@@ -9,7 +9,6 @@ const APPROVED_STATUS_VALUES = new Set([
 
 export function isInterpreterApprovedForApplication(interpreter = {}) {
   if (!interpreter) return false;
-  if (interpreter.approved === true || interpreter.approved === "true") return true;
 
   const normalizedStatus = String(interpreter.status || "").trim().toLowerCase();
   return APPROVED_STATUS_VALUES.has(normalizedStatus);
@@ -21,10 +20,12 @@ export function pickCurrentUserInterpreterProfile(profiles = [], user = {}) {
 
   const matches = (profiles || []).filter((profile) => {
     const profileUserId = String(profile?.auth_user_id || "");
+    const legacyProfileUserId = String(profile?.user_id || "");
     const profileEmail = String(profile?.email || "").toLowerCase().trim();
 
     return (
       (userId && profileUserId === userId) ||
+      (userId && legacyProfileUserId === userId) ||
       (normalizedEmail && profileEmail === normalizedEmail)
     );
   });
@@ -38,6 +39,35 @@ export function pickCurrentUserInterpreterProfile(profiles = [], user = {}) {
     const bAuthMatch = String(b?.auth_user_id || "") === userId ? 1 : 0;
     if (aAuthMatch !== bAuthMatch) return bAuthMatch - aAuthMatch;
 
+    const aLegacyUserMatch = String(a?.user_id || "") === userId ? 1 : 0;
+    const bLegacyUserMatch = String(b?.user_id || "") === userId ? 1 : 0;
+    if (aLegacyUserMatch !== bLegacyUserMatch) return bLegacyUserMatch - aLegacyUserMatch;
+
     return Number(b?.id || 0) - Number(a?.id || 0);
   })[0] || null;
+}
+
+export async function ensureInterpreterAuthLink(supabase, interpreter, user) {
+  if (!supabase || !interpreter || !user?.id) return interpreter;
+
+  const hasAuthUserColumn = Object.prototype.hasOwnProperty.call(
+    interpreter,
+    "auth_user_id"
+  );
+
+  if (!hasAuthUserColumn || interpreter.auth_user_id) return interpreter;
+
+  const { data, error } = await supabase
+    .from("interpreters")
+    .update({ auth_user_id: user.id })
+    .eq("id", interpreter.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.warn("Interpreter auth_user_id link skipped", error);
+    return interpreter;
+  }
+
+  return data || interpreter;
 }
