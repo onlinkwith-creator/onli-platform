@@ -37,7 +37,7 @@ export function getJobApplicationSubmitErrorMessage(error) {
   }
 
   if (/row-level security policy/i.test(error?.message || "")) {
-    return "권한 문제로 제출이 실패했습니다. 관리자에게 문의해주세요.";
+    return "권한 설정 문제로 제출이 완료되지 않았습니다. 관리자에게 문의해주세요.";
   }
 
   if (/column .* does not exist|relation .* does not exist|schema cache/i.test(error?.message || "")) {
