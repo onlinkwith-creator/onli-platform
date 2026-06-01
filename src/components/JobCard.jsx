@@ -25,52 +25,54 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
       onKeyDown={onDetailClick ? handleKeyDown : undefined}
       aria-label={`${job.event_name || job.title || "통역 공고"} 상세 보기`}
     >
-      <div>
-        <div className={`home-job-status ${status}`}>
-          {badge}
+      <div className="home-job-card-body">
+        <div>
+          <div className={`home-job-status ${status}`}>
+            {badge}
+          </div>
+          <p className="home-job-company">{job.company_name || "기업명 확인 중"}</p>
+          <h3>{job.event_name || job.title || "공고 제목 미입력"}</h3>
         </div>
-        <p className="home-job-company">{job.company_name || "기업명 확인 중"}</p>
-        <h3>{job.event_name || job.title || "공고 제목 미입력"}</h3>
+
+        <div className="home-job-info-list">
+          <div className="home-job-info-item">
+            <Calendar size={15} aria-hidden="true" />
+            <span>{formatDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-"}</span>
+          </div>
+          <div className="home-job-info-item">
+            <MapPin size={15} aria-hidden="true" />
+            <span>{job.location || job.event_location || "-"}</span>
+          </div>
+          <div className="home-job-info-item">
+            <Users size={15} aria-hidden="true" />
+            <span>{getRecruitmentCountDisplay(job) || "-"}</span>
+          </div>
+          <div className="home-job-info-item">
+            <Award size={15} aria-hidden="true" />
+            <span>{getRequiredLevelDisplay(job) || "-"}</span>
+          </div>
+          <div className="home-job-info-item">
+            <Briefcase size={15} aria-hidden="true" />
+            <span>{getJobSpecialty(job) || "-"}</span>
+          </div>
+        </div>
       </div>
 
-      <div className="home-job-info-list">
-        <div className="home-job-info-item">
-          <Calendar size={15} aria-hidden="true" />
-          <span>{formatDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-"}</span>
-        </div>
-        <div className="home-job-info-item">
-          <MapPin size={15} aria-hidden="true" />
-          <span>{job.location || job.event_location || "-"}</span>
-        </div>
-        <div className="home-job-info-item">
-          <Users size={15} aria-hidden="true" />
-          <span>{getRecruitmentCountDisplay(job) || "-"}</span>
-        </div>
-        <div className="home-job-info-item">
-          <Award size={15} aria-hidden="true" />
-          <span>{getRequiredLevelDisplay(job) || "-"}</span>
-        </div>
-        <div className="home-job-info-item">
-          <Briefcase size={15} aria-hidden="true" />
-          <span>{getJobSpecialty(job) || "-"}</span>
-        </div>
+      <div className="home-job-card-action">
+        <p className="home-job-level-note">Lv 기준 통역 단가 적용</p>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onApplyClick?.(job);
+          }}
+          disabled={!canApply}
+          className={canApply ? "apply-btn-active" : "apply-btn-disabled"}
+        >
+          {canApply ? "지원하기" : badge}
+        </button>
       </div>
-
-      <p className="home-job-level-note">
-        💎 {getRequiredLevelDisplay(job).includes("추천") || !getRequiredLevelDisplay(job) ? "선택 레벨 기준 단가 적용" : `${getRequiredLevelDisplay(job)} 기준 단가 적용`}
-      </p>
-
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onApplyClick?.(job);
-        }}
-        disabled={!canApply}
-        className={canApply ? "apply-btn-active" : "apply-btn-disabled"}
-      >
-        {canApply ? "지원하기" : badge}
-      </button>
     </article>
   );
 }
