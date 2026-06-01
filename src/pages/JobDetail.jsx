@@ -34,6 +34,7 @@ import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
+  buildLegacyJobApplicationPayload,
   findExistingJobApplication,
   getJobApplicationSubmitErrorMessage,
   getSupabaseErrorDetails,
@@ -133,7 +134,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
         const { data, error } = await supabase
           .from("interpreters")
           .select("*")
-          .ilike("email", normalizedEmail);
+          .or(`auth_user_id.eq.${user.id},email.ilike.${normalizedEmail}`);
 
         if (error) {
           console.error("Failed to fetch interpreter profile for application", error);
@@ -141,7 +142,9 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
         }
 
         const matched = (data || []).find(
-          (item) => String(item.email || "").toLowerCase().trim() === normalizedEmail
+          (item) =>
+            String(item.auth_user_id || "") === String(user.id) ||
+            String(item.email || "").toLowerCase().trim() === normalizedEmail
         );
 
         if (matched) {
@@ -197,7 +200,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       return;
     }
     if (!user) {
-      const message = "회원가입 및 로그인 후 지원 가능합니다.";
+      const message = "로그인 후 지원할 수 있습니다.";
       setErrorMessage(message);
       alert(message);
       onLoginClick?.();
@@ -208,7 +211,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       return;
     }
     if (!interpreterProfile) {
-      const message = "통역사 등록을 완료한 계정만 공고에 지원할 수 있습니다.";
+      const message = "통역사 등록 후 지원할 수 있습니다.";
       setErrorMessage(message);
       alert(message);
       onRegisterClick?.();
@@ -268,6 +271,20 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       agreed_at: new Date().toISOString(),
     };
 
+    const existingApplication = await findExistingJobApplication(supabase, {
+      jobId: job.id,
+      email: applicantEmail,
+      phone: applicantPhone,
+    });
+
+    if (existingApplication) {
+      setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
+      alert(DUPLICATE_APPLICATION_MESSAGE);
+      setSubmitting(false);
+      submittingRef.current = false;
+      return;
+    }
+
     if (matchedInterpreter?.id) {
         const range = getScheduleRange(job);
         const { conflicts, error: conflictError } = await checkInterpreterScheduleConflict({
@@ -316,9 +333,7 @@ function JobDetail({ jobId, onBackClick, onLoginClick, onRegisterClick, onHomeCl
       }
 
       if (error && isAgreementColumnError(error)) {
-        const fallbackApplication = { ...insertPayload };
-        delete fallbackApplication.interpreter_id;
-        delete fallbackApplication.application_no;
+        const fallbackApplication = buildLegacyJobApplicationPayload(error, insertPayload);
         const fallbackResult = await supabase
           .from("job_applications")
           .insert([fallbackApplication])

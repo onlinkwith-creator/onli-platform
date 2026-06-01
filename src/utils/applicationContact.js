@@ -1,5 +1,14 @@
 export const DUPLICATE_APPLICATION_MESSAGE =
-  "이미 해당 공고에 지원한 내역이 있습니다.";
+  "이미 지원한 공고입니다.";
+
+const LEGACY_JOB_APPLICATION_COLUMNS = [
+  "agreed_terms",
+  "agreed_policy",
+  "agreed_at",
+  "application_no",
+  "applicant_email",
+  "applicant_phone",
+];
 
 export function normalizeApplicationEmail(value) {
   return String(value || "").trim().toLowerCase();
@@ -45,6 +54,33 @@ export function getJobApplicationSubmitErrorMessage(error) {
   }
 
   return "제출에 실패했습니다. 잠시 후 다시 시도해주세요.";
+}
+
+export function buildLegacyJobApplicationPayload(error, payload) {
+  if (!payload) return payload;
+
+  const message = [
+    error?.message,
+    error?.details,
+    error?.hint,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const missingColumns = LEGACY_JOB_APPLICATION_COLUMNS.filter((column) =>
+    new RegExp(`\\b${column}\\b`, "i").test(message)
+  );
+
+  const columnsToRemove = missingColumns.length
+    ? missingColumns
+    : LEGACY_JOB_APPLICATION_COLUMNS;
+
+  const nextPayload = { ...payload };
+  columnsToRemove.forEach((column) => {
+    delete nextPayload[column];
+  });
+
+  return nextPayload;
 }
 
 export async function findExistingJobApplication(supabase, { jobId, email, phone }) {
