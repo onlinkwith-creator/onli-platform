@@ -1,5 +1,5 @@
 export const DUPLICATE_APPLICATION_MESSAGE =
-  "이미 지원한 공고입니다.";
+  "이미 지원한 통역공고입니다.";
 
 const LEGACY_JOB_APPLICATION_COLUMNS = [
   "agreed_terms",

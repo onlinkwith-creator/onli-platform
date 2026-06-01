@@ -67,6 +67,8 @@ function JobApply({
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
+  const [existingApplication, setExistingApplication] = useState(null);
+  const [applicationCheckLoading, setApplicationCheckLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const fetchJob = useCallback(async () => {
@@ -172,6 +174,32 @@ function JobApply({
     queueMicrotask(loadProfile);
   }, [user]);
 
+  useEffect(() => {
+    const checkExistingApplication = async () => {
+      if (!job?.id || !interpreterProfile?.id || !supabase) {
+        setExistingApplication(null);
+        setSubmitted(false);
+        return;
+      }
+
+      setApplicationCheckLoading(true);
+      try {
+        const application = await findExistingJobApplication(supabase, {
+          jobId: job.id,
+          interpreterId: interpreterProfile.id,
+        });
+        setExistingApplication(application || null);
+        setSubmitted(Boolean(application));
+      } catch (error) {
+        console.error("기존 지원 여부 확인 실패:", getSupabaseErrorDetails(error));
+      } finally {
+        setApplicationCheckLoading(false);
+      }
+    };
+
+    queueMicrotask(checkExistingApplication);
+  }, [job?.id, interpreterProfile?.id]);
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
@@ -188,6 +216,11 @@ function JobApply({
     if (!job) return;
     if (!canApplyToJob(job)) {
       setErrorMessage("지원할 수 없는 공고입니다.");
+      return;
+    }
+    if (existingApplication) {
+      setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
+      setSubmitted(true);
       return;
     }
     if (authLoading) {
@@ -296,6 +329,8 @@ function JobApply({
       if (existingApplication) {
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
+        setExistingApplication(existingApplication);
+        setSubmitted(true);
         setSubmitting(false);
         submittingRef.current = false;
         return;
@@ -418,6 +453,7 @@ function JobApply({
       }
 
       setSubmitted(true);
+      setExistingApplication(data || { id: data?.id });
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
     } catch (error) {
@@ -425,6 +461,8 @@ function JobApply({
       if (isDuplicateApplicationError(error)) {
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
+        setExistingApplication({ id: "duplicate" });
+        setSubmitted(true);
         setSubmitting(false);
         submittingRef.current = false;
         return;
@@ -454,8 +492,8 @@ function JobApply({
         <div className="jobs-shell">
           <div className="jobs-success-box">
             <p className="jobs-kicker">APPLICATION COMPLETE</p>
-            <h1>지원 완료</h1>
-            <p>지원이 완료되었습니다. 담당자가 검토 후 연락드립니다.</p>
+            <h1>지원된 통역공고입니다</h1>
+            <p>이미 지원한 통역공고입니다.</p>
             <div className="jobs-success-actions">
               <button type="button" onClick={goToJobs}>
                 공고 목록으로 돌아가기
@@ -635,6 +673,7 @@ function JobApply({
                   disabled={
                     submitting ||
                     submitted ||
+                    applicationCheckLoading ||
                     authLoading ||
                     profileLoading ||
                     !user ||
@@ -645,6 +684,10 @@ function JobApply({
                 >
                   {!canApplyToJob(job)
                     ? "마감됨"
+                    : submitted
+                      ? "지원된 통역공고입니다"
+                    : applicationCheckLoading
+                      ? "지원 여부 확인 중..."
                     : submitting
                       ? "제출 중..."
                       : "제출하기"}
