@@ -1136,17 +1136,18 @@
   margin-top: auto;
   min-height: 44px;
   padding: 11px 16px;
-  border-radius: 12px;
+  border-radius: 14px;
   border: none;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  font-weight: 700;
+  background: linear-gradient(135deg, #4f46e5 0%, #6d5dfc 100%);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.22);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .home-interpreter-card button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.28);
   filter: brightness(1.05);
 }
 
