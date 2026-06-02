@@ -286,6 +286,63 @@ function Home({
         </section>
       </main>
 
+      <section className="home-mobile-overview-slider" aria-label="ON-LI 특징 및 진행 프로세스">
+        <article className="home-mobile-overview-slide">
+          <h3>ON-LI의 특징</h3>
+          <div className="home-mobile-feature-list">
+            <Feature
+              symbol="01"
+              title="검증된 레벨제"
+              text="경험과 역량에 따른 Lv1~Lv4 매칭 구조"
+            />
+            <Feature
+              symbol="02"
+              title="현장 최적화 매칭"
+              text="전시회, 상담회, 미팅 목적에 맞춘 인재 연결"
+            />
+            <Feature
+              symbol="03"
+              title="한일 비즈니스 전문"
+              text="한국 기업의 일본 진출 현장에 최적화"
+            />
+          </div>
+        </article>
+
+        <article className="home-mobile-overview-slide">
+          <div className="home-mobile-process-head">
+            <p className="home-brand-sub">PROCESS</p>
+            <h3>진행 프로세스</h3>
+          </div>
+          <div className="home-mobile-process-list">
+            <Step
+              number="1"
+              title="기업 의뢰 접수"
+              text="행사 일정·장소·인원을 전달"
+            />
+            <Step
+              number="2"
+              title="운영팀 검토"
+              text="의뢰 내용과 필요 레벨 확인"
+            />
+            <Step
+              number="3"
+              title="공고 등록 및 모집"
+              text="관리자 확인 후 통역사 모집"
+            />
+            <Step
+              number="4"
+              title="매칭 진행"
+              text="조건에 맞는 통역사 선정"
+            />
+            <Step
+              number="5"
+              title="최종 배정 완료"
+              text="사전 안내 후 일정 확정"
+            />
+          </div>
+        </article>
+      </section>
+
       <section className="home-cta-stack" aria-label="ON-LI 이용 안내">
         <div className="home-company-cta">
           <div className="home-cta-icon" aria-hidden="true">
