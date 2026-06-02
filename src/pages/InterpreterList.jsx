@@ -225,16 +225,6 @@ function InterpreterList({ onBackClick, onDetailClick }) {
         ) : (
           <>
             {/* Glassmorphic Filters */}
-            <button
-              type="button"
-              className="interpreter-list-filter-toggle"
-              onClick={() => setIsMobileFilterOpen((current) => !current)}
-              aria-expanded={isMobileFilterOpen}
-              aria-controls="interpreter-list-filter-panel"
-            >
-              {isMobileFilterOpen ? "필터 닫기" : "필터 열기"}
-            </button>
-
             <div
               id="interpreter-list-filter-panel"
               className={`interpreter-list-filter-card ${
@@ -299,16 +289,28 @@ function InterpreterList({ onBackClick, onDetailClick }) {
               <p className="interpreter-list-result-text">
                 총 {sortedInterpreters.length}명의 통역사가 표시됩니다
               </p>
-              
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="interpreter-list-sort-select"
-              >
-                <option value="latest">최신 등록순</option>
-                <option value="experience">경험 많은순</option>
-                <option value="level">Lv 높은순</option>
-              </select>
+
+              <div className="interpreter-list-actions">
+                <button
+                  type="button"
+                  className="interpreter-list-filter-toggle"
+                  onClick={() => setIsMobileFilterOpen((current) => !current)}
+                  aria-expanded={isMobileFilterOpen}
+                  aria-controls="interpreter-list-filter-panel"
+                >
+                  필터
+                </button>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="interpreter-list-sort-select"
+                >
+                  <option value="latest">최신 등록순</option>
+                  <option value="experience">경험 많은순</option>
+                  <option value="level">Lv 높은순</option>
+                </select>
+              </div>
             </div>
 
             {sortedInterpreters.length === 0 ? (

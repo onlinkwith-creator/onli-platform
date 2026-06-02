@@ -155,7 +155,7 @@ function Home({
 
   const mobileFeaturedInterpreters = featuredInterpreters
     .filter(isApprovedInterpreter)
-    .slice(0, 2);
+    .slice(0, 5);
 
   return (
     <div className="home-page">
@@ -441,7 +441,7 @@ function Home({
             </HomeCarousel>
 
             <div className="home-interpreter-grid home-interpreter-grid-mobile" aria-label="등록된 통역사">
-              {(mobileFeaturedInterpreters.length > 0 ? mobileFeaturedInterpreters : featuredInterpreters.slice(0, 2)).map((interpreter) => (
+              {(mobileFeaturedInterpreters.length > 0 ? mobileFeaturedInterpreters : featuredInterpreters.slice(0, 5)).map((interpreter) => (
                 <InterpreterCard
                   key={interpreter.id}
                   interpreter={interpreter}

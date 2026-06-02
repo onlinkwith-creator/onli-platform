@@ -1939,9 +1939,25 @@ span.home-footer-contact-item:hover {
 
   .home-interpreter-grid-mobile {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    gap: 14px;
     width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0 10px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .home-interpreter-grid-mobile::-webkit-scrollbar {
+    display: none;
+  }
+
+  .home-interpreter-grid-mobile .home-interpreter-card {
+    flex: 0 0 86%;
+    width: auto;
+    max-width: 86%;
+    scroll-snap-align: start;
   }
 
   .home-interpreter-card {
