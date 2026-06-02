@@ -121,6 +121,10 @@
   word-break: keep-all;
 }
 
+.interpreter-list-hero-mobile-subtitle {
+  display: none;
+}
+
 /* Recruiter Card Mockup Illustration */
 .interpreter-list-hero-illustration {
   position: relative;
@@ -257,6 +261,10 @@
   border: 1px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.03);
   box-sizing: border-box;
+}
+
+.interpreter-list-filter-toggle {
+  display: none;
 }
 
 .interpreter-list-filter-head {
@@ -767,7 +775,7 @@
     width: 100%;
     max-width: none;
     min-width: 0;
-    padding: 32px 16px 80px;
+    padding: 24px 0 80px;
   }
 
   .interpreter-list-shell,
@@ -780,25 +788,115 @@
     box-sizing: border-box;
   }
 
+  .interpreter-list-shell {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .interpreter-list-shell .main-return-button {
+    margin-bottom: 18px;
+  }
+
   .interpreter-list-hero-content {
     flex-direction: column;
     align-items: stretch;
-    gap: 24px;
+    gap: 0;
+    margin-bottom: 16px;
+    padding: 32px 20px 20px;
   }
 
-  .interpreter-list-hero-illustration {
-    align-self: center;
+  .interpreter-list-hero-label {
+    display: none;
+  }
+
+  .interpreter-list-hero-title {
+    font-size: 30px;
+  }
+
+  .interpreter-list-hero-subtitle {
+    display: none;
+  }
+
+  .interpreter-list-hero-mobile-subtitle {
+    display: block;
+    margin: 8px 0 0;
+    color: #6b7280;
+    font-size: 14px;
+    line-height: 1.45;
+    word-break: keep-all;
+  }
+
+  .interpreter-list-hero-illustration,
+  .interpreter-hero-visual {
+    display: none;
+  }
+
+  .interpreter-list-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 44px;
+    margin: 0 0 12px;
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    border-radius: 12px;
+    background: #ffffff;
+    color: #4f46e5;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+  }
+
+  .interpreter-list-filter-card.is-collapsed {
+    display: none;
   }
 
   .interpreter-list-register-button,
-  .interpreter-list-reset-button,
   .interpreter-list-card-button {
     width: 100%;
   }
 
   .interpreter-list-filter-card {
-    grid-template-columns: repeat(2, 1fr);
-    padding: 24px;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .interpreter-list-filter-head {
+    gap: 10px;
+    padding-bottom: 12px;
+    margin-bottom: 0;
+  }
+
+  .interpreter-list-filter-title {
+    font-size: 16px;
+  }
+
+  .interpreter-list-reset-button {
+    width: 100%;
+    height: 40px;
+  }
+
+  .interpreter-list-filter-field {
+    gap: 6px;
+  }
+
+  .interpreter-list-filter-label {
+    font-size: 12px;
+  }
+
+  .interpreter-list-filter-input {
+    height: 44px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
+
+  .interpreter-list-toolbar {
+    margin-bottom: 16px;
+    gap: 10px;
   }
 
   .interpreter-list-grid {
@@ -814,12 +912,12 @@
 
 @media (max-width: 480px) {
   .interpreter-list-page {
-    padding: 24px 16px 64px;
+    padding: 20px 0 64px;
   }
 
   .interpreter-list-filter-card {
     grid-template-columns: 1fr;
-    padding: 16px 14px;
+    padding: 16px;
     border-radius: 20px;
   }
 

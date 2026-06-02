@@ -535,7 +535,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                 </div>
                 
                 <div className="job-detail-hero-visual">
-                  <div className="job-detail-visual-card">
+                  <div className="job-detail-visual-card job-detail-brand-card">
                     <Sparkles size={22} />
                     <span>ON-LI</span>
                     <div className="job-detail-visual-orbit">

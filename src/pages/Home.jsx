@@ -32,6 +32,11 @@ function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
 
+function isApprovedInterpreter(interpreter = {}) {
+  const approved = interpreter.approved;
+  return approved === true || approved === 1 || String(approved).toLowerCase() === "true";
+}
+
 function Home({
   user,
   isAdmin,
@@ -147,6 +152,10 @@ function Home({
   useEffect(() => {
     queueMicrotask(fetchFeaturedJobs);
   }, [fetchFeaturedJobs]);
+
+  const mobileFeaturedInterpreters = featuredInterpreters
+    .filter(isApprovedInterpreter)
+    .slice(0, 2);
 
   return (
     <div className="home-page">
@@ -415,20 +424,36 @@ function Home({
         ) : featuredInterpreters.length === 0 ? (
           <div className="home-empty">현재 승인된 통역사가 없습니다.</div>
         ) : (
-          <HomeCarousel
-            railClassName="home-interpreter-grid"
-            ariaLabel="등록된 통역사"
-            previousLabel="이전 통역사 보기"
-            nextLabel="다음 통역사 보기"
-          >
-            {featuredInterpreters.map((interpreter) => (
-              <InterpreterCard
-                key={interpreter.id}
-                interpreter={interpreter}
-                onProfileClick={() => onInterpreterClick(interpreter)}
-              />
-            ))}
-          </HomeCarousel>
+          <>
+            <HomeCarousel
+              railClassName="home-interpreter-grid home-interpreter-grid-desktop"
+              ariaLabel="등록된 통역사"
+              previousLabel="이전 통역사 보기"
+              nextLabel="다음 통역사 보기"
+            >
+              {featuredInterpreters.map((interpreter) => (
+                <InterpreterCard
+                  key={interpreter.id}
+                  interpreter={interpreter}
+                  onProfileClick={() => onInterpreterClick(interpreter)}
+                />
+              ))}
+            </HomeCarousel>
+
+            <div className="home-interpreter-grid home-interpreter-grid-mobile" aria-label="등록된 통역사">
+              {(mobileFeaturedInterpreters.length > 0 ? mobileFeaturedInterpreters : featuredInterpreters.slice(0, 2)).map((interpreter) => (
+                <InterpreterCard
+                  key={interpreter.id}
+                  interpreter={interpreter}
+                  onProfileClick={() => onInterpreterClick(interpreter)}
+                />
+              ))}
+            </div>
+
+            <button type="button" onClick={onListClick} className="home-mobile-section-action">
+              전체 통역사 보기
+            </button>
+          </>
         )}
       </section>
 

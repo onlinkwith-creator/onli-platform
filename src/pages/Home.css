@@ -745,6 +745,11 @@
   align-items: center;
 }
 
+.home-interpreter-grid-mobile,
+.home-mobile-section-action {
+  display: none;
+}
+
 .home-carousel {
   display: flex;
   gap: 14px;
@@ -1838,7 +1843,163 @@ span.home-footer-contact-item:hover {
   }
 
   .home-interpreters {
-    margin-top: var(--home-section-gap);
+    margin-top: 32px;
+  }
+
+  .home-jobs-preview {
+    margin-top: 32px;
+  }
+
+  .home-section-head {
+    gap: 8px;
+    margin: 0 0 12px;
+  }
+
+  .home-section-head > div {
+    display: grid;
+    gap: 4px;
+  }
+
+  .home-brand-sub {
+    margin-bottom: 0;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+  }
+
+  .home-section-head h2 {
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  .home-job-carousel .home-job-card:nth-child(n + 2) {
+    display: none;
+  }
+
+  .home-job-card {
+    height: auto;
+  }
+
+  .home-job-status {
+    margin-bottom: 8px;
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .home-job-company {
+    display: none;
+  }
+
+  .home-job-card h3 {
+    font-size: 18px;
+    line-height: 1.32;
+  }
+
+  .home-job-info-list {
+    gap: 8px;
+    margin: 14px 0 10px;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .home-job-info-item {
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .home-job-info-item:nth-child(n + 5) {
+    display: none;
+  }
+
+  .home-job-card-action {
+    margin-top: 4px;
+  }
+
+  .home-job-level-note {
+    display: inline-flex;
+    width: fit-content;
+    margin: 0 0 8px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .home-job-card button {
+    min-height: 42px;
+    margin-top: 0;
+  }
+
+  .home-interpreters .home-section-head button {
+    display: none;
+  }
+
+  .home-interpreter-grid-desktop {
+    display: none;
+  }
+
+  .home-interpreter-grid-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .home-interpreter-card {
+    height: auto;
+  }
+
+  .home-interpreter-head {
+    margin-bottom: 10px;
+  }
+
+  .home-interpreter-badges {
+    display: none;
+  }
+
+  .home-interpreter-info-list {
+    gap: 8px;
+    margin: 10px 0 0;
+  }
+
+  .home-interpreter-info-item {
+    gap: 7px;
+    font-size: 12.5px;
+  }
+
+  .home-interpreter-info-item .info-label {
+    width: 56px;
+    font-size: 12px;
+  }
+
+  .home-interpreter-info-item .info-value {
+    font-size: 12px;
+  }
+
+  .home-interpreter-info-item:nth-child(n + 4),
+  .home-interpreter-status-row {
+    display: none;
+  }
+
+  .home-interpreter-card-action {
+    margin-top: 12px;
+  }
+
+  .home-mobile-section-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 46px;
+    margin-top: 14px;
+    padding: 0 16px;
+    border: 1px solid #111827;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #111827;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
   }
 
   .home-nav {

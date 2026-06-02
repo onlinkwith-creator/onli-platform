@@ -64,6 +64,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [sortBy, setSortBy] = useState("latest");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   useEffect(() => {
     const fetchInterpreters = async () => {
@@ -188,7 +189,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
         </button>
 
         {/* Premium Recruiter Hero Section */}
-        <div className="interpreter-list-hero-content">
+        <div className="interpreter-list-hero-content interpreter-hero">
           <div className="interpreter-list-hero-text">
             <span className="interpreter-list-hero-label">검증된 전문가와 함께하세요</span>
             <h1 className="interpreter-list-hero-title">등록 통역사</h1>
@@ -196,8 +197,11 @@ function InterpreterList({ onBackClick, onDetailClick }) {
               전문성과 경험을 갖춘 검증된 통역사들을 확인하고,<br />
               귀사의 비즈니스에 최적의 파트너를 찾아보세요.
             </p>
+            <p className="interpreter-list-hero-mobile-subtitle">
+              검증된 통역사를 조건에 맞게 찾아보세요.
+            </p>
           </div>
-          <div className="interpreter-list-hero-illustration">
+          <div className="interpreter-list-hero-illustration interpreter-hero-visual">
             <div className="illustration-glow-circle-1" />
             <div className="illustration-glow-circle-2" />
             <div className="illustration-card-mockup verified-system-card">
@@ -221,7 +225,22 @@ function InterpreterList({ onBackClick, onDetailClick }) {
         ) : (
           <>
             {/* Glassmorphic Filters */}
-            <div className="interpreter-list-filter-card">
+            <button
+              type="button"
+              className="interpreter-list-filter-toggle"
+              onClick={() => setIsMobileFilterOpen((current) => !current)}
+              aria-expanded={isMobileFilterOpen}
+              aria-controls="interpreter-list-filter-panel"
+            >
+              {isMobileFilterOpen ? "필터 닫기" : "필터 열기"}
+            </button>
+
+            <div
+              id="interpreter-list-filter-panel"
+              className={`interpreter-list-filter-card ${
+                isMobileFilterOpen ? "is-open" : "is-collapsed"
+              }`}
+            >
               <div className="interpreter-list-filter-head">
                 <h2 className="interpreter-list-filter-title">통역사 검색 필터</h2>
                 <button

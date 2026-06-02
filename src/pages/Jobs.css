@@ -1449,14 +1449,25 @@
     width: 100%;
     max-width: none;
     min-width: 0;
-    padding-top: 16px;
-    padding-bottom: 40px;
+    padding: 16px 0 40px;
   }
 
   .job-detail-container {
-    width: calc(100% - 32px);
+    width: 100%;
     max-width: none;
     min-width: 0;
+    padding-right: 16px;
+    padding-left: 16px;
+    box-sizing: border-box;
+  }
+
+  .job-detail-layout,
+  .job-detail-hero-content,
+  .job-detail-main-content {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .job-info-card,
@@ -1472,13 +1483,58 @@
     padding: 0;
   }
 
+  .job-detail-hero-content {
+    gap: 0;
+  }
+
+  .job-detail-hero-visual {
+    display: none;
+  }
+
+  .job-detail-brand-card {
+    display: none;
+  }
+
   .job-detail-actions-row {
-    margin-bottom: 18px;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .job-detail-hero-label-row {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .job-detail-hero-kicker,
+  .job-detail-hero .home-job-status {
+    max-width: 100%;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .job-detail-hero-title {
     font-size: 34px;
     line-height: 1.14;
+  }
+
+  .job-detail-hero-meta {
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .job-detail-meta-item {
+    max-width: 100%;
+    min-width: 0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .job-detail-meta-item svg {
+    flex: 0 0 auto;
   }
 
   .job-detail-main-content {
