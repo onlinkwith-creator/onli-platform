@@ -709,33 +709,27 @@
   }
 
   .profile-metric-grid {
-    display: flex;
-    grid-template-columns: none;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 12px;
     margin-top: 14px;
-    padding: 14px 0 8px;
+    padding: 12px;
     border-radius: 18px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .profile-metric-grid::-webkit-scrollbar {
-    display: none;
+    overflow-x: visible;
+    overflow-y: visible;
+    scroll-snap-type: none;
   }
 
   .profile-metric-item {
-    flex: 0 0 82%;
+    flex: none;
     grid-template-columns: 30px minmax(0, 1fr);
     grid-template-rows: auto auto;
     column-gap: 10px;
     row-gap: 3px;
-    min-height: 120px;
-    padding: 18px 16px;
-    border-radius: 18px;
-    scroll-snap-align: start;
+    min-height: auto;
+    padding: 14px 12px;
+    border-radius: 16px;
+    scroll-snap-align: unset;
     box-sizing: border-box;
   }
 
@@ -751,15 +745,15 @@
   }
 
   .profile-metric-label {
-    margin-bottom: 8px;
-    font-size: 12px;
+    margin-bottom: 0;
+    font-size: 11px;
     line-height: 1.25;
   }
 
   .profile-metric-item strong {
     margin-top: 0;
-    font-size: 16px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.4;
   }
 
   .profile-info-card,
