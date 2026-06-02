@@ -2555,7 +2555,7 @@
 }
 
 .settlement-pending-modal {
-  width: min(880px, 100%);
+  width: min(760px, 100%);
   max-height: 82vh;
   overflow-y: auto;
 }
@@ -2567,23 +2567,61 @@
 }
 
 .settlement-pending-item {
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border-radius: 12px;
   background: #ffffff;
 }
 
-.settlement-pending-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 14px;
+.settlement-pending-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settlement-pending-number {
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.settlement-pending-company {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.settlement-pending-main h3 {
   margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.settlement-pending-main p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.settlement-pending-status {
+  width: fit-content;
+  margin-top: 2px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .settlement-pending-actions {
   display: flex;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .settlement-pending-actions button {
@@ -2823,8 +2861,7 @@
   .admin-detail-panel.interpreter-detail,
   .admin-detail-list,
   .admin-button-row,
-  .admin-warning-row,
-  .settlement-pending-details {
+  .admin-warning-row {
     grid-template-columns: 1fr;
   }
 

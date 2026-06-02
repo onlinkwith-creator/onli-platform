@@ -2884,21 +2884,22 @@ function SettlementPendingModal({
               request.end_date,
               request.event_date
             );
+            const requestNumber = formatRequestListNumber(request);
 
             return (
               <article className="settlement-pending-item" key={request.id}>
-                <dl className="settlement-pending-details">
-                  <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
-                  <Info label="행사명" value={request.event_name || request.title || "-"} />
-                  <Info label="기업명" value={request.company_name || "-"} />
-                  <Info label="날짜" value={requestDate} />
-                  <Info label="장소" value={request.event_location || request.location || "-"} />
-                  <Info label="배정 통역사" value={assignedInterpreter || "-"} />
-                  <Info
-                    label="정산 상태"
-                    value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request))}
-                  />
-                </dl>
+                <div className="settlement-pending-main">
+                  <strong className="settlement-pending-number">{requestNumber}</strong>
+                  <span className="settlement-pending-company">
+                    {request.company_name || "-"}
+                  </span>
+                  <h3>{request.event_name || request.title || "-"}</h3>
+                  <p>{requestDate}</p>
+                  <p>통역사 : {assignedInterpreter || "-"}</p>
+                  <span className="settlement-pending-status">
+                    {getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request))}
+                  </span>
+                </div>
                 <div className="settlement-pending-actions">
                   <button
                     type="button"
@@ -2913,7 +2914,7 @@ function SettlementPendingModal({
                     disabled={savingKey === `settlement-pending-${request.id}`}
                     onClick={() => onCompleteSettlement(request)}
                   >
-                    정산완료 처리
+                    정산완료
                   </button>
                 </div>
               </article>
@@ -5509,6 +5510,17 @@ function ManagementNumberBlock({ label = "관리번호", value }) {
 
 function formatManagementNumber(value) {
   return value || "번호 미생성";
+}
+
+function formatRequestListNumber(request = {}) {
+  if (request.request_number) return request.request_number;
+  if (request.request_no) return request.request_no;
+  if (request.id) {
+    const idText = String(request.id);
+    const suffix = /^\d+$/.test(idText) ? idText.padStart(3, "0") : idText.slice(0, 8).toUpperCase();
+    return `ONLI REQ ${suffix}`;
+  }
+  return "ONLI REQ";
 }
 
 function NumberControl({ label, value, onChange }) {
