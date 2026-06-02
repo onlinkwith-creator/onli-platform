@@ -201,6 +201,50 @@
   line-height: 1;
 }
 
+.profile-level-badge.lv1 {
+  border-color: #bfdbfe;
+  background: linear-gradient(145deg, #ffffff 0%, #eff6ff 100%);
+  color: #1d4ed8;
+}
+
+.profile-level-badge.lv1 svg,
+.profile-level-badge.lv1 strong {
+  color: #1d4ed8;
+}
+
+.profile-level-badge.lv2 {
+  border-color: #fed7aa;
+  background: linear-gradient(145deg, #ffffff 0%, #fff7ed 100%);
+  color: #c2410c;
+}
+
+.profile-level-badge.lv2 svg,
+.profile-level-badge.lv2 strong {
+  color: #c2410c;
+}
+
+.profile-level-badge.lv3 {
+  border-color: #a7f3d0;
+  background: linear-gradient(145deg, #ffffff 0%, #ecfdf5 100%);
+  color: #047857;
+}
+
+.profile-level-badge.lv3 svg,
+.profile-level-badge.lv3 strong {
+  color: #047857;
+}
+
+.profile-level-badge.lv4 {
+  border-color: #c4b5fd;
+  background: linear-gradient(145deg, #ffffff 0%, #f5f3ff 100%);
+  color: #6d28d9;
+}
+
+.profile-level-badge.lv4 svg,
+.profile-level-badge.lv4 strong {
+  color: #6d28d9;
+}
+
 .profile-status-badge {
   display: inline-flex;
   align-items: center;

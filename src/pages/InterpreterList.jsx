@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
-import { normalizeLevel } from "../utils/levelBadge";
+import { getLevelBadgeClass, normalizeLevel } from "../utils/levelBadge";
 import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
@@ -710,11 +710,7 @@ function getInterpreterStatusLabel(person) {
 }
 
 function getLevelClass(level) {
-  const lv = String(level || "").toLowerCase();
-  if (lv.includes("lv4") || lv.includes("level4") || lv.includes("4")) return "lv4";
-  if (lv.includes("lv3") || lv.includes("level3") || lv.includes("3")) return "lv3";
-  if (lv.includes("lv2") || lv.includes("level2") || lv.includes("2")) return "lv2";
-  return "lv1";
+  return getLevelBadgeClass(level);
 }
 
 export default InterpreterList;

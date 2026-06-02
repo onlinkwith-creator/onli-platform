@@ -54,7 +54,7 @@ import {
 } from "../utils/scheduleConflict";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
-import { normalizeLevel } from "../utils/levelBadge";
+import { getLevelBadgeClass, normalizeLevel } from "../utils/levelBadge";
 import {
   getDuplicateApplicationIdSet,
   getDuplicateInterpreterIdSet,
@@ -3637,7 +3637,9 @@ function InterpreterModal({
                   {interpreter.name || "이름 미입력"}
                 </h2>
                 <div className="admin-interpreter-modal-badges">
-                  <span className="status-badge badge-blue">{levelLabel}</span>
+                  <span className={`status-badge admin-level-badge ${getLevelBadgeClass(interpreter.level)}`}>
+                    {levelLabel}
+                  </span>
                   <StatusBadge status={approvalStatus} />
                   <StatusBadge status={approvalLabel} />
                   <span className={`status-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}>

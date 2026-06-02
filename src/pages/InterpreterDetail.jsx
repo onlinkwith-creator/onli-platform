@@ -11,7 +11,7 @@ import {
   Star,
   Tag,
 } from "lucide-react";
-import { normalizeLevel } from "../utils/levelBadge";
+import { getLevelBadgeClass, normalizeLevel } from "../utils/levelBadge";
 import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusBadgeClass,
@@ -94,7 +94,7 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
       </div>
 
       <aside className="profile-hero-side" aria-label="프로필 인증 및 의뢰">
-        <div className="profile-level-badge">
+        <div className={`profile-level-badge ${getLevelBadgeClass(interpreter.level)}`}>
           {interpreter.approved ? (
             <>
               <ShieldCheck size={30} aria-hidden="true" />

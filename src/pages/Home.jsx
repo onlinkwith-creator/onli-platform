@@ -6,7 +6,7 @@ import {
   getInterpreterActivityStatusBadgeClass,
   getInterpreterActivityStatusLabel,
 } from "../utils/status";
-import { getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
+import { getLevelBadgeClass, getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import {
   getPrimaryPublicInterpreterInfo,
 } from "../utils/publicInterpreter";
@@ -811,11 +811,7 @@ function getInterpreterActivityStatus(interpreter = {}) {
 }
 
 function getHomeLevelClass(level) {
-  const value = String(level || "").toLowerCase();
-  if (value.includes("lv4") || value.includes("level4") || value.includes("4")) return "lv4";
-  if (value.includes("lv3") || value.includes("level3") || value.includes("3")) return "lv3";
-  if (value.includes("lv2") || value.includes("level2") || value.includes("2")) return "lv2";
-  return "lv1";
+  return getLevelBadgeClass(level);
 }
 
 export default Home;

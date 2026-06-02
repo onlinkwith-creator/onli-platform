@@ -461,20 +461,20 @@
 }
 
 .interpreter-list-card-level.lv1 {
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #cbd5e1;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
 }
 
 .interpreter-list-card-level.lv2 {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
 }
 
 .interpreter-list-card-level.lv3 {
   background: #ecfdf5;
-  color: #059669;
+  color: #047857;
   border: 1px solid #a7f3d0;
 }
 
@@ -1009,25 +1009,25 @@
   }
 
   .interpreter-list-card-level.lv1 {
-    background: #f1f5f9;
-    color: #475569;
-    border: 1px solid #cbd5e1;
-  }
-
-  .interpreter-list-card-level.lv2 {
     background: #eff6ff;
-    color: #2563eb;
+    color: #1d4ed8;
     border: 1px solid #bfdbfe;
   }
 
+  .interpreter-list-card-level.lv2 {
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #fed7aa;
+  }
+
   .interpreter-list-card-level.lv3 {
-    background: #f5f3ff;
-    color: #7c3aed;
-    border: 1px solid #ddd6fe;
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
   }
 
   .interpreter-list-card-level.lv4 {
-    background: #ede9fe;
+    background: #f5f3ff;
     color: #6d28d9;
     border: 1px solid #c4b5fd;
   }
