@@ -1,28 +1,30 @@
 import { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
+
+// 관리자 이메일 목록 (DB 없이 이메일 기반으로만 판정)
 export const ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
   "onlinkcp@gmail.com",
 ];
 
+export function normalizeEmail(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().toLowerCase();
+}
+
 /**
  * 관리자 판정 통합 함수
- * 1순위: ADMIN_EMAILS 하드코딩 (DB 장애/누락 시에도 항상 적용)
- * 2순위: admin_users DB 레코드 (status === "active")
+ * admin_users 테이블 없이 ADMIN_EMAILS 이메일 기반으로만 판정
  */
-export function isAdminUser(user, adminProfile) {
+export function isAdminUser(user) {
   if (!user) return false;
   const email = normalizeEmail(user.email);
   if (!email) return false;
-  // 1. 하드코딩 이메일 백업
-  if (ADMIN_EMAILS.includes(email)) return true;
-  // 2. DB 레코드 기반
-  if (
-    adminProfile &&
-    normalizeEmail(adminProfile.email) === email &&
-    adminProfile.status === "active"
-  ) return true;
-  return false;
+  return ADMIN_EMAILS.includes(email);
+}
+
+function getAuthError() {
+  return supabase ? null : supabaseConfigError;
 }
 
 const AuthContext = createContext({
@@ -35,27 +37,15 @@ const AuthContext = createContext({
   adminProfile: null,
 });
 
-export function normalizeEmail(value) {
-  if (typeof value !== "string") return "";
-  return value.trim().toLowerCase();
-}
-
-function getAuthError() {
-  return supabase ? null : supabaseConfigError;
-}
-
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
-  const [adminProfile, setAdminProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authReady, setAuthReady] = useState(false);
   const authError = getAuthError();
 
   useEffect(() => {
     if (!supabase) {
       queueMicrotask(() => {
-        setAuthReady(true);
         setLoading(false);
       });
       return undefined;
@@ -69,7 +59,7 @@ export function AuthProvider({ children }) {
       if (error) console.error("Auth session fetch failed", error);
       setSession(data?.session || null);
       setUser(data?.session?.user || null);
-      setAuthReady(true);
+      setLoading(false);
     });
 
     // 2. Listen for auth state changes
@@ -80,7 +70,7 @@ export function AuthProvider({ children }) {
       console.log("onAuthStateChange event:", event, nextSession);
       setSession(nextSession || null);
       setUser(nextSession?.user || null);
-      setAuthReady(true);
+      setLoading(false);
     });
 
     return () => {
@@ -88,73 +78,6 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe();
     };
   }, []);
-
-  useEffect(() => {
-    if (!authReady) return;
-
-    if (!supabase) {
-      queueMicrotask(() => {
-        setAdminProfile(null);
-        setLoading(false);
-      });
-      return;
-    }
-
-    if (!user) {
-      queueMicrotask(() => {
-        setAdminProfile(null);
-        setLoading(false);
-      });
-      return;
-    }
-
-    let mounted = true;
-
-    const fetchAdminProfile = async () => {
-      const email = normalizeEmail(user.email);
-      const { data, error } = await supabase
-        .from("admin_users")
-        .select("id, auth_user_id, email, role, status")
-        .or(`auth_user_id.eq.${user.id},email.ilike.${email}`)
-        .maybeSingle();
-
-      if (!mounted) return;
-
-      if (error) {
-        console.warn("Admin profile fetch failed", error);
-        setAdminProfile(null);
-        setLoading(false);
-        return;
-      }
-
-      if (data && !data.auth_user_id) {
-        const { data: linkedProfile, error: linkError } = await supabase
-          .from("admin_users")
-          .update({ auth_user_id: user.id, updated_at: new Date().toISOString() })
-          .eq("id", data.id)
-          .select("id, auth_user_id, email, role, status")
-          .single();
-
-        if (!mounted) return;
-        if (!linkError && linkedProfile) {
-          setAdminProfile(linkedProfile);
-        } else {
-          if (linkError) console.warn("Admin auth link skipped", linkError);
-          setAdminProfile(data);
-        }
-      } else {
-        setAdminProfile(data || null);
-      }
-
-      setLoading(false);
-    };
-
-    fetchAdminProfile();
-
-    return () => {
-      mounted = false;
-    };
-  }, [authReady, user]);
 
   const signOut = useCallback(async () => {
     if (!supabase) return { error: supabaseConfigError };
@@ -212,7 +135,9 @@ export function AuthProvider({ children }) {
     };
   }, [user]);
 
-  const isAdmin = isAdminUser(user, adminProfile);
+  const isAdmin = isAdminUser(user);
+  // adminProfile은 admin_users 테이블 제거로 항상 null (하위 호환성 유지)
+  const adminProfile = null;
 
   return (
     <AuthContext.Provider
