@@ -3258,5 +3258,47 @@
   }
 }
 
+/* --- Admin Job Posting Modal Popup --- */
+.job-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(15, 23, 42, 0.45) !important;
+  z-index: 1000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+}
+
+.job-modal {
+  width: min(920px, 100%) !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  background: #fff !important;
+  border-radius: 24px !important;
+  padding: 24px !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+.job-modal-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 14px !important;
+}
+
+@media (max-width: 768px) {
+  .job-modal {
+    width: 100% !important;
+    max-height: 92vh !important;
+    padding: 18px !important;
+    border-radius: 18px !important;
+  }
+
+  .job-modal-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
 
 

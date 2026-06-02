@@ -48,6 +48,7 @@ import "./Admin.css";
 
 const emptyForm = {
   title: "",
+  company_name: "",
   location: "",
   start_date: "",
   end_date: "",
@@ -125,6 +126,9 @@ function AdminJobs({
     status: "all",
     visibility: "all",
   });
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [isJobEditModalOpen, setIsJobEditModalOpen] = useState(false);
+  const [isJobCreateModalOpen, setIsJobCreateModalOpen] = useState(false);
   const visibleJobs = isControlled ? controlledJobs : jobs;
   const visibleApplications = isControlled
     ? controlledApplications || []
@@ -237,6 +241,7 @@ function AdminJobs({
 
     let payload = {
       title: form.title,
+      company_name: form.company_name,
       location: form.location,
       date: formattedDate,
       event_date: form.start_date,
@@ -287,6 +292,8 @@ function AdminJobs({
       if (result.error) throw result.error;
 
       resetForm();
+      setIsJobEditModalOpen(false);
+      setIsJobCreateModalOpen(false);
       if (isControlled) {
         await onDataChanged?.();
       } else {
@@ -307,9 +314,11 @@ function AdminJobs({
   };
 
   const startEdit = (job) => {
+    setSelectedJob(job);
     setEditingId(job.id);
     setForm({
       title: job.title || "",
+      company_name: job.company_name || "",
       location: job.location || "",
       start_date: getDateRangeStart(job.start_date, job.event_date || job.date),
       end_date: getDateRangeEnd(job.end_date, job.event_date || job.date),
@@ -325,6 +334,34 @@ function AdminJobs({
       settlement_status: normalizeSettlementFlowStatus(job),
       is_urgent: normalizeJobStatus(job) === "closing_soon",
     });
+    setIsJobEditModalOpen(true);
+  };
+
+  const openCreateModal = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+    setSelectedJob(null);
+    setIsJobCreateModalOpen(true);
+  };
+
+  const closeJobModal = () => {
+    resetForm();
+    setIsJobEditModalOpen(false);
+    setIsJobCreateModalOpen(false);
+    setSelectedJob(null);
+  };
+
+  const handleModalChange = (event) => {
+    if (event.target.name === "date_range") {
+      const { startDate, endDate } = event.target.value;
+      setForm((current) => ({
+        ...current,
+        start_date: startDate,
+        end_date: endDate,
+      }));
+    } else {
+      handleChange(event);
+    }
   };
 
   const updateJob = async (job, changes) => {
@@ -542,96 +579,24 @@ function AdminJobs({
   const content = (
     <>
       <section className="admin-section">
-          <SectionTitle count={`${filteredJobs.length}건`} title="통역 공고 관리" />
-
-        <form className="admin-job-form" onSubmit={handleSubmit}>
-          <JobField label="공고 제목">
-            <input name="title" value={form.title} onChange={handleChange} required />
-          </JobField>
-          <JobField label="장소">
-            <input name="location" value={form.location} onChange={handleChange} />
-          </JobField>
-          <div className="admin-job-date-range">
-            <DateRangeInput
-              required
-              label="행사 기간"
-              startDate={form.start_date}
-              endDate={form.end_date}
-              onChange={({ startDate, endDate }) =>
-                setForm((current) => ({
-                  ...current,
-                  start_date: startDate,
-                  end_date: endDate,
-                }))
-              }
-            />
+        <div className="admin-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div>
+              <p className="admin-kicker">MANAGE</p>
+              <h2>통역 공고 관리</h2>
+            </div>
+            <span className="admin-count">{`${filteredJobs.length}건`}</span>
           </div>
-          <JobField label="일급">
-            <input name="pay" value={form.pay} onChange={handleChange} />
-          </JobField>
-          <JobField label="언어">
-            <input name="language" value={form.language} onChange={handleChange} />
-          </JobField>
-          <JobField label="레벨">
-            <input name="level" value={form.level} onChange={handleChange} />
-          </JobField>
-          <JobField label="우대">
-            <input name="preference" value={form.preference} onChange={handleChange} />
-          </JobField>
-          <JobField label="모집 인원">
-            <input name="people" value={form.people} onChange={handleChange} />
-          </JobField>
-          <JobField label="공고 공개 상태">
-            <select name="visibility" value={form.visibility} onChange={handleChange}>
-              {JOB_VISIBILITY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </JobField>
-          <JobField label="배정 상태">
-            <select name="assignment_status" value={form.assignment_status} onChange={handleChange}>
-              {ASSIGNMENT_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </JobField>
-          <JobField label="운영 상태">
-            <select name="operation_status" value={form.operation_status} onChange={handleChange}>
-              {OPERATION_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </JobField>
-          <JobField label="정산 상태">
-            <select name="settlement_status" value={form.settlement_status} onChange={handleChange}>
-              {SETTLEMENT_FLOW_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </JobField>
+          <button
+            type="button"
+            className="admin-save"
+            onClick={openCreateModal}
+            style={{ height: "40px", padding: "0 16px", borderRadius: "12px", background: "#4f46e5", color: "#ffffff", fontWeight: "bold", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            + 새 공고 등록
+          </button>
+        </div>
 
-          <div className="admin-job-form-actions">
-            <button type="submit" className="admin-save" disabled={saving}>
-              {saving ? "저장 중..." : editingId ? "공고 수정" : "공고 등록"}
-            </button>
-            {editingId && (
-              <button type="button" className="admin-link-button" onClick={resetForm}>
-                새 공고 입력
-              </button>
-            )}
-          </div>
-        </form>
-      </section>
-
-      <section className="admin-section">
         <div className="admin-filter-bar admin-filters admin-job-filters">
           <label className="admin-filter-search admin-search-control">
             <input
@@ -731,6 +696,17 @@ function AdminJobs({
           )}
           onClose={closeApplicantsModal}
           onStatusChange={updateApplicationStatus}
+        />
+      )}
+
+      {(isJobEditModalOpen || isJobCreateModalOpen) && (
+        <JobModal
+          editingId={editingId}
+          form={form}
+          saving={saving}
+          onChange={handleModalChange}
+          onClose={closeJobModal}
+          onSubmit={handleSubmit}
         />
       )}
     </>
@@ -1371,6 +1347,160 @@ function getOperationFlowAriaLabel(type) {
   if (type === "assignment") return "배정 상태";
   if (type === "operation") return "운영 상태";
   return "정산 상태";
+}
+
+function JobModal({
+  editingId,
+  form,
+  saving,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="job-modal-backdrop" onMouseDown={onClose}>
+      <section
+        className="job-modal"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="admin-modal-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", borderBottom: "1px solid #e5e7eb", paddingBottom: "12px" }}>
+          <div>
+            <span className="admin-card-meta">JOB POSTING</span>
+            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "900", color: "#111827" }}>
+              {editingId ? "공고 수정" : "새 공고 등록"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: "none", border: "none", fontSize: "24px", cursor: "pointer", color: "#9ca3af", padding: 0 }}
+          >
+            &times;
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit}>
+          <div className="job-modal-grid">
+            <JobField label="공고 제목">
+              <input name="title" value={form.title} onChange={onChange} required style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db" }} />
+            </JobField>
+            
+            <JobField label="기업명">
+              <input name="company_name" value={form.company_name} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db" }} />
+            </JobField>
+
+            <JobField label="장소">
+              <input name="location" value={form.location} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db" }} />
+            </JobField>
+
+            <div className="admin-job-date-range" style={{ gridColumn: "1 / -1" }}>
+              <DateRangeInput
+                required
+                label="행사 기간"
+                startDate={form.start_date}
+                endDate={form.end_date}
+                onChange={({ startDate, endDate }) =>
+                  onChange({
+                    target: {
+                      name: "date_range",
+                      value: { startDate, endDate }
+                    }
+                  })
+                }
+              />
+            </div>
+
+            <JobField label="일급">
+              <input name="pay" value={form.pay} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db" }} />
+            </JobField>
+
+            <JobField label="언어">
+              <input name="language" value={form.language} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db" }} />
+            </JobField>
+
+            <JobField label="레벨">
+              <input name="level" value={form.level} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db" }} />
+            </JobField>
+
+            <JobField label="우대">
+              <input name="preference" value={form.preference} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db" }} />
+            </JobField>
+
+            <JobField label="모집 인원">
+              <input name="people" value={form.people} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db" }} />
+            </JobField>
+
+            <JobField label="공고 공개 상태">
+              <select name="visibility" value={form.visibility} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff" }}>
+                {JOB_VISIBILITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </JobField>
+
+            <JobField label="배정 상태">
+              <select name="assignment_status" value={form.assignment_status} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff" }}>
+                {ASSIGNMENT_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </JobField>
+
+            <JobField label="운영 상태">
+              <select name="operation_status" value={form.operation_status} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff" }}>
+                {OPERATION_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </JobField>
+
+            <JobField label="정산 상태">
+              <select name="settlement_status" value={form.settlement_status} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff" }}>
+                {SETTLEMENT_FLOW_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </JobField>
+          </div>
+
+          <div className="admin-job-form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #e5e7eb" }}>
+            <button
+              type="button"
+              className="admin-link-button"
+              onClick={onClose}
+              style={{ height: "40px", padding: "0 20px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontWeight: "600" }}
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              className="admin-save"
+              disabled={saving}
+              style={{ height: "40px", padding: "0 20px", borderRadius: "8px", background: "#4f46e5", color: "#fff", border: "none", cursor: "pointer", fontWeight: "600" }}
+            >
+              {saving ? "저장 중..." : editingId ? "저장" : "등록"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
 }
 
 export default AdminJobs;
