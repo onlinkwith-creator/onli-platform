@@ -12,6 +12,7 @@ const AuthContext = createContext({
   signOut: async () => ({ error: null }),
   authError: null,
   isAdmin: false,
+  adminProfile: null,
 });
 
 export function normalizeEmail(value) {
@@ -26,12 +27,17 @@ function getAuthError() {
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
+  const [adminProfile, setAdminProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const authError = getAuthError();
 
   useEffect(() => {
     if (!supabase) {
-      setLoading(false);
+      queueMicrotask(() => {
+        setAuthReady(true);
+        setLoading(false);
+      });
       return undefined;
     }
 
@@ -43,7 +49,7 @@ export function AuthProvider({ children }) {
       if (error) console.error("Auth session fetch failed", error);
       setSession(data?.session || null);
       setUser(data?.session?.user || null);
-      setLoading(false);
+      setAuthReady(true);
     });
 
     // 2. Listen for auth state changes
@@ -54,7 +60,7 @@ export function AuthProvider({ children }) {
       console.log("onAuthStateChange event:", event, nextSession);
       setSession(nextSession || null);
       setUser(nextSession?.user || null);
-      setLoading(false);
+      setAuthReady(true);
     });
 
     return () => {
@@ -62,6 +68,73 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!authReady) return;
+
+    if (!supabase) {
+      queueMicrotask(() => {
+        setAdminProfile(null);
+        setLoading(false);
+      });
+      return;
+    }
+
+    if (!user) {
+      queueMicrotask(() => {
+        setAdminProfile(null);
+        setLoading(false);
+      });
+      return;
+    }
+
+    let mounted = true;
+
+    const fetchAdminProfile = async () => {
+      const email = normalizeEmail(user.email);
+      const { data, error } = await supabase
+        .from("admin_users")
+        .select("id, auth_user_id, email, role, status")
+        .or(`auth_user_id.eq.${user.id},email.ilike.${email}`)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      if (error) {
+        console.warn("Admin profile fetch failed", error);
+        setAdminProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      if (data && !data.auth_user_id) {
+        const { data: linkedProfile, error: linkError } = await supabase
+          .from("admin_users")
+          .update({ auth_user_id: user.id, updated_at: new Date().toISOString() })
+          .eq("id", data.id)
+          .select("id, auth_user_id, email, role, status")
+          .single();
+
+        if (!mounted) return;
+        if (!linkError && linkedProfile) {
+          setAdminProfile(linkedProfile);
+        } else {
+          if (linkError) console.warn("Admin auth link skipped", linkError);
+          setAdminProfile(data);
+        }
+      } else {
+        setAdminProfile(data || null);
+      }
+
+      setLoading(false);
+    };
+
+    fetchAdminProfile();
+
+    return () => {
+      mounted = false;
+    };
+  }, [authReady, user]);
 
   const signOut = useCallback(async () => {
     if (!supabase) return { error: supabaseConfigError };
@@ -122,7 +195,9 @@ export function AuthProvider({ children }) {
   const userEmail = user?.email ? normalizeEmail(user.email) : "";
   const isAdmin = Boolean(
     userEmail &&
-    ADMIN_EMAILS.some((email) => normalizeEmail(email) === userEmail)
+      adminProfile &&
+      normalizeEmail(adminProfile.email) === userEmail &&
+      adminProfile.status === "active"
   );
 
   return (
@@ -134,6 +209,7 @@ export function AuthProvider({ children }) {
         signOut,
         authError,
         isAdmin,
+        adminProfile,
       }}
     >
       {children}

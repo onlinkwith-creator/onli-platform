@@ -2468,27 +2468,88 @@
   min-height: 44px;
 }
 
-.admin-account-modal-form input {
+.admin-account-modal {
+  width: min(960px, 100%);
+  max-height: 84vh;
+  overflow-y: auto;
+}
+
+.admin-account-modal-form input,
+.admin-account-modal-form select {
   width: 100%;
   min-height: 44px;
   box-sizing: border-box;
 }
 
-.admin-account-password-form {
+.admin-account-current {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
 }
 
-.admin-account-actions {
-  margin-top: 4px;
+.admin-account-create-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.admin-account-create-actions .admin-save {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.admin-account-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-account-row {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.admin-account-row-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #111827;
+}
+
+.admin-account-row-main span {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-account-row-controls {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.7fr) minmax(110px, 0.7fr) 1.2fr 0.8fr;
+  gap: 8px;
+}
+
+.admin-account-row-controls button,
+.admin-account-row-controls select {
+  min-height: 40px;
 }
 
 .admin-account-signout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
   padding-top: 4px;
   border-top: 1px solid #e5e7eb;
 }
 
-.admin-account-signout .admin-save {
+.admin-account-signout button {
   width: 100%;
   min-height: 44px;
 }
@@ -2817,6 +2878,17 @@
 
   .admin-interpreter-detail-item dd {
     text-align: left;
+  }
+
+  .admin-account-current,
+  .admin-account-create-form,
+  .admin-account-row-controls,
+  .admin-account-signout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-account-row-main {
+    flex-direction: column;
   }
 
   .admin-metrics {
