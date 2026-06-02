@@ -185,6 +185,15 @@
   justify-content: flex-end;
 }
 
+.home-mobile-header-actions {
+  display: none;
+}
+
+.home-mobile-menu-btn,
+.home-mobile-login-btn {
+  font-family: inherit;
+}
+
 .home-nav button {
   padding: 6px 0;
   border: none;
@@ -1646,25 +1655,100 @@ span.home-footer-contact-item:hover {
 
 @media (max-width: 768px) {
   .home-page {
-    --home-section-gap: 42px;
-    --home-section-padding-x: 16px;
+    --home-section-gap: 36px;
+    --home-section-padding-x: 20px;
     padding: 0 0 42px;
   }
 
+  .home-main,
+  .home-process,
+  .home-cta-stack,
+  .home-jobs-preview,
+  .home-interpreters {
+    width: 100%;
+    max-width: none;
+    padding-right: var(--home-section-padding-x);
+    padding-left: var(--home-section-padding-x);
+  }
+
+  .home-header-inner {
+    position: relative;
+    height: 64px;
+    max-width: none;
+    padding: 0 20px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
 
   .home-logo-area {
     align-items: center;
+    min-width: 0;
+    padding-left: 0;
+    gap: 8px;
+  }
+
+  .home-header-logo {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  .home-header-brand-title {
+    font-size: 20px !important;
+  }
+
+  .home-header-brand-subtitle {
+    max-width: 132px;
+    overflow: hidden;
+    font-size: 9.5px !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .home-mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .home-mobile-login-btn {
+    min-height: 36px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 999px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .home-mobile-menu-btn {
+    display: inline-flex;
+    width: 38px;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #111827;
+    cursor: pointer;
   }
 
   .home-main {
     grid-template-columns: 1fr;
-    gap: 28px;
-    padding: 32px var(--home-section-padding-x) var(--home-section-gap);
-    text-align: left;
+    gap: 22px;
+    padding-top: 28px;
+    padding-bottom: 34px;
+    text-align: center;
   }
 
   .home-hero {
-    align-items: flex-start;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
   }
 
   .home-brand-title {
@@ -1672,19 +1756,30 @@ span.home-footer-contact-item:hover {
   }
 
   .home-pill {
-    font-size: 15px;
+    max-width: 100%;
+    font-size: 14px;
+    text-align: center;
+    white-space: normal;
   }
 
   .home-hero-title {
     font-size: clamp(30px, 9vw, 34px);
     line-height: 1.25;
-    text-align: left;
+    text-align: center;
   }
 
   .home-description {
     max-width: 100%;
-    font-size: 16px;
-    line-height: 1.72;
+    font-size: 15px;
+    line-height: 1.68;
+    text-align: center;
+  }
+
+  .home-sub-badge {
+    justify-content: center;
+    max-width: 100%;
+    text-align: center;
+    white-space: normal;
   }
 
   .home-cta-stack {
@@ -1703,19 +1798,20 @@ span.home-footer-contact-item:hover {
   /* ── 통역 공고 / 통역사 카드: 모바일 1장씩 ── */
   .home-job-card,
   .home-interpreter-card {
-    flex: 0 0 min(340px, calc(100vw - 48px));
-    width: min(340px, calc(100vw - 48px));
-    max-width: 360px;
+    flex: 0 0 min(340px, 100%);
+    width: 100%;
+    max-width: 340px;
     min-height: 0;
-    padding: 20px;
+    margin: 0 auto;
+    padding: 18px;
     scroll-snap-align: center;
   }
 
   /* 캐러셀 레일 중앙 정렬 + 스냅 */
   .home-carousel {
     gap: 12px;
-    margin: 0 -16px;
-    padding: 2px 16px 14px;
+    margin: 0;
+    padding: 2px 0 14px;
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
   }
@@ -1723,15 +1819,13 @@ span.home-footer-contact-item:hover {
   /* 공고 카드 캐러셀 가로 중앙 패딩 */
   .home-job-carousel {
     justify-content: flex-start;
-    padding-inline: max(16px, calc((100vw - min(340px, calc(100vw - 48px))) / 2));
-    scroll-padding-inline: 16px;
+    scroll-padding-inline: 0;
   }
 
   /* 통역사 캐러셀 (interpreter grid) */
   .home-interpreter-grid {
     justify-content: flex-start;
-    padding-inline: max(16px, calc((100vw - min(340px, calc(100vw - 48px))) / 2));
-    scroll-padding-inline: 16px;
+    scroll-padding-inline: 0;
   }
 
   /* 섹션 간 겹침 방지 */
@@ -1744,30 +1838,99 @@ span.home-footer-contact-item:hover {
     margin-top: var(--home-section-gap);
   }
 
-  .home-nav button {
-    width: 100%;
-  }
-
   .home-nav {
-    width: 100%;
+    position: absolute;
+    top: 64px;
+    right: 20px;
+    left: 20px;
+    z-index: 10;
+    width: auto;
+    display: none;
+    max-width: calc(100vw - 40px);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(16px);
+  }
+
+  .home-nav.is-open {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 16px;
   }
 
   .home-nav button {
-    width: auto;
-    padding: 9px 2px;
-    font-size: 13px;
+    width: 100%;
+    min-height: 42px;
+    padding: 10px 12px;
+    border-bottom: none;
+    border-radius: 12px;
+    font-size: 14px;
+    text-align: left;
+  }
+
+  .home-nav button:hover {
+    background: #f8fafc;
+    border-color: transparent;
+  }
+
+  .home-nav .home-header-login-btn {
+    display: none;
+  }
+
+  .home-header-user-zone {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 8px;
+    border-top: 1px solid #eef2f7;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .home-header-user-zone .home-user-email {
+    overflow: hidden;
+    padding: 8px 12px;
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .home-header-divider {
+    display: none;
+  }
+
+  .home-header-mypage-btn,
+  .home-header-logout-btn {
+    width: 100% !important;
+    min-height: 42px !important;
+    text-align: center !important;
   }
 
   .home-feature-card {
     width: 100%;
     max-width: 100%;
     justify-self: center;
-    padding: 22px;
+    padding: 20px;
     text-align: left;
+  }
+
+  .home-feature-card h3 {
+    margin-bottom: 14px;
+    font-size: 19px;
+  }
+
+  .home-feature-list {
+    gap: 16px;
+  }
+
+  .home-feature {
+    gap: 12px;
+    padding: 14px;
+    border-radius: 14px;
   }
 
   /* 진행 프로세스: 세로 1열 */
@@ -1778,7 +1941,8 @@ span.home-footer-contact-item:hover {
   .home-process-timeline {
     grid-template-columns: 1fr;
     gap: 0;
-    padding: 24px;
+    padding: 20px;
+    border-radius: 18px;
   }
 
   .home-step {
@@ -1817,10 +1981,11 @@ span.home-footer-contact-item:hover {
 
   .home-footer {
     gap: 22px;
-    width: calc(100% - 32px);
+    width: calc(100% - 40px);
     margin: 56px auto 32px;
     padding: 32px 20px;
     border-radius: 24px;
+    max-width: none;
   }
 
   .home-footer::before,
@@ -1878,6 +2043,7 @@ span.home-footer-contact-item:hover {
   }
 
   .home-footer-policies {
+    flex-wrap: wrap;
     gap: 8px 16px;
     justify-content: center;
   }
@@ -1930,7 +2096,8 @@ span.home-footer-contact-item:hover {
   .home-company-cta,
   .home-interpreter-cta {
     min-height: 0;
-    padding: 24px;
+    width: 100%;
+    padding: 22px;
   }
 
   .home-company-cta button,
@@ -1955,7 +2122,7 @@ span.home-footer-contact-item:hover {
 
 @media (max-width: 480px) {
   .home-page {
-    --home-section-padding-x: 14px;
+    --home-section-padding-x: 20px;
   }
 
 
@@ -1995,13 +2162,12 @@ span.home-footer-contact-item:hover {
   }
 
   .home-feature {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto 1fr;
   }
 
   .home-carousel {
-    margin: 0 -14px;
-    padding-right: 14px;
-    padding-left: 14px;
+    margin: 0;
+    padding: 2px 0 14px;
   }
 
   .home-job-carousel {

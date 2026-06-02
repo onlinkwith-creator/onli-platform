@@ -24,6 +24,8 @@ import {
   Languages,
   Award,
   UserCheck,
+  Menu,
+  X,
 } from "lucide-react";
 
 function getSupabaseErrorMessage(error, fallback) {
@@ -52,9 +54,15 @@ function Home({
   const [jobsLoading, setJobsLoading] = useState(true);
   const [interpreterErrorMessage, setInterpreterErrorMessage] = useState("");
   const [jobsErrorMessage, setJobsErrorMessage] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleHeaderAction = (action) => {
+    setMobileMenuOpen(false);
+    action?.();
   };
 
   const fetchFeaturedInterpreters = useCallback(async () => {
@@ -153,17 +161,50 @@ function Home({
               <span className="home-header-brand-subtitle">On-Link Interpretation</span>
             </div>
           </div>
-          <nav className="home-nav" aria-label="메인 메뉴">
-            <button type="button" onClick={onAboutClick}>
+          <div className="home-mobile-header-actions">
+            {user ? (
+              <button
+                type="button"
+                className="home-mobile-login-btn"
+                onClick={() => handleHeaderAction(isAdmin ? onAdminClick : onMypageClick)}
+              >
+                {isAdmin ? "관리자" : "마이페이지"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="home-mobile-login-btn"
+                onClick={() => handleHeaderAction(onInterpreterLoginClick)}
+              >
+                로그인
+              </button>
+            )}
+            <button
+              type="button"
+              className="home-mobile-menu-btn"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              aria-label={mobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="home-mobile-nav"
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+          <nav
+            className={`home-nav${mobileMenuOpen ? " is-open" : ""}`}
+            id="home-mobile-nav"
+            aria-label="메인 메뉴"
+          >
+            <button type="button" onClick={() => handleHeaderAction(onAboutClick)}>
               ON-LI 소개
             </button>
-            <button type="button" onClick={onListClick}>
+            <button type="button" onClick={() => handleHeaderAction(onListClick)}>
               통역사
             </button>
-            <button type="button" onClick={onJobsClick}>
+            <button type="button" onClick={() => handleHeaderAction(onJobsClick)}>
               통역 공고
             </button>
-            <button type="button" onClick={() => scrollToSection("contact")}>
+            <button type="button" onClick={() => handleHeaderAction(() => scrollToSection("contact"))}>
               문의하기
             </button>
             {user ? (
@@ -174,20 +215,20 @@ function Home({
                 </span>
                 <span className="home-header-divider">|</span>
                 {isAdmin ? (
-                  <button type="button" className="home-header-mypage-btn" onClick={onAdminClick}>
+                  <button type="button" className="home-header-mypage-btn" onClick={() => handleHeaderAction(onAdminClick)}>
                     관리자 페이지
                   </button>
                 ) : (
-                  <button type="button" className="home-header-mypage-btn" onClick={onMypageClick}>
+                  <button type="button" className="home-header-mypage-btn" onClick={() => handleHeaderAction(onMypageClick)}>
                     마이페이지
                   </button>
                 )}
-                <button type="button" className="home-header-logout-btn" onClick={onLogoutClick}>
+                <button type="button" className="home-header-logout-btn" onClick={() => handleHeaderAction(onLogoutClick)}>
                   로그아웃
                 </button>
               </div>
             ) : (
-              <button type="button" className="home-header-login-btn" onClick={onInterpreterLoginClick}>
+              <button type="button" className="home-header-login-btn" onClick={() => handleHeaderAction(onInterpreterLoginClick)}>
                 로그인
               </button>
             )}
