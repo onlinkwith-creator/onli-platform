@@ -259,6 +259,7 @@ function Admin({ onBackClick }) {
   const [activeRequestModal, setActiveRequestModal] = useState(null);
   const [requestEditDraft, setRequestEditDraft] = useState(null);
   const [isAdminAccountModalOpen, setIsAdminAccountModalOpen] = useState(false);
+  const [isSettlementPendingModalOpen, setIsSettlementPendingModalOpen] = useState(false);
   const [adminPasswordForm, setAdminPasswordForm] = useState({
     newPassword: "",
     confirmPassword: "",
@@ -485,6 +486,10 @@ function Admin({ onBackClick }) {
     () => requests.filter((request) => isCompletedRequest(request)),
     [requests]
   );
+  const settlementPendingRequests = useMemo(
+    () => requests.filter((request) => isSettlementPendingRequest(request)),
+    [requests]
+  );
 
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
@@ -614,11 +619,6 @@ function Admin({ onBackClick }) {
   const dashboard = useMemo(
     () => {
       const today = new Date().toISOString().slice(0, 10);
-      const settlementPending = requests.filter(
-        (request) =>
-          normalizeSettlementFlowStatus(getRequestFlowSource(request, null)) ===
-          SETTLEMENT_FLOW_STATUS.PENDING
-      ).length;
       return {
         totalRequests: requests.length,
         totalInterpreters: interpreters.length,
@@ -633,10 +633,16 @@ function Admin({ onBackClick }) {
         urgentRequests: requests.filter((request) => isUrgentOperationRequest(request))
           .length,
         completedRequests: completedRequests.length,
-        settlementPending,
+        settlementPending: settlementPendingRequests.length,
       };
     },
-    [completedRequests.length, jobApplications, requests, interpreters]
+    [
+      completedRequests.length,
+      jobApplications,
+      requests,
+      interpreters,
+      settlementPendingRequests.length,
+    ]
   );
 
   const operationDashboard = useMemo(
@@ -745,6 +751,8 @@ function Admin({ onBackClick }) {
         public: "all",
       }));
       setActiveTab("completedRequests");
+    } else if (card.label === "정산 대기") {
+      setIsSettlementPendingModalOpen(true);
     } else {
       setActiveTab(card.targetTab);
     }
@@ -1528,6 +1536,47 @@ function Admin({ onBackClick }) {
       current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
     );
     alert("정산 정보가 저장되었습니다.");
+  };
+
+  const completeSettlementFromPendingModal = async (request) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    if (!window.confirm("정산완료로 변경하시겠습니까?")) return;
+
+    const payload = {
+      settlement_status: "정산완료",
+      updated_at: new Date().toISOString(),
+    };
+
+    setSavingKey(`settlement-pending-${request.id}`);
+    let { error } = await supabase
+      .from("requests")
+      .update(payload)
+      .eq("id", request.id);
+
+    if (error && isMissingColumnError(error)) {
+      ({ error } = await supabase
+        .from("requests")
+        .update({ settlement_status: payload.settlement_status })
+        .eq("id", request.id));
+    }
+
+    setSavingKey("");
+
+    if (error) {
+      alert(`정산완료 처리 실패: ${error.message}`);
+      return;
+    }
+
+    await fetchAdminData();
+  };
+
+  const openRequestDetailFromSettlementPending = (request) => {
+    setIsSettlementPendingModalOpen(false);
+    openRequestModal("detail", request);
   };
 
   const updateRequestSettlementRow = async (requestId, payload) => {
@@ -2569,6 +2618,17 @@ function Admin({ onBackClick }) {
                 onSignOut={signOutAdmin}
               />
             )}
+            {isSettlementPendingModalOpen && (
+              <SettlementPendingModal
+                assignmentsByRequest={assignmentsByRequest}
+                interpreters={interpreters}
+                requests={settlementPendingRequests}
+                savingKey={savingKey}
+                onClose={() => setIsSettlementPendingModalOpen(false)}
+                onCompleteSettlement={completeSettlementFromPendingModal}
+                onOpenDetail={openRequestDetailFromSettlementPending}
+              />
+            )}
             {activeRequest && (
               <RequestActionModal
                 activeModal={activeRequestModal}
@@ -2722,6 +2782,79 @@ function RequestActionModal({
   );
 }
 
+function SettlementPendingModal({
+  assignmentsByRequest,
+  interpreters,
+  onClose,
+  onCompleteSettlement,
+  onOpenDetail,
+  requests,
+  savingKey,
+}) {
+  return (
+    <AdminModal
+      className="settlement-pending-modal"
+      title="정산 대기 의뢰"
+      titleId="settlement-pending-modal-title"
+      onClose={onClose}
+    >
+      <div className="settlement-pending-list">
+        {requests.length === 0 ? (
+          <MessageBox text="현재 정산 대기 중인 의뢰가 없습니다." />
+        ) : (
+          requests.map((request) => {
+            const assignments = assignmentsByRequest.get(request.id) || [];
+            const assignedInterpreter = getAssignedInterpreterName(
+              request,
+              assignments,
+              interpreters
+            );
+            const requestDate = formatDateRange(
+              request.start_date,
+              request.end_date,
+              request.event_date
+            );
+
+            return (
+              <article className="settlement-pending-item" key={request.id}>
+                <dl className="settlement-pending-details">
+                  <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+                  <Info label="행사명" value={request.event_name || request.title || "-"} />
+                  <Info label="기업명" value={request.company_name || "-"} />
+                  <Info label="날짜" value={requestDate} />
+                  <Info label="장소" value={request.event_location || request.location || "-"} />
+                  <Info label="배정 통역사" value={assignedInterpreter || "-"} />
+                  <Info
+                    label="정산 상태"
+                    value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request))}
+                  />
+                </dl>
+                <div className="settlement-pending-actions">
+                  <button
+                    type="button"
+                    className="admin-link-button"
+                    onClick={() => onOpenDetail(request)}
+                  >
+                    상세보기
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-save"
+                    disabled={savingKey === `settlement-pending-${request.id}`}
+                    onClick={() => onCompleteSettlement(request)}
+                  >
+                    정산완료 처리
+                  </button>
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+    </AdminModal>
+  );
+}
+
 function AdminAccountModal({
   email,
   form,
@@ -2793,11 +2926,11 @@ function AdminAccountModal({
   );
 }
 
-function AdminModal({ children, onClose, title, titleId }) {
+function AdminModal({ children, className = "", onClose, title, titleId }) {
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
       <section
-        className="admin-modal-card"
+        className={`admin-modal-card${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -5609,6 +5742,20 @@ function isCompletedRequest(request = {}) {
     (completedStatuses.has(operationStatus) ||
       completedStatuses.has(normalizedStatus) ||
       normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED)
+  );
+}
+
+function isSettlementPendingRequest(request = {}) {
+  const status = String(
+    request.settlement_status ||
+      request.payment_status ||
+      ""
+  ).trim();
+  const normalizedStatus = status.toLowerCase();
+  return (
+    ["정산대기", "settlement_pending", "pending"].includes(status) ||
+    ["settlement_pending", "pending"].includes(normalizedStatus) ||
+    normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.PENDING
   );
 }
 
