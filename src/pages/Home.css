@@ -2149,7 +2149,7 @@ span.home-footer-contact-item:hover {
 
   .home-mobile-overview-slider {
     display: flex;
-    gap: 14px;
+    gap: 10px;
     overflow-x: auto;
     overflow-y: hidden;
     padding-top: 2px;
@@ -2164,7 +2164,7 @@ span.home-footer-contact-item:hover {
   }
 
   .home-mobile-overview-slide {
-    flex: 0 0 90%;
+    flex: 0 0 94%;
     min-width: 0;
     padding: 18px;
     border: 1px solid var(--onli-border);
@@ -2175,6 +2175,10 @@ span.home-footer-contact-item:hover {
     text-align: left;
     scroll-snap-align: start;
     box-sizing: border-box;
+  }
+
+  .home-mobile-overview-slide:last-child {
+    margin-right: 16px;
   }
 
   .home-mobile-overview-slide h3 {
@@ -2319,7 +2323,7 @@ span.home-footer-contact-item:hover {
   }
 
   .home-mobile-process-slide {
-    padding: 20px 18px;
+    padding: 22px 20px;
   }
 
   .home-mobile-process-head {
@@ -2333,7 +2337,7 @@ span.home-footer-contact-item:hover {
   .home-mobile-process-list .home-step {
     display: flex;
     gap: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
     padding: 0;
     border: 0;
     border-radius: 0;
