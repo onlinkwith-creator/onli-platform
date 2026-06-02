@@ -314,31 +314,39 @@ function Home({
             <h3>진행 프로세스</h3>
           </div>
           <div className="home-mobile-process-list">
-            <Step
-              number="1"
-              title="기업 의뢰 접수"
-              text="행사 일정·장소·인원을 전달"
-            />
-            <Step
-              number="2"
-              title="운영팀 검토"
-              text="의뢰 내용과 필요 레벨 확인"
-            />
-            <Step
-              number="3"
-              title="공고 등록 및 모집"
-              text="관리자 확인 후 통역사 모집"
-            />
-            <Step
-              number="4"
-              title="매칭 진행"
-              text="조건에 맞는 통역사 선정"
-            />
-            <Step
-              number="5"
-              title="최종 배정 완료"
-              text="사전 안내 후 일정 확정"
-            />
+            <div className="process-group">
+              <Step
+                number="1"
+                title="기업 의뢰 접수"
+                text="행사 일정·장소·인원을 전달"
+              />
+              <Step
+                number="2"
+                title="운영팀 검토"
+                text="의뢰 내용과 필요 레벨 확인"
+              />
+            </div>
+
+            <div className="process-single">
+              <Step
+                number="3"
+                title="공고 등록 및 모집"
+                text="관리자 확인 후 통역사 모집"
+              />
+            </div>
+
+            <div className="process-group">
+              <Step
+                number="4"
+                title="매칭 진행"
+                text="조건에 맞는 통역사 선정"
+              />
+              <Step
+                number="5"
+                title="최종 배정 완료"
+                text="사전 안내 후 일정 확정"
+              />
+            </div>
           </div>
         </article>
       </section>
