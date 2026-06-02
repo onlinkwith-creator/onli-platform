@@ -514,9 +514,8 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                     </button>
                   </div>
 
-                  <button type="button" onClick={onBackClick} className="mobile-back-link">
-                    <ArrowLeft size={16} />
-                    통역 공고 목록
+                  <button type="button" onClick={onHomeClick} className="mobile-back-link">
+                    ← 메인으로
                   </button>
                   
                   <div className="job-detail-hero-label-row">
