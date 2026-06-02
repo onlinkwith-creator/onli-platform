@@ -255,6 +255,10 @@ function Admin({ onBackClick }) {
   const [matchingFilters, setMatchingFilters] = useState({
     month: "",
   });
+  const [applicationFilters, setApplicationFilters] = useState({
+    status: "all",
+    duplicate: "all",
+  });
 
   const fetchAdminData = useCallback(async () => {
     setLoading(true);
@@ -530,6 +534,7 @@ function Admin({ onBackClick }) {
       ).length;
       return {
         totalRequests: requests.length,
+        totalInterpreters: interpreters.length,
         todayApplications: jobApplications.filter((application) =>
           String(application.created_at || "").startsWith(today)
         ).length,
@@ -544,7 +549,7 @@ function Admin({ onBackClick }) {
         settlementPending,
       };
     },
-    [jobApplications, requests]
+    [jobApplications, requests, interpreters]
   );
 
   const operationDashboard = useMemo(
@@ -573,12 +578,12 @@ function Admin({ onBackClick }) {
       targetTab: "requests",
     },
     {
-      label: "오늘 신규 지원",
-      value: `${dashboard.todayApplications}건`,
-      description: "오늘 접수된 지원",
+      label: "전체 통역사",
+      value: `${dashboard.totalInterpreters}명`,
+      description: "등록된 전체 통역사",
       tone: "green",
       icon: User,
-      targetTab: "applications",
+      targetTab: "interpreters",
     },
     {
       label: "미확인 지원",
@@ -619,14 +624,34 @@ function Admin({ onBackClick }) {
   };
 
   const handleMetricCardClick = (card) => {
-    if (card.pendingInterpretersOnly) {
-      setInterpreterFilters((current) => ({
-        ...current,
-        status: "pending",
-        approved: "false",
+    if (card.label === "전체 의뢰") {
+      setRequestFilters((prev) => ({
+        ...prev,
+        search: "",
+        month: "",
+        status: "all",
+        public: "all",
       }));
+      setActiveTab("requests");
+    } else if (card.label === "전체 통역사") {
+      setInterpreterFilters({
+        search: "",
+        level: "all",
+        status: "all",
+        activity: "all",
+        approved: "all",
+        duplicate: "all",
+      });
+      setActiveTab("interpreters");
+    } else if (card.label === "미확인 지원") {
+      setApplicationFilters({
+        status: "unchecked",
+        duplicate: "all",
+      });
+      setActiveTab("applications");
+    } else {
+      setActiveTab(card.targetTab);
     }
-    setActiveTab(card.targetTab);
   };
 
   const updateInterpreter = async (id, changes, options = {}) => {
@@ -2239,6 +2264,8 @@ function Admin({ onBackClick }) {
                 savingKey={savingKey}
                 updateApplicationStatus={updateJobApplicationStatus}
                 deleteApplication={deleteJobApplication}
+                filters={applicationFilters}
+                setFilters={setApplicationFilters}
               />
             )}
 
@@ -4258,36 +4285,64 @@ function ApplicationManagement({
   savingKey,
   updateApplicationStatus,
   deleteApplication,
+  filters,
+  setFilters,
 }) {
-  const [duplicateFilter, setDuplicateFilter] = useState("all");
   const duplicateData = useMemo(
     () => duplicateResult || getDuplicateApplicationIdSet(applications),
     [applications, duplicateResult]
   );
   const visibleApplications = useMemo(
     () =>
-      duplicateFilter === "suspected"
-        ? applications.filter((application) =>
-            duplicateData.duplicateIds.has(application.id)
-          )
-        : applications,
-    [applications, duplicateData, duplicateFilter]
+      applications.filter((application) => {
+        const matchesDuplicate =
+          filters.duplicate === "all" ||
+          (filters.duplicate === "suspected" && duplicateData.duplicateIds.has(application.id));
+
+        const normalizedStatus = normalizeApplicationStatus(application.status);
+        const matchesStatus =
+          filters.status === "all" ||
+          (filters.status === "unchecked" &&
+            [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(normalizedStatus));
+
+        return matchesDuplicate && matchesStatus;
+      }),
+    [applications, duplicateData, filters.duplicate, filters.status]
   );
 
   return (
     <section className="admin-section">
       <SectionTitle count={`${visibleApplications.length}명`} title="지원자 관리" />
-      <div className="admin-filters">
+      <div className="admin-filter-bar admin-filters">
         <select
-          value={duplicateFilter}
-          onChange={(event) => setDuplicateFilter(event.target.value)}
+          className="admin-filter-select"
+          value={filters.status}
+          onChange={(event) =>
+            setFilters((prev) => ({ ...prev, status: event.target.value }))
+          }
         >
-          <option value="all">전체</option>
+          <option value="all">지원 상태: 전체</option>
+          <option value="unchecked">지원 상태: 검토 필요</option>
+        </select>
+        <select
+          className="admin-filter-select"
+          value={filters.duplicate}
+          onChange={(event) =>
+            setFilters((prev) => ({ ...prev, duplicate: event.target.value }))
+          }
+        >
+          <option value="all">중복 여부: 전체</option>
           <option value="suspected">중복 의심</option>
         </select>
       </div>
       {visibleApplications.length === 0 ? (
-        <MessageBox text="아직 접수된 지원자가 없습니다." />
+        <MessageBox
+          text={
+            applications.length === 0
+              ? "아직 접수된 지원자가 없습니다."
+              : "조건에 맞는 지원자가 없습니다."
+          }
+        />
       ) : (
         <div className="admin-management-card-grid">
           {visibleApplications.map((application) => {
