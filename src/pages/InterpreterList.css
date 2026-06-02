@@ -503,6 +503,12 @@
   text-align: left;
 }
 
+.interpreter-list-compact-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .interpreter-list-activity-badge {
   display: inline-flex;
   align-items: center;
@@ -522,6 +528,12 @@
   background-color: #10b981;
   border-radius: 50%;
   margin-right: 6px;
+}
+
+.interpreter-list-mobile-verification,
+.interpreter-list-mobile-summary,
+.interpreter-list-button-label-mobile {
+  display: none;
 }
 
 /* Verification Pill Badges */
@@ -931,12 +943,101 @@
 
   .interpreter-list-grid {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 12px;
   }
 
   .interpreter-list-card {
     min-height: 0;
-    padding: 24px;
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .interpreter-list-card:hover {
+    transform: none;
+  }
+
+  .interpreter-list-card-head {
+    align-items: flex-start;
+    margin-bottom: 0;
+    gap: 12px;
+  }
+
+  .interpreter-list-card-meta-left {
+    min-width: 0;
+    gap: 0;
+  }
+
+  .interpreter-list-card-head h2 {
+    font-size: 20px;
+    line-height: 1.3;
+    margin: 0;
+  }
+
+  .interpreter-list-compact-badges {
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .interpreter-list-activity-badge,
+  .interpreter-list-mobile-verification {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 5px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .interpreter-list-mobile-verification.verified {
+    background: rgba(16, 185, 129, 0.08);
+    color: #059669;
+  }
+
+  .interpreter-list-mobile-verification.regular {
+    background: rgba(107, 114, 128, 0.08);
+    color: #6b7280;
+  }
+
+  .interpreter-list-card-level {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+  }
+
+  .interpreter-list-mobile-summary {
+    display: block;
+    margin: 14px 0;
+    color: #4b5563;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .interpreter-list-info-section,
+  .interpreter-list-tags {
+    display: none;
+  }
+
+  .interpreter-list-card-button {
+    height: 42px;
+    padding: 0 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .interpreter-list-button-label-desktop {
+    display: none;
+  }
+
+  .interpreter-list-button-label-mobile {
+    display: inline;
   }
 }
 
@@ -969,7 +1070,7 @@
   }
 
   .interpreter-list-card {
-    padding: 20px 16px;
+    padding: 16px;
     border-radius: 20px;
   }
 

@@ -328,6 +328,11 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                       ? person.specialties.split(",").map(s => s.trim())
                       : [];
                     const tagBadges = specialties.length > 0 ? specialties.slice(0, 3) : ["일반 비즈니스", "전시회", "B2B"];
+                    const summaryParts = [
+                      formatList(person.available_regions),
+                      tagBadges[0],
+                      person.language_level || person.jlpt || "한국어 · 일본어",
+                    ].filter((value) => value && value !== "-");
                     const openDetail = () => {
                       if (onDetailClick) {
                         onDetailClick(person);
@@ -359,16 +364,25 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                         <div className="interpreter-list-card-head">
                           <div className="interpreter-list-card-meta-left">
                             <h2>{person.name || "이름 미입력"}</h2>
-                            <span className="interpreter-list-activity-badge">
-                              <span className="dot" />
-                              {getInterpreterStatusLabel(person)}
-                            </span>
+                            <div className="interpreter-list-compact-badges">
+                              <span className="interpreter-list-activity-badge">
+                                <span className="dot" />
+                                {getInterpreterStatusLabel(person)}
+                              </span>
+                              <span className={`interpreter-list-mobile-verification ${person.approved ? "verified" : "regular"}`}>
+                                {person.approved ? "검증됨" : "일반 등록"}
+                              </span>
+                            </div>
                           </div>
 
                           <span className={`interpreter-list-card-level ${getLevelClass(person.level)}`}>
                             {normalizeLevel(person.level)}
                           </span>
                         </div>
+
+                        <p className="interpreter-list-mobile-summary">
+                          {summaryParts.join(" · ")}
+                        </p>
 
                         <div className="interpreter-list-info-section">
                           <Info
@@ -407,7 +421,8 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                           }}
                           className="interpreter-list-card-button"
                         >
-                          상세 보기
+                          <span className="interpreter-list-button-label-desktop">상세 보기</span>
+                          <span className="interpreter-list-button-label-mobile">프로필 보기</span>
                         </button>
                       </div>
                     );

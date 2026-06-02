@@ -47,6 +47,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
   const [filters, setFilters] = useState(initialFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState("latest");
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -235,8 +236,38 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
           </div>
         ) : (
           <>
+            <div className="jobs-toolbar jobs-toolbar-mobile">
+              <p className="jobs-result-text">
+                총 {sortedJobs.length}개의 통역 공고가 표시됩니다
+              </p>
+
+              <div className="jobs-list-actions">
+                <button
+                  type="button"
+                  className="jobs-filter-toggle"
+                  onClick={() => setIsMobileFilterOpen((current) => !current)}
+                  aria-expanded={isMobileFilterOpen}
+                  aria-controls="jobs-filter-panel"
+                >
+                  필터
+                </button>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="jobs-sort-select"
+                >
+                  <option value="latest">최신 등록순</option>
+                  <option value="pay">일급 높은순</option>
+                </select>
+              </div>
+            </div>
+
             {/* Glassmorphic Filters */}
-            <div className="jobs-filter-card">
+            <div
+              id="jobs-filter-panel"
+              className={`jobs-filter-card ${isMobileFilterOpen ? "is-open" : "is-collapsed"}`}
+            >
               <div className="jobs-filter-head">
                 <h2 className="jobs-filter-title">통역 공고 검색 필터</h2>
                 <button
@@ -294,7 +325,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
               </div>
             </div>
 
-            <div className="jobs-toolbar">
+            <div className="jobs-toolbar jobs-toolbar-desktop">
               <p className="jobs-result-text">
                 총 {sortedJobs.length}개의 통역 공고가 표시됩니다
               </p>
