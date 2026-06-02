@@ -702,7 +702,10 @@ function InterpreterCard({ interpreter, onProfileClick }) {
             <h3 className="truncate">{interpreter.name || "이름 미입력"}</h3>
             <p className="truncate">{availableRegionLabel}</p>
           </div>
-          <span style={getLevelBadgeStyle(interpreter.level)}>
+          <span
+            className={`home-interpreter-level ${getHomeLevelClass(interpreter.level)}`}
+            style={getLevelBadgeStyle(interpreter.level)}
+          >
             {normalizeLevel(interpreter.level || "Lv1")}
           </span>
         </div>
@@ -805,6 +808,14 @@ function getInterpreterActivityStatus(interpreter = {}) {
   const status = String(interpreter.activity_status || "").trim().toLowerCase();
   if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(status)) return status;
   return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
+}
+
+function getHomeLevelClass(level) {
+  const value = String(level || "").toLowerCase();
+  if (value.includes("lv4") || value.includes("level4") || value.includes("4")) return "lv4";
+  if (value.includes("lv3") || value.includes("level3") || value.includes("3")) return "lv3";
+  if (value.includes("lv2") || value.includes("level2") || value.includes("2")) return "lv2";
+  return "lv1";
 }
 
 export default Home;

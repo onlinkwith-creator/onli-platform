@@ -5,6 +5,7 @@ import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
 } from "../utils/status";
+import { Briefcase, Languages, MapPin, Star } from "lucide-react";
 import "./InterpreterList.css";
 
 const initialFilters = {
@@ -333,6 +334,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                       tagBadges[0],
                       person.language_level || person.jlpt || "한국어 · 일본어",
                     ].filter((value) => value && value !== "-");
+                    const experienceCount = person.experience_count ? Number(person.experience_count) : 0;
                     const openDetail = () => {
                       if (onDetailClick) {
                         onDetailClick(person);
@@ -383,6 +385,30 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                         <p className="interpreter-list-mobile-summary">
                           {summaryParts.join(" · ")}
                         </p>
+
+                        <div className="interpreter-list-mobile-details">
+                          <MobileInfoRow
+                            icon={MapPin}
+                            label="활동지역"
+                            value={formatList(person.available_regions)}
+                          />
+                          <MobileInfoRow
+                            icon={Briefcase}
+                            label="전문분야"
+                            value={formatList(person.specialties)}
+                          />
+                          <MobileInfoRow
+                            icon={Languages}
+                            label="언어"
+                            value={person.language_level || person.jlpt || "한국어 · 일본어"}
+                          />
+                          {experienceCount > 0 && (
+                            <div className="interpreter-list-mobile-experience">
+                              <Star size={15} aria-hidden="true" />
+                              <span>통역 경험 {experienceCount}회</span>
+                            </div>
+                          )}
+                        </div>
 
                         <div className="interpreter-list-info-section">
                           <Info
@@ -504,6 +530,18 @@ function Info({ label, value }) {
     <div className="interpreter-list-info-row">
       <span>{label}</span>
       <span>{value || "-"}</span>
+    </div>
+  );
+}
+
+function MobileInfoRow({ icon: Icon, label, value }) {
+  return (
+    <div className="interpreter-list-mobile-info-row">
+      <Icon size={15} aria-hidden="true" />
+      <div>
+        <span>{label}</span>
+        <strong>{value || "-"}</strong>
+      </div>
     </div>
   );
 }

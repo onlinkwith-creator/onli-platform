@@ -532,6 +532,7 @@
 
 .interpreter-list-mobile-verification,
 .interpreter-list-mobile-summary,
+.interpreter-list-mobile-details,
 .interpreter-list-button-label-mobile {
   display: none;
 }
@@ -1007,16 +1008,87 @@
     font-size: 13px;
   }
 
+  .interpreter-list-card-level.lv1 {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+  }
+
+  .interpreter-list-card-level.lv2 {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+  }
+
+  .interpreter-list-card-level.lv3 {
+    background: #f5f3ff;
+    color: #7c3aed;
+    border: 1px solid #ddd6fe;
+  }
+
+  .interpreter-list-card-level.lv4 {
+    background: #ede9fe;
+    color: #6d28d9;
+    border: 1px solid #c4b5fd;
+  }
+
   .interpreter-list-mobile-summary {
-    display: block;
+    display: none;
+  }
+
+  .interpreter-list-mobile-details {
+    display: grid;
+    gap: 10px;
     margin: 14px 0;
+  }
+
+  .interpreter-list-mobile-info-row {
+    display: flex;
+    min-width: 0;
+    gap: 8px;
+    align-items: flex-start;
     color: #4b5563;
+  }
+
+  .interpreter-list-mobile-info-row svg,
+  .interpreter-list-mobile-experience svg {
+    flex-shrink: 0;
+    color: #6366f1;
+  }
+
+  .interpreter-list-mobile-info-row div {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+  }
+
+  .interpreter-list-mobile-info-row span {
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .interpreter-list-mobile-info-row strong {
+    color: #111827;
     font-size: 13px;
-    font-weight: 700;
-    line-height: 1.5;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-weight: 600;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .interpreter-list-mobile-experience {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: 7px;
+    margin-top: 2px;
+    padding: 6px 9px;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 800;
   }
 
   .interpreter-list-info-section,
