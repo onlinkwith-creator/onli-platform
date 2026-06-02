@@ -30,14 +30,9 @@ import {
   INTERPRETER_ACTIVITY_STATUS_OPTIONS,
   JOB_STATUS,
   MATCHING_STATUS,
-  MATCHING_RESULT_STATUS,
-  MATCHING_RESULT_STATUS_OPTIONS,
   getApplicationStatusLabel,
   getInterpreterActivityStatusBadgeClass,
   getInterpreterActivityStatusLabel,
-  getMatchingResultStatus,
-  getMatchingResultStatusBadgeClass,
-  getMatchingResultStatusLabel,
   getMatchingStatusLabel,
   getStatusBadgeClass as getStandardStatusBadgeClass,
   normalizeApplicationStatus,
@@ -96,7 +91,7 @@ const TABS = [
   { id: "jobs", label: "통역 공고 관리" },
   { id: "interpreters", label: "통역사 관리" },
   { id: "applications", label: "지원자 관리" },
-  { id: "matching", label: "매칭 관리" },
+  { id: "matching", label: "정산 관리" },
 ];
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
@@ -160,6 +155,13 @@ const EMPTY_REQUEST_EDIT_DRAFT = {
   payment_status: "unpaid",
 };
 const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
+const SETTLEMENT_MANAGEMENT_FILTERS = [
+  { value: "all", label: "전체" },
+  { value: "unpaid", label: "미결제" },
+  { value: "paid", label: "결제완료" },
+  { value: "settlement_pending", label: "정산대기" },
+  { value: "settlement_completed", label: "정산완료" },
+];
 const STATUS_LABELS = {
   pending: "대기",
   active: "활동중",
@@ -287,6 +289,7 @@ function Admin({ onBackClick }) {
   });
   const [matchingFilters, setMatchingFilters] = useState({
     month: "",
+    status: "all",
   });
   const [applicationFilters, setApplicationFilters] = useState({
     status: "all",
@@ -441,13 +444,6 @@ function Admin({ onBackClick }) {
       }, new Map()),
     [requests]
   );
-  const matchedApplications = useMemo(
-    () =>
-      jobApplications.filter(
-        (application) => normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED
-      ),
-    [jobApplications]
-  );
   const duplicateApplicationResult = useMemo(
     () => getDuplicateApplicationIdSet(jobApplications),
     [jobApplications]
@@ -455,16 +451,6 @@ function Admin({ onBackClick }) {
   const duplicateInterpreterResult = useMemo(
     () => getDuplicateInterpreterIdSet(interpreters),
     [interpreters]
-  );
-  const matchedRequests = useMemo(
-    () =>
-      requests.filter((request) =>
-        isRequestVisibleInMatching(
-          request,
-          assignmentsByRequest.get(request.id) || []
-        )
-      ),
-    [assignmentsByRequest, requests]
   );
   const activeRequest = useMemo(() => {
     if (!activeRequestModal?.requestId) return null;
@@ -692,7 +678,7 @@ function Admin({ onBackClick }) {
       description: "바로 확인 필요",
       tone: "red",
       icon: AlertTriangle,
-      targetTab: "matching",
+      targetTab: "requests",
     },
     {
       label: "완료 의뢰",
@@ -2234,7 +2220,7 @@ function Admin({ onBackClick }) {
     }
   };
 
-  const updateRequestMatchingResultStatus = async (request, status) => {
+  const updateSettlementManagementStatus = async (request, changes) => {
     if (!request?.id) {
       alert("의뢰 정보를 확인할 수 없습니다.");
       return false;
@@ -2245,30 +2231,40 @@ function Admin({ onBackClick }) {
       return false;
     }
 
-    const requestStatus = getRequestStatusFromMatchingResult(status);
-    const changes = {
-      status: requestStatus,
-      matching_status: requestStatus,
+    const payload = {
+      ...changes,
+      updated_at: new Date().toISOString(),
     };
 
-    setSavingKey(`matching-request-${request.id}`);
-    try {
-      const { data, error } = await updateRequestWithFallback(request.id, changes);
-      if (error) throw error;
+    setSavingKey(`settlement-request-${request.id}`);
+    let { data, error } = await supabase
+      .from("requests")
+      .update(payload)
+      .eq("id", request.id)
+      .select("*");
 
-      setRequests((current) =>
-        current.map((item) =>
-          item.id === request.id ? { ...item, ...changes, ...(data || {}) } : item
-        )
-      );
-      return true;
-    } catch (error) {
-      console.error("matching request status update error:", error);
-      alert("매칭 상태 변경에 실패했습니다.");
-      return false;
-    } finally {
-      setSavingKey("");
+    if (error && isMissingColumnError(error)) {
+      ({ data, error } = await supabase
+        .from("requests")
+        .update(changes)
+        .eq("id", request.id)
+        .select("*"));
     }
+
+    setSavingKey("");
+
+    if (error) {
+      alert(`정산 상태 변경 실패: ${error.message}`);
+      return false;
+    }
+
+    if (!data || data.length === 0) {
+      alert("정산 상태 변경 실패: 변경된 의뢰가 없습니다.");
+      return false;
+    }
+
+    await fetchAdminData();
+    return true;
   };
 
   const deleteJobApplication = async (application) => {
@@ -2566,20 +2562,14 @@ function Admin({ onBackClick }) {
             )}
 
             {activeTab === "matching" && (
-              <MatchingManagement
-                applications={matchedApplications}
+              <SettlementManagement
                 filters={matchingFilters}
-                requests={matchedRequests}
+                requests={requests}
                 assignmentsByRequest={assignmentsByRequest}
-                jobsById={jobsById}
-                requestsByJobId={requestsByJobId}
                 interpreters={interpreters}
-                matchings={matchings}
-                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 savingKey={savingKey}
-                updateApplicationStatus={updateJobApplicationStatus}
-                updateRequestMatchingResultStatus={updateRequestMatchingResultStatus}
                 setFilters={setMatchingFilters}
+                updateSettlementStatus={updateSettlementManagementStatus}
               />
             )}
 
@@ -4982,143 +4972,103 @@ function ApplicationCard({
   );
 }
 
-function MatchingManagement({
-  applications,
+function SettlementManagement({
   requests,
   filters,
   setFilters,
   assignmentsByRequest,
-  getInterpreterScheduleConflicts,
-  jobsById,
-  requestsByJobId,
   interpreters,
-  matchings = [],
   savingKey,
-  updateApplicationStatus,
-  updateRequestMatchingResultStatus,
+  updateSettlementStatus,
 }) {
-  const filteredRequests = requests.filter(
-    (request) =>
+  const filteredRequests = requests.filter((request) => {
+    const matchesMonth =
       !filters.month ||
       isDateRangeOverlappingMonth(
         getDateRangeStart(request.start_date || request.event_date, request.date),
         getDateRangeEnd(request.end_date || request.event_date, request.date),
         filters.month
-      )
-  );
-  const filteredApplications = applications.filter((application) => {
-    const job = jobsById.get(application.job_id) || application.jobs;
-    const request = application.job_id
-      ? requestsByJobId.get(String(application.job_id))
-      : null;
-    const startDate = getDateRangeStart(
-      job?.start_date || request?.start_date || job?.event_date || request?.event_date,
-      job?.date || request?.date
-    );
-    const endDate = getDateRangeEnd(
-      job?.end_date || request?.end_date || job?.event_date || request?.event_date,
-      job?.date || request?.date
-    );
+      );
+    const matchesStatus =
+      filters.status === "all" ||
+      doesRequestMatchSettlementManagementFilter(request, filters.status);
 
-    return !filters.month || isDateRangeOverlappingMonth(startDate, endDate, filters.month);
+    return matchesMonth && matchesStatus;
   });
-  const totalCount = filteredApplications.length + filteredRequests.length;
 
   return (
     <section className="admin-section">
-      <SectionTitle count={`${totalCount}건`} title="매칭 관리" />
+      <SectionTitle count={`${filteredRequests.length}건`} title="정산 관리" />
       <div className="admin-filter-bar admin-filters admin-matching-filters">
         <MonthFilterInput
           value={filters.month}
           onChange={(month) => setFilters((current) => ({ ...current, month }))}
         />
+        <select
+          className="admin-filter-select"
+          value={filters.status}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, status: event.target.value }))
+          }
+        >
+          {SETTLEMENT_MANAGEMENT_FILTERS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </div>
-      {totalCount === 0 ? (
-        <MessageBox text="아직 배정완료된 의뢰가 없습니다." />
+      {filteredRequests.length === 0 ? (
+        <MessageBox text="조건에 맞는 정산 의뢰가 없습니다." />
       ) : (
         <div className="admin-management-card-grid">
           {filteredRequests.map((request) => (
-            <MatchingRequestCard
-              key={`request-${request.id}`}
+            <SettlementRequestCard
+              key={request.id}
               request={request}
               assignments={assignmentsByRequest.get(request.id) || []}
-              getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
               interpreters={interpreters}
-              matchingNo={getMatchingNoForRequest(matchings, request)}
               savingKey={savingKey}
-              updateRequestMatchingResultStatus={updateRequestMatchingResultStatus}
+              updateSettlementStatus={updateSettlementStatus}
             />
           ))}
-          {filteredApplications.map((application) => {
-            const job = jobsById.get(application.job_id) || application.jobs;
-            const request = application.job_id
-              ? requestsByJobId.get(String(application.job_id))
-              : null;
-            const requestType = getDesignatedRequestType(request, job);
-            const designatedInterpreterName = getDesignatedInterpreterName(
-              [request, job],
-              interpreters
-            );
-
-            return (
-              <MatchingCard
-                key={application.id}
-                application={application}
-                job={job}
-                request={request}
-                requestType={requestType}
-                designatedInterpreterName={designatedInterpreterName}
-                matchingNo={getMatchingNoForApplication(matchings, application, request)}
-                scheduleConflict={hasApplicationScheduleConflict(
-                  application,
-                  request || job,
-                  getInterpreterScheduleConflicts
-                )}
-                savingKey={savingKey}
-                updateApplicationStatus={updateApplicationStatus}
-              />
-            );
-          })}
         </div>
       )}
     </section>
   );
 }
 
-function MatchingRequestCard({
+function SettlementRequestCard({
   request,
   assignments,
-  getInterpreterScheduleConflicts,
   interpreters,
-  matchingNo,
   savingKey,
-  updateRequestMatchingResultStatus,
+  updateSettlementStatus,
 }) {
-  const assignedInterpreterNames = getAssignedInterpreterNamesWithConflictBadges(
+  const assignedInterpreterNames = getAssignedInterpreterName(
     request,
     assignments,
-    interpreters,
-    getInterpreterScheduleConflicts
+    interpreters
   );
-  const peopleCount = request.requested_people_count || request.required_count;
   const clientPrice = getCompanyAmount(request);
   const interpreterPrice = getInterpreterPayment(request);
   const platformProfit = getPlatformProfit(request);
-  const currentStatus = getMatchingResultStatus(request);
+  const paymentStatus = normalizePaymentStatus(request.payment_status);
+  const settlementStatus = normalizeSettlementFlowStatus(request);
 
   return (
     <article className="admin-list-card">
       <div className="admin-list-card-head">
         <div>
-          <span className="admin-card-meta">의뢰 매칭</span>
-          <ManagementNumberBadge value={matchingNo} />
+          <span className="admin-card-meta">정산</span>
+          <ManagementNumberBadge value={request.request_no} />
           <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
         </div>
-        <MatchingResultStatusBadge status={currentStatus} />
+        <StatusBadge status={getSettlementFlowStatusLabel(settlementStatus)} />
       </div>
 
       <dl className="admin-card-summary">
-        <Info label="매칭번호" value={formatManagementNumber(matchingNo)} />
+        <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
         <Info label="기업명" value={request.company_name || "-"} />
         <Info label="행사명" value={request.event_name || "-"} />
         <Info
@@ -5129,119 +5079,45 @@ function MatchingRequestCard({
             request.event_date
           )}
         />
-        <Info label="장소" value={request.event_location || request.location || "-"} />
         <Info label="배정 통역사" value={assignedInterpreterNames || "-"} />
-        <Info label="필요 인원 수" value={peopleCount ? `${peopleCount}명` : "-"} />
-        <Info label="기업 금액" value={formatJPY(clientPrice)} />
+        <Info label="기업 청구액" value={formatJPY(clientPrice)} />
         <Info label="통역사 지급액" value={formatJPY(interpreterPrice)} />
         <Info label="플랫폼 수익" value={formatJPY(platformProfit)} />
-        <Info label="결제 상태" value={getStatusLabel(request.payment_status || "unpaid")} />
+        <Info label="기업 결제 상태" value={getStatusLabel(paymentStatus)} />
         <Info
-          label="정산 상태"
-          value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request))}
+          label="통역사 정산 상태"
+          value={getSettlementFlowStatusLabel(settlementStatus)}
         />
       </dl>
-      <div className="admin-card-controls-grid single">
-        <FieldControl label="매칭 상태">
+
+      <div className="admin-card-controls-grid">
+        <FieldControl label="기업 결제 상태">
           <InlineSelect
-            options={MATCHING_RESULT_STATUS_OPTIONS}
-            value={currentStatus}
-            disabled={savingKey === `matching-request-${request.id}`}
-            onChange={(value) => updateRequestMatchingResultStatus(request, value)}
+            options={[
+              { label: "미결제", value: "unpaid" },
+              { label: "결제완료", value: "paid" },
+            ]}
+            value={paymentStatus}
+            disabled={savingKey === `settlement-request-${request.id}`}
+            onChange={(value) =>
+              updateSettlementStatus(request, { payment_status: value })
+            }
           />
         </FieldControl>
-      </div>
-    </article>
-  );
-}
-
-function MatchingCard({
-  application,
-  job,
-  request,
-  requestType,
-  designatedInterpreterName,
-  matchingNo,
-  scheduleConflict,
-  savingKey,
-  updateApplicationStatus,
-}) {
-  const peopleCount =
-    request?.requested_people_count ||
-    request?.required_count ||
-    job?.people_count ||
-    job?.people;
-  const clientPrice = getCompanyAmount(request);
-  const interpreterPrice = getInterpreterPayment(request);
-  const platformProfit = getPlatformProfit(request);
-  const currentStatus = getMatchingResultStatus({
-    ...application,
-    application_status: application.status,
-  });
-
-  return (
-    <article className="admin-list-card">
-      <div className="admin-list-card-head">
-        <div>
-          <span className="admin-card-meta">매칭</span>
-          <ManagementNumberBadge value={matchingNo} />
-          <h3 title={getJobDisplayTitle(job, application.job_id)}>
-            {getJobDisplayTitle(job, application.job_id)}
-          </h3>
-        </div>
-        <MatchingResultStatusBadge status={currentStatus} />
-      </div>
-
-      <dl className="admin-card-summary">
-        <Info label="매칭번호" value={formatManagementNumber(matchingNo)} />
-        <Info label="기업명" value={request?.company_name || job?.company_name || "-"} />
-        <Info label="행사명" value={job?.event_name || request?.event_name || "-"} />
-        <Info
-          label="행사 기간"
-          value={formatDateRange(job?.start_date, job?.end_date, job?.event_date || job?.date)}
-        />
-        <Info label="장소" value={job?.event_location || job?.location || "-"} />
-        <Info
-          label="배정 통역사"
-          value={
-            <NameWithScheduleConflict
-              hasConflict={scheduleConflict}
-              name={application.applicant_name || "이름 미입력"}
-            />
-          }
-        />
-        <Info label="필요 인원 수" value={peopleCount ? `${peopleCount}`.replace(/명$/, "") + "명" : "-"} />
-        <Info label="기업 금액" value={formatJPY(clientPrice)} />
-        <Info label="통역사 지급액" value={formatJPY(interpreterPrice)} />
-        <Info label="플랫폼 수익" value={formatJPY(platformProfit)} />
-        <Info label="결제 상태" value={getStatusLabel(request?.payment_status || "unpaid")} />
-        <Info
-          label="정산 상태"
-          value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request || {}))}
-        />
-      </dl>
-
-      <div className="admin-card-controls-grid single">
-        <FieldControl label="매칭 상태">
+        <FieldControl label="통역사 정산 상태">
           <InlineSelect
-            options={MATCHING_RESULT_STATUS_OPTIONS}
-            value={currentStatus}
-            disabled={savingKey === `job-application-${application.id}`}
+            options={[
+              { label: "정산대기", value: SETTLEMENT_FLOW_STATUS.PENDING },
+              { label: "정산완료", value: SETTLEMENT_FLOW_STATUS.COMPLETED },
+            ]}
+            value={settlementStatus}
+            disabled={savingKey === `settlement-request-${request.id}`}
             onChange={(value) =>
-              updateApplicationStatus(application, getApplicationStatusFromMatchingResult(value))
+              updateSettlementStatus(request, { settlement_status: value })
             }
           />
         </FieldControl>
       </div>
-
-      <div className="admin-card-chip-row">
-        <span className={`status-badge ${requestType.isDesignated ? "badge-designated" : "badge-neutral"}`}>
-          {requestType.label}
-        </span>
-        <span className="admin-empty-chip">지정 통역사: {designatedInterpreterName || "-"}</span>
-        <span className="admin-empty-chip">{application.phone || "연락처 미입력"}</span>
-      </div>
-
     </article>
   );
 }
@@ -5431,15 +5307,6 @@ function StatusBadge({ status }) {
   );
 }
 
-function MatchingResultStatusBadge({ status }) {
-  const currentStatus = status || MATCHING_RESULT_STATUS.PENDING;
-  return (
-    <span className={`status-badge ${getMatchingResultStatusBadgeClass(currentStatus)}`}>
-      {getMatchingResultStatusLabel(currentStatus)}
-    </span>
-  );
-}
-
 function DuplicateBadge({ title }) {
   return (
     <span className="admin-duplicate-badge" title={title || "중복 의심"}>
@@ -5475,15 +5342,6 @@ function ManagementNumberBlock({ label = "관리번호", value }) {
 
 function formatManagementNumber(value) {
   return value || "번호 미생성";
-}
-
-function NameWithScheduleConflict({ hasConflict, name }) {
-  return (
-    <span className="admin-name-with-badge">
-      <span>{name || "-"}</span>
-      {hasConflict && <ScheduleConflictBadge />}
-    </span>
-  );
 }
 
 function NumberControl({ label, value, onChange }) {
@@ -5834,58 +5692,6 @@ function hasApplicationScheduleConflict(
   ).length > 0;
 }
 
-function getAssignedInterpreterNamesWithConflictBadges(
-  request = {},
-  assignments = [],
-  interpreters = [],
-  getInterpreterScheduleConflicts
-) {
-  const range = getAssignmentScheduleRange(request);
-  const names = assignments
-    .map((assignment) => {
-      const interpreter = getAssignmentInterpreter(assignment, interpreters);
-      const name = interpreter?.name || assignment.interpreter?.name;
-      if (!name) return null;
-      return (
-        <NameWithScheduleConflict
-          key={assignment.id || `${assignment.request_id}-${assignment.interpreter_id}`}
-          hasConflict={getInterpreterScheduleConflictsForSource(
-            getInterpreterScheduleConflicts,
-            assignment.interpreter_id,
-            range,
-            request
-          ).length > 0}
-          name={name}
-        />
-      );
-    })
-    .filter(Boolean);
-
-  if (names.length > 0) return names;
-  return getAssignedInterpreterName(request, assignments, interpreters);
-}
-
-function getMatchingNoForRequest(matchings = [], request = {}) {
-  return (
-    matchings.find((matching) => String(matching.request_id) === String(request.id))
-      ?.matching_no || ""
-  );
-}
-
-function getMatchingNoForApplication(matchings = [], application = {}, request = null) {
-  if (request?.id) return getMatchingNoForRequest(matchings, request);
-
-  return (
-    matchings.find(
-      (matching) =>
-        application.job_id &&
-        String(matching.job_id) === String(application.job_id) &&
-        application.interpreter_id &&
-        String(matching.interpreter_id) === String(application.interpreter_id)
-    )?.matching_no || ""
-  );
-}
-
 function buildScheduleConflictMessage(conflicts = [], target = {}, interpreter = {}) {
   const conflictText = conflicts.map(formatScheduleConflictLine).join("\n");
   const targetDate = formatDateRange(
@@ -6099,20 +5905,6 @@ function doRequestDatesOverlap(a = {}, b = {}) {
   return aStart <= bEnd && bStart <= aEnd;
 }
 
-function isRequestVisibleInMatching(request, assignments = []) {
-  return (
-    normalizeMatchingStatus(request.matching_status) === MATCHING_STATUS.ASSIGNED ||
-    normalizeMatchingStatus(request.status) === MATCHING_STATUS.ASSIGNED ||
-    Boolean(
-      request.assigned_interpreter_id ||
-        request.assigned_interpreter_name ||
-        request.matched_interpreter_id ||
-        request.matched_interpreter_name
-    ) ||
-    assignments.length > 0
-  );
-}
-
 function getAssignedInterpreterName(request = {}, assignments = [], interpreters = []) {
   if (assignments.length > 0) {
     return assignments
@@ -6135,22 +5927,6 @@ function getAssignedInterpreterName(request = {}, assignments = [], interpreters
 
   const assignment = assignments.find(Boolean);
   return assignment?.interpreter?.name || "";
-}
-
-function getApplicationStatusFromMatchingResult(status) {
-  if (status === MATCHING_RESULT_STATUS.ACCEPTED || status === MATCHING_RESULT_STATUS.ASSIGNED) {
-    return APPLICATION_STATUS.ACCEPTED;
-  }
-  if (status === MATCHING_RESULT_STATUS.REJECTED) return APPLICATION_STATUS.REJECTED;
-  if (status === MATCHING_RESULT_STATUS.CANCELLED) return APPLICATION_STATUS.CANCELLED;
-  return APPLICATION_STATUS.REVIEWING;
-}
-
-function getRequestStatusFromMatchingResult(status) {
-  if (status === MATCHING_RESULT_STATUS.ACCEPTED) return MATCHING_STATUS.CONFIRMED;
-  if (status === MATCHING_RESULT_STATUS.ASSIGNED) return MATCHING_STATUS.ASSIGNED;
-  if (status === MATCHING_RESULT_STATUS.CANCELLED) return MATCHING_STATUS.CANCELLED;
-  return MATCHING_STATUS.DRAFT;
 }
 
 function buildApplicationAssignmentRows(applications = [], assignments = [], interpreters = []) {
@@ -6366,6 +6142,27 @@ function upsertAssignment(items, nextAssignment) {
 function normalizeMoneyInput(value) {
   const numericValue = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function normalizePaymentStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (["paid", "결제완료", "결제 완료"].includes(value)) return "paid";
+  return "unpaid";
+}
+
+function doesRequestMatchSettlementManagementFilter(request = {}, filter = "all") {
+  if (filter === "all") return true;
+  const paymentStatus = normalizePaymentStatus(request.payment_status);
+  const settlementStatus = normalizeSettlementFlowStatus(request);
+
+  if (filter === "unpaid" || filter === "paid") return paymentStatus === filter;
+  if (filter === "settlement_pending") {
+    return settlementStatus === SETTLEMENT_FLOW_STATUS.PENDING;
+  }
+  if (filter === "settlement_completed") {
+    return settlementStatus === SETTLEMENT_FLOW_STATUS.COMPLETED;
+  }
+  return true;
 }
 
 function getCompanyAmount(request = {}) {
