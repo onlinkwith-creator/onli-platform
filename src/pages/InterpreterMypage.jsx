@@ -627,9 +627,15 @@ function InterpreterMypage({
     <main className="interpreter-mypage">
       <div className="interpreter-mypage-shell">
         <section className="interpreter-mypage-head">
-          <div className="interpreter-mypage-userinfo">
+          <div className="interpreter-mypage-userinfo desktop-header-only">
             <p className="interpreter-auth-kicker">ON-LI INTERPRETER PROFILE</p>
             <h1>{interpreter ? `${interpreter.name} 통역사 마이페이지` : "통역사 마이페이지"}</h1>
+            <p className="interpreter-mypage-email">{interpreter?.email || user.email}</p>
+          </div>
+          <div className="interpreter-mypage-userinfo mobile-header-only">
+            <p className="interpreter-auth-kicker">ON-LI INTERPRETER PROFILE</p>
+            <h1 className="mobile-user-name">{interpreter ? interpreter.name : "통역사 마이페이지"}</h1>
+            <p className="mobile-user-label">통역사 마이페이지</p>
             <p className="interpreter-mypage-email">{interpreter?.email || user.email}</p>
           </div>
           <div className="interpreter-mypage-actions">

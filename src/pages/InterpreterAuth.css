@@ -215,6 +215,14 @@
   display: none;
 }
 
+.desktop-header-only {
+  display: block;
+}
+
+.mobile-header-only {
+  display: none;
+}
+
 .interpreter-mypage-grid.is-unregistered {
   grid-template-columns: 1fr;
 }
@@ -926,6 +934,65 @@
     background: #f8fafc;
     border: 1px solid #cbd5e1;
     font-size: 12px !important;
+  }
+
+  /* Mobile Profile Header Enhancements */
+  .desktop-header-only {
+    display: none !important;
+  }
+
+  .mobile-header-only {
+    display: flex !important;
+    flex-direction: column;
+    text-align: left;
+  }
+
+  .interpreter-mypage-head {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 22px 20px !important;
+    gap: 0 !important;
+  }
+
+  .mobile-header-only .mobile-user-name {
+    font-size: 22px !important;
+    line-height: 1.25 !important;
+    max-width: 100%;
+    word-break: keep-all;
+    margin: 0 !important;
+    font-weight: 900;
+    color: #111827;
+  }
+
+  .mobile-header-only .mobile-user-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    margin: 4px 0 0 !important;
+  }
+
+  .mobile-header-only .interpreter-mypage-email {
+    font-size: 13px !important;
+    color: #6b7280 !important;
+    margin-top: 6px !important;
+    margin-bottom: 0 !important;
+    font-weight: 550;
+  }
+
+  .interpreter-mypage-head .interpreter-mypage-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    width: 100% !important;
+    margin-top: 18px !important;
+    gap: 8px !important;
+  }
+
+  .interpreter-mypage-actions button {
+    width: 100% !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    margin: 0 !important;
   }
 
   /* Mobile Profile View Styles */
