@@ -1943,13 +1943,19 @@ span.home-footer-contact-item:hover {
   }
 
   .home-job-level-note {
-    display: inline-flex;
-    width: fit-content;
-    margin: 0 0 8px;
-    padding: 5px 9px;
-    border-radius: 999px;
+    width: 100%;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: 14px;
+    margin-top: 14px;
+    margin-bottom: 8px;
+    padding: 0;
     font-size: 11px;
     line-height: 1.2;
+    box-sizing: border-box;
   }
 
   .home-job-card button {
