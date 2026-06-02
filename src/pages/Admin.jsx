@@ -600,9 +600,6 @@ function Admin({ onBackClick }) {
   const dashboard = useMemo(
     () => {
       const today = new Date().toISOString().slice(0, 10);
-      const todayOperations = requests.filter((request) =>
-        isDateInRange(today, request.start_date, request.end_date, request.event_date)
-      );
       const settlementPending = requests.filter(
         (request) =>
           normalizeSettlementFlowStatus(getRequestFlowSource(request, null)) ===
@@ -621,11 +618,11 @@ function Admin({ onBackClick }) {
         ).length,
         urgentRequests: requests.filter((request) => isUrgentOperationRequest(request))
           .length,
-        todayOperations: todayOperations.length,
+        completedRequests: completedRequests.length,
         settlementPending,
       };
     },
-    [jobApplications, requests, interpreters]
+    [completedRequests.length, jobApplications, requests, interpreters]
   );
 
   const operationDashboard = useMemo(
@@ -678,12 +675,12 @@ function Admin({ onBackClick }) {
       targetTab: "matching",
     },
     {
-      label: "오늘 운영",
-      value: `${dashboard.todayOperations}건`,
-      description: "오늘 진행/시작",
+      label: "완료 의뢰",
+      value: `${dashboard.completedRequests}건`,
+      description: "운영 완료 건수",
       tone: "indigo",
       icon: CalendarDays,
-      targetTab: "requests",
+      targetTab: "completedRequests",
     },
     {
       label: "정산 대기",
@@ -725,6 +722,15 @@ function Admin({ onBackClick }) {
         duplicate: "all",
       });
       setActiveTab("applications");
+    } else if (card.label === "완료 의뢰") {
+      setRequestFilters((prev) => ({
+        ...prev,
+        search: "",
+        month: "",
+        status: "all",
+        public: "all",
+      }));
+      setActiveTab("completedRequests");
     } else {
       setActiveTab(card.targetTab);
     }
