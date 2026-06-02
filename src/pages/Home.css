@@ -1809,13 +1809,13 @@ span.home-footer-contact-item:hover {
   /* ── 통역 공고 / 통역사 카드: 모바일 1장씩 ── */
   .home-job-card,
   .home-interpreter-card {
-    flex: 0 0 100%;
-    width: 100%;
+    flex: 0 0 88%;
+    width: auto;
     max-width: 100%;
     min-height: 0;
-    margin: 0 auto;
+    margin: 0;
     padding: 18px;
-    scroll-snap-align: center;
+    scroll-snap-align: start;
   }
 
   /* 캐러셀 레일 중앙 정렬 + 스냅 */
@@ -1829,8 +1829,25 @@ span.home-footer-contact-item:hover {
 
   /* 공고 카드 캐러셀 가로 중앙 패딩 */
   .home-job-carousel {
+    display: flex !important;
+    gap: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
     justify-content: flex-start;
+    padding: 4px 0 12px;
     scroll-padding-inline: 0;
+    scrollbar-width: none;
+  }
+
+  .home-job-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .home-job-carousel .home-job-card {
+    flex: 0 0 88%;
+    width: auto;
+    max-width: 88%;
+    scroll-snap-align: start;
   }
 
   /* 통역사 캐러셀 (interpreter grid) */
@@ -1858,6 +1875,15 @@ span.home-footer-contact-item:hover {
     margin: 0 0 12px;
   }
 
+  .home-jobs-preview .home-section-head {
+    align-items: stretch;
+  }
+
+  .home-jobs-preview .home-section-head button {
+    order: 2;
+    margin-top: 12px;
+  }
+
   .home-section-head > div {
     display: grid;
     gap: 4px;
@@ -1872,10 +1898,6 @@ span.home-footer-contact-item:hover {
   .home-section-head h2 {
     font-size: 22px;
     line-height: 1.2;
-  }
-
-  .home-job-carousel .home-job-card:nth-child(n + 2) {
-    display: none;
   }
 
   .home-job-card {
@@ -2374,10 +2396,15 @@ span.home-footer-contact-item:hover {
 
   .home-job-card,
   .home-interpreter-card {
-    flex: 0 0 100%;
-    width: 100%;
+    flex: 0 0 88%;
+    width: auto;
     max-width: 100%;
     padding: 18px;
+  }
+
+  .home-job-carousel .home-job-card {
+    flex-basis: 88%;
+    max-width: 88%;
   }
 
   .home-job-carousel {
