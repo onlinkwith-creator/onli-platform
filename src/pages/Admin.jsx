@@ -121,6 +121,7 @@ const INTERPRETER_UPDATE_COLUMNS = new Set([
   "specialties",
   "available_regions",
   "admin_memo",
+  "updated_at",
 ]);
 const INTERPRETER_STATUS_VALUES = new Set(INTERPRETER_STATUSES);
 const REQUEST_STATUSES = [
@@ -679,19 +680,35 @@ function Admin({ onBackClick }) {
       return false;
     }
 
+    const payloadWithTimestamp = {
+      ...payload,
+      updated_at: new Date().toISOString(),
+    };
+
     setSavingKey(`interpreter-${id}`);
-    const { data, error } = await supabase
+    let updatePayload = payloadWithTimestamp;
+    let { data, error } = await supabase
       .from("interpreters")
-      .update(payload)
+      .update(updatePayload)
       .eq("id", id)
-      .select("*")
-      .single();
+      .select("*");
+
+    if (error && updatePayload.updated_at && isMissingColumnError(error)) {
+      updatePayload = { ...payload };
+      ({ data, error } = await supabase
+        .from("interpreters")
+        .update(updatePayload)
+        .eq("id", id)
+        .select("*"));
+    }
+
     setSavingKey("");
 
     if (error) {
-      console.error("Interpreter update failed", {
+      console.error("통역사 수정 실패:", error);
+      console.error("통역사 수정 실패 상세:", {
         id,
-        payload,
+        payload: updatePayload,
         error,
         message: error.message,
         details: error.details,
@@ -702,12 +719,17 @@ function Admin({ onBackClick }) {
       return false;
     }
 
+    if (!data || data.length === 0) {
+      alert("수정 실패: 변경된 row가 없습니다. id/RLS/컬럼명을 확인하세요.");
+      return false;
+    }
+
     const interpreter = interpreters.find((item) => item.id === id);
     const isNewApproval =
-      payload.status === "active" &&
+      updatePayload.status === "active" &&
       interpreter &&
       interpreter.status !== "active";
-    const nextInterpreter = data || { ...interpreter, ...payload };
+    const nextInterpreter = data[0] || { ...interpreter, ...updatePayload };
 
     setInterpreters((current) =>
       current.map((item) => (item.id === id ? { ...item, ...nextInterpreter } : item))
@@ -727,8 +749,10 @@ function Admin({ onBackClick }) {
       });
     }
 
+    await fetchAdminData();
+
     if (options.showSuccess) {
-      alert("통역사 정보가 수정되었습니다.");
+      alert("수정 완료");
     }
 
     return true;
@@ -6176,6 +6200,8 @@ function getInterpreterChangesFromDraft(draft = {}) {
   return {
     name: draft.name,
     email: draft.email,
+    phone: draft.phone,
+    kakao_or_line: draft.kakao_or_line,
     gender: draft.gender,
     age: draft.age,
     region: draft.region,
