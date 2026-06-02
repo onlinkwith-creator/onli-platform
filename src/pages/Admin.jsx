@@ -212,7 +212,7 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
   };
 }
 
-function Admin() {
+function Admin({ onBackClick }) {
   const [activeTab, setActiveTab] = useState(() =>
     window.location.pathname === "/admin/jobs" ? "jobs" : "requests"
   );
@@ -2106,6 +2106,20 @@ function Admin() {
           </div>
 
           <div className="admin-header-actions">
+            <button
+              type="button"
+              onClick={() => {
+                if (onBackClick) {
+                  onBackClick();
+                } else {
+                  window.location.href = "/";
+                }
+              }}
+              className="admin-home-button"
+            >
+              <span className="full-text">← 홈페이지</span>
+              <span className="mobile-text">← 홈</span>
+            </button>
             <button type="button" onClick={fetchAdminData} className="admin-refresh">
               새로고침
             </button>

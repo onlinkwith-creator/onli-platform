@@ -750,9 +750,21 @@ function AdminJobs({
             <h1>통역 공고 관리</h1>
             <p>홈페이지와 전체 공고 페이지에 노출되는 공고를 관리합니다.</p>
           </div>
-          <button type="button" onClick={fetchJobs} className="admin-refresh">
-            새로고침
-          </button>
+          <div className="admin-header-actions">
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              className="admin-home-button"
+            >
+              <span className="full-text">← 홈페이지</span>
+              <span className="mobile-text">← 홈</span>
+            </button>
+            <button type="button" onClick={fetchJobs} className="admin-refresh">
+              새로고침
+            </button>
+          </div>
         </header>
         {content}
       </div>
