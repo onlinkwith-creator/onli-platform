@@ -463,10 +463,19 @@ function Admin({ onBackClick }) {
     ? jobsById.get(String(activeRequest.job_id)) || jobsById.get(activeRequest.job_id)
     : null;
 
+  const activeRequests = useMemo(
+    () => requests.filter((request) => !isCompletedRequest(request)),
+    [requests]
+  );
+  const completedRequests = useMemo(
+    () => requests.filter((request) => isCompletedRequest(request)),
+    [requests]
+  );
+
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
 
-    const result = requests.filter((request) => {
+    const result = activeRequests.filter((request) => {
       const searchableText = [
         request.company_name,
         request.event_name,
@@ -502,7 +511,48 @@ function Admin({ onBackClick }) {
 
       return String(b.created_at || "").localeCompare(String(a.created_at || ""));
     });
-  }, [jobsById, requestFilters, requests]);
+  }, [activeRequests, jobsById, requestFilters]);
+
+  const filteredCompletedRequests = useMemo(() => {
+    const search = requestFilters.search.trim().toLowerCase();
+
+    const result = completedRequests.filter((request) => {
+      const searchableText = [
+        request.company_name,
+        request.event_name,
+        request.event_location,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const matchesSearch = !search || searchableText.includes(search);
+      const matchesDate =
+        !requestFilters.month ||
+        isDateRangeOverlappingMonth(
+          getDateRangeStart(request.start_date || request.event_date, request.date),
+          getDateRangeEnd(request.end_date || request.event_date, request.date),
+          requestFilters.month
+        );
+      const matchesStatus =
+        requestFilters.status === "all" ||
+        request.status === requestFilters.status;
+      const matchesPublic =
+        requestFilters.public === "all" ||
+        String(isRequestJobPublic(request, jobsById)) === requestFilters.public;
+
+      return matchesSearch && matchesDate && matchesStatus && matchesPublic;
+    });
+
+    return result.sort((a, b) => {
+      if (requestFilters.sort === "date") {
+        return String(getRequestPrimaryDate(a) || "9999-12-31").localeCompare(
+          String(getRequestPrimaryDate(b) || "9999-12-31")
+        );
+      }
+
+      return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    });
+  }, [completedRequests, jobsById, requestFilters]);
 
   const filteredInterpreters = useMemo(() => {
     const search = interpreterFilters.search.trim().toLowerCase();
@@ -2280,6 +2330,41 @@ function Admin({ onBackClick }) {
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 interpreters={interpreters}
                 requests={filteredRequests}
+                sectionCount={activeRequests.length}
+                savingKey={savingKey}
+                jobsById={jobsById}
+                requestsByJobId={requestsByJobId}
+                jobApplicationsByJob={jobApplicationsByJob}
+                onJobsAdminClick={switchToJobsTab}
+                setAssignmentDrafts={setAssignmentDrafts}
+                setApplicationsRequestId={setApplicationsRequestId}
+                setExpandedRequestId={setExpandedRequestId}
+                openRequestModal={openRequestModal}
+                setFilters={setRequestFilters}
+                assignInterpreter={assignInterpreter}
+                handlePriceDraft={handlePriceDraft}
+                saveSettlement={saveSettlement}
+                removeAssignment={removeAssignment}
+                updateRequest={updateRequest}
+                updateApplicationStatus={updateJobApplicationStatus}
+                deleteRequest={deleteRequest}
+                toggleRequestJobPublic={toggleRequestJobPublic}
+                updateRequestFlowStatus={updateRequestFlowStatus}
+              />
+            )}
+
+            {activeTab === "completedRequests" && (
+              <RequestManagement
+                applicationsRequestId={applicationsRequestId}
+                assignmentDrafts={assignmentDrafts}
+                assignmentsByRequest={assignmentsByRequest}
+                expandedRequestId={expandedRequestId}
+                filters={requestFilters}
+                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
+                interpreters={interpreters}
+                requests={filteredCompletedRequests}
+                sectionCount={completedRequests.length}
+                sectionTitle="완료 의뢰"
                 savingKey={savingKey}
                 jobsById={jobsById}
                 requestsByJobId={requestsByJobId}
@@ -2743,6 +2828,8 @@ function RequestManagement({
   jobApplicationsByJob,
   onJobsAdminClick,
   requests,
+  sectionCount,
+  sectionTitle = "의뢰 관리",
   savingKey,
   setAssignmentDrafts,
   setApplicationsRequestId,
@@ -2763,7 +2850,7 @@ function RequestManagement({
 
   return (
     <section className="admin-section">
-      <SectionTitle count={`${requests.length}건`} title="의뢰 관리" />
+      <SectionTitle count={`${sectionCount ?? requests.length}건`} title={sectionTitle} />
       <div className="admin-filter-bar admin-filters admin-request-filters">
         <label className="admin-filter-search admin-search-control">
           <Search size={16} aria-hidden="true" />
@@ -5282,6 +5369,61 @@ function isRequestJobPublic(request, jobsById) {
   const job = request.job_id ? jobsById.get(request.job_id) : null;
   if (job) return getRequestJobPublicState(request, job).type === "public";
   return Boolean(request.is_public);
+}
+
+function isCompletedRequest(request = {}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const endDateValue =
+    request.end_date ||
+    request.event_end_date ||
+    request.date_end ||
+    request.finished_at ||
+    request.event_date ||
+    getDateRangeEnd("", request.date);
+  const endDate = parseRequestDateOnly(endDateValue);
+  const isPast =
+    endDate instanceof Date &&
+    !Number.isNaN(endDate.getTime()) &&
+    endDate < today;
+  const operationStatus = String(
+    request.operation_status ||
+      request.status ||
+      ""
+  ).trim();
+  const normalizedStatus = operationStatus.toLowerCase();
+  const completedStatuses = new Set([
+    "운영완료",
+    "운영종료",
+    "completed",
+    "finished",
+    "operation_completed",
+    "operation_done",
+    "done",
+    OPERATION_STATUS.COMPLETED,
+  ]);
+
+  return (
+    isPast &&
+    (completedStatuses.has(operationStatus) ||
+      completedStatuses.has(normalizedStatus) ||
+      normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED)
+  );
+}
+
+function parseRequestDateOnly(value) {
+  if (!value) return null;
+  const text = String(value).trim();
+  const dateOnlyMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 function isDateInRange(date, startDate, endDate, fallbackDate) {
