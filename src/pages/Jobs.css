@@ -1104,6 +1104,11 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.job-detail-mobile-summary-card,
+.job-detail-mobile-info-slider {
+  display: none;
+}
+
 .job-detail-desc-section {
   margin: 0;
 }
@@ -1559,8 +1564,169 @@
     top: 0;
   }
 
+  .job-detail-mobile-summary-card {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    background: #ffffff;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.045);
+    box-sizing: border-box;
+  }
+
+  .job-detail-mobile-summary-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-bottom: 10px;
+  }
+
+  .job-detail-mobile-summary-head .home-job-status {
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+
+  .job-detail-mobile-summary-head h2 {
+    margin: 0;
+    min-width: 0;
+    color: #0f172a;
+    font-size: 19px;
+    font-weight: 900;
+    line-height: 1.35;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .job-detail-mobile-summary-date,
+  .job-detail-mobile-summary-meta {
+    margin: 4px 0;
+    color: #4b5563;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .job-detail-mobile-summary-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .job-detail-mobile-apply-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 44px;
+    margin-top: 14px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #5b5cff 0%, #7c3aed 100%);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: 0 10px 22px rgba(91, 92, 255, 0.18);
+    box-sizing: border-box;
+  }
+
+  .job-info-card {
+    padding: 18px 0 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .job-info-card .job-detail-section-title {
+    margin: 0 0 12px;
+    padding: 0 2px;
+    font-size: 17px;
+  }
+
   .job-info-grid {
-    grid-template-columns: 1fr;
+    display: none;
+  }
+
+  .job-detail-mobile-info-slider {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 4px 0 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .job-detail-mobile-info-slider::-webkit-scrollbar {
+    display: none;
+  }
+
+  .job-detail-mobile-info-card {
+    flex: 0 0 86%;
+    scroll-snap-align: start;
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
+    box-sizing: border-box;
+  }
+
+  .job-detail-mobile-info-card h3 {
+    margin: 0 0 12px;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.25;
+  }
+
+  .job-detail-mobile-info-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #eef2f7;
+  }
+
+  .job-detail-mobile-info-row:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .job-detail-mobile-info-row .label {
+    flex: 0 0 auto;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.4;
+  }
+
+  .job-detail-mobile-info-row .value {
+    min-width: 0;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.4;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .job-info-detail-sections {
+    gap: 14px;
+    margin-top: 12px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .job-detail-desc-section {
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
   }
 
   .job-info-row:nth-last-child(2) {
@@ -1586,6 +1752,11 @@
   .job-apply-card {
     padding: 20px;
     border-radius: 20px;
+  }
+
+  .job-info-card {
+    padding: 18px 0 0;
+    border-radius: 0;
   }
 
   .job-info-row {

@@ -550,6 +550,23 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
             <div className="job-detail-main-content">
               {/* 좌측 메인 정보 컬럼 */}
               <div className="job-main-column">
+                <section className="job-detail-mobile-summary-card">
+                  <div className="job-detail-mobile-summary-head">
+                    <span className={`home-job-status ${normalizeJobStatus(job)}`}>
+                      {getJobStatusLabel(job)}
+                    </span>
+                    <h2>{job.event_name || job.title || "공고 제목 미입력"}</h2>
+                  </div>
+                  <p className="job-detail-mobile-summary-date">
+                    {formatDateRange(job.start_date, job.end_date, job.event_date || job.date)}
+                  </p>
+                  <p className="job-detail-mobile-summary-meta">
+                    {(job.location || job.event_location || "장소 확인 중")} · {getRecruitmentCountDisplay(job)} · {getJobLevelBadgeLabel(job)}
+                  </p>
+                  <a className="job-detail-mobile-apply-link" href="#job-apply-section">
+                    {canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}
+                  </a>
+                </section>
                 
                 {/* 공고 정보 카드 */}
                 <section className="job-info-card">
@@ -557,6 +574,28 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                     <ClipboardList size={20} />
                     공고 정보
                   </h2>
+                  <div className="job-detail-mobile-info-slider" aria-label="공고 상세 정보">
+                    <section className="job-detail-mobile-info-card">
+                      <h3>근무 정보</h3>
+                      <MobileInfo label="날짜" value={formatDateRange(job.start_date, job.end_date, job.event_date || job.date)} />
+                      <MobileInfo label="장소" value={job.location || job.event_location} />
+                      <MobileInfo label="언어" value={job.language || "한국어/일본어"} />
+                      <MobileInfo label="모집인원" value={getRecruitmentCountDisplay(job)} />
+                    </section>
+                    <section className="job-detail-mobile-info-card">
+                      <h3>조건</h3>
+                      <MobileInfo label="필요 레벨" value={getJobLevelSummary(job)} />
+                      <MobileInfo label="일급" value={getJobPayDisplay(job)} />
+                      <MobileInfo label="전문 분야" value={getJobSpecialty(job)} />
+                      <MobileInfo label="성별" value={job.preferred_gender} />
+                    </section>
+                    <section className="job-detail-mobile-info-card">
+                      <h3>지원 정보</h3>
+                      <MobileInfo label="지원 마감" value={job.deadline || "상시"} />
+                      <MobileInfo label="상태" value={getJobStatusLabel(job)} />
+                      <MobileInfo label="기업명" value={job.company_name} />
+                    </section>
+                  </div>
                   <div className="job-info-grid">
                     <Info icon={Building2} label="기업명" value={job.company_name} />
                     <Info
@@ -628,7 +667,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
 
               {/* 우측 사이드 패널 컬럼 */}
               <div className="job-side-column">
-                <aside className="job-apply-sidebar">
+                <aside className="job-apply-sidebar" id="job-apply-section">
                   <div className="job-apply-card">
                     <div className="job-apply-header">
                       <div className="job-apply-title-row">
@@ -791,6 +830,30 @@ function isAgreementColumnError(error) {
     error?.code === "PGRST204" ||
     /agreed_|column|schema cache/i.test(error?.message || "")
   );
+}
+
+function MobileInfo({ label, value }) {
+  return (
+    <div className="job-detail-mobile-info-row">
+      <span className="label">{label}</span>
+      <span className="value">{value || "-"}</span>
+    </div>
+  );
+}
+
+function getJobLevelBadgeLabel(job = {}) {
+  const level =
+    job.requested_level ||
+    job.preferred_level ||
+    job.interpreter_level ||
+    job.level ||
+    job.target_level ||
+    job.required_level ||
+    "";
+  const matched = String(level).match(/lv\s*(\d)/i);
+
+  if (matched) return `Lv${matched[1]}`;
+  return level || "레벨 협의";
 }
 
 export default JobDetail;
