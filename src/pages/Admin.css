@@ -17,6 +17,7 @@
 
 .admin-back,
 .admin-refresh,
+.admin-account-button,
 .admin-toggle,
 .admin-small-button,
 .admin-save,
@@ -2467,6 +2468,31 @@
   min-height: 44px;
 }
 
+.admin-account-modal-form input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.admin-account-password-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-account-actions {
+  margin-top: 4px;
+}
+
+.admin-account-signout {
+  padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.admin-account-signout .admin-save {
+  width: 100%;
+  min-height: 44px;
+}
+
 .admin-confirm-text {
   margin: 0;
   color: #374151;
@@ -2668,6 +2694,7 @@
   }
 
   .admin-refresh,
+  .admin-account-button,
   .admin-save,
   .admin-assign-row button,
   .admin-link-button,
@@ -2677,6 +2704,7 @@
   }
 
   .admin-refresh,
+  .admin-account-button,
   .admin-save {
     width: 100%;
   }
@@ -3235,6 +3263,21 @@
   white-space: nowrap !important;
 }
 
+.admin-account-button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #111827;
+  color: #ffffff;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.admin-account-button:hover {
+  background: #1f2937;
+}
+
 .admin-home-button:hover {
   background: #f5f3ff !important;
 }
@@ -3247,6 +3290,10 @@
   .admin-home-button {
     height: 40px !important;
     padding: 0 12px !important;
+  }
+
+  .admin-account-button {
+    width: 100%;
   }
 
   .admin-home-button span.full-text {

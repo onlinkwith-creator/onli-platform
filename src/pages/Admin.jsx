@@ -85,6 +85,7 @@ import {
   addManagementNumber,
   isManagementNumberConflict,
 } from "../utils/managementNumber";
+import { useAuth } from "../hooks/useAuth";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
@@ -241,6 +242,7 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
 }
 
 function Admin({ onBackClick }) {
+  const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("requests");
   const [requests, setRequests] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -256,6 +258,12 @@ function Admin({ onBackClick }) {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [activeRequestModal, setActiveRequestModal] = useState(null);
   const [requestEditDraft, setRequestEditDraft] = useState(null);
+  const [isAdminAccountModalOpen, setIsAdminAccountModalOpen] = useState(false);
+  const [adminPasswordForm, setAdminPasswordForm] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [isAdminAccountSaving, setIsAdminAccountSaving] = useState(false);
   const [selectedInterpreter, setSelectedInterpreter] = useState(null);
   const [interpreterModalType, setInterpreterModalType] = useState(null);
   const [interpreterEditDraft, setInterpreterEditDraft] = useState(null);
@@ -376,6 +384,14 @@ function Admin({ onBackClick }) {
     setActiveRequestModal(null);
     setRequestEditDraft(null);
     setSelectedRequest(null);
+  }, []);
+
+  const closeAdminAccountModal = useCallback(() => {
+    setIsAdminAccountModalOpen(false);
+    setAdminPasswordForm({
+      newPassword: "",
+      confirmPassword: "",
+    });
   }, []);
 
   useEffect(() => {
@@ -732,6 +748,66 @@ function Admin({ onBackClick }) {
     } else {
       setActiveTab(card.targetTab);
     }
+  };
+
+  const updateAdminPasswordDraft = (name, value) => {
+    setAdminPasswordForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const changeAdminPassword = async () => {
+    const newPassword = adminPasswordForm.newPassword;
+    const confirmPassword = adminPasswordForm.confirmPassword;
+
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      alert("새 비밀번호를 입력해주세요.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      alert("비밀번호는 8자 이상이어야 합니다.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert("새 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    setIsAdminAccountSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setIsAdminAccountSaving(false);
+
+    if (error) {
+      alert(`비밀번호 변경 실패: ${error.message}`);
+      return;
+    }
+
+    setAdminPasswordForm({
+      newPassword: "",
+      confirmPassword: "",
+    });
+    alert("비밀번호가 변경되었습니다. 다음 로그인부터 새 비밀번호를 사용해주세요.");
+  };
+
+  const signOutAdmin = async () => {
+    setIsAdminAccountSaving(true);
+    const { error } = await signOut();
+    setIsAdminAccountSaving(false);
+
+    if (error) {
+      alert(`로그아웃 실패: ${error.message}`);
+      return;
+    }
+
+    window.location.href = "/login";
   };
 
   const updateInterpreter = async (id, changes, options = {}) => {
@@ -2279,6 +2355,13 @@ function Admin({ onBackClick }) {
             <button type="button" onClick={fetchAdminData} className="admin-refresh">
               새로고침
             </button>
+            <button
+              type="button"
+              onClick={() => setIsAdminAccountModalOpen(true)}
+              className="admin-account-button"
+            >
+              관리자 계정 관리
+            </button>
           </div>
         </header>
 
@@ -2475,6 +2558,17 @@ function Admin({ onBackClick }) {
               onSave={saveInterpreterEditDraft}
               updateInterpreter={updateInterpreter}
             />
+            {isAdminAccountModalOpen && (
+              <AdminAccountModal
+                email={user?.email || ""}
+                form={adminPasswordForm}
+                saving={isAdminAccountSaving}
+                onChange={updateAdminPasswordDraft}
+                onClose={closeAdminAccountModal}
+                onChangePassword={changeAdminPassword}
+                onSignOut={signOutAdmin}
+              />
+            )}
             {activeRequest && (
               <RequestActionModal
                 activeModal={activeRequestModal}
@@ -2624,6 +2718,77 @@ function RequestActionModal({
           onSave={onSaveEdit}
         />
       )}
+    </AdminModal>
+  );
+}
+
+function AdminAccountModal({
+  email,
+  form,
+  onChange,
+  onChangePassword,
+  onClose,
+  onSignOut,
+  saving,
+}) {
+  return (
+    <AdminModal title="관리자 계정 관리" titleId="admin-account-modal-title" onClose={onClose}>
+      <div className="admin-modal-form admin-account-modal-form">
+        <FieldControl label="현재 관리자 이메일">
+          <input value={email || "로그인 정보 없음"} disabled readOnly />
+        </FieldControl>
+
+        <form
+          className="admin-account-password-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onChangePassword();
+          }}
+        >
+          <FieldControl label="새 비밀번호">
+            <input
+              type="password"
+              value={form.newPassword}
+              autoComplete="new-password"
+              onChange={(event) => onChange("newPassword", event.target.value)}
+              placeholder="8자 이상 입력"
+            />
+          </FieldControl>
+          <FieldControl label="새 비밀번호 확인">
+            <input
+              type="password"
+              value={form.confirmPassword}
+              autoComplete="new-password"
+              onChange={(event) => onChange("confirmPassword", event.target.value)}
+              placeholder="새 비밀번호 재입력"
+            />
+          </FieldControl>
+          <div className="admin-modal-actions admin-account-actions">
+            <button
+              type="button"
+              className="admin-link-button"
+              disabled={saving}
+              onClick={onClose}
+            >
+              닫기
+            </button>
+            <button type="submit" className="admin-save" disabled={saving}>
+              비밀번호 변경
+            </button>
+          </div>
+        </form>
+
+        <div className="admin-account-signout">
+          <button
+            type="button"
+            className="admin-save danger"
+            disabled={saving}
+            onClick={onSignOut}
+          >
+            로그아웃
+          </button>
+        </div>
+      </div>
     </AdminModal>
   );
 }
