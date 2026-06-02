@@ -1747,15 +1747,15 @@ span.home-footer-contact-item:hover {
 
   .home-main {
     grid-template-columns: 1fr;
-    gap: 22px;
-    padding-top: 28px;
-    padding-bottom: 34px;
+    gap: 18px;
+    padding-top: 24px;
+    padding-bottom: 32px;
     text-align: center;
   }
 
   .home-hero {
     align-items: center;
-    gap: 18px;
+    gap: 14px;
     text-align: center;
   }
 
@@ -1765,27 +1765,30 @@ span.home-footer-contact-item:hover {
 
   .home-pill {
     max-width: 100%;
-    font-size: 14px;
+    padding: 6px 11px;
+    font-size: 13px;
     text-align: center;
     white-space: normal;
   }
 
   .home-hero-title {
-    font-size: clamp(30px, 9vw, 34px);
-    line-height: 1.25;
+    font-size: clamp(28px, 8vw, 32px);
+    line-height: 1.18;
     text-align: center;
   }
 
   .home-description {
     max-width: 100%;
-    font-size: 15px;
-    line-height: 1.68;
+    font-size: 14.5px;
+    line-height: 1.55;
     text-align: center;
   }
 
   .home-sub-badge {
     justify-content: center;
     max-width: 100%;
+    padding: 6px 10px;
+    font-size: 12px;
     text-align: center;
     white-space: normal;
   }
@@ -2094,65 +2097,80 @@ span.home-footer-contact-item:hover {
     width: 100%;
     max-width: 100%;
     justify-self: center;
-    padding: 20px;
+    padding: 18px 0 18px 18px;
     text-align: left;
   }
 
   .home-feature-card h3 {
-    margin-bottom: 14px;
+    margin: 0 18px 12px 0;
     font-size: 19px;
   }
 
   .home-feature-list {
-    gap: 16px;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 18px 8px 0;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .home-feature-list::-webkit-scrollbar {
+    display: none;
   }
 
   .home-feature {
+    flex: 0 0 84%;
     gap: 12px;
     padding: 14px;
     border-radius: 14px;
+    scroll-snap-align: start;
   }
 
-  /* 진행 프로세스: 세로 1열 */
   .home-process {
-    margin-top: var(--home-section-gap);
+    margin-top: 36px;
+    margin-bottom: 48px;
   }
 
   .home-process-timeline {
-    grid-template-columns: 1fr;
-    gap: 0;
-    padding: 20px;
+    display: flex;
+    grid-template-columns: none;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 16px;
     border-radius: 18px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .home-process-timeline::-webkit-scrollbar {
+    display: none;
   }
 
   .home-step {
-    min-height: 86px;
+    flex: 0 0 82%;
+    min-height: 112px;
     flex-direction: row;
     align-items: flex-start;
-    gap: 14px;
-    padding-bottom: 18px;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.54);
     text-align: left;
+    scroll-snap-align: start;
   }
 
   .home-step:last-child {
-    min-height: 0;
     padding-bottom: 0;
   }
 
-  .home-step:not(:last-child)::after {
-    top: 40px;
-    left: 16px;
-    width: 1px;
-    height: calc(100% - 34px);
-    background: linear-gradient(180deg, rgba(107, 114, 128, 0.32), rgba(79, 70, 229, 0.22));
-  }
-
+  .home-step:not(:last-child)::after,
   .home-step:not(:last-child)::before {
-    top: auto;
-    right: auto;
-    bottom: 14px;
-    left: 12px;
-    transform: rotate(135deg);
+    display: none;
   }
 
   .home-step-copy {

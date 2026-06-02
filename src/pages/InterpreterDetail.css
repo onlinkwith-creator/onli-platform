@@ -574,7 +574,7 @@
     width: 100%;
     max-width: none;
     min-width: 0;
-    padding: 24px 12px 48px;
+    padding: 24px 14px 48px;
   }
 
   .interpreter-detail-container,
@@ -595,9 +595,9 @@
   }
 
   .profile-hero-card {
-    gap: 14px;
-    padding: 20px 16px;
-    border-radius: 20px;
+    gap: 12px;
+    padding: 22px 18px;
+    border-radius: 22px;
   }
 
   .profile-verified-kicker {
@@ -642,6 +642,11 @@
     margin-top: 14px;
     font-size: 13px;
     line-height: 1.55;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 
   .profile-hero-side {
@@ -651,7 +656,7 @@
   }
 
   .profile-level-badge {
-    width: 72px;
+    width: 78px;
     min-height: 92px;
     padding: 12px 8px;
     gap: 6px;
@@ -704,21 +709,34 @@
   }
 
   .profile-metric-grid {
-    grid-template-columns: 1fr;
+    display: flex;
+    grid-template-columns: none;
     gap: 12px;
     margin-top: 14px;
-    padding: 12px;
+    padding: 14px 0 8px;
     border-radius: 18px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .profile-metric-grid::-webkit-scrollbar {
+    display: none;
   }
 
   .profile-metric-item {
+    flex: 0 0 82%;
     grid-template-columns: 30px minmax(0, 1fr);
     grid-template-rows: auto auto;
     column-gap: 10px;
     row-gap: 3px;
-    min-height: auto;
-    padding: 14px 12px;
-    border-radius: 16px;
+    min-height: 120px;
+    padding: 18px 16px;
+    border-radius: 18px;
+    scroll-snap-align: start;
+    box-sizing: border-box;
   }
 
   .profile-metric-icon {
@@ -733,15 +751,15 @@
   }
 
   .profile-metric-label {
-    margin-bottom: 0;
-    font-size: 11px;
+    margin-bottom: 8px;
+    font-size: 12px;
     line-height: 1.25;
   }
 
   .profile-metric-item strong {
     margin-top: 0;
-    font-size: 13px;
-    line-height: 1.4;
+    font-size: 16px;
+    line-height: 1.5;
   }
 
   .profile-info-card,
@@ -751,8 +769,23 @@
   }
 
   .interpreter-detail-content-grid {
+    display: flex;
     gap: 12px;
     margin-top: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .interpreter-detail-content-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .interpreter-detail-content-grid .profile-info-card {
+    flex: 0 0 88%;
+    scroll-snap-align: start;
   }
 
   .profile-section-head {
