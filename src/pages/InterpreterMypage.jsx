@@ -43,6 +43,12 @@ function InterpreterMypage({
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
+  // Collapsible sections for mobile view
+  const [showIntro, setShowIntro] = useState(false);
+  const [showCareer, setShowCareer] = useState(false);
+  const [showEvents, setShowEvents] = useState(false);
+  const [showTasks, setShowTasks] = useState(false);
+
   // Profile Edit Mode States
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -888,94 +894,265 @@ function InterpreterMypage({
                         </div>
                       </form>
                     ) : (
-                      <dl className="interpreter-profile-list">
-                        <ProfileRow label="이름" value={interpreter.name || "미입력"} />
-                        <ProfileRow label="이메일" value={interpreter.email || user.email} />
-                        <ProfileRow label="연락처" value={interpreter.phone || "미입력"} />
-                        <ProfileRow label="성별" value={interpreter.gender || "미입력"} />
-                        <ProfileRow
-                          label="승인 상태"
-                          value={
-                            <span
-                              className={`status-badge ${
-                                interpreter.status === "active" || interpreter.status === "승인 완료" || interpreter.status === "활동중"
-                                  ? "badge-green"
-                                  : interpreter.status === "rejected" || interpreter.status === "반려"
-                                  ? "badge-red"
-                                  : "badge-yellow"
-                              }`}
-                            >
-                              {interpreter.status === "active" || interpreter.status === "승인 완료" || interpreter.status === "활동중"
-                                ? "승인 완료"
-                                : interpreter.status === "rejected" || interpreter.status === "반려"
-                                ? "반려"
-                                : "승인 대기"}
-                            </span>
-                          }
-                        />
-                        <ProfileRow
-                          label="활동 상태"
-                          value={
-                            <span
-                              className={`status-badge ${
-                                activityStatus === "active"
-                                  ? "badge-green"
-                                  : activityStatus === "paused"
-                                  ? "badge-yellow"
-                                  : "badge-gray"
-                              }`}
-                            >
-                              {getInterpreterActivityStatusLabel(activityStatus)}
-                            </span>
-                          }
-                        />
-                        <ProfileRow
-                          label="통역사 레벨"
-                          value={
-                            <span className="interpreter-tag-level">
-                              {normalizeLevel(interpreter.level || "Lv1")}
-                            </span>
-                          }
-                        />
-                        <ProfileRow
-                          label="전문 분야"
-                          value={
-                            <div className="interpreter-specialties-tags">
-                              {Array.isArray(interpreter.specialties) &&
-                              interpreter.specialties.filter(Boolean).length > 0 ? (
-                                interpreter.specialties
-                                  .filter(Boolean)
-                                  .map((spec, i) => (
-                                    <span key={i} className="interpreter-tag spec">
-                                      {spec}
-                                    </span>
-                                  ))
-                              ) : (
-                                <span className="no-tags">등록된 분야가 없습니다.</span>
+                      <>
+                        {/* PC Profile View */}
+                        <div className="desktop-profile-view">
+                          <dl className="interpreter-profile-list">
+                            <ProfileRow label="이름" value={interpreter.name || "미입력"} />
+                            <ProfileRow label="이메일" value={interpreter.email || user.email} />
+                            <ProfileRow label="연락처" value={interpreter.phone || "미입력"} />
+                            <ProfileRow label="성별" value={interpreter.gender || "미입력"} />
+                            <ProfileRow
+                              label="승인 상태"
+                              value={
+                                <span
+                                  className={`status-badge ${
+                                    interpreter.status === "active" || interpreter.status === "승인 완료" || interpreter.status === "활동중"
+                                      ? "badge-green"
+                                      : interpreter.status === "rejected" || interpreter.status === "반려"
+                                      ? "badge-red"
+                                      : "badge-yellow"
+                                  }`}
+                                >
+                                  {interpreter.status === "active" || interpreter.status === "승인 완료" || interpreter.status === "활동중"
+                                    ? "승인 완료"
+                                    : interpreter.status === "rejected" || interpreter.status === "반려"
+                                    ? "반려"
+                                    : "승인 대기"}
+                                </span>
+                              }
+                            />
+                            <ProfileRow
+                              label="활동 상태"
+                              value={
+                                <span
+                                  className={`status-badge ${
+                                    activityStatus === "active"
+                                      ? "badge-green"
+                                      : activityStatus === "paused"
+                                      ? "badge-yellow"
+                                      : "badge-gray"
+                                  }`}
+                                >
+                                  {getInterpreterActivityStatusLabel(activityStatus)}
+                                </span>
+                              }
+                            />
+                            <ProfileRow
+                              label="통역사 레벨"
+                              value={
+                                <span className="interpreter-tag-level">
+                                  {normalizeLevel(interpreter.level || "Lv1")}
+                                </span>
+                              }
+                            />
+                            <ProfileRow
+                              label="전문 분야"
+                              value={
+                                <div className="interpreter-specialties-tags">
+                                  {Array.isArray(interpreter.specialties) &&
+                                  interpreter.specialties.filter(Boolean).length > 0 ? (
+                                    interpreter.specialties
+                                      .filter(Boolean)
+                                      .map((spec, i) => (
+                                        <span key={i} className="interpreter-tag spec">
+                                          {spec}
+                                        </span>
+                                      ))
+                                  ) : (
+                                    <span className="no-tags">등록된 분야가 없습니다.</span>
+                                  )}
+                                </div>
+                              }
+                            />
+                            <ProfileRow
+                              label="활동 가능 지역"
+                              value={
+                                <div className="interpreter-regions-tags">
+                                  {Array.isArray(interpreter.available_regions) &&
+                                  interpreter.available_regions.filter(Boolean).length > 0 ? (
+                                    interpreter.available_regions
+                                      .filter(Boolean)
+                                      .map((reg, i) => (
+                                        <span key={i} className="interpreter-tag region">
+                                          {reg}
+                                        </span>
+                                      ))
+                                  ) : (
+                                    <span className="no-tags">등록된 지역이 없습니다.</span>
+                                  )}
+                                </div>
+                              }
+                            />
+                          </dl>
+                        </div>
+
+                        {/* Mobile Profile View */}
+                        <div className="mobile-profile-view">
+                          <div className="mobile-profile-email-card">
+                            <span className="profile-label">이메일</span>
+                            <strong className="profile-value">{interpreter.email || user.email}</strong>
+                          </div>
+
+                          <div className="mobile-profile-grid">
+                            <div className="profile-grid-item">
+                              <span className="profile-label">이름</span>
+                              <strong className="profile-value">{interpreter.name || "미입력"}</strong>
+                            </div>
+                            <div className="profile-grid-item">
+                              <span className="profile-label">성별</span>
+                              <strong className="profile-value">{interpreter.gender || "미입력"}</strong>
+                            </div>
+                            <div className="profile-grid-item">
+                              <span className="profile-label">연락처</span>
+                              <strong className="profile-value">{interpreter.phone || "미입력"}</strong>
+                            </div>
+                            <div className="profile-grid-item">
+                              <span className="profile-label">레벨</span>
+                              <strong className="profile-value">{normalizeLevel(interpreter.level || "Lv1")}</strong>
+                            </div>
+                            <div className="profile-grid-item">
+                              <span className="profile-label">승인 상태</span>
+                              <strong className="profile-value">
+                                <span
+                                  className={`status-badge ${
+                                    interpreter.status === "active" || interpreter.status === "승인 완료" || interpreter.status === "활동중"
+                                      ? "badge-green"
+                                      : interpreter.status === "rejected" || interpreter.status === "반려"
+                                      ? "badge-red"
+                                      : "badge-yellow"
+                                  }`}
+                                >
+                                  {interpreter.status === "active" || interpreter.status === "승인 완료" || interpreter.status === "활동중"
+                                    ? "승인 완료"
+                                    : interpreter.status === "rejected" || interpreter.status === "반려"
+                                    ? "반려"
+                                    : "승인 대기"}
+                                </span>
+                              </strong>
+                            </div>
+                            <div className="profile-grid-item">
+                              <span className="profile-label">활동 상태</span>
+                              <strong className="profile-value">
+                                <span
+                                  className={`status-badge ${
+                                    activityStatus === "active"
+                                      ? "badge-green"
+                                      : activityStatus === "paused"
+                                      ? "badge-yellow"
+                                      : "badge-gray"
+                                  }`}
+                                >
+                                  {getInterpreterActivityStatusLabel(activityStatus)}
+                                </span>
+                              </strong>
+                            </div>
+                            <div className="profile-grid-item">
+                              <span className="profile-label">활동 지역</span>
+                              <strong className="profile-value">
+                                {Array.isArray(interpreter.available_regions) &&
+                                interpreter.available_regions.filter(Boolean).length > 0
+                                  ? interpreter.available_regions.filter(Boolean).slice(0, 2).join(", ")
+                                  : interpreter.region || "미입력"}
+                              </strong>
+                            </div>
+                            <div className="profile-grid-item">
+                              <span className="profile-label">가능 언어</span>
+                              <strong className="profile-value">
+                                {interpreter.language_level || interpreter.jlpt || "한국어 · 일본어"}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Collapsible details for mobile */}
+                          <div className="mobile-collapsible-details">
+                            <div className="collapsible-card">
+                              <button
+                                type="button"
+                                className="collapsible-header"
+                                onClick={() => setShowIntro(!showIntro)}
+                              >
+                                <span>📝 자기소개</span>
+                                <span>{showIntro ? "접기 ▲" : "상세 정보 보기 ▼"}</span>
+                              </button>
+                              {showIntro && (
+                                <div className="collapsible-body">
+                                  <p>{interpreter.intro || interpreter.self_intro || interpreter.introduction || "등록된 자기소개가 없습니다."}</p>
+                                </div>
                               )}
                             </div>
-                          }
-                        />
-                        <ProfileRow
-                          label="활동 가능 지역"
-                          value={
-                            <div className="interpreter-regions-tags">
-                              {Array.isArray(interpreter.available_regions) &&
-                              interpreter.available_regions.filter(Boolean).length > 0 ? (
-                                interpreter.available_regions
-                                  .filter(Boolean)
-                                  .map((reg, i) => (
-                                    <span key={i} className="interpreter-tag region">
-                                      {reg}
-                                    </span>
-                                  ))
-                              ) : (
-                                <span className="no-tags">등록된 지역이 없습니다.</span>
+
+                            <div className="collapsible-card">
+                              <button
+                                type="button"
+                                className="collapsible-header"
+                                onClick={() => setShowCareer(!showCareer)}
+                              >
+                                <span>💼 경력 정보</span>
+                                <span>{showCareer ? "접기 ▲" : "상세 정보 보기 ▼"}</span>
+                              </button>
+                              {showCareer && (
+                                <div className="collapsible-body">
+                                  <p>{interpreter.career || interpreter.experience || (interpreter.experience_count ? `통역 경험 ${interpreter.experience_count}회` : "등록된 경력 정보가 없습니다.")}</p>
+                                </div>
                               )}
                             </div>
-                          }
-                        />
-                      </dl>
+
+                            <div className="collapsible-card">
+                              <button
+                                type="button"
+                                className="collapsible-header"
+                                onClick={() => setShowEvents(!showEvents)}
+                              >
+                                <span>📅 최근 참여 행사</span>
+                                <span>{showEvents ? "접기 ▲" : "상세 정보 보기 ▼"}</span>
+                              </button>
+                              {showEvents && (
+                                <div className="collapsible-body">
+                                  {(() => {
+                                    const source = interpreter.recent_events || interpreter.recent_event || interpreter.recent_projects || interpreter.event_history || interpreter.participated_events;
+                                    const eventsList = Array.isArray(source)
+                                      ? source.map(e => typeof e === "string" ? e.trim() : e?.name || e?.title || "").filter(Boolean)
+                                      : typeof source === "string"
+                                      ? source.split(/[,/]/).map(s => s.trim()).filter(Boolean)
+                                      : [];
+                                    
+                                    return eventsList.length > 0 ? (
+                                      <ul className="mobile-event-list" style={{ margin: 0, paddingLeft: "16px", listStyleType: "disc" }}>
+                                        {eventsList.map((e, idx) => (
+                                          <li key={idx} style={{ marginBottom: "4px", fontSize: "12px", color: "#4b5563" }}>{e}</li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p style={{ margin: 0 }}>등록된 최근 참여 행사가 없습니다.</p>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="collapsible-card">
+                              <button
+                                type="button"
+                                className="collapsible-header"
+                                onClick={() => setShowTasks(!showTasks)}
+                              >
+                                <span>🏅 가능 업무</span>
+                                <span>{showTasks ? "접기 ▲" : "상세 정보 보기 ▼"}</span>
+                              </button>
+                              {showTasks && (
+                                <div className="collapsible-body">
+                                  <p>
+                                    {Array.isArray(interpreter.available_tasks) && interpreter.available_tasks.filter(Boolean).length > 0
+                                      ? interpreter.available_tasks.filter(Boolean).join(", ")
+                                      : String(interpreter.available_tasks || interpreter.available_work || "등록된 가능 업무가 없습니다.")}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </>
                     )}
                   </article>
 

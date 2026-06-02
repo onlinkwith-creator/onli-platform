@@ -207,6 +207,14 @@
   align-items: start;
 }
 
+.desktop-profile-view {
+  display: block;
+}
+
+.mobile-profile-view {
+  display: none;
+}
+
 .interpreter-mypage-grid.is-unregistered {
   grid-template-columns: 1fr;
 }
@@ -918,6 +926,144 @@
     background: #f8fafc;
     border: 1px solid #cbd5e1;
     font-size: 12px !important;
+  }
+
+  /* Mobile Profile View Styles */
+  .desktop-profile-view {
+    display: none !important;
+  }
+
+  .mobile-profile-view {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .mobile-profile-email-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    text-align: left;
+  }
+
+  .mobile-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    width: 100%;
+  }
+
+  .profile-grid-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    background: #ffffff;
+    border: 1px solid #eef2f7;
+    border-radius: 12px;
+    text-align: left;
+    min-width: 0;
+  }
+
+  .mobile-profile-view .profile-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .mobile-profile-view .profile-value {
+    font-size: 13px;
+    font-weight: 800;
+    color: #1e293b;
+    word-break: break-all;
+  }
+
+  .mobile-profile-view .status-badge {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .mobile-collapsible-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  .collapsible-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    overflow: hidden;
+  }
+
+  .collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    background: #f8fafc;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    color: #1e293b;
+    outline: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .collapsible-body {
+    padding: 12px;
+    background: #ffffff;
+    text-align: left;
+  }
+
+  .collapsible-body p {
+    margin: 0;
+    font-size: 12px;
+    color: #4b5563;
+    line-height: 1.5;
+    font-weight: 550;
+  }
+
+  .card-header-with-action {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .card-header-with-action h2 {
+    font-size: 17px !important;
+  }
+
+  .profile-header-actions {
+    gap: 6px !important;
+  }
+
+  .edit-btn {
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+    height: 30px !important;
+  }
+
+  .status-selector-wrapper {
+    font-size: 11px !important;
+    gap: 4px !important;
+  }
+  
+  .interpreter-status-select {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
   }
 }
 
