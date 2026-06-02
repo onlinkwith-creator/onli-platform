@@ -513,6 +513,11 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                       공고 목록으로
                     </button>
                   </div>
+
+                  <button type="button" onClick={onBackClick} className="mobile-back-link">
+                    <ArrowLeft size={16} />
+                    통역 공고 목록
+                  </button>
                   
                   <div className="job-detail-hero-label-row">
                     <span className="job-detail-hero-kicker">JOB DETAIL</span>

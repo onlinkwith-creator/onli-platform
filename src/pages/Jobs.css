@@ -876,6 +876,10 @@
   box-shadow: 0 8px 18px rgba(79, 70, 229, 0.08);
 }
 
+.mobile-back-link {
+  display: none;
+}
+
 .job-detail-hero-label-row {
   display: flex;
   align-items: center;
@@ -1513,8 +1517,25 @@
   }
 
   .job-detail-actions-row {
-    gap: 8px;
+    display: none;
+  }
+
+  .mobile-back-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin-bottom: 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6b7280;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .mobile-back-link:hover {
+    color: #111827;
   }
 
   .job-detail-hero-label-row {
