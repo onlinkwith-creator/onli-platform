@@ -189,6 +189,10 @@ function InterpreterList({ onBackClick, onDetailClick }) {
           ← 메인으로
         </button>
 
+        <button onClick={onBackClick} className="mobile-back-link">
+          ← 메인으로
+        </button>
+
         {/* Premium Recruiter Hero Section */}
         <div className="interpreter-list-hero-content interpreter-hero">
           <div className="interpreter-list-hero-text">
