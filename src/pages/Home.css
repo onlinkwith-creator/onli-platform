@@ -2318,6 +2318,54 @@ span.home-footer-contact-item:hover {
     scroll-snap-align: unset;
   }
 
+  .home-mobile-process-slide {
+    padding: 20px 18px;
+  }
+
+  .home-mobile-process-head {
+    margin-bottom: 12px;
+  }
+
+  .home-mobile-process-list {
+    gap: 0;
+  }
+
+  .home-mobile-process-list .home-step {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .home-mobile-process-list .home-step:last-child {
+    margin-bottom: 0;
+  }
+
+  .home-mobile-process-list .home-step-number {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
+    font-size: 12px;
+  }
+
+  .home-mobile-process-list .home-step-copy {
+    padding-top: 0;
+  }
+
+  .home-mobile-process-list .home-step strong {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .home-mobile-process-list .home-step small {
+    margin-top: 3px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
   .home-footer {
     gap: 22px;
     width: calc(100% - 32px);

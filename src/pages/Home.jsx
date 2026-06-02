@@ -308,7 +308,7 @@ function Home({
           </div>
         </article>
 
-        <article className="home-mobile-overview-slide">
+        <article className="home-mobile-overview-slide home-mobile-process-slide">
           <div className="home-mobile-process-head">
             <p className="home-brand-sub">PROCESS</p>
             <h3>진행 프로세스</h3>
