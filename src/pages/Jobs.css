@@ -1518,28 +1518,17 @@
   }
 
   .job-detail-hero-label-row {
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-
-  .job-detail-hero-kicker,
-  .job-detail-hero .home-job-status {
-    max-width: 100%;
-    font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: none;
   }
 
   .job-detail-hero-title {
-    font-size: 34px;
-    line-height: 1.14;
+    display: none;
   }
 
   .job-detail-hero-meta {
-    gap: 6px;
-    font-size: 13px;
+    display: none;
   }
+
 
   .job-detail-meta-item {
     max-width: 100%;
