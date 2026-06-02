@@ -2622,8 +2622,8 @@ function RequestManagement({
   return (
     <section className="admin-section">
       <SectionTitle count={`${requests.length}건`} title="의뢰 관리" />
-      <div className="admin-filters admin-request-filters">
-        <label className="admin-search-control">
+      <div className="admin-filter-bar admin-filters admin-request-filters">
+        <label className="admin-filter-search admin-search-control">
           <Search size={16} aria-hidden="true" />
           <input
             value={filters.search}
@@ -2638,6 +2638,7 @@ function RequestManagement({
           onChange={(month) => setFilters((current) => ({ ...current, month }))}
         />
         <select
+          className="admin-filter-select"
           value={filters.status}
           onChange={(event) =>
             setFilters((current) => ({ ...current, status: event.target.value }))
@@ -2651,6 +2652,7 @@ function RequestManagement({
           ))}
         </select>
         <select
+          className="admin-filter-select"
           value={filters.public}
           onChange={(event) =>
             setFilters((current) => ({ ...current, public: event.target.value }))
@@ -2661,6 +2663,7 @@ function RequestManagement({
           <option value="false">비공개</option>
         </select>
         <select
+          className="admin-filter-select"
           value={filters.sort}
           onChange={(event) =>
             setFilters((current) => ({ ...current, sort: event.target.value }))
@@ -4390,7 +4393,7 @@ function MatchingManagement({
   return (
     <section className="admin-section">
       <SectionTitle count={`${totalCount}건`} title="매칭 관리" />
-      <div className="admin-filters admin-matching-filters">
+      <div className="admin-filter-bar admin-filters admin-matching-filters">
         <MonthFilterInput
           value={filters.month}
           onChange={(month) => setFilters((current) => ({ ...current, month }))}

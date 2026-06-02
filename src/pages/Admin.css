@@ -3086,3 +3086,135 @@
   }
 }
 
+/* --- Admin Filter Bar Compaction --- */
+.admin-filter-bar {
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-height: auto !important;
+}
+
+.admin-filter-bar .admin-search-control,
+.admin-filter-bar input,
+.admin-filter-bar select,
+.admin-filter-bar button {
+  height: 40px !important;
+  min-height: 40px !important;
+  border-radius: 12px !important;
+  font-size: 13px !important;
+  box-sizing: border-box !important;
+}
+
+.admin-filter-bar .admin-search-control input {
+  height: 38px !important;
+  min-height: 38px !important;
+}
+
+.admin-filter-bar .admin-filter-search {
+  flex: 1 !important;
+  min-width: 240px !important;
+  max-width: 360px !important;
+}
+
+.admin-filter-bar .admin-date-filter-group {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+}
+
+.admin-filter-bar .admin-date-filter-group input[type="month"] {
+  width: 130px !important;
+}
+
+.admin-filter-bar .admin-date-filter-group button {
+  min-width: 64px !important;
+  padding: 0 12px !important;
+}
+
+.admin-filter-bar .admin-date-filter-group strong {
+  display: none !important;
+}
+
+.admin-filter-bar select.admin-filter-select {
+  min-width: 140px !important;
+  max-width: 170px !important;
+}
+
+.admin-filter-bar.admin-job-filters select.admin-filter-select {
+  min-width: 130px !important;
+}
+
+.admin-filter-bar .admin-view-toggle {
+  margin-left: auto !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+}
+
+.admin-filter-bar .admin-view-toggle button {
+  height: 32px !important;
+  min-height: 32px !important;
+}
+
+@media (max-width: 768px) {
+  .admin-filter-bar {
+    padding: 10px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .admin-filter-bar .admin-filter-search {
+    grid-column: 1 / -1 !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .admin-filter-bar .admin-date-filter-group {
+    grid-column: 1 / -1 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr 1fr !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .admin-filter-bar .admin-date-filter-group .month-filter-actions {
+    display: contents !important;
+  }
+
+  .admin-filter-bar .admin-date-filter-group label {
+    grid-column: 1 !important;
+    width: 100% !important;
+  }
+  
+  .admin-filter-bar .admin-date-filter-group input[type="month"] {
+    width: 100% !important;
+  }
+
+  .admin-filter-bar .admin-date-filter-group button {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+  }
+
+  .admin-filter-bar select.admin-filter-select {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .admin-filter-bar .admin-view-toggle {
+    grid-column: 1 / -1 !important;
+    justify-content: flex-end !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}
+
+

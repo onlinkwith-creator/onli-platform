@@ -632,8 +632,8 @@ function AdminJobs({
       </section>
 
       <section className="admin-section">
-        <div className="admin-filters admin-job-filters">
-          <label className="admin-search-control">
+        <div className="admin-filter-bar admin-filters admin-job-filters">
+          <label className="admin-filter-search admin-search-control">
             <input
               value={jobFilters.search}
               onChange={(event) =>
@@ -647,6 +647,7 @@ function AdminJobs({
             onChange={(month) => setJobFilters((current) => ({ ...current, month }))}
           />
           <select
+            className="admin-filter-select"
             value={jobFilters.status}
             onChange={(event) =>
               setJobFilters((current) => ({ ...current, status: event.target.value }))
@@ -660,6 +661,7 @@ function AdminJobs({
             ))}
           </select>
           <select
+            className="admin-filter-select"
             value={jobFilters.visibility}
             onChange={(event) =>
               setJobFilters((current) => ({ ...current, visibility: event.target.value }))

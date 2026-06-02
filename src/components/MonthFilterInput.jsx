@@ -6,7 +6,7 @@ function MonthFilterInput({ value, onChange, label = "월 선택" }) {
   const nextMonth = getNextMonthValue();
 
   return (
-    <div className="month-filter-input">
+    <div className="month-filter-input admin-date-filter-group">
       <label>
         <span>{label}</span>
         <input
