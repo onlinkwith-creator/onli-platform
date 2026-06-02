@@ -2983,3 +2983,106 @@
     border-radius: 0;
   }
 }
+
+/* --- Admin Interpreter Job Card Refactoring --- */
+.job-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.job-card-top-row,
+.job-card-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.job-type-label {
+  font-size: 12px;
+  font-weight: 900;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background-color: #ede9fe;
+  color: #6d28d9;
+  flex-shrink: 0;
+}
+
+.job-status-group,
+.job-sub-status-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.job-code-badge {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #6b7280;
+  padding: 4px 8px;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.job-card-title {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 900;
+  color: #111827;
+  line-height: 1.25;
+  min-height: 44px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.status-select,
+.status-pill,
+.admin-flow-status-select {
+  height: 30px;
+  min-width: 82px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .job-card-top-row,
+  .job-card-code-row {
+    align-items: flex-start;
+  }
+
+  .job-status-group,
+  .job-sub-status-group {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 180px;
+  }
+
+  .status-select,
+  .status-pill,
+  .admin-flow-status-select {
+    min-width: 74px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .job-code-badge {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+

@@ -770,18 +770,44 @@ function JobManagementCard({
   startEdit,
   updateJob,
 }) {
+  const statuses = getOperationFlowStatuses(job);
+
   return (
     <article className="admin-list-card">
-      <div className="admin-list-card-head">
-        <div>
-          <span className="admin-card-meta">통역 공고</span>
-          <ManagementNumberBadge value={job.job_no} />
-          <h3 title={job.title || ""}>{job.event_name || job.title || "-"}</h3>
+      <div className="job-card-header">
+        <div className="job-card-top-row">
+          <span className="job-type-label">통역 공고</span>
+          <div className="job-status-group">
+            <OperationFlowSelect
+              options={ASSIGNMENT_STATUS_OPTIONS}
+              type="assignment"
+              value={statuses.assignment_status}
+              onChange={(value) => updateJob(job, getAssignmentStatusChanges({ ...job, assignment_status: value }))}
+            />
+            <OperationFlowSelect
+              options={OPERATION_STATUS_OPTIONS}
+              type="operation"
+              value={statuses.operation_status}
+              onChange={(value) => updateJob(job, getOperationStatusChanges({ ...job, operation_status: value }))}
+            />
+          </div>
         </div>
-        <OperationFlowStatusControls
-          item={job}
-          onChange={(changes) => updateJob(job, changes)}
-        />
+
+        <div className="job-card-code-row">
+          <span className="job-code-badge">{formatManagementNumber(job.job_no)}</span>
+          <div className="job-sub-status-group">
+            <OperationFlowSelect
+              options={SETTLEMENT_FLOW_STATUS_OPTIONS}
+              type="settlement"
+              value={statuses.settlement_status}
+              onChange={(value) => updateJob(job, getSettlementFlowStatusChanges({ ...job, settlement_status: value }))}
+            />
+          </div>
+        </div>
+
+        <h3 className="job-card-title" title={job.title || ""}>
+          {job.event_name || job.title || "-"}
+        </h3>
       </div>
 
       <dl className="admin-card-summary">
