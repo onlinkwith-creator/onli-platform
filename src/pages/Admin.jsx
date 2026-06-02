@@ -91,6 +91,7 @@ import "./Admin.css";
 
 const TABS = [
   { id: "requests", label: "의뢰 관리" },
+  { id: "completedRequests", label: "완료 의뢰" },
   { id: "jobs", label: "통역 공고 관리" },
   { id: "interpreters", label: "통역사 관리" },
   { id: "applications", label: "지원자 관리" },
