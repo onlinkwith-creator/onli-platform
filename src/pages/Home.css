@@ -2183,6 +2183,12 @@ span.home-footer-contact-item:hover {
     box-sizing: border-box;
   }
 
+  .home-mobile-overview-slide:not(.home-mobile-process-slide) {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
   .home-mobile-overview-slide:last-child {
     margin-right: 16px;
   }
@@ -2195,7 +2201,13 @@ span.home-footer-contact-item:hover {
     line-height: 1.25;
   }
 
-  .home-mobile-feature-list,
+  .home-mobile-feature-list {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+  }
+
   .home-mobile-process-list {
     display: grid;
     gap: 10px;
