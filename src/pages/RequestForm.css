@@ -442,7 +442,20 @@
 
 @media (max-width: 768px) {
   .request-page {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
     padding: 28px 16px 56px;
+  }
+
+  .request-container,
+  .request-form-shell,
+  .request-section-card,
+  .request-submit-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .request-hero {
@@ -503,7 +516,7 @@
 
 @media (max-width: 480px) {
   .request-page {
-    padding: 24px 12px 48px;
+    padding: 24px 16px 48px;
   }
 
   .request-hero h1 {
@@ -521,8 +534,8 @@
   }
 
   .request-step-card {
-    margin-right: -12px;
-    margin-left: -12px;
+    margin-right: 0;
+    margin-left: 0;
     border-right: 0;
     border-left: 0;
     border-radius: 0;

@@ -1656,7 +1656,10 @@ span.home-footer-contact-item:hover {
 @media (max-width: 768px) {
   .home-page {
     --home-section-gap: 36px;
-    --home-section-padding-x: 20px;
+    --home-section-padding-x: 16px;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
     padding: 0 0 42px;
   }
 
@@ -1798,9 +1801,9 @@ span.home-footer-contact-item:hover {
   /* ── 통역 공고 / 통역사 카드: 모바일 1장씩 ── */
   .home-job-card,
   .home-interpreter-card {
-    flex: 0 0 min(340px, 100%);
+    flex: 0 0 100%;
     width: 100%;
-    max-width: 340px;
+    max-width: 100%;
     min-height: 0;
     margin: 0 auto;
     padding: 18px;
@@ -1981,7 +1984,7 @@ span.home-footer-contact-item:hover {
 
   .home-footer {
     gap: 22px;
-    width: calc(100% - 40px);
+    width: calc(100% - 32px);
     margin: 56px auto 32px;
     padding: 32px 20px;
     border-radius: 24px;
@@ -2122,7 +2125,7 @@ span.home-footer-contact-item:hover {
 
 @media (max-width: 480px) {
   .home-page {
-    --home-section-padding-x: 20px;
+    --home-section-padding-x: 16px;
   }
 
 
@@ -2171,28 +2174,28 @@ span.home-footer-contact-item:hover {
   }
 
   .home-job-carousel {
-    padding-inline: calc((100vw - min(380px, calc(100vw - 48px))) / 2);
+    padding-inline: 0;
   }
 
   .home-job-card,
   .home-interpreter-card {
-    flex: 0 0 calc(100vw - 44px);
-    width: calc(100vw - 44px);
-    max-width: 360px;
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
     padding: 18px;
   }
 
   .home-job-carousel {
-    padding-inline: max(14px, calc((100vw - min(360px, calc(100vw - 44px))) / 2));
+    padding-inline: 0;
   }
 
   .home-interpreter-grid {
-    padding-inline: max(14px, calc((100vw - min(360px, calc(100vw - 44px))) / 2));
+    padding-inline: 0;
   }
 
   .home-footer {
-    width: calc(100% - 24px);
-    padding: 26px 14px;
+    width: calc(100% - 32px);
+    padding: 26px 16px;
   }
 
   .home-footer-contact,

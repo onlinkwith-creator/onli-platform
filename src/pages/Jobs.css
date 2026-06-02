@@ -1446,12 +1446,26 @@
 
 @media (max-width: 768px) {
   .job-detail-page {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
     padding-top: 16px;
     padding-bottom: 40px;
   }
 
   .job-detail-container {
-    width: min(100% - 32px, 1160px);
+    width: calc(100% - 32px);
+    max-width: none;
+    min-width: 0;
+  }
+
+  .job-info-card,
+  .job-apply-card,
+  .job-detail-hero-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .job-detail-hero {
@@ -1533,8 +1547,27 @@
 
 @media (max-width: 768px) {
   .jobs-page {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
     padding-top: 40px;
     padding-bottom: 40px;
+  }
+
+  .jobs-shell,
+  .jobs-hero-container,
+  .jobs-filter-card,
+  .jobs-card-grid,
+  .jobs-card-grid .home-job-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .jobs-shell {
+    padding-right: 16px;
+    padding-left: 16px;
   }
 
   .jobs-hero-container {

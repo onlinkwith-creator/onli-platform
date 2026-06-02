@@ -878,6 +878,44 @@
 }
 
 @media (max-width: 768px) {
+  .interpreter-auth-page,
+  .interpreter-mypage {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .interpreter-auth-card,
+  .interpreter-mypage-shell,
+  .interpreter-mypage-head,
+  .interpreter-mypage-card,
+  .interpreter-mypage-tile,
+  .mypage-verification-card,
+  .interpreter-application-card,
+  .interpreter-assignment-card,
+  .timeline-content-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .interpreter-mypage-card,
+  .mypage-verification-card {
+    padding: 22px;
+  }
+
+  .interpreter-mypage-tabs {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .timeline-item {
+    min-width: 0;
+  }
+
   .form-group-grid,
   .form-subgroup-grid {
     grid-template-columns: 1fr;
@@ -1146,4 +1184,36 @@
 
 .file-download-btn:hover {
   background: #e0e7ff;
+}
+
+@media (max-width: 768px) {
+  .interpreter-auth-page,
+  .interpreter-mypage {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .interpreter-auth-card,
+  .interpreter-mypage-shell,
+  .interpreter-mypage-head,
+  .interpreter-mypage-card,
+  .interpreter-mypage-tile,
+  .mypage-verification-card,
+  .interpreter-application-card,
+  .interpreter-assignment-card,
+  .timeline-content-card,
+  .resume-selected-file-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .interpreter-mypage-card,
+  .mypage-verification-card {
+    padding: 22px;
+  }
 }

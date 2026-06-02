@@ -571,7 +571,21 @@
 
 @media (max-width: 768px) {
   .interpreter-detail-page {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
     padding: 28px 16px 56px;
+  }
+
+  .interpreter-detail-container,
+  .profile-hero-card,
+  .profile-info-card,
+  .profile-bottom-cta,
+  .interpreter-detail-message {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .interpreter-detail-back {
@@ -651,7 +665,7 @@
 
 @media (max-width: 430px) {
   .interpreter-detail-page {
-    padding: 22px 12px 48px;
+    padding: 22px 16px 48px;
   }
 
   .profile-hero-card,

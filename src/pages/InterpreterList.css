@@ -764,7 +764,20 @@
 
 @media (max-width: 768px) {
   .interpreter-list-page {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
     padding: 32px 16px 80px;
+  }
+
+  .interpreter-list-shell,
+  .interpreter-list-hero-content,
+  .interpreter-list-filter-card,
+  .interpreter-list-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .interpreter-list-hero-content {
@@ -801,7 +814,7 @@
 
 @media (max-width: 480px) {
   .interpreter-list-page {
-    padding: 24px 12px 64px;
+    padding: 24px 16px 64px;
   }
 
   .interpreter-list-filter-card {

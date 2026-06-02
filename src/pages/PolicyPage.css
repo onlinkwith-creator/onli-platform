@@ -249,7 +249,6 @@
 
 .policy-sidebar-nav a:hover .nav-bullet {
   background: #94a3b8;
-  transform: scale(1.2);
 }
 
 .policy-sidebar-nav a.active {
@@ -260,7 +259,6 @@
 
 .policy-sidebar-nav a.active .nav-bullet {
   background: #4f46e5;
-  transform: scale(1.4);
 }
 
 /* 오른쪽 콘텐츠 영역 */
@@ -443,5 +441,28 @@
 
   .policy-section-body li {
     font-size: 14.5px;
+  }
+}
+
+@media (max-width: 768px) {
+  .policy-page,
+  .policy-container,
+  .policy-footer,
+  .policy-footer-container,
+  .policy-section {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .policy-container {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .policy-sidebar-nav a:hover .nav-bullet,
+  .policy-sidebar-nav a.active .nav-bullet {
+    transform: none;
   }
 }

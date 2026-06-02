@@ -552,7 +552,6 @@
 }
 
 .register-chip.is-selected {
-  transform: scale(1.02);
   border-color: #4f46e5;
   background: #4f46e5;
   color: #ffffff;
@@ -682,7 +681,22 @@
 
 @media (max-width: 768px) {
   .register-page {
-    padding: 24px 14px 44px;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 24px 16px 44px;
+  }
+
+  .register-shell,
+  .register-hero,
+  .register-hero-copy,
+  .register-sidebar-card,
+  .register-section-card,
+  .register-submit-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .register-hero-copy,
@@ -735,6 +749,10 @@
     gap: 10px;
   }
 
+  .register-chip.is-selected {
+    transform: none;
+  }
+
   .register-selected-summary {
     max-width: none;
     width: 100%;
@@ -754,8 +772,8 @@
 
 @media (max-width: 420px) {
   .register-page {
-    padding-right: 10px;
-    padding-left: 10px;
+    padding-right: 16px;
+    padding-left: 16px;
   }
 
   .register-hero-copy,
