@@ -1521,3 +1521,35 @@
   margin-left: auto;
 }
 
+/* Profile Edit Form Premium Theme Colors */
+.profile-edit-form input,
+.profile-edit-form textarea,
+.profile-edit-form select {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.profile-edit-form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.profile-edit-form input:focus,
+.profile-edit-form textarea:focus,
+.profile-edit-form select:focus {
+  outline: none !important;
+  border-color: #6d5dfc !important;
+  box-shadow: 0 0 0 3px rgba(109, 93, 252, 0.12) !important;
+}
+
+/* Also add disabled style for level in profile form */
+.profile-edit-form select:disabled,
+.profile-edit-form input:disabled {
+  background: #f3f4f6 !important;
+  color: #9ca3af !important;
+  cursor: not-allowed;
+  border: 1px solid #e5e7eb !important;
+}
+
+

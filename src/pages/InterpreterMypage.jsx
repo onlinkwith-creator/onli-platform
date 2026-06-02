@@ -69,6 +69,120 @@ function InterpreterMypage({
   const [resumeFile, setResumeFile] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
+  const fetchInterpreterProfile = async () => {
+    if (authLoading) return;
+
+    if (!user) {
+      setStatus("signedOut");
+      setLoading(false);
+      return;
+    }
+
+    if (!supabase) {
+      setMessage(supabaseConfigError.message);
+      setStatus("error");
+      setLoading(false);
+      return;
+    }
+
+    const normalizedUserEmail = normalizeEmail(user.email);
+    if (!normalizedUserEmail) {
+      setMessage("로그인 계정 이메일을 확인할 수 없습니다.");
+      setStatus("error");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    setStatus("loading");
+    console.log("current user:", user);
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .select("*")
+      .ilike("email", normalizedUserEmail);
+
+    if (error) {
+      console.error("Interpreter profile fetch failed", error);
+      setMessage("통역사 정보를 불러오지 못했습니다.");
+      setStatus("error");
+      setLoading(false);
+      return;
+    }
+
+    let matches = (data || []).filter(
+      (item) => normalizeEmail(item.email) === normalizedUserEmail
+    );
+
+    if (matches.length === 0) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("interpreters")
+        .select("*");
+
+      if (fallbackError) {
+        console.error("Interpreter profile fallback fetch failed", fallbackError);
+        setMessage("통역사 정보를 불러오지 못했습니다.");
+        setStatus("error");
+        setLoading(false);
+        return;
+      }
+
+      matches = (fallbackData || []).filter(
+        (item) => normalizeEmail(item.email) === normalizedUserEmail
+      );
+    }
+
+    if (matches.length > 1) {
+      console.warn("Duplicate interpreter email found", {
+        email: normalizedUserEmail,
+        ids: matches.map((item) => item.id),
+      });
+    }
+
+    const nextInterpreter = matches[0] || null;
+    setInterpreter(nextInterpreter);
+    setStatus(nextInterpreter ? "ready" : "notRegistered");
+
+    if (nextInterpreter) {
+      // Link auth_user_id if not present
+      if (
+        Object.prototype.hasOwnProperty.call(nextInterpreter, "auth_user_id") &&
+        !nextInterpreter.auth_user_id
+      ) {
+        const { data: updated, error: updateError } = await supabase
+          .from("interpreters")
+          .update({ auth_user_id: user.id })
+          .eq("id", nextInterpreter.id)
+          .select("*")
+          .single();
+
+        if (updateError) {
+          console.warn("Interpreter auth_user_id update skipped", updateError);
+        } else {
+          setInterpreter(updated || nextInterpreter);
+        }
+      }
+
+      // Fetch applications and matchings dynamically
+      setLoadingData(true);
+      try {
+        const [apps, mats] = await Promise.all([
+          fetchApplicationsData(nextInterpreter.id),
+          fetchMatchingsData(nextInterpreter.id),
+        ]);
+        setApplications(apps);
+        setMatchings(mats);
+      } catch (err) {
+        console.error("Failed to load applications/matchings", err);
+      } finally {
+        setLoadingData(false);
+      }
+    }
+
+    setLoading(false);
+  };
+
   const handleStartEdit = () => {
     if (!interpreter) return;
     setEditForm({
@@ -76,8 +190,8 @@ function InterpreterMypage({
       phone: interpreter.phone || "",
       gender: interpreter.gender || "",
       level: interpreter.level || "Lv1",
-      intro: interpreter.intro || interpreter.self_intro || interpreter.introduction || "",
-      career: interpreter.career || "",
+      intro: interpreter.short_intro || interpreter.intro || interpreter.self_intro || interpreter.introduction || "",
+      career: interpreter.strength || interpreter.career || interpreter.experience || "",
       available_tasks: interpreter.available_tasks || interpreter.available_work || "",
     });
     setSpecialtiesInput(
@@ -125,10 +239,12 @@ function InterpreterMypage({
       gender: editForm.gender,
       specialties,
       available_regions,
-      intro: editForm.intro,
-      career: editForm.career,
+      short_intro: editForm.intro,
+      strength: editForm.career,
       available_tasks: editForm.available_tasks,
     };
+
+    console.log("Updating interpreter profile. Payload:", payload);
 
     const { data, error } = await supabase
       .from("interpreters")
@@ -138,12 +254,14 @@ function InterpreterMypage({
       .single();
 
     if (error) {
-      console.error("Failed to update interpreter profile", error);
-      alert("프로필 수정에 실패했습니다. 다시 시도해주세요.");
+      console.error("Failed to update interpreter profile. Error details:", error);
+      alert(`프로필 수정에 실패했습니다. (사유: ${error.message || "알 수 없는 오류"})`);
     } else {
       setInterpreter(data);
       setIsEditingProfile(false);
       alert("프로필 정보가 성공적으로 수정되었습니다.");
+      // Refetch the full profile to sync all DB states immediately
+      await fetchInterpreterProfile();
     }
     setIsUpdatingProfile(false);
   };
@@ -429,121 +547,7 @@ function InterpreterMypage({
   };
 
   useEffect(() => {
-    const fetchInterpreter = async () => {
-      if (authLoading) return;
-
-      if (!user) {
-        setStatus("signedOut");
-        setLoading(false);
-        return;
-      }
-
-      if (!supabase) {
-        setMessage(supabaseConfigError.message);
-        setStatus("error");
-        setLoading(false);
-        return;
-      }
-
-      const normalizedUserEmail = normalizeEmail(user.email);
-      if (!normalizedUserEmail) {
-        setMessage("로그인 계정 이메일을 확인할 수 없습니다.");
-        setStatus("error");
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setMessage("");
-      setStatus("loading");
-      console.log("current user:", user);
-
-      const { data, error } = await supabase
-        .from("interpreters")
-        .select("*")
-        .ilike("email", normalizedUserEmail);
-
-      if (error) {
-        console.error("Interpreter profile fetch failed", error);
-        setMessage("통역사 정보를 불러오지 못했습니다.");
-        setStatus("error");
-        setLoading(false);
-        return;
-      }
-
-      let matches = (data || []).filter(
-        (item) => normalizeEmail(item.email) === normalizedUserEmail
-      );
-
-      if (matches.length === 0) {
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from("interpreters")
-          .select("*");
-
-        if (fallbackError) {
-          console.error("Interpreter profile fallback fetch failed", fallbackError);
-          setMessage("통역사 정보를 불러오지 못했습니다.");
-          setStatus("error");
-          setLoading(false);
-          return;
-        }
-
-        matches = (fallbackData || []).filter(
-          (item) => normalizeEmail(item.email) === normalizedUserEmail
-        );
-      }
-
-      if (matches.length > 1) {
-        console.warn("Duplicate interpreter email found", {
-          email: normalizedUserEmail,
-          ids: matches.map((item) => item.id),
-        });
-      }
-
-      const nextInterpreter = matches[0] || null;
-      setInterpreter(nextInterpreter);
-      setStatus(nextInterpreter ? "ready" : "notRegistered");
-
-      if (nextInterpreter) {
-        // Link auth_user_id if not present
-        if (
-          Object.prototype.hasOwnProperty.call(nextInterpreter, "auth_user_id") &&
-          !nextInterpreter.auth_user_id
-        ) {
-          const { data: updated, error: updateError } = await supabase
-            .from("interpreters")
-            .update({ auth_user_id: user.id })
-            .eq("id", nextInterpreter.id)
-            .select("*")
-            .single();
-
-          if (updateError) {
-            console.warn("Interpreter auth_user_id update skipped", updateError);
-          } else {
-            setInterpreter(updated || nextInterpreter);
-          }
-        }
-
-        // Fetch applications and matchings dynamically
-        setLoadingData(true);
-        try {
-          const [apps, mats] = await Promise.all([
-            fetchApplicationsData(nextInterpreter.id),
-            fetchMatchingsData(nextInterpreter.id),
-          ]);
-          setApplications(apps);
-          setMatchings(mats);
-        } catch (err) {
-          console.error("Failed to load applications/matchings", err);
-        } finally {
-          setLoadingData(false);
-        }
-      }
-
-      setLoading(false);
-    };
-
-    queueMicrotask(fetchInterpreter);
+    queueMicrotask(fetchInterpreterProfile);
   }, [authLoading, user]);
 
   const handleUpdateActivityStatus = async (newStatus) => {
@@ -811,7 +815,7 @@ function InterpreterMypage({
                     </div>
 
                     {isEditingProfile ? (
-                      <form onSubmit={handleUpdateProfile} className="interpreter-edit-profile-form" style={{ marginTop: "20px" }}>
+                      <form onSubmit={handleUpdateProfile} className="interpreter-edit-profile-form profile-edit-form" style={{ marginTop: "20px" }}>
                         <div className="form-group-grid">
                           <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
                             <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>이름</span>
@@ -1052,7 +1056,7 @@ function InterpreterMypage({
                           <div className="desktop-profile-details">
                             <div className="desktop-profile-details-card">
                               <h3>📝 자기소개</h3>
-                              <p>{interpreter.intro || interpreter.self_intro || interpreter.introduction || "등록된 자기소개가 없습니다."}</p>
+                              <p>{interpreter.short_intro || interpreter.intro || interpreter.self_intro || interpreter.introduction || "등록된 자기소개가 없습니다."}</p>
                             </div>
 
                             <div className="desktop-profile-details-card">
@@ -1060,7 +1064,7 @@ function InterpreterMypage({
                                 <span>💼 경력 정보</span>
                                 <span className="career-count-badge">통역 경험 {interpreter.experience_count || 0}회</span>
                               </h3>
-                              <p>{interpreter.career || interpreter.experience || "등록된 경력 정보가 없습니다."}</p>
+                              <p>{interpreter.strength || interpreter.career || interpreter.experience || "등록된 경력 정보가 없습니다."}</p>
                             </div>
 
                             <div className="desktop-profile-details-card">
@@ -1179,7 +1183,7 @@ function InterpreterMypage({
                               </button>
                               {showIntro && (
                                 <div className="collapsible-body">
-                                  <p>{interpreter.intro || interpreter.self_intro || interpreter.introduction || "등록된 자기소개가 없습니다."}</p>
+                                  <p>{interpreter.short_intro || interpreter.intro || interpreter.self_intro || interpreter.introduction || "등록된 자기소개가 없습니다."}</p>
                                 </div>
                               )}
                             </div>
@@ -1195,7 +1199,7 @@ function InterpreterMypage({
                               </button>
                               {showCareer && (
                                 <div className="collapsible-body">
-                                  <p>{interpreter.career || interpreter.experience || (interpreter.experience_count ? `통역 경험 ${interpreter.experience_count}회` : "등록된 경력 정보가 없습니다.")}</p>
+                                  <p>{interpreter.strength || interpreter.career || interpreter.experience || (interpreter.experience_count ? `통역 경험 ${interpreter.experience_count}회` : "등록된 경력 정보가 없습니다.")}</p>
                                 </div>
                               )}
                             </div>
