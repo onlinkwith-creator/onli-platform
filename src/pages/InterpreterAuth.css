@@ -177,7 +177,7 @@
   justify-content: space-between;
   gap: 18px;
   align-items: flex-start;
-  padding: 28px;
+  padding: 24px;
 }
 
 .interpreter-mypage-head h1,
@@ -190,7 +190,7 @@
 }
 
 .interpreter-mypage-head h1 {
-  font-size: 30px;
+  font-size: 26px;
 }
 
 .interpreter-mypage-actions {
@@ -202,8 +202,8 @@
 .interpreter-mypage-grid {
   display: grid;
   grid-template-columns: 240px 1fr;
-  gap: 24px;
-  margin-top: 24px;
+  gap: 22px;
+  margin-top: 22px;
   align-items: start;
 }
 
@@ -257,8 +257,8 @@
 .interpreter-mypage-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-top: 24px;
+  gap: 14px;
+  margin-top: 22px;
 }
 
 .mobile-stat-grid {
@@ -269,7 +269,8 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px;
+  padding: 22px;
+  min-height: auto;
   background: #ffffff;
   border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: 16px;
