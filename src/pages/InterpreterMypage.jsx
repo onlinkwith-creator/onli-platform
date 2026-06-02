@@ -680,6 +680,51 @@ function InterpreterMypage({
               </div>
             </section>
 
+            {/* Mobile Stats Dashboard */}
+            <section className="mobile-stat-grid">
+              <div className="stat-card">
+                <div className="stat-label-row">
+                  <span className="stat-emoji">📄</span>
+                  <span className="stat-label">지원 건수</span>
+                </div>
+                <span className="stat-value">{applications.length}건</span>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-label-row">
+                  <span className="stat-emoji">💼</span>
+                  <span className="stat-label">배정 완료</span>
+                </div>
+                <span className="stat-value">
+                  {
+                    matchings.filter((m) =>
+                      ["assigned", "confirmed", "in_progress", "completed", "settled"].includes(
+                        String(m.status || "").toLowerCase()
+                      )
+                    ).length
+                  }건
+                </span>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-label-row">
+                  <span className="stat-emoji">🏅</span>
+                  <span className="stat-label">통역 레벨</span>
+                </div>
+                <span className="stat-value">{normalizeLevel(interpreter?.level || "Lv1")}</span>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-label-row">
+                  <span className="stat-emoji">●</span>
+                  <span className="stat-label">활동 상태</span>
+                </div>
+                <span className={`stat-value status-${activityStatus}`}>
+                  {getInterpreterActivityStatusLabel(activityStatus)}
+                </span>
+              </div>
+            </section>
+
             {/* Dashboard Workspace */}
             <section className="interpreter-mypage-grid">
               {/* Sidebar Tabs */}

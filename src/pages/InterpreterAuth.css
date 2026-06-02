@@ -245,6 +245,10 @@
   margin-top: 24px;
 }
 
+.mobile-stat-grid {
+  display: none;
+}
+
 .mypage-stat-card {
   display: flex;
   align-items: center;
@@ -818,11 +822,102 @@
     overflow-x: auto;
     padding-bottom: 4px;
   }
-  
+
   .mypage-tab-btn {
     white-space: nowrap;
     width: auto;
     padding: 10px 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .interpreter-mypage-stats {
+    display: none !important;
+  }
+
+  .mobile-stat-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .stat-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 14px;
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 16px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.02);
+    box-sizing: border-box;
+    text-align: left;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(91, 92, 240, 0.05);
+  }
+
+  .stat-label-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .stat-emoji {
+    font-size: 13px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .stat-card .stat-label {
+    font-size: 11px !important;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 18px !important;
+    font-weight: 800;
+    color: #0f172a;
+    margin-top: 0;
+  }
+
+  .stat-card .stat-value.status-active {
+    color: #047857;
+    width: fit-content;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    font-size: 12px !important;
+  }
+
+  .stat-card .stat-value.status-paused {
+    color: #b45309;
+    width: fit-content;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    font-size: 12px !important;
+  }
+
+  .stat-card .stat-value.status-inactive {
+    color: #475569;
+    width: fit-content;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    font-size: 12px !important;
   }
 }
 
