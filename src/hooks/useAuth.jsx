@@ -1,7 +1,7 @@
 import { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 
-// 관리자 이메일 목록 (DB 없이 이메일 기반으로만 판정)
+// 관리자 이메일 하드코딩 (DB 장애/누락 시 최종 백업)
 export const ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
   "onlinkcp@gmail.com",
@@ -14,13 +14,22 @@ export function normalizeEmail(value) {
 
 /**
  * 관리자 판정 통합 함수
- * admin_users 테이블 없이 ADMIN_EMAILS 이메일 기반으로만 판정
+ * 1순위: ADMIN_EMAILS 하드코딩 (DB 없어도 항상 적용)
+ * 2순위: admin_users DB 레코드 (status === "active")
  */
-export function isAdminUser(user) {
+export function isAdminUser(user, adminProfile) {
   if (!user) return false;
   const email = normalizeEmail(user.email);
   if (!email) return false;
-  return ADMIN_EMAILS.includes(email);
+  // 1. 하드코딩 이메일 백업
+  if (ADMIN_EMAILS.includes(email)) return true;
+  // 2. DB 레코드 기반
+  if (
+    adminProfile &&
+    normalizeEmail(adminProfile.email) === email &&
+    adminProfile.status === "active"
+  ) return true;
+  return false;
 }
 
 function getAuthError() {
@@ -40,12 +49,15 @@ const AuthContext = createContext({
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
+  const [adminProfile, setAdminProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const authError = getAuthError();
 
   useEffect(() => {
     if (!supabase) {
       queueMicrotask(() => {
+        setAuthReady(true);
         setLoading(false);
       });
       return undefined;
@@ -59,7 +71,7 @@ export function AuthProvider({ children }) {
       if (error) console.error("Auth session fetch failed", error);
       setSession(data?.session || null);
       setUser(data?.session?.user || null);
-      setLoading(false);
+      setAuthReady(true);
     });
 
     // 2. Listen for auth state changes
@@ -70,7 +82,7 @@ export function AuthProvider({ children }) {
       console.log("onAuthStateChange event:", event, nextSession);
       setSession(nextSession || null);
       setUser(nextSession?.user || null);
-      setLoading(false);
+      setAuthReady(true);
     });
 
     return () => {
@@ -78,6 +90,46 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  // admin_users 테이블에서 프로필 조회 (실패해도 이메일 백업으로 판정)
+  useEffect(() => {
+    if (!authReady) return;
+
+    if (!supabase || !user) {
+      setAdminProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
+    const fetchAdminProfile = async () => {
+      const email = normalizeEmail(user.email);
+      const { data, error } = await supabase
+        .from("admin_users")
+        .select("id, email, role, status, created_at")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      if (error) {
+        // 테이블이 없거나 조회 실패 시 → 이메일 백업으로 판정
+        console.warn("admin_users fetch skipped (table may not exist):", error.message);
+        setAdminProfile(null);
+      } else {
+        setAdminProfile(data || null);
+      }
+
+      setLoading(false);
+    };
+
+    fetchAdminProfile();
+
+    return () => {
+      mounted = false;
+    };
+  }, [authReady, user]);
 
   const signOut = useCallback(async () => {
     if (!supabase) return { error: supabaseConfigError };
@@ -135,9 +187,7 @@ export function AuthProvider({ children }) {
     };
   }, [user]);
 
-  const isAdmin = isAdminUser(user);
-  // adminProfile은 admin_users 테이블 제거로 항상 null (하위 호환성 유지)
-  const adminProfile = null;
+  const isAdmin = isAdminUser(user, adminProfile);
 
   return (
     <AuthContext.Provider
