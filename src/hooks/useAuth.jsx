@@ -5,6 +5,26 @@ export const ADMIN_EMAILS = [
   "onlinkcp@gmail.com",
 ];
 
+/**
+ * 관리자 판정 통합 함수
+ * 1순위: ADMIN_EMAILS 하드코딩 (DB 장애/누락 시에도 항상 적용)
+ * 2순위: admin_users DB 레코드 (status === "active")
+ */
+export function isAdminUser(user, adminProfile) {
+  if (!user) return false;
+  const email = normalizeEmail(user.email);
+  if (!email) return false;
+  // 1. 하드코딩 이메일 백업
+  if (ADMIN_EMAILS.includes(email)) return true;
+  // 2. DB 레코드 기반
+  if (
+    adminProfile &&
+    normalizeEmail(adminProfile.email) === email &&
+    adminProfile.status === "active"
+  ) return true;
+  return false;
+}
+
 const AuthContext = createContext({
   session: null,
   user: null,
@@ -192,13 +212,7 @@ export function AuthProvider({ children }) {
     };
   }, [user]);
 
-  const userEmail = user?.email ? normalizeEmail(user.email) : "";
-  const isAdmin = Boolean(
-    userEmail &&
-      adminProfile &&
-      normalizeEmail(adminProfile.email) === userEmail &&
-      adminProfile.status === "active"
-  );
+  const isAdmin = isAdminUser(user, adminProfile);
 
   return (
     <AuthContext.Provider
