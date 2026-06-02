@@ -2814,50 +2814,52 @@ function AdminRequestCard({
   );
 
   return (
-    <article className="admin-request-card">
-      <div className="admin-request-card-head">
-        <div>
-          <ManagementNumberBadge value={request.request_no} />
-          <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
-          <p>{request.company_name || "-"}</p>
+    <article className="admin-request-card request-card">
+      <div className="request-card-body">
+        <div className="admin-request-card-head">
+          <div>
+            <ManagementNumberBadge value={request.request_no} />
+            <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
+            <p>{request.company_name || "-"}</p>
+          </div>
+          <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(headlineStatus.type, headlineStatus.value)}`}>
+            {headlineStatus.label}
+          </span>
         </div>
-        <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(headlineStatus.type, headlineStatus.value)}`}>
-          {headlineStatus.label}
-        </span>
+
+        <div className="admin-status-badge-row">
+          <FlowStatusBadge
+            type="assignment"
+            value={statuses.assignment_status}
+            label={getOperationStatusOptionLabel(ASSIGNMENT_STATUS_OPTIONS, statuses.assignment_status)}
+          />
+          <FlowStatusBadge
+            type="operation"
+            value={statuses.operation_status}
+            label={getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, statuses.operation_status)}
+          />
+          <FlowStatusBadge
+            type="settlement"
+            value={statuses.settlement_status}
+            label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
+          />
+        </div>
+
+        <dl className="admin-request-summary admin-request-summary-clean">
+          <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+          <Info label="날짜" value={requestDate} />
+          <Info label="장소" value={request.event_location || "-"} />
+          <Info label="배정 통역사" value={assignedInterpreterName || designatedInterpreterName || "-"} />
+        </dl>
+
+        <OperationFlowStatusControls
+          item={flowSource}
+          disabled={savingKey === `request-${request.id}`}
+          onChange={(changes) => updateRequestFlowStatus(request, changes)}
+        />
       </div>
 
-      <div className="admin-status-badge-row">
-        <FlowStatusBadge
-          type="assignment"
-          value={statuses.assignment_status}
-          label={getOperationStatusOptionLabel(ASSIGNMENT_STATUS_OPTIONS, statuses.assignment_status)}
-        />
-        <FlowStatusBadge
-          type="operation"
-          value={statuses.operation_status}
-          label={getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, statuses.operation_status)}
-        />
-        <FlowStatusBadge
-          type="settlement"
-          value={statuses.settlement_status}
-          label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
-        />
-      </div>
-
-      <dl className="admin-request-summary admin-request-summary-clean">
-        <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
-        <Info label="날짜" value={requestDate} />
-        <Info label="장소" value={request.event_location || "-"} />
-        <Info label="배정 통역사" value={assignedInterpreterName || designatedInterpreterName || "-"} />
-      </dl>
-
-      <OperationFlowStatusControls
-        item={flowSource}
-        disabled={savingKey === `request-${request.id}`}
-        onChange={(changes) => updateRequestFlowStatus(request, changes)}
-      />
-
-      <div className="admin-request-actions">
+      <div className="admin-request-actions request-card-actions">
         <button
           type="button"
           className="admin-link-button primary"
@@ -2872,15 +2874,6 @@ function AdminRequestCard({
         >
           상세보기
         </button>
-        {request.job_id && (
-          <button
-            type="button"
-            className="admin-link-button"
-            onClick={() => openRequestModal("edit", request)}
-          >
-            수정
-          </button>
-        )}
         <details className="admin-more-menu">
           <summary aria-label="더보기">
             <MoreHorizontal size={18} aria-hidden="true" />
@@ -2903,6 +2896,17 @@ function AdminRequestCard({
             </button>
           </div>
         </details>
+      </div>
+
+      <div className="request-card-edit-row">
+        <button
+          type="button"
+          className="admin-link-button request-edit-button"
+          onClick={() => openRequestModal("edit", request)}
+        >
+          수정
+        </button>
+        <div />
       </div>
     </article>
   );
