@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Briefcase,
@@ -2978,6 +2978,8 @@ function AdminRequestCard({
   updateRequestFlowStatus,
   openRequestModal,
 }) {
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const moreMenuRef = useRef(null);
   const job = request.job_id ? jobsById.get(request.job_id) : null;
   const linkedRequest = request.job_id ? requestsByJobId.get(String(request.job_id)) : null;
   const flowSource = getRequestFlowSource(request, job);
@@ -2998,6 +3000,21 @@ function AdminRequestCard({
     request.end_date,
     request.event_date
   );
+
+  useEffect(() => {
+    if (!isMoreOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!moreMenuRef.current?.contains(event.target)) {
+        setIsMoreOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isMoreOpen]);
+
+  const closeMoreMenu = () => setIsMoreOpen(false);
 
   return (
     <article className="admin-request-card request-card">
@@ -3060,39 +3077,53 @@ function AdminRequestCard({
         >
           상세보기
         </button>
-        <details className="admin-more-menu">
-          <summary aria-label="더보기">
+        <div className="admin-more-menu request-more-wrapper" ref={moreMenuRef}>
+          <button
+            type="button"
+            className="request-more-trigger"
+            aria-label="더보기"
+            aria-expanded={isMoreOpen}
+            onClick={() => setIsMoreOpen((current) => !current)}
+          >
             <MoreHorizontal size={18} aria-hidden="true" />
-          </summary>
-          <div>
-            <button
-              type="button"
-              disabled={savingKey === `request-job-${request.id}`}
-              onClick={() => openRequestModal("visibility", request)}
-            >
-              {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
-            </button>
-            <button
-              type="button"
-              className="danger"
-              disabled={savingKey === `request-delete-${request.id}`}
-              onClick={() => openRequestModal("delete", request)}
-            >
-              삭제
-            </button>
-          </div>
-        </details>
-      </div>
-
-      <div className="request-card-edit-row">
-        <button
-          type="button"
-          className="admin-link-button request-edit-button"
-          onClick={() => openRequestModal("edit", request)}
-        >
-          수정
-        </button>
-        <div />
+          </button>
+          {isMoreOpen && (
+            <div className="request-more-menu">
+              <button
+                type="button"
+                className="request-more-item"
+                onClick={() => {
+                  openRequestModal("edit", request);
+                  closeMoreMenu();
+                }}
+              >
+                수정
+              </button>
+              <button
+                type="button"
+                className="request-more-item"
+                disabled={savingKey === `request-job-${request.id}`}
+                onClick={() => {
+                  openRequestModal("visibility", request);
+                  closeMoreMenu();
+                }}
+              >
+                {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
+              </button>
+              <button
+                type="button"
+                className="request-more-item danger"
+                disabled={savingKey === `request-delete-${request.id}`}
+                onClick={() => {
+                  openRequestModal("delete", request);
+                  closeMoreMenu();
+                }}
+              >
+                삭제
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </article>
   );
