@@ -56,6 +56,9 @@ function InterpreterMypage({
     phone: "",
     gender: "",
     level: "Lv1",
+    intro: "",
+    career: "",
+    available_tasks: "",
   });
   const [specialtiesInput, setSpecialtiesInput] = useState("");
   const [regionsInput, setRegionsInput] = useState("");
@@ -73,6 +76,9 @@ function InterpreterMypage({
       phone: interpreter.phone || "",
       gender: interpreter.gender || "",
       level: interpreter.level || "Lv1",
+      intro: interpreter.intro || interpreter.self_intro || interpreter.introduction || "",
+      career: interpreter.career || "",
+      available_tasks: interpreter.available_tasks || interpreter.available_work || "",
     });
     setSpecialtiesInput(
       Array.isArray(interpreter.specialties)
@@ -117,9 +123,11 @@ function InterpreterMypage({
       name: editForm.name,
       phone: editForm.phone,
       gender: editForm.gender,
-      level: editForm.level,
       specialties,
       available_regions,
+      intro: editForm.intro,
+      career: editForm.career,
+      available_tasks: editForm.available_tasks,
     };
 
     const { data, error } = await supabase
@@ -592,6 +600,25 @@ function InterpreterMypage({
 
   const activityStatus = getActivityStatus(interpreter);
 
+  // DB-driven recent events from matchings
+  const recentAssignedEvents = (matchings || [])
+    .filter((m) =>
+      ["assigned", "confirmed", "in_progress", "completed", "settled", "배정완료", "운영완료", "배정"].includes(
+        String(m.status || "").toLowerCase()
+      )
+    )
+    .sort((a, b) => {
+      const aDate = a.start_date ? new Date(a.start_date).getTime() : 0;
+      const bDate = b.start_date ? new Date(b.start_date).getTime() : 0;
+      return bDate - aDate;
+    })
+    .slice(0, 5)
+    .map((m) => {
+      const title = m.jobs?.title || "통역 프로젝트";
+      const dateStr = m.start_date ? new Date(m.start_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) : "";
+      return dateStr ? `${title} (${dateStr})` : title;
+    });
+
   return (
     <main className="interpreter-mypage">
       <div className="interpreter-mypage-shell">
@@ -834,13 +861,13 @@ function InterpreterMypage({
                               </select>
                             </label>
                             <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
-                              <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>통역사 레벨</span>
+                              <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>통역사 레벨 (수정 불가)</span>
                               <select
                                 name="level"
                                 value={editForm.level}
-                                onChange={handleEditFormChange}
+                                disabled
                                 required
-                                style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px", height: "42px" }}
+                                style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "14px", height: "42px", background: "#f3f4f6", color: "#9ca3af", cursor: "not-allowed" }}
                               >
                                 <option value="Lv1">Lv1</option>
                                 <option value="Lv2">Lv2</option>
@@ -862,13 +889,49 @@ function InterpreterMypage({
                           />
                         </label>
 
-                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "24px" }}>
+                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
                           <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>활동 가능 지역 (쉼표로 구분)</span>
                           <input
                             type="text"
                             value={regionsInput}
                             onChange={(e) => setRegionsInput(e.target.value)}
                             placeholder="예: 도쿄, 오사카, 서울, 후쿠오카"
+                            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                          />
+                        </label>
+
+                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>자기소개</span>
+                          <textarea
+                            name="intro"
+                            value={editForm.intro}
+                            onChange={handleEditFormChange}
+                            placeholder="자기소개를 입력해주세요."
+                            rows={4}
+                            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px", fontFamily: "inherit", resize: "vertical" }}
+                          />
+                        </label>
+
+                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>경력 설명</span>
+                          <textarea
+                            name="career"
+                            value={editForm.career}
+                            onChange={handleEditFormChange}
+                            placeholder="통역 경력을 상세히 입력해주세요."
+                            rows={4}
+                            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px", fontFamily: "inherit", resize: "vertical" }}
+                          />
+                        </label>
+
+                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "24px" }}>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>가능 업무</span>
+                          <input
+                            type="text"
+                            name="available_tasks"
+                            value={editForm.available_tasks}
+                            onChange={handleEditFormChange}
+                            placeholder="수행 가능한 통역 업무 유형을 입력해주세요. (예: 순차통역, 동시통역, 수행비서)"
                             style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
                           />
                         </label>
@@ -985,6 +1048,45 @@ function InterpreterMypage({
                               }
                             />
                           </dl>
+
+                          <div className="desktop-profile-details">
+                            <div className="desktop-profile-details-card">
+                              <h3>📝 자기소개</h3>
+                              <p>{interpreter.intro || interpreter.self_intro || interpreter.introduction || "등록된 자기소개가 없습니다."}</p>
+                            </div>
+
+                            <div className="desktop-profile-details-card">
+                              <h3>
+                                <span>💼 경력 정보</span>
+                                <span className="career-count-badge">통역 경험 {interpreter.experience_count || 0}회</span>
+                              </h3>
+                              <p>{interpreter.career || interpreter.experience || "등록된 경력 정보가 없습니다."}</p>
+                            </div>
+
+                            <div className="desktop-profile-details-card">
+                              <h3>📅 최근 참여 행사</h3>
+                              {recentAssignedEvents && recentAssignedEvents.length > 0 ? (
+                                <ul style={{ margin: 0, paddingLeft: "20px", listStyleType: "disc" }}>
+                                  {recentAssignedEvents.map((evt, idx) => (
+                                    <li key={idx} style={{ fontSize: "13px", color: "#4b5563", marginBottom: "4px" }}>
+                                      {evt}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p>등록된 최근 참여 행사가 없습니다.</p>
+                              )}
+                            </div>
+
+                            <div className="desktop-profile-details-card">
+                              <h3>🏅 가능 업무</h3>
+                              <p>
+                                {Array.isArray(interpreter.available_tasks) && interpreter.available_tasks.filter(Boolean).length > 0
+                                  ? interpreter.available_tasks.filter(Boolean).join(", ")
+                                  : String(interpreter.available_tasks || interpreter.available_work || "등록된 가능 업무가 없습니다.")}
+                              </p>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Mobile Profile View */}
