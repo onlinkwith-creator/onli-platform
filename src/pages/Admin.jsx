@@ -134,6 +134,30 @@ const REQUEST_STATUSES = [
   MATCHING_STATUS.SETTLED,
   MATCHING_STATUS.CANCELLED,
 ];
+const EMPTY_REQUEST_EDIT_DRAFT = {
+  id: "",
+  title: "",
+  event_name: "",
+  company_name: "",
+  request_no: "",
+  request_type: "일반의뢰",
+  start_date: "",
+  end_date: "",
+  event_location: "",
+  location: "",
+  language: "",
+  requested_level: "Lv1",
+  people_count: "",
+  price: "",
+  assigned_interpreter: "",
+  preferred_gender: "",
+  is_public: "true",
+  assignment_status: ASSIGNMENT_STATUS.WAITING,
+  operation_status: OPERATION_STATUS.BEFORE_OPERATION,
+  settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
+  contact_status: "not_contacted",
+  payment_status: "unpaid",
+};
 const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
 const STATUS_LABELS = {
   pending: "대기",
@@ -806,13 +830,14 @@ function Admin({ onBackClick }) {
       : null;
     setRequestEditDraft(
       type === "edit"
-        ? createRequestEditDraft(request, requestJob)
+        ? { ...EMPTY_REQUEST_EDIT_DRAFT, ...createRequestEditDraft(request, requestJob) }
         : null
     );
   };
 
   const updateRequestEditDraft = (name, value) => {
     setRequestEditDraft((current) => ({
+      ...EMPTY_REQUEST_EDIT_DRAFT,
       ...current,
       [name]: value,
     }));
@@ -1063,7 +1088,12 @@ function Admin({ onBackClick }) {
   };
 
   const saveRequestEditDraft = async () => {
-    if (!activeRequest || !requestEditDraft) return;
+    const draft = { ...EMPTY_REQUEST_EDIT_DRAFT, ...(requestEditDraft || {}) };
+
+    if (!draft.id) {
+      alert("수정 실패: 의뢰 ID가 없습니다.");
+      return;
+    }
 
     if (!supabase) {
       alert(supabaseConfigError.message);
@@ -1071,72 +1101,91 @@ function Admin({ onBackClick }) {
     }
 
     if (
-      requestEditDraft.start_date &&
-      requestEditDraft.end_date &&
-      requestEditDraft.end_date < requestEditDraft.start_date
+      draft.start_date &&
+      draft.end_date &&
+      draft.end_date < draft.start_date
     ) {
       alert("종료일은 시작일보다 빠를 수 없습니다.");
       return;
     }
 
-    const peopleCount = Number(requestEditDraft.people_count || 1);
+    const request = activeRequest || requests.find((item) => item.id === draft.id) || {};
+    const peopleCount = Number(draft.people_count || 1);
+    const clientPrice = normalizeMoneyInput(draft.price);
     const requestPayload = {
-      event_name: requestEditDraft.event_name,
-      company_name: requestEditDraft.company_name,
-      request_type: requestEditDraft.request_type,
-      start_date: requestEditDraft.start_date,
-      end_date: requestEditDraft.end_date,
-      event_date: requestEditDraft.start_date,
-      event_location: requestEditDraft.event_location,
+      event_name: draft.event_name,
+      company_name: draft.company_name,
+      request_no: draft.request_no,
+      request_type: draft.request_type,
+      start_date: draft.start_date,
+      end_date: draft.end_date,
+      event_date: draft.start_date,
+      event_location: draft.event_location,
       requested_people_count: peopleCount,
       required_count: peopleCount,
-      requested_level: requestEditDraft.requested_level,
-      required_level: requestEditDraft.requested_level,
-      preferred_gender: requestEditDraft.preferred_gender,
-      status: getLegacyRequestStatusFromFlow(requestEditDraft),
-      assignment_status: normalizeAssignmentStatus(requestEditDraft),
-      operation_status: normalizeOperationStatus(requestEditDraft),
-      settlement_status: normalizeSettlementFlowStatus(requestEditDraft),
-      contact_status: requestEditDraft.contact_status,
-      payment_status: requestEditDraft.payment_status,
-      is_public: requestEditDraft.is_public === "true",
-      is_job_public: requestEditDraft.is_public === "true",
+      requested_level: draft.requested_level,
+      required_level: draft.requested_level,
+      preferred_gender: draft.preferred_gender,
+      status: getLegacyRequestStatusFromFlow(draft),
+      assignment_status: normalizeAssignmentStatus(draft),
+      operation_status: normalizeOperationStatus(draft),
+      settlement_status: normalizeSettlementFlowStatus(draft),
+      contact_status: draft.contact_status,
+      payment_status: draft.payment_status,
+      is_public: draft.is_public === "true",
+      is_job_public: draft.is_public === "true",
+      client_price: clientPrice,
+      assigned_interpreter_name: draft.assigned_interpreter,
     };
     const jobPayload = {
-      event_name: requestEditDraft.event_name,
-      title: requestEditDraft.event_name
-        ? `${requestEditDraft.event_name} 통역 모집`
+      event_name: draft.event_name,
+      title: draft.event_name
+        ? `${draft.event_name} 통역 모집`
         : "통역 모집",
-      company_name: requestEditDraft.company_name,
-      start_date: requestEditDraft.start_date,
-      end_date: requestEditDraft.end_date,
-      event_date: requestEditDraft.start_date,
+      company_name: draft.company_name,
+      start_date: draft.start_date,
+      end_date: draft.end_date,
+      event_date: draft.start_date,
       date: formatDateRange(
-        requestEditDraft.start_date,
-        requestEditDraft.end_date,
-        requestEditDraft.start_date
+        draft.start_date,
+        draft.end_date,
+        draft.start_date
       ),
-      location: requestEditDraft.event_location,
-      event_location: requestEditDraft.event_location,
+      location: draft.event_location,
+      event_location: draft.event_location,
       people_count: peopleCount,
       people: `${peopleCount}명`,
-      requested_level: requestEditDraft.requested_level,
-      level: requestEditDraft.requested_level,
-      preferred_gender: requestEditDraft.preferred_gender,
-      visibility: requestEditDraft.is_public === "true" ? "public" : "private",
-      ...getJobStatusPayloadFromFlow(requestEditDraft),
+      requested_level: draft.requested_level,
+      level: draft.requested_level,
+      preferred_gender: draft.preferred_gender,
+      pay: draft.price,
+      language: draft.language,
+      visibility: draft.is_public === "true" ? "public" : "private",
+      ...getJobStatusPayloadFromFlow(draft),
     };
 
-    setSavingKey(`request-edit-${activeRequest.id}`);
+    setSavingKey(`request-edit-${draft.id}`);
     try {
-      const { data: updatedRequest, error: requestError } =
-        await updateRequestWithFallback(activeRequest.id, requestPayload);
-      if (requestError) throw requestError;
+      const { data: updatedRequests, error: requestError } = await supabase
+        .from("requests")
+        .update(requestPayload)
+        .eq("id", draft.id)
+        .select();
+
+      if (requestError) {
+        alert(`수정 실패: ${requestError.message}`);
+        return;
+      }
+
+      if (!updatedRequests || updatedRequests.length === 0) {
+        alert("수정 실패: 변경된 의뢰가 없습니다.");
+        return;
+      }
 
       let updatedJob = null;
-      if (activeRequest.job_id) {
+      if (request.job_id) {
         const { data, error } = await updateJobWithFallback(
-          activeRequest.job_id,
+          request.job_id,
           jobPayload
         );
         if (error) throw error;
@@ -1145,24 +1194,25 @@ function Admin({ onBackClick }) {
 
       setRequests((current) =>
         current.map((request) =>
-          request.id === activeRequest.id
-            ? { ...request, ...requestPayload, ...(updatedRequest || {}) }
+          request.id === draft.id
+            ? { ...request, ...requestPayload, ...(updatedRequests[0] || {}) }
             : request
         )
       );
       setJobs((current) =>
         updatedJob
           ? current.map((job) =>
-              job.id === activeRequest.job_id ? { ...job, ...updatedJob } : job
+              job.id === request.job_id ? { ...job, ...updatedJob } : job
             )
           : current
       );
+      await fetchAdminData();
       closeRequestModal();
       alert("공고 정보가 저장되었습니다.");
     } catch (error) {
       console.error("공고 수정 실패:", {
-        requestId: activeRequest.id,
-        jobId: activeRequest.job_id,
+        requestId: draft.id,
+        jobId: request.job_id,
         requestPayload,
         jobPayload,
         error,
@@ -2543,7 +2593,7 @@ function ConfirmPanel({
 }
 
 function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
-  if (!draft) return null;
+  const form = { ...EMPTY_REQUEST_EDIT_DRAFT, ...(draft || {}) };
 
   return (
     <form
@@ -2556,14 +2606,20 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
       <div className="admin-modal-edit-grid">
         <FieldControl label="행사명">
           <input
-            value={draft.event_name || ""}
+            value={form.event_name || ""}
             onChange={(event) => onChange("event_name", event.target.value)}
           />
         </FieldControl>
         <FieldControl label="기업명">
           <input
-            value={draft.company_name || ""}
+            value={form.company_name || ""}
             onChange={(event) => onChange("company_name", event.target.value)}
+          />
+        </FieldControl>
+        <FieldControl label="의뢰번호">
+          <input
+            value={form.request_no || ""}
+            onChange={(event) => onChange("request_no", event.target.value)}
           />
         </FieldControl>
         <FieldControl label="의뢰 유형">
@@ -2572,7 +2628,7 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
               { label: "일반의뢰", value: "일반의뢰" },
               { label: "지정의뢰", value: "지정의뢰" },
             ]}
-            value={draft.request_type || "일반의뢰"}
+            value={form.request_type || "일반의뢰"}
             onChange={(value) => onChange("request_type", value)}
           />
         </FieldControl>
@@ -2580,8 +2636,8 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
           <DateRangeInput
             required
             label="행사 기간"
-            startDate={draft.start_date || ""}
-            endDate={draft.end_date || ""}
+            startDate={form.start_date || ""}
+            endDate={form.end_date || ""}
             onChange={({ startDate, endDate }) => {
               onChange("start_date", startDate);
               onChange("end_date", endDate);
@@ -2590,26 +2646,44 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
         </div>
         <FieldControl label="장소">
           <input
-            value={draft.event_location || ""}
+            value={form.event_location || ""}
             onChange={(event) => onChange("event_location", event.target.value)}
+          />
+        </FieldControl>
+        <FieldControl label="언어">
+          <input
+            value={form.language || ""}
+            onChange={(event) => onChange("language", event.target.value)}
           />
         </FieldControl>
         <NumberControl
           label="필요 인원 수"
-          value={draft.people_count || 1}
+          value={form.people_count || 1}
           onChange={(value) => onChange("people_count", value)}
         />
         <FieldControl label="희망 통역 레벨">
           <InlineSelect
             options={LEVELS}
-            value={draft.requested_level || "Lv1"}
+            value={form.requested_level || "Lv1"}
             onChange={(value) => onChange("requested_level", value)}
           />
         </FieldControl>
         <FieldControl label="희망 성별">
           <input
-            value={draft.preferred_gender || ""}
+            value={form.preferred_gender || ""}
             onChange={(event) => onChange("preferred_gender", event.target.value)}
+          />
+        </FieldControl>
+        <FieldControl label="금액">
+          <input
+            value={form.price || ""}
+            onChange={(event) => onChange("price", event.target.value)}
+          />
+        </FieldControl>
+        <FieldControl label="배정 통역사">
+          <input
+            value={form.assigned_interpreter || ""}
+            onChange={(event) => onChange("assigned_interpreter", event.target.value)}
           />
         </FieldControl>
         <FieldControl label="공개 여부">
@@ -2618,28 +2692,28 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
               { label: "공개", value: "true" },
               { label: "비공개", value: "false" },
             ]}
-            value={draft.is_public || "false"}
+            value={form.is_public || "false"}
             onChange={(value) => onChange("is_public", value)}
           />
         </FieldControl>
         <FieldControl label="배정 상태">
           <InlineSelect
             options={ASSIGNMENT_STATUS_OPTIONS}
-            value={normalizeAssignmentStatus(draft)}
+            value={normalizeAssignmentStatus(form)}
             onChange={(value) => onChange("assignment_status", value)}
           />
         </FieldControl>
         <FieldControl label="운영 상태">
           <InlineSelect
             options={OPERATION_STATUS_OPTIONS}
-            value={normalizeOperationStatus(draft)}
+            value={normalizeOperationStatus(form)}
             onChange={(value) => onChange("operation_status", value)}
           />
         </FieldControl>
         <FieldControl label="정산 상태">
           <InlineSelect
             options={SETTLEMENT_FLOW_STATUS_OPTIONS}
-            value={normalizeSettlementFlowStatus(draft)}
+            value={normalizeSettlementFlowStatus(form)}
             onChange={(value) => onChange("settlement_status", value)}
           />
         </FieldControl>
@@ -5097,16 +5171,71 @@ function buildJobPayloadFromRequest(request) {
 
 function createRequestEditDraft(request = {}, job = null) {
   const flowSource = getRequestFlowSource(request, job);
+  const eventName =
+    request.title ||
+    request.event_title ||
+    request.event_name ||
+    job?.title ||
+    job?.event_name ||
+    "";
+  const companyName = request.company_name || request.company || job?.company_name || "";
+  const location =
+    request.location ||
+    request.place ||
+    request.event_location ||
+    job?.location ||
+    job?.event_location ||
+    "";
+  const startDate = getDateRangeStart(
+    request.start_date || request.event_start_date || job?.start_date,
+    request.event_date || job?.event_date
+  );
+  const endDate = getDateRangeEnd(
+    request.end_date || request.event_end_date || job?.end_date,
+    request.event_date || job?.event_date
+  );
+  const level =
+    request.level ||
+    request.requested_level ||
+    request.required_level ||
+    job?.requested_level ||
+    job?.level ||
+    "Lv1";
 
   return {
-    event_name: request.event_name || job?.event_name || "",
-    company_name: request.company_name || job?.company_name || "",
+    id: request.id || "",
+    title: eventName,
+    event_name: eventName,
+    company_name: companyName,
+    request_no: request.request_no || request.request_number || "",
     request_type: request.request_type || getDesignatedRequestType(request, job).label,
-    start_date: getDateRangeStart(request.start_date || job?.start_date, request.event_date || job?.event_date),
-    end_date: getDateRangeEnd(request.end_date || job?.end_date, request.event_date || job?.event_date),
-    event_location: request.event_location || job?.event_location || job?.location || "",
-    people_count: request.requested_people_count || request.required_count || job?.people_count || 1,
-    requested_level: request.requested_level || request.required_level || job?.requested_level || job?.level || "Lv1",
+    start_date: startDate,
+    end_date: endDate,
+    event_location: location,
+    location,
+    language: request.language || job?.language || "",
+    people_count:
+      request.people_count ||
+      request.requested_people_count ||
+      request.required_people ||
+      request.required_count ||
+      job?.people_count ||
+      "",
+    requested_level: level,
+    level,
+    price:
+      request.price ||
+      request.daily_pay ||
+      request.pay ||
+      request.company_amount ||
+      request.client_price ||
+      job?.pay ||
+      "",
+    assigned_interpreter:
+      request.assigned_interpreter ||
+      request.assigned_interpreter_name ||
+      request.interpreter_name ||
+      "",
     preferred_gender: request.preferred_gender || job?.preferred_gender || "",
     is_public: String(Boolean(request.is_job_public || request.is_public || normalizeJobVisibility(job) === "public")),
     status: normalizeMatchingStatus(flowSource.status),
