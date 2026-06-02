@@ -101,6 +101,8 @@ const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
+  "phone",
+  "kakao_or_line",
   "gender",
   "age",
   "region",
@@ -4003,63 +4005,14 @@ function InterpreterModal({
               }}
             >
             <div className="admin-modal-edit-grid">
-              <FieldControl label="레벨">
-                <InlineSelect
-                  options={LEVELS}
-                  value={draft?.level || "Lv1"}
-                  onChange={(value) => onChangeDraft("level", value)}
-                />
-              </FieldControl>
-              <FieldControl label="승인 상태">
-                <InlineSelect
-                  options={[
-                    { value: "pending", label: "승인 대기" },
-                    { value: "active", label: "승인 완료" },
-                    { value: "rejected", label: "반려" },
-                    { value: "warning", label: "경고" },
-                    { value: "suspended", label: "정지" },
-                  ]}
-                  value={draft?.status || "pending"}
-                  onChange={(value) => onChangeDraft("status", value)}
-                />
-              </FieldControl>
-              <FieldControl label="검증된 통역사 뱃지">
-                <InlineSelect
-                  options={[
-                    { label: "일반 통역사 (뱃지 미노출)", value: "false" },
-                    { label: "검증 완료 (뱃지 노출)", value: "true" },
-                  ]}
-                  value={draft?.approved || "false"}
-                  onChange={(value) => onChangeDraft("approved", value)}
-                />
-              </FieldControl>
-              <FieldControl label="공개 활동 상태">
-                <InlineSelect
-                  options={INTERPRETER_ACTIVITY_STATUS_OPTIONS}
-                  value={draft?.activity_status || INTERPRETER_ACTIVITY_STATUS.ACTIVE}
-                  onChange={(value) => onChangeDraft("activity_status", value)}
-                />
-              </FieldControl>
-              <FieldControl label="경고 횟수">
-                <input
-                  type="number"
-                  min="0"
-                  value={draft?.warning_count || 0}
-                  onChange={(event) => onChangeDraft("warning_count", event.target.value)}
-                />
-              </FieldControl>
+              {/* 1. 기본 정보 */}
+              <div className="admin-form-section-title" style={{ gridColumn: "1 / -1", margin: "10px 0 6px", fontWeight: "900", color: "#aa3bff", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px", fontSize: "14px" }}>
+                1. 기본 정보
+              </div>
               <FieldControl label="이름">
                 <input
                   value={draft?.name || ""}
                   onChange={(event) => onChangeDraft("name", event.target.value)}
-                />
-              </FieldControl>
-              <FieldControl label="이메일">
-                <input
-                  type="email"
-                  value={draft?.email || ""}
-                  onChange={(event) => onChangeDraft("email", event.target.value)}
-                  placeholder="이메일을 입력해주세요"
                 />
               </FieldControl>
               <FieldControl label="성별">
@@ -4080,12 +4033,6 @@ function InterpreterModal({
                   onChange={(event) => onChangeDraft("region", event.target.value)}
                 />
               </FieldControl>
-              <FieldControl label="JLPT 여부">
-                <input
-                  value={draft?.jlpt || ""}
-                  onChange={(event) => onChangeDraft("jlpt", event.target.value)}
-                />
-              </FieldControl>
               <FieldControl label="일본 체류 기간">
                 <input
                   value={draft?.stay_period || ""}
@@ -4098,6 +4045,58 @@ function InterpreterModal({
                   onChange={(event) => onChangeDraft("school", event.target.value)}
                 />
               </FieldControl>
+
+              {/* 2. 연락처 정보 */}
+              <div className="admin-form-section-title" style={{ gridColumn: "1 / -1", margin: "18px 0 6px", fontWeight: "900", color: "#aa3bff", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px", fontSize: "14px" }}>
+                2. 연락처 정보
+              </div>
+              <FieldControl label="이메일">
+                {/* 위험성 주석: 이메일은 로그인 계정/Auth와 연동되어 있어 직접 수정 시 계정 불일치 위험이 있으므로 읽기 전용(disabled) 처리합니다. */}
+                <input
+                  type="email"
+                  value={draft?.email || ""}
+                  disabled
+                  title="이메일은 로그인 계정 정보이므로 직접 수정할 수 없습니다."
+                  placeholder="이메일을 입력해주세요"
+                />
+              </FieldControl>
+              <FieldControl label="전화번호">
+                <input
+                  value={draft?.phone || ""}
+                  onChange={(event) => onChangeDraft("phone", event.target.value)}
+                  placeholder="전화번호를 입력해주세요"
+                />
+              </FieldControl>
+              <FieldControl label="카카오/라인 ID">
+                <input
+                  value={draft?.kakao_or_line || ""}
+                  onChange={(event) => onChangeDraft("kakao_or_line", event.target.value)}
+                  placeholder="카카오톡 또는 라인 ID를 입력해주세요"
+                />
+              </FieldControl>
+
+              {/* 3. 언어 / 레벨 정보 */}
+              <div className="admin-form-section-title" style={{ gridColumn: "1 / -1", margin: "18px 0 6px", fontWeight: "900", color: "#aa3bff", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px", fontSize: "14px" }}>
+                3. 언어 / 레벨 정보
+              </div>
+              <FieldControl label="레벨">
+                <InlineSelect
+                  options={LEVELS}
+                  value={draft?.level || "Lv1"}
+                  onChange={(value) => onChangeDraft("level", value)}
+                />
+              </FieldControl>
+              <FieldControl label="JLPT 여부">
+                <input
+                  value={draft?.jlpt || ""}
+                  onChange={(event) => onChangeDraft("jlpt", event.target.value)}
+                />
+              </FieldControl>
+
+              {/* 4. 경력 정보 */}
+              <div className="admin-form-section-title" style={{ gridColumn: "1 / -1", margin: "18px 0 6px", fontWeight: "900", color: "#aa3bff", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px", fontSize: "14px" }}>
+                4. 경력 정보
+              </div>
               <FieldControl label="통역 경험 여부">
                 <InlineSelect
                   options={[
@@ -4138,6 +4137,49 @@ function InterpreterModal({
                   value={draft?.available_regions || ""}
                   onChange={(event) => onChangeDraft("available_regions", event.target.value)}
                   placeholder="쉼표로 구분"
+                />
+              </FieldControl>
+
+              {/* 5. 상태 관리 */}
+              <div className="admin-form-section-title" style={{ gridColumn: "1 / -1", margin: "18px 0 6px", fontWeight: "900", color: "#aa3bff", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px", fontSize: "14px" }}>
+                5. 상태 관리
+              </div>
+              <FieldControl label="승인 상태">
+                <InlineSelect
+                  options={[
+                    { value: "pending", label: "승인 대기" },
+                    { value: "active", label: "승인 완료" },
+                    { value: "rejected", label: "반려" },
+                    { value: "warning", label: "경고" },
+                    { value: "suspended", label: "정지" },
+                  ]}
+                  value={draft?.status || "pending"}
+                  onChange={(value) => onChangeDraft("status", value)}
+                />
+              </FieldControl>
+              <FieldControl label="검증된 통역사 뱃지">
+                <InlineSelect
+                  options={[
+                    { label: "일반 통역사 (뱃지 미노출)", value: "false" },
+                    { label: "검증 완료 (뱃지 노출)", value: "true" },
+                  ]}
+                  value={draft?.approved || "false"}
+                  onChange={(value) => onChangeDraft("approved", value)}
+                />
+              </FieldControl>
+              <FieldControl label="공개 활동 상태">
+                <InlineSelect
+                  options={INTERPRETER_ACTIVITY_STATUS_OPTIONS}
+                  value={draft?.activity_status || INTERPRETER_ACTIVITY_STATUS.ACTIVE}
+                  onChange={(value) => onChangeDraft("activity_status", value)}
+                />
+              </FieldControl>
+              <FieldControl label="경고 횟수">
+                <input
+                  type="number"
+                  min="0"
+                  value={draft?.warning_count || 0}
+                  onChange={(event) => onChangeDraft("warning_count", event.target.value)}
                 />
               </FieldControl>
               <FieldControl label="관리자 메모">
@@ -6043,6 +6085,8 @@ function createInterpreterEditDraft(interpreter = {}) {
   return {
     name: interpreter.name || "",
     email: interpreter.email || "",
+    phone: interpreter.phone || "",
+    kakao_or_line: interpreter.kakao_or_line || "",
     gender: interpreter.gender || "",
     age: interpreter.age || "",
     region: interpreter.region || "",
