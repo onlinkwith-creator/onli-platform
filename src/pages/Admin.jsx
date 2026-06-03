@@ -3005,13 +3005,14 @@ function AdminAccountModal({
               const isDbRegistered = !adminUser.isFallback;
               const loginStatus = isSelf ? "현재 로그인 중" : "가입 후 로그인 필요";
               const targetRole = adminUser.role || "staff";
-              const canEditAdmin =
-                !saving &&
-                !adminUser.isFallback &&
-                !isSelf &&
-                (currentAdminRole === "owner" ||
-                  (currentAdminRole === "admin" && targetRole === "staff"));
+              const canEditAdmin = currentAdminRole === "owner";
               const editTitle = canEditAdmin ? undefined : "현재 권한으로는 수정할 수 없습니다";
+              const confirmSelfChange = () => {
+                if (!isSelf) return true;
+                return window.confirm(
+                  "현재 로그인 중인 본인 계정 권한/상태를 변경합니다. 계속하시겠습니까?"
+                );
+              };
 
               return (
                 <article className="admin-account-row" key={adminUser.id}>
@@ -3042,9 +3043,10 @@ function AdminAccountModal({
                       title={editTitle}
                       value={targetRole}
                       disabled={!canEditAdmin}
-                      onChange={(event) =>
-                        onUpdateAdmin(adminUser, { role: event.target.value })
-                      }
+                      onChange={(event) => {
+                        if (!confirmSelfChange()) return;
+                        onUpdateAdmin(adminUser, { role: event.target.value });
+                      }}
                     >
                       <option value="owner">owner</option>
                       <option value="admin">admin</option>
@@ -3055,9 +3057,10 @@ function AdminAccountModal({
                       title={editTitle}
                       value={adminUser.status || "active"}
                       disabled={!canEditAdmin}
-                      onChange={(event) =>
-                        onUpdateAdmin(adminUser, { status: event.target.value })
-                      }
+                      onChange={(event) => {
+                        if (!confirmSelfChange()) return;
+                        onUpdateAdmin(adminUser, { status: event.target.value });
+                      }}
                     >
                       <option value="active">active</option>
                       <option value="inactive">inactive</option>

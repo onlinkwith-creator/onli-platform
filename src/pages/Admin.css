@@ -2587,6 +2587,14 @@
   min-height: 40px;
 }
 
+.admin-account-row-controls select:not(:disabled) {
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .admin-account-row-controls select:disabled {
   background: #f3f4f6;
   color: #9ca3af;
