@@ -410,7 +410,7 @@ function Admin({ onBackClick }) {
 
     const { data, error } = await supabase
       .from("admin_users")
-      .select("id, email, role, status, created_at, updated_at")
+      .select("id, auth_user_id, email, role, status, created_at, updated_at")
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -3015,6 +3015,8 @@ function AdminAccountModal({
           ) : (
             adminUsers.map((adminUser) => {
               const isSelf = adminUser.email === currentUser?.email;
+              const isDbConnected = !adminUser.isFallback;
+              const hasLoginAccount = Boolean(adminUser.auth_user_id) || isSelf;
 
               return (
                 <article className="admin-account-row" key={adminUser.id}>
@@ -3026,12 +3028,14 @@ function AdminAccountModal({
                           (현재 계정)
                         </span>
                       )}
-                      {adminUser.isFallback && (
-                        <span style={{ marginLeft: "6px", fontSize: "11px", color: "#f59e0b", fontWeight: 400 }}>
-                          (DB 미연동)
-                        </span>
-                      )}
+                      <span style={{ marginLeft: "6px", fontSize: "11px", color: isDbConnected ? "#059669" : "#f59e0b", fontWeight: 400 }}>
+                        {isDbConnected ? "(DB 연결됨)" : "(DB 미연동)"}
+                      </span>
                     </strong>
+                    <span>권한: {adminUser.role || "staff"}</span>
+                    <span>상태: {adminUser.status || "active"}</span>
+                    <span>DB: {isDbConnected ? "연결됨" : "미연동"}</span>
+                    <span>로그인 계정: {hasLoginAccount ? "가입 완료" : "가입 전"}</span>
                     <span>등록일 {adminUser.created_at ? formatDate(adminUser.created_at) : "-"}</span>
                   </div>
                   <div className="admin-account-row-controls">
