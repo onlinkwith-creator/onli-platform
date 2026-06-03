@@ -265,7 +265,6 @@ function Admin({ onBackClick }) {
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminAccountDraft, setAdminAccountDraft] = useState({
     email: "",
-    password: "",
     role: "staff",
   });
   const [isAdminAccountSaving, setIsAdminAccountSaving] = useState(false);
@@ -396,7 +395,6 @@ function Admin({ onBackClick }) {
     setIsAdminAccountModalOpen(false);
     setAdminAccountDraft({
       email: "",
-      password: "",
       role: "staff",
     });
   }, []);
@@ -807,29 +805,29 @@ function Admin({ onBackClick }) {
 
     setIsAdminAccountSaving(true);
 
-    // admin_users 테이블에 직접 INSERT (프론트에서 service_role 없이)
+    // admin_users 테이블에 직접 저장합니다. Auth 유저 생성은 하지 않습니다.
     const { error } = await supabase
       .from("admin_users")
-      .insert({
-        email,
-        role: adminAccountDraft.role,
-        status: "active",
-      });
+      .upsert(
+        {
+          email,
+          role: adminAccountDraft.role,
+          status: "active",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "email" }
+      );
 
     setIsAdminAccountSaving(false);
 
     if (error) {
-      if (error.code === "23505") {
-        alert("이미 등록된 관리자 이메일입니다.");
-      } else {
-        alert(`관리자 추가 실패: ${error.message}`);
-      }
+      alert(`관리자 저장 실패: ${error.message}`);
       return;
     }
 
-    setAdminAccountDraft({ email: "", password: "", role: "staff" });
+    setAdminAccountDraft({ email: "", role: "staff" });
     await fetchAdminUsers();
-    alert(`${email} 을(를) 관리자로 등록했습니다.\n해당 이메일로 직접 회원가입 후 로그인하면 관리자 권한이 적용됩니다.`);
+    alert(`${email} 을(를) 관리자로 저장했습니다.\n해당 이메일로 직접 회원가입 후 로그인하면 관리자 권한이 적용됩니다.`);
   };
 
   const updateAdminUser = async (adminUser, changes) => {
@@ -856,21 +854,6 @@ function Admin({ onBackClick }) {
     }
 
     await fetchAdminUsers();
-  };
-
-  const sendAdminPasswordReset = async (email) => {
-    if (!supabase) {
-      alert(supabaseConfigError.message);
-      return;
-    }
-
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    if (error) {
-      alert(`비밀번호 재설정 메일 발송 실패: ${error.message}`);
-      return;
-    }
-
-    alert("비밀번호 재설정 메일을 발송했습니다.");
   };
 
   const signOutAdmin = async () => {
@@ -2689,7 +2672,6 @@ function Admin({ onBackClick }) {
                 onChangeDraft={updateAdminAccountDraft}
                 onClose={closeAdminAccountModal}
                 onCreateAdmin={createAdminUser}
-                onResetPassword={sendAdminPasswordReset}
                 onSignOut={signOutAdmin}
                 onUpdateAdmin={updateAdminUser}
               />
@@ -2940,15 +2922,19 @@ function AdminAccountModal({
   onChangeDraft,
   onClose,
   onCreateAdmin,
-  onResetPassword,
   onSignOut,
   onUpdateAdmin,
   saving,
 }) {
   // 현재 로그인 계정의 권한
+  const currentEmail = currentUser?.email?.trim().toLowerCase() || "";
+  const currentAdminUser = adminUsers.find(
+    (adminUser) => adminUser.email?.trim().toLowerCase() === currentEmail && !adminUser.isFallback
+  );
   const currentRole =
+    currentAdminUser?.role ||
     adminProfile?.role ||
-    (currentUser?.email === "onlinkwith@gmail.com" ? "owner" : "admin");
+    (currentEmail === "onlinkwith@gmail.com" ? "owner" : "확인 필요");
 
   return (
     <AdminModal
@@ -3014,62 +3000,59 @@ function AdminAccountModal({
             <MessageBox text="등록된 관리자 계정이 없습니다." />
           ) : (
             adminUsers.map((adminUser) => {
-              const isSelf = adminUser.email === currentUser?.email;
+              const isSelf = adminUser.email?.trim().toLowerCase() === currentEmail;
               const isDbRegistered = !adminUser.isFallback;
-              const hasLoginAccount = Boolean(adminUser.auth_user_id) || isSelf;
+              const authStatus = !isDbRegistered
+                ? "확인 불가"
+                : Boolean(adminUser.auth_user_id) || isSelf
+                  ? "가입 완료"
+                  : "가입 전";
 
               return (
                 <article className="admin-account-row" key={adminUser.id}>
                   <div className="admin-account-row-main">
-                    <strong>
+                    <strong className="admin-account-email">
                       {adminUser.email}
                       {isSelf && (
-                        <span style={{ marginLeft: "6px", fontSize: "11px", color: "#6366f1", fontWeight: 400 }}>
-                          (현재 계정)
+                        <span className="admin-account-badge current">
+                          현재 계정
                         </span>
                       )}
-                      <span style={{ marginLeft: "6px", fontSize: "11px", color: isDbRegistered ? "#059669" : "#f59e0b", fontWeight: 400 }}>
-                        ({isDbRegistered ? "DB 등록됨" : "DB 등록 확인 필요"})
-                      </span>
+                      {isDbRegistered && (
+                        <span className="admin-account-badge">
+                          관리자 DB 등록됨
+                        </span>
+                      )}
                     </strong>
-                    <span>권한: {adminUser.role || "staff"}</span>
-                    <span>상태: {adminUser.status || "active"}</span>
-                    <span>{isDbRegistered ? "DB 등록됨" : "DB 등록 확인 필요"}</span>
-                    <span>Auth 가입 여부: {hasLoginAccount ? "가입 완료" : "가입 전"}</span>
-                    <span>등록일 {adminUser.created_at ? formatDate(adminUser.created_at) : "-"}</span>
-                  </div>
-                  <div className="admin-account-row-controls">
-                    <select
-                      value={adminUser.role || "staff"}
-                      disabled={saving || adminUser.isFallback || isSelf}
-                      onChange={(event) =>
-                        onUpdateAdmin(adminUser, { role: event.target.value })
-                      }
-                    >
-                      <option value="owner">owner</option>
-                      <option value="admin">admin</option>
-                      <option value="staff">staff</option>
-                    </select>
-                    <select
-                      value={adminUser.status || "active"}
-                      disabled={saving || adminUser.isFallback || isSelf}
-                      onChange={(event) =>
-                        onUpdateAdmin(adminUser, { status: event.target.value })
-                      }
-                    >
-                      <option value="active">active</option>
-                      <option value="inactive">inactive</option>
-                    </select>
-                    {!adminUser.isFallback && (
-                      <button
-                        type="button"
-                        className="admin-link-button"
-                        disabled={saving}
-                        onClick={() => onResetPassword(adminUser.email)}
+                    <label>
+                      <span>권한</span>
+                      <select
+                        value={adminUser.role || "staff"}
+                        disabled={saving || adminUser.isFallback || isSelf}
+                        onChange={(event) =>
+                          onUpdateAdmin(adminUser, { role: event.target.value })
+                        }
                       >
-                        비밀번호 재설정 메일
-                      </button>
-                    )}
+                        <option value="owner">owner</option>
+                        <option value="admin">admin</option>
+                        <option value="staff">staff</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>상태</span>
+                      <select
+                        value={adminUser.status || "active"}
+                        disabled={saving || adminUser.isFallback || isSelf}
+                        onChange={(event) =>
+                          onUpdateAdmin(adminUser, { status: event.target.value })
+                        }
+                      >
+                        <option value="active">active</option>
+                        <option value="inactive">inactive</option>
+                      </select>
+                    </label>
+                    <span>Auth 가입 여부: {authStatus}</span>
+                    <span>등록일: {adminUser.created_at ? formatDate(adminUser.created_at) : "-"}</span>
                   </div>
                 </article>
               );

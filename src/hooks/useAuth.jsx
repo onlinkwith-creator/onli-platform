@@ -4,7 +4,6 @@ import { supabase, supabaseConfigError } from "../supabase";
 // 관리자 이메일 하드코딩 (DB 장애/누락 시 최종 백업)
 export const ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
-  "onlinkcp@gmail.com",
 ];
 
 export function normalizeEmail(value) {
@@ -14,21 +13,21 @@ export function normalizeEmail(value) {
 
 /**
  * 관리자 판정 통합 함수
- * 1순위: admin_users DB 레코드 (email 일치 && status === "active")
- * 2순위: ADMIN_EMAILS 하드코딩 (DB 장애/누락 시 최종 백업)
+ * 1순위: onlinkwith@gmail.com owner fallback
+ * 2순위: admin_users DB 레코드 (email 일치 && status === "active")
  */
 export function isAdminUser(user, adminProfile) {
   if (!user) return false;
   const email = normalizeEmail(user.email);
   if (!email) return false;
-  // 1. DB 레코드 기반
+  // 1. owner fallback
+  if (ADMIN_EMAILS.includes(email)) return true;
+  // 2. DB 레코드 기반
   if (
     adminProfile &&
     normalizeEmail(adminProfile.email) === email &&
     adminProfile.status === "active"
   ) return true;
-  // 2. 하드코딩 이메일 백업
-  if (ADMIN_EMAILS.includes(email) && !adminProfile) return true;
   return false;
 }
 
