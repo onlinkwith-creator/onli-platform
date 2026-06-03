@@ -3015,7 +3015,7 @@ function AdminAccountModal({
           ) : (
             adminUsers.map((adminUser) => {
               const isSelf = adminUser.email === currentUser?.email;
-              const isDbConnected = !adminUser.isFallback;
+              const isDbRegistered = !adminUser.isFallback;
               const hasLoginAccount = Boolean(adminUser.auth_user_id) || isSelf;
 
               return (
@@ -3028,14 +3028,14 @@ function AdminAccountModal({
                           (현재 계정)
                         </span>
                       )}
-                      <span style={{ marginLeft: "6px", fontSize: "11px", color: isDbConnected ? "#059669" : "#f59e0b", fontWeight: 400 }}>
-                        {isDbConnected ? "(DB 연결됨)" : "(DB 미연동)"}
+                      <span style={{ marginLeft: "6px", fontSize: "11px", color: isDbRegistered ? "#059669" : "#f59e0b", fontWeight: 400 }}>
+                        ({isDbRegistered ? "DB 등록됨" : "DB 등록 확인 필요"})
                       </span>
                     </strong>
                     <span>권한: {adminUser.role || "staff"}</span>
                     <span>상태: {adminUser.status || "active"}</span>
-                    <span>DB: {isDbConnected ? "연결됨" : "미연동"}</span>
-                    <span>로그인 계정: {hasLoginAccount ? "가입 완료" : "가입 전"}</span>
+                    <span>{isDbRegistered ? "DB 등록됨" : "DB 등록 확인 필요"}</span>
+                    <span>Auth 가입 여부: {hasLoginAccount ? "가입 완료" : "가입 전"}</span>
                     <span>등록일 {adminUser.created_at ? formatDate(adminUser.created_at) : "-"}</span>
                   </div>
                   <div className="admin-account-row-controls">

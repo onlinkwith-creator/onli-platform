@@ -14,21 +14,21 @@ export function normalizeEmail(value) {
 
 /**
  * 관리자 판정 통합 함수
- * 1순위: ADMIN_EMAILS 하드코딩 (DB 없어도 항상 적용)
- * 2순위: admin_users DB 레코드 (status === "active")
+ * 1순위: admin_users DB 레코드 (email 일치 && status === "active")
+ * 2순위: ADMIN_EMAILS 하드코딩 (DB 장애/누락 시 최종 백업)
  */
 export function isAdminUser(user, adminProfile) {
   if (!user) return false;
   const email = normalizeEmail(user.email);
   if (!email) return false;
-  // 1. 하드코딩 이메일 백업
-  if (ADMIN_EMAILS.includes(email)) return true;
-  // 2. DB 레코드 기반
+  // 1. DB 레코드 기반
   if (
     adminProfile &&
     normalizeEmail(adminProfile.email) === email &&
     adminProfile.status === "active"
   ) return true;
+  // 2. 하드코딩 이메일 백업
+  if (ADMIN_EMAILS.includes(email) && !adminProfile) return true;
   return false;
 }
 
@@ -108,7 +108,7 @@ export function AuthProvider({ children }) {
       const { data, error } = await supabase
         .from("admin_users")
         .select("id, email, role, status, created_at")
-        .eq("email", email)
+        .ilike("email", email)
         .maybeSingle();
 
       if (!mounted) return;
