@@ -830,28 +830,50 @@ function Admin({ onBackClick }) {
     alert(`${email} 을(를) 관리자로 저장했습니다.\n해당 이메일로 직접 회원가입 후 로그인하면 관리자 권한이 적용됩니다.`);
   };
 
-  const updateAdminUser = async (adminUser, changes) => {
+  const handleAdminRoleChange = async (adminUser, newRole) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
       return;
     }
 
+    const ok = window.confirm(`${adminUser.email} 권한을 ${newRole}(으)로 변경하시겠습니까?`);
+    if (!ok) return;
+
     setIsAdminAccountSaving(true);
-    const adminUpdate = supabase
+    const { error } = await supabase
       .from("admin_users")
-      .update({ ...changes, updated_at: new Date().toISOString() });
-    const adminId = String(adminUser.id || "");
-    const { error } = adminId && !adminId.startsWith("fallback-")
-      ? await adminUpdate.eq("id", adminUser.id)
-      : await adminUpdate.eq("email", adminUser.email);
+      .update({ role: newRole, updated_at: new Date().toISOString() })
+      .eq("email", adminUser.email);
     setIsAdminAccountSaving(false);
 
     if (error) {
-      console.error("admin_users update failed:", error);
-      const changeLabel = Object.prototype.hasOwnProperty.call(changes, "role")
-        ? "관리자 권한"
-        : "관리자 상태";
-      alert(`${changeLabel} 저장 실패: ${error.message}`);
+      console.error("관리자 권한 저장 실패:", error);
+      alert(`관리자 권한 저장 실패: ${error.message}`);
+      return;
+    }
+
+    await fetchAdminUsers();
+  };
+
+  const handleAdminStatusChange = async (adminUser, newStatus) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const ok = window.confirm(`${adminUser.email} 상태를 ${newStatus}(으)로 변경하시겠습니까?`);
+    if (!ok) return;
+
+    setIsAdminAccountSaving(true);
+    const { error } = await supabase
+      .from("admin_users")
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq("email", adminUser.email);
+    setIsAdminAccountSaving(false);
+
+    if (error) {
+      console.error("관리자 상태 저장 실패:", error);
+      alert(`관리자 상태 저장 실패: ${error.message}`);
       return;
     }
 
@@ -2674,8 +2696,9 @@ function Admin({ onBackClick }) {
                 onChangeDraft={updateAdminAccountDraft}
                 onClose={closeAdminAccountModal}
                 onCreateAdmin={createAdminUser}
+                onRoleChange={handleAdminRoleChange}
                 onSignOut={signOutAdmin}
-                onUpdateAdmin={updateAdminUser}
+                onStatusChange={handleAdminStatusChange}
               />
             )}
             {isSettlementPendingModalOpen && (
@@ -2924,8 +2947,9 @@ function AdminAccountModal({
   onChangeDraft,
   onClose,
   onCreateAdmin,
+  onRoleChange,
   onSignOut,
-  onUpdateAdmin,
+  onStatusChange,
   saving,
 }) {
   // 현재 로그인 계정의 권한
@@ -3009,12 +3033,6 @@ function AdminAccountModal({
               const targetRole = adminUser.role || "staff";
               const canEditAdmin = currentAdminRole === "owner";
               const editTitle = canEditAdmin ? undefined : "현재 권한으로는 수정할 수 없습니다";
-              const confirmSelfChange = () => {
-                if (!isSelf) return true;
-                return window.confirm(
-                  "현재 로그인 중인 본인 계정 권한/상태를 변경합니다. 계속하시겠습니까?"
-                );
-              };
 
               return (
                 <article className="admin-account-row" key={adminUser.id}>
@@ -3045,10 +3063,7 @@ function AdminAccountModal({
                       title={editTitle}
                       value={targetRole}
                       disabled={!canEditAdmin}
-                      onChange={(event) => {
-                        if (!confirmSelfChange()) return;
-                        onUpdateAdmin(adminUser, { role: event.target.value });
-                      }}
+                      onChange={(event) => onRoleChange(adminUser, event.target.value)}
                     >
                       <option value="owner">owner</option>
                       <option value="admin">admin</option>
@@ -3059,10 +3074,7 @@ function AdminAccountModal({
                       title={editTitle}
                       value={adminUser.status || "active"}
                       disabled={!canEditAdmin}
-                      onChange={(event) => {
-                        if (!confirmSelfChange()) return;
-                        onUpdateAdmin(adminUser, { status: event.target.value });
-                      }}
+                      onChange={(event) => onStatusChange(adminUser, event.target.value)}
                     >
                       <option value="active">active</option>
                       <option value="inactive">inactive</option>
