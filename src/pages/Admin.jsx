@@ -2935,6 +2935,7 @@ function AdminAccountModal({
     currentAdminUser?.role ||
     adminProfile?.role ||
     (currentEmail === "onlinkwith@gmail.com" ? "owner" : "확인 필요");
+  const currentAdminRole = currentRole || "staff";
 
   return (
     <AdminModal
@@ -3003,6 +3004,14 @@ function AdminAccountModal({
               const isSelf = adminUser.email?.trim().toLowerCase() === currentEmail;
               const isDbRegistered = !adminUser.isFallback;
               const loginStatus = isSelf ? "현재 로그인 중" : "가입 후 로그인 필요";
+              const targetRole = adminUser.role || "staff";
+              const canEditAdmin =
+                !saving &&
+                !adminUser.isFallback &&
+                !isSelf &&
+                (currentAdminRole === "owner" ||
+                  (currentAdminRole === "admin" && targetRole === "staff"));
+              const editTitle = canEditAdmin ? undefined : "현재 권한으로는 수정할 수 없습니다";
 
               return (
                 <article className="admin-account-row" key={adminUser.id}>
@@ -3030,8 +3039,9 @@ function AdminAccountModal({
                   <div className="admin-account-row-controls">
                     <select
                       aria-label={`${adminUser.email} 권한 변경`}
-                      value={adminUser.role || "staff"}
-                      disabled={saving || adminUser.isFallback || isSelf}
+                      title={editTitle}
+                      value={targetRole}
+                      disabled={!canEditAdmin}
                       onChange={(event) =>
                         onUpdateAdmin(adminUser, { role: event.target.value })
                       }
@@ -3042,8 +3052,9 @@ function AdminAccountModal({
                     </select>
                     <select
                       aria-label={`${adminUser.email} 상태 변경`}
+                      title={editTitle}
                       value={adminUser.status || "active"}
-                      disabled={saving || adminUser.isFallback || isSelf}
+                      disabled={!canEditAdmin}
                       onChange={(event) =>
                         onUpdateAdmin(adminUser, { status: event.target.value })
                       }
