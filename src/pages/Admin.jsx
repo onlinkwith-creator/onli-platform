@@ -3002,15 +3002,11 @@ function AdminAccountModal({
             adminUsers.map((adminUser) => {
               const isSelf = adminUser.email?.trim().toLowerCase() === currentEmail;
               const isDbRegistered = !adminUser.isFallback;
-              const authStatus = !isDbRegistered
-                ? "확인 불가"
-                : Boolean(adminUser.auth_user_id) || isSelf
-                  ? "가입 완료"
-                  : "가입 전";
+              const loginStatus = isSelf ? "현재 로그인 중" : "가입 후 로그인 필요";
 
               return (
                 <article className="admin-account-row" key={adminUser.id}>
-                  <div className="admin-account-row-main">
+                  <div className="admin-account-row-head">
                     <strong className="admin-account-email">
                       {adminUser.email}
                       {isSelf && (
@@ -3024,35 +3020,37 @@ function AdminAccountModal({
                         </span>
                       )}
                     </strong>
-                    <label>
-                      <span>권한</span>
-                      <select
-                        value={adminUser.role || "staff"}
-                        disabled={saving || adminUser.isFallback || isSelf}
-                        onChange={(event) =>
-                          onUpdateAdmin(adminUser, { role: event.target.value })
-                        }
-                      >
-                        <option value="owner">owner</option>
-                        <option value="admin">admin</option>
-                        <option value="staff">staff</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>상태</span>
-                      <select
-                        value={adminUser.status || "active"}
-                        disabled={saving || adminUser.isFallback || isSelf}
-                        onChange={(event) =>
-                          onUpdateAdmin(adminUser, { status: event.target.value })
-                        }
-                      >
-                        <option value="active">active</option>
-                        <option value="inactive">inactive</option>
-                      </select>
-                    </label>
-                    <span>Auth 가입 여부: {authStatus}</span>
+                  </div>
+                  <div className="admin-account-row-main">
+                    <span>권한: {adminUser.role || "staff"}</span>
+                    <span>상태: {adminUser.status || "active"}</span>
+                    <span>로그인 상태: {loginStatus}</span>
                     <span>등록일: {adminUser.created_at ? formatDate(adminUser.created_at) : "-"}</span>
+                  </div>
+                  <div className="admin-account-row-controls">
+                    <select
+                      aria-label={`${adminUser.email} 권한 변경`}
+                      value={adminUser.role || "staff"}
+                      disabled={saving || adminUser.isFallback || isSelf}
+                      onChange={(event) =>
+                        onUpdateAdmin(adminUser, { role: event.target.value })
+                      }
+                    >
+                      <option value="owner">owner</option>
+                      <option value="admin">admin</option>
+                      <option value="staff">staff</option>
+                    </select>
+                    <select
+                      aria-label={`${adminUser.email} 상태 변경`}
+                      value={adminUser.status || "active"}
+                      disabled={saving || adminUser.isFallback || isSelf}
+                      onChange={(event) =>
+                        onUpdateAdmin(adminUser, { status: event.target.value })
+                      }
+                    >
+                      <option value="active">active</option>
+                      <option value="inactive">inactive</option>
+                    </select>
                   </div>
                 </article>
               );

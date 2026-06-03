@@ -2469,9 +2469,13 @@
 }
 
 .admin-account-modal {
-  width: min(960px, 100%);
-  max-height: 84vh;
+  width: min(720px, calc(100vw - 32px));
+  max-width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
+  margin: auto;
+  padding: 24px;
+  box-sizing: border-box;
 }
 
 .admin-account-modal-form input,
@@ -2493,9 +2497,14 @@
 
 .admin-account-create-form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(0, 1.5fr) minmax(140px, 0.7fr) auto;
   gap: 12px;
   align-items: end;
+}
+
+.admin-account-create-form h3,
+.admin-account-create-form p {
+  grid-column: 1 / -1;
 }
 
 .admin-account-create-actions .admin-save {
@@ -2509,19 +2518,21 @@
 }
 
 .admin-account-row {
-  display: block;
-  padding: 12px 14px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
 }
 
-.admin-account-row-main {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.6fr) minmax(130px, 0.8fr) minmax(130px, 0.8fr) minmax(150px, 0.9fr) minmax(120px, 0.8fr);
-  align-items: center;
+.admin-account-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 12px;
-  color: #111827;
+  min-width: 0;
 }
 
 .admin-account-email {
@@ -2530,6 +2541,9 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  color: #111827;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .admin-account-badge {
@@ -2556,17 +2570,20 @@
   font-weight: 800;
 }
 
-.admin-account-row-main label {
+.admin-account-row-main {
   display: grid;
-  grid-template-columns: auto minmax(86px, 1fr);
-  align-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  color: #6b7280;
-  font-size: 12px;
-  font-weight: 800;
+  min-width: 0;
 }
 
-.admin-account-row-main select {
+.admin-account-row-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 160px));
+  gap: 8px;
+}
+
+.admin-account-row-controls select {
   min-height: 40px;
 }
 
@@ -2948,17 +2965,17 @@
 
   .admin-account-current,
   .admin-account-create-form,
+  .admin-account-row-main,
+  .admin-account-row-controls,
   .admin-account-signout {
     grid-template-columns: 1fr;
   }
 
-  .admin-account-row-main {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
-  .admin-account-row-main label {
-    grid-template-columns: 72px minmax(0, 1fr);
+  .admin-account-modal {
+    width: min(720px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 80px);
+    padding: 18px;
   }
 
   .admin-metrics {
