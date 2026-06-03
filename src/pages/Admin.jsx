@@ -399,7 +399,7 @@ function Admin({ onBackClick }) {
     });
   }, []);
 
-  // admin_users 테이블 조회 (실패 시 ADMIN_EMAILS 기반 fallback)
+  // admin_users 테이블 조회
   const fetchAdminUsers = useCallback(async () => {
     if (!supabase) {
       alert(supabaseConfigError.message);
@@ -408,24 +408,13 @@ function Admin({ onBackClick }) {
 
     const { data, error } = await supabase
       .from("admin_users")
-      .select("id, auth_user_id, email, role, status, created_at, updated_at")
+      .select("id, email, role, status, created_at, updated_at")
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.warn("admin_users 조회 실패, fallback 사용:", error.message);
-      // 테이블 없거나 에러 시 → ADMIN_EMAILS 기반 fallback 표시
-      const fallbackEmails = ["onlinkwith@gmail.com", "onlinkcp@gmail.com"];
-      setAdminUsers(
-        (fallbackEmails || []).map((email, i) => ({
-          id: `fallback-${i}`,
-          email,
-          role: i === 0 ? "owner" : "admin",
-          status: "active",
-          created_at: null,
-          updated_at: null,
-          isFallback: true,
-        }))
-      );
+      console.error("admin_users 목록 조회 실패:", error);
+      alert(`관리자 목록 조회 실패: ${error.message}`);
+      setAdminUsers([]);
       return;
     }
 
@@ -792,6 +781,14 @@ function Admin({ onBackClick }) {
 
   const createAdminUser = async () => {
     const email = adminAccountDraft.email.trim().toLowerCase();
+    const currentEmail = user?.email?.trim().toLowerCase() || "";
+    const currentAdminRole =
+      currentEmail === "onlinkwith@gmail.com" ? "owner" : adminProfile?.role || "staff";
+
+    if (currentAdminRole !== "owner") {
+      alert("owner 권한이 있는 관리자만 추가할 수 있습니다.");
+      return;
+    }
 
     if (!email || !email.includes("@")) {
       alert("관리자 이메일을 입력해주세요.");
@@ -2958,10 +2955,11 @@ function AdminAccountModal({
     (adminUser) => adminUser.email?.trim().toLowerCase() === currentEmail && !adminUser.isFallback
   );
   const currentRole =
-    currentAdminUser?.role ||
-    adminProfile?.role ||
-    (currentEmail === "onlinkwith@gmail.com" ? "owner" : "확인 필요");
+    currentEmail === "onlinkwith@gmail.com"
+      ? "owner"
+      : currentAdminUser?.role || adminProfile?.role || "확인 필요";
   const currentAdminRole = currentRole || "staff";
+  const canManageAdmins = currentAdminRole === "owner";
 
   return (
     <AdminModal
@@ -2997,6 +2995,7 @@ function AdminAccountModal({
               type="email"
               value={draft.email}
               autoComplete="off"
+              disabled={!canManageAdmins || saving}
               onChange={(event) => onChangeDraft("email", event.target.value)}
               placeholder="admin@example.com"
             />
@@ -3004,6 +3003,7 @@ function AdminAccountModal({
           <FieldControl label="권한">
             <select
               value={draft.role}
+              disabled={!canManageAdmins || saving}
               onChange={(event) => onChangeDraft("role", event.target.value)}
             >
               <option value="owner">owner</option>
@@ -3012,7 +3012,7 @@ function AdminAccountModal({
             </select>
           </FieldControl>
           <div className="admin-account-create-actions">
-            <button type="submit" className="admin-save" disabled={saving}>
+            <button type="submit" className="admin-save" disabled={saving || !canManageAdmins}>
               {saving ? "처리 중..." : "관리자 추가"}
             </button>
           </div>
@@ -3031,7 +3031,7 @@ function AdminAccountModal({
               const isDbRegistered = !adminUser.isFallback;
               const loginStatus = isSelf ? "현재 로그인 중" : "가입 후 로그인 필요";
               const targetRole = adminUser.role || "staff";
-              const canEditAdmin = currentAdminRole === "owner";
+              const canEditAdmin = canManageAdmins;
               const editTitle = canEditAdmin ? undefined : "현재 권한으로는 수정할 수 없습니다";
 
               return (
