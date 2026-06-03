@@ -836,20 +836,22 @@ function Admin({ onBackClick }) {
       return;
     }
 
-    if (adminUser.isFallback) {
-      alert("admin_users 테이블이 생성된 후 수정할 수 있습니다.");
-      return;
-    }
-
     setIsAdminAccountSaving(true);
-    const { error } = await supabase
+    const adminUpdate = supabase
       .from("admin_users")
-      .update({ ...changes, updated_at: new Date().toISOString() })
-      .eq("id", adminUser.id);
+      .update({ ...changes, updated_at: new Date().toISOString() });
+    const adminId = String(adminUser.id || "");
+    const { error } = adminId && !adminId.startsWith("fallback-")
+      ? await adminUpdate.eq("id", adminUser.id)
+      : await adminUpdate.eq("email", adminUser.email);
     setIsAdminAccountSaving(false);
 
     if (error) {
-      alert(`관리자 계정 수정 실패: ${error.message}`);
+      console.error("admin_users update failed:", error);
+      const changeLabel = Object.prototype.hasOwnProperty.call(changes, "role")
+        ? "관리자 권한"
+        : "관리자 상태";
+      alert(`${changeLabel} 저장 실패: ${error.message}`);
       return;
     }
 
