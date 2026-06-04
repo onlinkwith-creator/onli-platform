@@ -565,6 +565,9 @@ function Home({
         </div>
 
         <nav className="home-footer-policies" aria-label="약관 및 정책">
+          <a className="home-footer-link" href="/terms/common">
+            공통 이용약관
+          </a>
           <a className="home-footer-link" href="/terms">
             이용약관
           </a>
