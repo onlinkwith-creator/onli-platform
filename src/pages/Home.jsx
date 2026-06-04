@@ -565,17 +565,17 @@ function Home({
         </div>
 
         <nav className="home-footer-policies" aria-label="약관 및 정책">
-          <a className="home-footer-link" href="/terms/common">
-            공통 이용약관
-          </a>
           <a className="home-footer-link" href="/terms">
             이용약관
           </a>
+          <a className="home-footer-link" href="/client-policy">
+            기업 이용약관
+          </a>
+          <a className="home-footer-link" href="/interpreter-policy">
+            통역사 활동 약관
+          </a>
           <a className="home-footer-link" href="/privacy">
             개인정보처리방침
-          </a>
-          <a className="home-footer-link" href="/refund-policy">
-            환불규정
           </a>
         </nav>
 
