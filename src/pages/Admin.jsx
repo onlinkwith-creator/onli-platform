@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
   Briefcase,
-  CalendarDays,
   CheckCircle2,
   Eye,
   Languages,
@@ -120,15 +118,27 @@ const INTERPRETER_UPDATE_COLUMNS = new Set([
   "updated_at",
 ]);
 const INTERPRETER_STATUS_VALUES = new Set(INTERPRETER_STATUSES);
-const REQUEST_STATUSES = [
+const REQUEST_MANAGEMENT_FILTERS = [
+  { value: "all", label: "전체" },
+  { value: "new_request", label: "신규 의뢰" },
+  { value: "before_operation", label: "운영 전" },
+  { value: "operation_in_progress", label: "운영 중" },
+  { value: "operation_completed", label: "운영 종료" },
+];
+const PENDING_INTERPRETER_STATUSES = [
+  "pending",
+  "approval_pending",
+  "승인대기",
+  "승인 대기",
+  "미승인",
+  "",
+];
+const NEW_REQUEST_STATUSES = [
+  "new",
+  "pending",
+  "접수대기",
+  "미확인",
   MATCHING_STATUS.DRAFT,
-  MATCHING_STATUS.ASSIGNED,
-  MATCHING_STATUS.CONFIRMED,
-  MATCHING_STATUS.IN_PROGRESS,
-  MATCHING_STATUS.COMPLETED,
-  MATCHING_STATUS.SETTLEMENT_PENDING,
-  MATCHING_STATUS.SETTLED,
-  MATCHING_STATUS.CANCELLED,
 ];
 const EMPTY_REQUEST_EDIT_DRAFT = {
   id: "",
@@ -525,9 +535,10 @@ function Admin({ onBackClick }) {
           getDateRangeEnd(request.end_date || request.event_date, request.date),
           requestFilters.month
         );
-      const matchesStatus =
-        requestFilters.status === "all" ||
-        request.status === requestFilters.status;
+      const matchesStatus = doesRequestMatchManagementStatusFilter(
+        request,
+        requestFilters.status
+      );
       const matchesPublic =
         requestFilters.public === "all" ||
         String(isRequestJobPublic(request, jobsById)) === requestFilters.public;
@@ -566,9 +577,10 @@ function Admin({ onBackClick }) {
           getDateRangeEnd(request.end_date || request.event_date, request.date),
           requestFilters.month
         );
-      const matchesStatus =
-        requestFilters.status === "all" ||
-        request.status === requestFilters.status;
+      const matchesStatus = doesRequestMatchManagementStatusFilter(
+        request,
+        requestFilters.status
+      );
       const matchesPublic =
         requestFilters.public === "all" ||
         String(isRequestJobPublic(request, jobsById)) === requestFilters.public;
@@ -608,7 +620,9 @@ function Admin({ onBackClick }) {
         interpreter.level === interpreterFilters.level;
       const matchesStatus =
         interpreterFilters.status === "all" ||
-        getInterpreterFilterStatus(interpreter) === interpreterFilters.status;
+        (interpreterFilters.status === "inactive"
+          ? getInterpreterActivityStatus(interpreter) === INTERPRETER_ACTIVITY_STATUS.INACTIVE
+          : getInterpreterFilterStatus(interpreter) === interpreterFilters.status);
       const matchesActivity =
         interpreterFilters.activity === "all" ||
         getInterpreterActivityStatus(interpreter) === interpreterFilters.activity;
@@ -632,26 +646,22 @@ function Admin({ onBackClick }) {
 
   const dashboard = useMemo(
     () => {
-      const today = new Date().toISOString().slice(0, 10);
       return {
         totalRequests: requests.length,
         totalInterpreters: interpreters.length,
-        todayApplications: jobApplications.filter((application) =>
-          String(application.created_at || "").startsWith(today)
+        pendingInterpreters: interpreters.filter((interpreter) =>
+          isPendingInterpreter(interpreter)
         ).length,
+        newRequests: requests.filter((request) => isNewRequest(request)).length,
         uncheckedApplications: jobApplications.filter((application) =>
           [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
             normalizeApplicationStatus(application.status)
           )
         ).length,
-        urgentRequests: requests.filter((request) => isUrgentOperationRequest(request))
-          .length,
-        completedRequests: completedRequests.length,
         settlementPending: settlementPendingRequests.length,
       };
     },
     [
-      completedRequests.length,
       jobApplications,
       requests,
       interpreters,
@@ -693,6 +703,22 @@ function Admin({ onBackClick }) {
       targetTab: "interpreters",
     },
     {
+      label: "신규 통역사 지원",
+      value: `${dashboard.pendingInterpreters}명`,
+      description: "승인 검토 필요",
+      tone: "purple",
+      icon: Star,
+      targetTab: "interpreters",
+    },
+    {
+      label: "신규 의뢰",
+      value: `${dashboard.newRequests}건`,
+      description: "새 의뢰 확인 필요",
+      tone: "blue",
+      icon: Mail,
+      targetTab: "requests",
+    },
+    {
       label: "미확인 지원",
       value: `${dashboard.uncheckedApplications}건`,
       description: "검토가 필요한 지원",
@@ -701,28 +727,12 @@ function Admin({ onBackClick }) {
       targetTab: "applications",
     },
     {
-      label: "긴급 요청(D-7)",
-      value: `${dashboard.urgentRequests}건`,
-      description: "바로 확인 필요",
-      tone: "red",
-      icon: AlertTriangle,
-      targetTab: "requests",
-    },
-    {
-      label: "완료 의뢰",
-      value: `${dashboard.completedRequests}건`,
-      description: "운영 완료 건수",
-      tone: "indigo",
-      icon: CalendarDays,
-      targetTab: "completedRequests",
-    },
-    {
       label: "정산 대기",
       value: `${dashboard.settlementPending}건`,
       description: "정산 처리 필요",
-      tone: "blue",
+      tone: "indigo",
       icon: CheckCircle2,
-      targetTab: "requests",
+      targetTab: "matching",
     },
   ];
 
@@ -750,23 +760,38 @@ function Admin({ onBackClick }) {
         duplicate: "all",
       });
       setActiveTab("interpreters");
+    } else if (card.label === "신규 통역사 지원") {
+      setInterpreterFilters({
+        search: "",
+        level: "all",
+        status: "pending",
+        activity: "all",
+        approved: "all",
+        duplicate: "all",
+      });
+      setActiveTab("interpreters");
+    } else if (card.label === "신규 의뢰") {
+      setRequestFilters((prev) => ({
+        ...prev,
+        search: "",
+        month: "",
+        status: "new_request",
+        public: "all",
+      }));
+      setActiveTab("requests");
     } else if (card.label === "미확인 지원") {
       setApplicationFilters({
         status: "unchecked",
         duplicate: "all",
       });
       setActiveTab("applications");
-    } else if (card.label === "완료 의뢰") {
-      setRequestFilters((prev) => ({
-        ...prev,
-        search: "",
-        month: "",
-        status: "all",
-        public: "all",
-      }));
-      setActiveTab("completedRequests");
     } else if (card.label === "정산 대기") {
-      setIsSettlementPendingModalOpen(true);
+      setMatchingFilters((prev) => ({
+        ...prev,
+        month: "",
+        status: "settlement_pending",
+      }));
+      setActiveTab("matching");
     } else {
       setActiveTab(card.targetTab);
     }
@@ -3359,10 +3384,9 @@ function RequestManagement({
             setFilters((current) => ({ ...current, status: event.target.value }))
           }
         >
-          <option value="all">전체 상태</option>
-          {REQUEST_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {getMatchingStatusLabel(status)}
+          {REQUEST_MANAGEMENT_FILTERS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
@@ -4064,8 +4088,9 @@ function InterpreterManagement({
           }
         >
           <option value="all">전체 상태</option>
-          <option value="pending">승인 대기</option>
+          <option value="pending">신규 통역사 지원</option>
           <option value="active">승인 완료</option>
+          <option value="inactive">비활성</option>
           <option value="rejected">반려</option>
           <option value="warning">경고</option>
           <option value="suspended">정지</option>
@@ -6887,7 +6912,34 @@ function getInterpreterActivityStatus(interpreter = {}) {
 
 function isPendingInterpreter(interpreter = {}) {
   const status = String(interpreter.status || "").toLowerCase().trim();
-  return status === "pending" || status === "승인 대기" || status === "";
+  return PENDING_INTERPRETER_STATUSES.includes(status);
+}
+
+function isNewRequest(request = {}) {
+  const statusValues = [
+    request.status,
+    request.matching_status,
+    request.request_status,
+    request.contact_status,
+  ].map((status) => String(status || "").trim().toLowerCase());
+
+  return statusValues.some((status) => NEW_REQUEST_STATUSES.includes(status));
+}
+
+function doesRequestMatchManagementStatusFilter(request = {}, filter = "all") {
+  if (filter === "all") return true;
+  if (filter === "new_request") return isNewRequest(request);
+  if (filter === "before_operation") {
+    return normalizeOperationStatus(request) === OPERATION_STATUS.BEFORE_OPERATION;
+  }
+  if (filter === "operation_in_progress") {
+    return normalizeOperationStatus(request) === OPERATION_STATUS.IN_PROGRESS;
+  }
+  if (filter === "operation_completed") {
+    return normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED;
+  }
+
+  return request.status === filter;
 }
 
 function getInterpreterStatusLabel(interpreter = {}) {
