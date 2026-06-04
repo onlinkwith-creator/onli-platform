@@ -84,6 +84,8 @@ import "./Admin.css";
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
 
 const TABS = [
+  { id: "newRequests", label: "신규 의뢰 관리" },
+  { id: "newApplications", label: "신규 지원 관리" },
   { id: "requests", label: "의뢰 관리" },
   { id: "completedRequests", label: "완료 의뢰" },
   { id: "jobs", label: "통역 공고 관리" },
@@ -139,6 +141,15 @@ const NEW_REQUEST_STATUSES = [
   "접수대기",
   "미확인",
   MATCHING_STATUS.DRAFT,
+];
+const NEW_APPLICATION_STATUSES = [
+  "new",
+  "pending",
+  "지원접수",
+  "지원완료",
+  "미확인",
+  "승인대기",
+  "승인 대기",
 ];
 const EMPTY_REQUEST_EDIT_DRAFT = {
   id: "",
@@ -514,6 +525,18 @@ function Admin({ onBackClick }) {
     () => requests.filter((request) => isSettlementPendingRequest(request)),
     [requests]
   );
+  const newRequests = useMemo(
+    () => requests.filter((request) => isNewRequest(request)),
+    [requests]
+  );
+  const pendingInterpreters = useMemo(
+    () => interpreters.filter((interpreter) => isPendingInterpreter(interpreter)),
+    [interpreters]
+  );
+  const newJobApplications = useMemo(
+    () => jobApplications.filter((application) => isNewJobApplication(application)),
+    [jobApplications]
+  );
 
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
@@ -649,10 +672,8 @@ function Admin({ onBackClick }) {
       return {
         totalRequests: requests.length,
         totalInterpreters: interpreters.length,
-        pendingInterpreters: interpreters.filter((interpreter) =>
-          isPendingInterpreter(interpreter)
-        ).length,
-        newRequests: requests.filter((request) => isNewRequest(request)).length,
+        pendingInterpreters: pendingInterpreters.length,
+        newRequests: newRequests.length,
         uncheckedApplications: jobApplications.filter((application) =>
           [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
             normalizeApplicationStatus(application.status)
@@ -663,8 +684,10 @@ function Admin({ onBackClick }) {
     },
     [
       jobApplications,
-      requests,
-      interpreters,
+      newRequests.length,
+      pendingInterpreters.length,
+      requests.length,
+      interpreters.length,
       settlementPendingRequests.length,
     ]
   );
@@ -761,30 +784,15 @@ function Admin({ onBackClick }) {
       });
       setActiveTab("interpreters");
     } else if (card.label === "신규 통역사 지원") {
-      setInterpreterFilters({
-        search: "",
-        level: "all",
-        status: "pending",
-        activity: "all",
-        approved: "all",
-        duplicate: "all",
-      });
-      setActiveTab("interpreters");
+      setActiveTab("newApplications");
     } else if (card.label === "신규 의뢰") {
-      setRequestFilters((prev) => ({
-        ...prev,
-        search: "",
-        month: "",
-        status: "new_request",
-        public: "all",
-      }));
-      setActiveTab("requests");
+      setActiveTab("newRequests");
     } else if (card.label === "미확인 지원") {
       setApplicationFilters({
         status: "unchecked",
         duplicate: "all",
       });
-      setActiveTab("applications");
+      setActiveTab("newApplications");
     } else if (card.label === "정산 대기") {
       setMatchingFilters((prev) => ({
         ...prev,
@@ -1183,6 +1191,66 @@ function Admin({ onBackClick }) {
         location: request?.event_location || "",
       });
     }
+  };
+
+  const confirmNewRequest = async (request) => {
+    if (!request?.id) {
+      alert("의뢰 정보를 확인할 수 없습니다.");
+      return false;
+    }
+
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return false;
+    }
+
+    const checkedAt = new Date().toISOString();
+    const checkedPayload = {
+      admin_checked: true,
+      checked_at: checkedAt,
+      updated_at: checkedAt,
+    };
+    const fallbackPayload = {
+      status: MATCHING_STATUS.ASSIGNED,
+      assignment_status: ASSIGNMENT_STATUS.WAITING,
+      updated_at: checkedAt,
+    };
+
+    setSavingKey(`new-request-${request.id}`);
+    let { data, error } = await supabase
+      .from("requests")
+      .update(checkedPayload)
+      .eq("id", request.id)
+      .select("*")
+      .single();
+
+    if (error && isMissingColumnError(error)) {
+      ({ data, error } = await updateRequestWithFallback(request.id, fallbackPayload));
+    }
+
+    setSavingKey("");
+
+    if (error) {
+      console.error("신규 의뢰 확인 처리 실패:", error);
+      alert(`확인 처리 실패: ${error.message}`);
+      return false;
+    }
+
+    setRequests((current) =>
+      current.map((item) =>
+        item.id === request.id
+          ? { ...item, ...(data || checkedPayload) }
+          : item
+      )
+    );
+    await fetchAdminData();
+    return true;
+  };
+
+  const confirmNewJobApplication = async (application) => {
+    return updateJobApplicationStatus(application, APPLICATION_STATUS.REVIEWING, {
+      confirmMessage: "이 지원을 확인 처리하시겠습니까?",
+    });
   };
 
   const updateRequestFlowStatus = async (request, changes) => {
@@ -2596,6 +2664,47 @@ function Admin({ onBackClick }) {
               />
             )}
 
+            {activeTab === "newRequests" && (
+              <NewRequestManagement
+                requests={newRequests}
+                savingKey={savingKey}
+                onConfirmRequest={confirmNewRequest}
+                onOpenDetail={(request) => openRequestModal("detail", request)}
+                onOpenRequestsTab={() => {
+                  setRequestFilters((prev) => ({
+                    ...prev,
+                    search: "",
+                    month: "",
+                    status: "all",
+                    public: "all",
+                  }));
+                  setActiveTab("requests");
+                }}
+              />
+            )}
+
+            {activeTab === "newApplications" && (
+              <NewApplicationManagement
+                applications={newJobApplications}
+                duplicateResult={duplicateApplicationResult}
+                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
+                interpreters={pendingInterpreters}
+                jobsById={jobsById}
+                savingKey={savingKey}
+                onConfirmApplication={confirmNewJobApplication}
+                onOpenApplicationsTab={() => {
+                  setApplicationFilters({
+                    status: "all",
+                    duplicate: "all",
+                  });
+                  setActiveTab("applications");
+                }}
+                onOpenInterpreterModal={openInterpreterModal}
+                updateInterpreter={updateInterpreter}
+                deleteInterpreter={deleteInterpreter}
+              />
+            )}
+
             {activeTab === "completedRequests" && (
               <RequestManagement
                 applicationsRequestId={applicationsRequestId}
@@ -2884,6 +2993,247 @@ function RequestActionModal({
         />
       )}
     </AdminModal>
+  );
+}
+
+function NewRequestManagement({
+  requests,
+  savingKey,
+  onConfirmRequest,
+  onOpenDetail,
+  onOpenRequestsTab,
+}) {
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${requests.length}건`} title="신규 의뢰 관리" />
+      {requests.length === 0 ? (
+        <MessageBox text="새로 들어온 의뢰가 없습니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {requests.map((request) => (
+            <article className="admin-list-card" key={request.id}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">신규 의뢰</span>
+                  <ManagementNumberBadge value={request.request_no} />
+                  <h3 title={request.event_name || request.title || ""}>
+                    {request.event_name || request.title || "-"}
+                  </h3>
+                </div>
+                <StatusBadge status={getRequestHeadlineStatus(request).label} />
+              </div>
+
+              <dl className="admin-card-summary">
+                <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+                <Info label="기업명" value={request.company_name || "-"} />
+                <Info label="행사명" value={request.event_name || request.title || "-"} />
+                <Info
+                  label="날짜"
+                  value={formatDateRange(
+                    request.start_date,
+                    request.end_date,
+                    request.event_date || request.date
+                  )}
+                />
+                <Info label="장소" value={request.event_location || request.location || "-"} />
+                <Info
+                  label="요청 언어"
+                  value={request.language || request.requested_language || "-"}
+                />
+                <Info
+                  label="필요 인원"
+                  value={
+                    request.requested_people_count || request.required_count
+                      ? `${request.requested_people_count || request.required_count}명`
+                      : "-"
+                  }
+                />
+                <Info label="현재 상태" value={getRequestHeadlineStatus(request).label} />
+                <Info label="등록일" value={formatDateTime(request.created_at)} />
+              </dl>
+
+              <div className="admin-card-actions">
+                <button
+                  type="button"
+                  className="admin-link-button primary"
+                  onClick={() => onOpenDetail(request)}
+                >
+                  상세보기
+                </button>
+                <button
+                  type="button"
+                  className="admin-save"
+                  disabled={savingKey === `new-request-${request.id}`}
+                  onClick={() => onConfirmRequest(request)}
+                >
+                  확인 처리
+                </button>
+                <button
+                  type="button"
+                  className="admin-link-button"
+                  onClick={onOpenRequestsTab}
+                >
+                  의뢰 관리로 이동
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function NewApplicationManagement({
+  applications,
+  duplicateResult,
+  getInterpreterScheduleConflicts,
+  interpreters,
+  jobsById,
+  savingKey,
+  onConfirmApplication,
+  onOpenApplicationsTab,
+  onOpenInterpreterModal,
+  updateInterpreter,
+  deleteInterpreter,
+}) {
+  const hasNewItems = interpreters.length > 0 || applications.length > 0;
+
+  if (!hasNewItems) {
+    return (
+      <section className="admin-section">
+        <SectionTitle count="0건" title="신규 지원 관리" />
+        <MessageBox text="새로 들어온 지원이 없습니다." />
+      </section>
+    );
+  }
+
+  return (
+    <section className="admin-section">
+      <SectionTitle
+        count={`${interpreters.length + applications.length}건`}
+        title="신규 지원 관리"
+      />
+
+      <div className="admin-subsection">
+        <SectionTitle count={`${interpreters.length}명`} title="통역사 신규 등록" />
+        {interpreters.length === 0 ? (
+          <MessageBox text="새로 들어온 통역사 등록 지원이 없습니다." />
+        ) : (
+          <div className="admin-management-card-grid">
+            {interpreters.map((interpreter) => (
+              <InterpreterCard
+                key={interpreter.id}
+                duplicateReasons={[]}
+                duplicateSuspected={false}
+                interpreter={interpreter}
+                savingKey={savingKey}
+                onOpenModal={onOpenInterpreterModal}
+                updateInterpreter={updateInterpreter}
+                deleteInterpreter={deleteInterpreter}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="admin-subsection">
+        <SectionTitle count={`${applications.length}건`} title="공고 신규 지원" />
+        {applications.length === 0 ? (
+          <MessageBox text="새로 들어온 공고 지원이 없습니다." />
+        ) : (
+          <div className="admin-management-card-grid">
+            {applications.map((application) => {
+              const job = application.jobs || jobsById.get(application.job_id);
+              const duplicateReasons = duplicateResult.reasonMap.get(application.id) || [];
+
+              return (
+                <NewJobApplicationCard
+                  key={application.id}
+                  application={application}
+                  duplicateReasons={duplicateReasons}
+                  duplicateSuspected={duplicateResult.duplicateIds.has(application.id)}
+                  job={job}
+                  savingKey={savingKey}
+                  scheduleConflict={hasApplicationScheduleConflict(
+                    application,
+                    job,
+                    getInterpreterScheduleConflicts
+                  )}
+                  onConfirmApplication={onConfirmApplication}
+                  onOpenApplicationsTab={onOpenApplicationsTab}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function NewJobApplicationCard({
+  application,
+  duplicateReasons,
+  duplicateSuspected,
+  job,
+  savingKey,
+  scheduleConflict,
+  onConfirmApplication,
+  onOpenApplicationsTab,
+}) {
+  const duplicateTitle = duplicateReasons.join(", ");
+
+  return (
+    <article className="admin-list-card">
+      <div className="admin-list-card-head">
+        <div>
+          <span className="admin-card-meta">공고 신규 지원</span>
+          <ManagementNumberBadge value={application.application_no} />
+          <h3 title={application.applicant_name || ""}>
+            {application.applicant_name || "이름 미입력"}
+          </h3>
+        </div>
+        <div className="admin-card-chip-row">
+          {duplicateSuspected && <DuplicateBadge title={duplicateTitle} />}
+          {scheduleConflict && <ScheduleConflictBadge />}
+          <StatusBadge status={application.status || APPLICATION_STATUS.PENDING} />
+        </div>
+      </div>
+
+      <dl className="admin-card-summary">
+        <Info label="지원자 이름" value={application.applicant_name || "이름 미입력"} />
+        <Info label="이메일" value={application.email || application.applicant_email || "-"} />
+        <Info label="지원 공고명" value={getJobDisplayTitle(job, application.job_id)} />
+        <Info label="지원 일자" value={formatDateTime(application.created_at)} />
+        <Info label="상태" value={getApplicationStatusLabel(application.status)} />
+      </dl>
+
+      <div className="admin-card-actions">
+        <button
+          type="button"
+          className="admin-link-button primary"
+          onClick={onOpenApplicationsTab}
+        >
+          상세보기
+        </button>
+        <button
+          type="button"
+          className="admin-save"
+          disabled={savingKey === `job-application-${application.id}`}
+          onClick={() => onConfirmApplication(application)}
+        >
+          확인 처리
+        </button>
+        <button
+          type="button"
+          className="admin-link-button"
+          onClick={onOpenApplicationsTab}
+        >
+          지원자 관리로 이동
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -6916,6 +7266,13 @@ function isPendingInterpreter(interpreter = {}) {
 }
 
 function isNewRequest(request = {}) {
+  const hasAdminChecked = Object.prototype.hasOwnProperty.call(request, "admin_checked");
+  const hasCheckedAt = Object.prototype.hasOwnProperty.call(request, "checked_at");
+
+  if (hasAdminChecked || hasCheckedAt) {
+    return request.admin_checked === false || (hasCheckedAt && !request.checked_at);
+  }
+
   const statusValues = [
     request.status,
     request.matching_status,
@@ -6924,6 +7281,18 @@ function isNewRequest(request = {}) {
   ].map((status) => String(status || "").trim().toLowerCase());
 
   return statusValues.some((status) => NEW_REQUEST_STATUSES.includes(status));
+}
+
+function isNewJobApplication(application = {}) {
+  const hasAdminChecked = Object.prototype.hasOwnProperty.call(application, "admin_checked");
+  const hasCheckedAt = Object.prototype.hasOwnProperty.call(application, "checked_at");
+
+  if (hasAdminChecked || hasCheckedAt) {
+    return application.admin_checked === false || (hasCheckedAt && !application.checked_at);
+  }
+
+  const status = String(application.status || "").trim().toLowerCase();
+  return NEW_APPLICATION_STATUSES.includes(status);
 }
 
 function doesRequestMatchManagementStatusFilter(request = {}, filter = "all") {

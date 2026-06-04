@@ -327,6 +327,10 @@
   margin-top: 14px;
 }
 
+.admin-subsection {
+  margin-top: 18px;
+}
+
 .admin-section-title {
   display: flex;
   justify-content: space-between;
