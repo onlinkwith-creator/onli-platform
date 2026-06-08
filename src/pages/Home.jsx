@@ -365,6 +365,9 @@ function Home({
             <button type="button" onClick={onRequestClick}>
               통역 의뢰하기
             </button>
+            <button type="button" onClick={onJobsClick} className="home-secondary">
+              전체 통역공고 확인하기
+            </button>
           </div>
         </div>
 
