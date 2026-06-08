@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import JobCard from "../components/JobCard";
 import { supabase } from "../supabase";
-import { normalizeJobStatus } from "../utils/jobStatus";
+import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
+import { formatCompactJobDateRange } from "../utils/dateRange";
+import { getJobSpecialty } from "../utils/jobDisplay";
+import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
+import { Calendar, MapPin, Users, Award, Briefcase } from "lucide-react";
 import "./Jobs.css";
 
 const initialFilters = {
@@ -349,10 +352,9 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
               <>
                 <div className="home-job-grid jobs-card-grid">
                   {paginatedJobs.map((job) => (
-                    <JobCard
+                    <JobListCard
                       key={job.id}
                       job={job}
-                      className="jobs-list-card"
                       onDetailClick={() => onDetailClick(job)}
                       onApplyClick={() => onApplyClick(job)}
                     />
@@ -399,6 +401,89 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
         )}
       </div>
     </div>
+  );
+}
+
+function JobListCard({ job, onApplyClick, onDetailClick }) {
+  const status = normalizeJobStatus(job);
+  const badge = getJobStatusLabel(job);
+  const canApply = canApplyToJob(job);
+  const dateLabel =
+    formatCompactJobDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-";
+  const locationLabel = job.location || job.event_location || "-";
+  const recruitmentLabel = getRecruitmentCountDisplay(job) || "-";
+  const levelLabel = getRequiredLevelDisplay(job) || "-";
+  const specialtyLabel = getJobSpecialty(job) || "-";
+  const mobileSpecialtyLabel = getJobSpecialtyWithGender(job);
+  const openDetail = () => onDetailClick?.(job);
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openDetail();
+    }
+  };
+
+  return (
+    <article
+      className="home-job-card job-card jobs-list-card"
+      role={onDetailClick ? "link" : undefined}
+      tabIndex={onDetailClick ? 0 : undefined}
+      onClick={openDetail}
+      onKeyDown={onDetailClick ? handleKeyDown : undefined}
+      aria-label={`${job.event_name || job.title || "통역 공고"} 상세 보기`}
+    >
+      <div className="home-job-card-body job-card-body">
+        <div>
+          <div className="home-job-card-top">
+            <div className={`home-job-status ${status}`}>{badge}</div>
+          </div>
+          <p className="home-job-company truncate">{job.company_name || "기업명 확인 중"}</p>
+          <h3 className="truncate">{job.event_name || job.title || "공고 제목 미입력"}</h3>
+        </div>
+
+        <div className="home-job-info-list job-info-list jobs-mobile-info-list">
+          <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
+            <Calendar size={15} aria-hidden="true" />
+            <span className="truncate">{dateLabel}</span>
+          </div>
+          <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
+            <MapPin size={15} aria-hidden="true" />
+            <span className="truncate">{locationLabel}</span>
+          </div>
+          <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
+            <Users size={15} aria-hidden="true" />
+            <span className="truncate">{recruitmentLabel}</span>
+          </div>
+          <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
+            <Award size={15} aria-hidden="true" />
+            <span className="truncate">{levelLabel}</span>
+          </div>
+          <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
+            <Briefcase size={15} aria-hidden="true" />
+            <span className="truncate jobs-specialty-desktop">{specialtyLabel}</span>
+            <span className="truncate jobs-specialty-mobile">{mobileSpecialtyLabel}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="job-divider job-card-divider" />
+
+      <div className="home-job-card-action job-card-footer">
+        <p className="home-job-level-note">Lv 기준 통역 단가 적용</p>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onApplyClick?.(job);
+          }}
+          disabled={!canApply}
+          className={canApply ? "apply-btn-active job-card-actions" : "apply-btn-disabled job-card-actions"}
+        >
+          {canApply ? "지원하기" : badge}
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -457,6 +542,14 @@ function getRequiredLevelDisplay(job = {}) {
 
   if (matched) return `Lv${matched[1]}`;
   return level || "운영팀 추천";
+}
+
+function getJobSpecialtyWithGender(job = {}) {
+  const specialty = getJobSpecialty(job) || "-";
+  const preferredGender = job.preferred_gender || "";
+
+  if (!preferredGender || specialty.includes(preferredGender)) return specialty;
+  return `${specialty} · ${preferredGender}`;
 }
 
 export default JobList;

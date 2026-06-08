@@ -559,6 +559,10 @@
   word-break: keep-all;
 }
 
+.jobs-specialty-mobile {
+  display: none;
+}
+
 /* Pricing Note soft banner */
 .home-job-level-note {
   width: 100%;
@@ -2027,6 +2031,14 @@
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: keep-all;
+  }
+
+  .jobs-card-grid .jobs-list-card .jobs-specialty-desktop {
+    display: none;
+  }
+
+  .jobs-card-grid .jobs-list-card .jobs-specialty-mobile {
+    display: inline;
   }
 
   .jobs-card-grid .jobs-list-card .home-job-mobile-level,
