@@ -1969,12 +1969,14 @@ span.home-footer-contact-item:hover {
 
   .home-section-head h2 {
     font-size: 22px;
+    font-weight: 800;
     line-height: 1.2;
   }
 
   .home-jobs-preview .home-section-head h2,
   .home-interpreters .home-section-head h2 {
     font-size: 22px;
+    font-weight: 800;
   }
 
   .home-job-card {
