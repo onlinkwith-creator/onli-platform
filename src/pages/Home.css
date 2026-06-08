@@ -1175,29 +1175,23 @@
   border: none !important;
 }
 
-.interpreter-card .status-badge {
-  font-size: 11px !important;
-  height: 24px !important;
-  padding: 0 10px !important;
+.home-interpreter-card .home-job-status,
+.home-interpreter-card .interpreter-status-badge,
+.home-interpreter-card .status-badge,
+.home-interpreter-card .registration-badge,
+.home-interpreter-card .verified,
+.home-interpreter-card .regular {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  padding: 0 8px !important;
+  line-height: 20px !important;
   border-radius: 999px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   box-sizing: border-box !important;
-  line-height: 1 !important;
-}
-
-.interpreter-card .verified-badge,
-.interpreter-card .registration-badge {
-  font-size: 11px !important;
-  height: 24px !important;
-  padding: 0 10px !important;
-  border-radius: 999px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  box-sizing: border-box !important;
-  line-height: 1 !important;
 }
 
 .level-badge {
