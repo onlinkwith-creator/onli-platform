@@ -716,19 +716,21 @@ function InterpreterCard({ interpreter, onProfileClick }) {
       aria-label={`${interpreter.name || "통역사"} 프로필 보기`}
     >
       <div className="home-interpreter-card-body">
-        <div className="home-interpreter-head interpreter-card-header">
-          <h3 className="truncate interpreter-name">{interpreter.name || "이름 미입력"}</h3>
-          <div className="interpreter-meta-row">
+        <div className="home-interpreter-card-header">
+          <h3 className="truncate home-interpreter-name">{interpreter.name || "이름 미입력"}</h3>
+          <div className="home-interpreter-meta-row">
+            <div className="home-interpreter-left-badges">
+              <span
+                className={`home-job-status ${activityStatus === "active" ? "recruiting" : activityStatus === "paused" ? "closing_soon" : "closed"} interpreter-status-badge status-badge home-interpreter-status-badge`}
+              >
+                {statusLabel}
+              </span>
+              <span className={`registration-badge ${isApprovedInterpreter(interpreter) ? "verified verified-badge" : "regular"} home-interpreter-registration-badge`}>
+                {isApprovedInterpreter(interpreter) ? "검증됨" : "일반 등록"}
+              </span>
+            </div>
             <span
-              className={`home-job-status ${activityStatus === "active" ? "recruiting" : activityStatus === "paused" ? "closing_soon" : "closed"} interpreter-status-badge status-badge`}
-            >
-              {statusLabel}
-            </span>
-            <span className={`registration-badge ${isApprovedInterpreter(interpreter) ? "verified verified-badge" : "regular"}`}>
-              {isApprovedInterpreter(interpreter) ? "검증됨" : "일반 등록"}
-            </span>
-            <span
-              className={`home-interpreter-level ${getHomeLevelClass(interpreter.level)} level-badge`}
+              className={`home-interpreter-level ${getHomeLevelClass(interpreter.level)} level-badge home-interpreter-level-badge`}
               style={getLevelBadgeStyle(interpreter.level)}
             >
               {normalizeLevel(interpreter.level || "Lv1")}
