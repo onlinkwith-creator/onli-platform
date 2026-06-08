@@ -1968,6 +1968,7 @@
   .jobs-card-grid .home-job-card {
     height: auto;
     min-height: 0;
+    justify-content: flex-start;
     padding: 16px;
     border-radius: 20px;
   }
@@ -2051,7 +2052,7 @@
   }
 
   .jobs-card-grid .home-job-card .home-job-card-action {
-    margin-top: 14px;
+    margin-top: 12px;
   }
 
   .jobs-card-grid .home-job-card button {

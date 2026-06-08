@@ -1985,6 +1985,8 @@ span.home-footer-contact-item:hover {
 
   .home-job-card {
     height: auto;
+    min-height: 0;
+    justify-content: flex-start;
   }
 
   .home-job-status {
