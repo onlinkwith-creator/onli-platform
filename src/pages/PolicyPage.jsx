@@ -805,10 +805,10 @@ function PolicyPage({ policyKey, onNavigate }) {
             <span>Korea-Japan B2B Interpretation Platform</span>
           </div>
           <div className="policy-footer-info">
-            <p>한일 비즈니스 매칭의 신뢰로운 파트너 | 운영 사무국</p>
+            <p>한일 비즈니스 매칭의 신뢰로운 파트너 | 운영팀 ONLINK CP</p>
             <p>
-              운영 문의 및 법무 대응 이메일:{" "}
-              <a href="mailto:contact@on-li.jp">contact@on-li.jp</a>
+              운영 문의 이메일:{" "}
+              <a href="mailto:onlinkcp@gmail.com">onlinkcp@gmail.com</a>
             </p>
           </div>
           <div className="policy-footer-copy">
