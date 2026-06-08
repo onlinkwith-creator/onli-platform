@@ -1143,6 +1143,7 @@
 
 .interpreter-meta-row .level-badge {
   margin-left: auto !important;
+  transform: translateY(-2px) !important;
 }
 
 .interpreter-meta-row .status-badge,
