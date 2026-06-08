@@ -40,14 +40,14 @@ const initialForm = {
 };
 
 const levelOptions = ["운영팀 추천받기", "LV1", "LV2", "LV3", "LV4"];
-const estimatedDailyRates = {
-  LV1: 18000,
-  LV2: 22000,
-  LV3: 28000,
-  LV4: 35000,
+const companyDailyRates = {
+  LV1: 220000,
+  LV2: 245000,
+  LV3: 280000,
+  LV4: 300000,
 };
 
-const formatYen = (amount) => `¥${Number(amount).toLocaleString("ja-JP")}`;
+const formatWon = (amount) => `₩${Number(amount).toLocaleString("ko-KR")}`;
 
 const getInclusiveDateCount = (startDate, endDate) => {
   if (!startDate || !endDate) {
@@ -119,20 +119,21 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const requestedLevel = isGeneralRequest
     ? form.requestedLevel
     : interpreter?.level || null;
-  const estimateLevel =
-    requestedLevel === "운영팀 추천받기" ? "LV2" : requestedLevel;
+  const isRecommendedLevel = requestedLevel === "운영팀 추천받기";
+  const estimateLevel = isRecommendedLevel ? null : requestedLevel;
   const estimateDays = getInclusiveDateCount(form.startDate, form.endDate);
   const estimatePeopleCount = Number(form.requestedPeopleCount);
+  const estimateDailyRate = companyDailyRates[estimateLevel];
   const canShowEstimate =
     Boolean(form.startDate) &&
     Boolean(form.endDate) &&
     Boolean(estimateLevel) &&
-    Boolean(estimatedDailyRates[estimateLevel]) &&
+    Boolean(estimateDailyRate) &&
     Number.isFinite(estimatePeopleCount) &&
     estimatePeopleCount > 0 &&
     Boolean(estimateDays);
   const estimatedUsageAmount = canShowEstimate
-    ? estimatedDailyRates[estimateLevel] * estimateDays * estimatePeopleCount
+    ? estimateDailyRate * estimateDays * estimatePeopleCount
     : null;
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -587,8 +588,10 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
               <EstimatedPriceCard
                 amount={estimatedUsageAmount}
                 level={estimateLevel}
+                dailyRate={estimateDailyRate}
                 days={estimateDays}
                 peopleCount={estimatePeopleCount}
+                isRecommendedLevel={isRecommendedLevel}
               />
             </div>
           </SectionBlock>
@@ -696,7 +699,14 @@ function TabField({ label, options, value, onChange, helpText, className }) {
   );
 }
 
-function EstimatedPriceCard({ amount, level, days, peopleCount }) {
+function EstimatedPriceCard({
+  amount,
+  level,
+  dailyRate,
+  days,
+  peopleCount,
+  isRecommendedLevel,
+}) {
   const hasAmount = amount !== null;
 
   return (
@@ -704,17 +714,21 @@ function EstimatedPriceCard({ amount, level, days, peopleCount }) {
       <div>
         <span className="request-estimate-label">예상 이용 금액</span>
         <p className="request-estimate-description">
-          선택한 기간, 인원 수, 통역 레벨 기준의 예상 금액입니다.
+          선택한 기간, 인원 수, 통역 레벨 기준의 기업 예상 이용 금액입니다.
         </p>
       </div>
 
       {hasAmount ? (
         <>
-          <strong className="request-estimate-amount">{formatYen(amount)} ~</strong>
+          <strong className="request-estimate-amount">{formatWon(amount)}</strong>
           <p className="request-estimate-standard">
-            기준: {level} × {days}일 × {peopleCount}명
+            기준: {level} 기업 금액 {formatWon(dailyRate)} × {days}일 × {peopleCount}명
           </p>
         </>
+      ) : isRecommendedLevel ? (
+        <p className="request-estimate-empty">
+          운영팀 추천 선택 시 최종 금액은 ON-LI 운영팀 확인 후 안내됩니다.
+        </p>
       ) : (
         <p className="request-estimate-empty">
           행사 날짜, 인원 수, 희망 레벨을 선택하면 예상 금액이 표시됩니다.
@@ -725,7 +739,7 @@ function EstimatedPriceCard({ amount, level, days, peopleCount }) {
         최종 금액은 행사 내용, 업무 범위, 통역사 배정 상황에 따라 달라질 수 있습니다.
       </p>
       <p className="request-estimate-note">
-        ※ 본 금액은 자동 계산된 예상 금액이며, 최종 견적은 ON-LI 운영팀 확인 후 확정됩니다.
+        ※ 본 금액은 자동 계산된 기업 예상 금액이며, 최종 견적은 ON-LI 운영팀 확인 후 확정됩니다.
       </p>
     </aside>
   );
