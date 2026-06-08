@@ -783,6 +783,11 @@
   font-weight: 800;
 }
 
+.home-jobs-preview .home-section-head h2,
+.home-interpreters .home-section-head h2 {
+  font-size: 26px;
+}
+
 .home-section-head button {
   flex: 0 0 auto;
   padding: 13px 18px;
@@ -1981,6 +1986,11 @@ span.home-footer-contact-item:hover {
   .home-section-head h2 {
     font-size: 22px;
     line-height: 1.2;
+  }
+
+  .home-jobs-preview .home-section-head h2,
+  .home-interpreters .home-section-head h2 {
+    font-size: 22px;
   }
 
   .home-job-card {
