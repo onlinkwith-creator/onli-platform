@@ -1109,8 +1109,9 @@
 .home-name-level-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
   width: 100%;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -1120,6 +1121,8 @@
   font-size: 13px;
   font-weight: 900;
   white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .home-interpreter-badges {
@@ -2156,13 +2159,7 @@ span.home-footer-contact-item:hover {
     font-size: 11px !important;
   }
 
-  .home-name-level-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    min-width: 0;
-  }
+
 
   .home-interpreter-head .home-interpreter-level.lv1 {
     background: #eff6ff !important;
