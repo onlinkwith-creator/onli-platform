@@ -307,7 +307,7 @@
     "people right"
     "field right"
     "gender right"
-    "estimate estimate";
+    "estimate right";
   gap: 24px;
 }
 
@@ -388,6 +388,62 @@
 
 .request-estimate-empty {
   color: #475569;
+}
+
+.request-section-compact {
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 20px;
+  padding: 24px;
+}
+
+.request-section-compact .request-grid-request {
+  gap: 18px 20px;
+}
+
+.request-section-compact .request-grid-area-right {
+  gap: 12px;
+}
+
+.request-section-compact .request-pill {
+  white-space: nowrap;
+}
+
+.request-section-compact .level-guide-box {
+  padding: 12px 14px;
+}
+
+.request-section-compact .level-guide-title {
+  margin-bottom: 8px;
+}
+
+.request-section-compact .level-guide-list {
+  gap: 6px;
+}
+
+.request-section-compact .level-guide-item {
+  line-height: 1.45;
+}
+
+.request-section-compact .level-guide-note {
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+.request-section-compact .request-estimate-card {
+  margin-top: 0;
+  padding: 18px;
+}
+
+.request-section-compact .request-estimate-description {
+  margin: 5px 0 12px;
+  line-height: 1.45;
+}
+
+.request-section-compact .request-estimate-standard,
+.request-section-compact .request-estimate-empty,
+.request-section-compact .request-estimate-note {
+  margin-top: 8px;
+  line-height: 1.45;
 }
 
 /* Level guide box for requested level */
@@ -527,6 +583,12 @@
   }
 
   .request-section-card {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 20px;
+  }
+
+  .request-section-compact {
     grid-template-columns: 1fr;
     gap: 18px;
     padding: 20px;

@@ -532,7 +532,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
             <Field label="행사 장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
           </SectionBlock>
 
-          <SectionBlock meta={sectionMeta.request}>
+          <SectionBlock meta={sectionMeta.request} className="request-section-compact">
             <div
               className={`request-grid request-grid-2 request-grid-request${
                 isGeneralRequest ? "" : " request-grid-request-designated"
@@ -745,9 +745,9 @@ function EstimatedPriceCard({
   );
 }
 
-function SectionBlock({ meta, children }) {
+function SectionBlock({ meta, children, className }) {
   return (
-    <section className="request-section-card">
+    <section className={`request-section-card${className ? ` ${className}` : ""}`}>
       <div className="request-section-copy">
         <span className="request-section-icon">{meta.icon}</span>
         <div>
