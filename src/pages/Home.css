@@ -1190,12 +1190,12 @@
   width: fit-content;
   align-items: center;
   justify-content: center;
-  padding: 5px 9px;
+  padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid #bbf7d0;
+  border: none;
   background: #ecfdf5;
   color: #047857;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   line-height: 1;
 }
@@ -2134,6 +2134,14 @@ span.home-footer-contact-item:hover {
     text-overflow: ellipsis;
   }
 
+  .home-activity-badge {
+    padding: 5px 9px !important;
+    font-size: 11px !important;
+    border: none !important;
+    border-radius: 999px !important;
+    line-height: 1 !important;
+  }
+
   .home-name-level-row {
     display: flex;
     align-items: center;
@@ -2799,16 +2807,5 @@ span.home-footer-contact-item:hover {
   .home-footer-contact-item,
   .home-footer-trust-item {
     min-height: 0;
-  }
-}
-
-@media (min-width: 769px) {
-  /* 웹/PC 버전 등록된 통역사 카드의 활동중 뱃지 크기 조정 */
-  .home-interpreter-card .home-activity-badge,
-  .interpreter-card .status-badge {
-    font-size: 12px !important;
-    padding: 6px 10px !important;
-    border-radius: 999px !important;
-    line-height: 1 !important;
   }
 }
