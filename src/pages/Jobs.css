@@ -2031,6 +2031,22 @@
   }
 
   .jobs-card-grid .home-job-card .home-job-mobile-category {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .jobs-card-grid .home-job-card .home-job-mobile-category svg {
+    flex-shrink: 0;
+    color: #6366f1;
+  }
+
+  .jobs-card-grid .home-job-card .home-job-mobile-category span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
