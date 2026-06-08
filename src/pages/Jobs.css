@@ -2017,6 +2017,36 @@
     display: none;
   }
 
+  .jobs-card-grid .jobs-list-card .home-job-info-list {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 8px;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .jobs-card-grid .jobs-list-card .home-job-info-item {
+    gap: 8px;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .jobs-card-grid .jobs-list-card .home-job-info-item svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  .jobs-card-grid .jobs-list-card .home-job-info-item span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+  }
+
   .jobs-card-grid .home-job-card .home-job-mobile-date,
   .jobs-card-grid .home-job-card .home-job-mobile-summary,
   .jobs-card-grid .home-job-card .home-job-mobile-category {
@@ -2051,6 +2081,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .jobs-card-grid .jobs-list-card .home-job-mobile-level,
+  .jobs-card-grid .jobs-list-card .home-job-mobile-date,
+  .jobs-card-grid .jobs-list-card .home-job-mobile-summary,
+  .jobs-card-grid .jobs-list-card .home-job-mobile-category {
+    display: none;
   }
 
   .jobs-card-grid .home-job-card .home-job-card-action {

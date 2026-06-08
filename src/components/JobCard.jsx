@@ -4,7 +4,7 @@ import { getJobSpecialty } from "../utils/jobDisplay";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import { Calendar, MapPin, Users, Award, Briefcase } from "lucide-react";
 
-function JobCard({ job, onApplyClick, onDetailClick }) {
+function JobCard({ job, onApplyClick, onDetailClick, className = "" }) {
   const status = normalizeJobStatus(job);
   const canApply = canApplyToJob(job);
   const badge = getJobStatusLabel(job);
@@ -23,7 +23,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
 
   return (
     <article
-      className="home-job-card job-card"
+      className={`home-job-card job-card${className ? ` ${className}` : ""}`}
       role={onDetailClick ? "link" : undefined}
       tabIndex={onDetailClick ? 0 : undefined}
       onClick={openDetail}

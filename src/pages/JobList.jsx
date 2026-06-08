@@ -352,6 +352,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
                     <JobCard
                       key={job.id}
                       job={job}
+                      className="jobs-list-card"
                       onDetailClick={() => onDetailClick(job)}
                       onApplyClick={() => onApplyClick(job)}
                     />
