@@ -717,22 +717,18 @@ function InterpreterCard({ interpreter, onProfileClick }) {
     >
       <div className="home-interpreter-card-body">
         <div className="home-interpreter-head">
-          <div className="min-w-0">
-            <h3 className="truncate">{interpreter.name || "이름 미입력"}</h3>
-          </div>
-          <div className="home-interpreter-head-badges">
-            <span
-              className={`home-interpreter-level ${getHomeLevelClass(interpreter.level)}`}
-              style={getLevelBadgeStyle(interpreter.level)}
-            >
-              {normalizeLevel(interpreter.level || "Lv1")}
-            </span>
-            <span
-              className={`home-activity-badge home-activity-badge-mobile ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}
-            >
-              {statusLabel}
-            </span>
-          </div>
+          <h3 className="truncate">{interpreter.name || "이름 미입력"}</h3>
+          <span
+            className={`home-interpreter-level ${getHomeLevelClass(interpreter.level)}`}
+            style={getLevelBadgeStyle(interpreter.level)}
+          >
+            {normalizeLevel(interpreter.level || "Lv1")}
+          </span>
+          <span
+            className={`home-activity-badge home-activity-badge-always ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}
+          >
+            {statusLabel}
+          </span>
         </div>
 
         <div className="home-interpreter-info-list">
