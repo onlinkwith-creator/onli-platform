@@ -403,7 +403,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                           />
                           <MobileInfoRow
                             icon={Languages}
-                            label="언어"
+                            label="언어수준"
                             value={person.language_level || person.jlpt || "한국어 · 일본어"}
                           />
                           {experienceCount > 0 && (
@@ -427,7 +427,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                           />
                           <Info label="활동 가능 지역" value={formatList(person.available_regions)} />
                           <Info label="전문 분야" value={formatList(person.specialties)} />
-                          <Info label="가능 언어" value={person.language_level || person.jlpt || "한국어 · 일본어"} />
+                          <Info label="언어 수준" value={person.language_level || person.jlpt || "한국어 · 일본어"} />
                           <Info
                             label="통역 경험"
                             value={person.experience_count ? `${person.experience_count}회` : person.has_experience ? "경험 있음" : "경험 없음"}

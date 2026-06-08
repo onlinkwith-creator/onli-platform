@@ -2071,7 +2071,7 @@ span.home-footer-contact-item:hover {
 
   .home-interpreter-info-list {
     gap: 8px;
-    margin: 10px 0 0;
+    margin: 10px 0 4px;
   }
 
   .home-interpreter-info-item {
@@ -2098,7 +2098,7 @@ span.home-footer-contact-item:hover {
   }
 
   .home-interpreter-card-action {
-    margin-top: 12px;
+    margin-top: 6px;
   }
 
   .home-mobile-section-action {

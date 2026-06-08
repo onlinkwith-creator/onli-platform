@@ -755,7 +755,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
           </div>
           <div className="home-interpreter-info-item min-w-0">
             <Languages size={15} aria-hidden="true" />
-            <span className="info-label">가능 언어</span>
+            <span className="info-label">언어 수준</span>
             <span className="info-value truncate">{interpreter.language_level || interpreter.jlpt || "한국어 · 일본어"}</span>
           </div>
           <div className="home-interpreter-info-item min-w-0">
