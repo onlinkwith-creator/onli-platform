@@ -735,15 +735,6 @@ function InterpreterCard({ interpreter, onProfileClick }) {
           </div>
         </div>
 
-        <div className="home-interpreter-badges">
-          {visibleSpecialties.map((badge, idx) => (
-            <span key={idx}>{badge}</span>
-          ))}
-          {hiddenCount > 0 && (
-            <span>+{hiddenCount}</span>
-          )}
-        </div>
-
         <div className="home-interpreter-info-list">
           <div className="home-interpreter-info-item min-w-0">
             <MapPin size={15} aria-hidden="true" />
