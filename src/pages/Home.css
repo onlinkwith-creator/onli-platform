@@ -1070,7 +1070,14 @@
   white-space: nowrap;
 }
 
-.home-interpreter-head span {
+.home-interpreter-head-badges {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-interpreter-head-badges .home-interpreter-level {
   padding: 6px 10px;
   border-radius: 999px;
   background: #eef2ff;
@@ -1078,6 +1085,10 @@
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.home-activity-badge-mobile {
+  display: none;
 }
 
 .home-interpreter-badges {
@@ -2077,10 +2088,13 @@ span.home-footer-contact-item:hover {
     font-size: 12px;
   }
 
-  .home-interpreter-info-item:nth-child(2),
   .home-interpreter-info-item:nth-child(n + 5),
   .home-interpreter-status-row {
     display: none;
+  }
+
+  .home-activity-badge-mobile {
+    display: inline-flex;
   }
 
   .home-interpreter-card-action {
