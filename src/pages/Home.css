@@ -624,7 +624,7 @@
 }
 
 .home-interpreter-cta {
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.64);
 }
 
 .home-company-cta:hover,
@@ -706,6 +706,7 @@
   gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-start;
+  width: 100%;
 }
 
 .home-cta-actions button {
@@ -747,11 +748,19 @@
   width: 100%;
 }
 
+.home-interpreter-cta .home-cta-actions button:nth-child(-n + 2) {
+  min-height: 58px;
+}
+
 .home-interpreter-cta .home-cta-actions button:nth-child(3) {
   grid-column: 1 / -1;
+  justify-self: start;
+  width: auto;
+  min-width: 180px;
   min-height: 46px;
   padding-top: 12px;
   padding-bottom: 12px;
+  font-size: 14px;
 }
 
 .home-section-head {
@@ -2621,6 +2630,11 @@ span.home-footer-contact-item:hover {
   .home-interpreter-cta .home-cta-actions {
     display: flex;
     flex-direction: column;
+  }
+
+  .home-interpreter-cta .home-cta-actions button:nth-child(3) {
+    width: 100%;
+    min-width: 0;
   }
 
   .home-section-head button {
