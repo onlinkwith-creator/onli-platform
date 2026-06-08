@@ -708,7 +708,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
 
   return (
     <article
-      className="home-interpreter-card"
+      className="home-interpreter-card interpreter-card"
       role="button"
       tabIndex={0}
       onClick={openProfile}
@@ -724,7 +724,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
             >
               {statusLabel}
             </span>
-            <span className={`registration-badge ${isApprovedInterpreter(interpreter) ? "verified" : "regular"}`}>
+            <span className={`registration-badge ${isApprovedInterpreter(interpreter) ? "verified verified-badge" : "regular"}`}>
               {isApprovedInterpreter(interpreter) ? "검증됨" : "일반 등록"}
             </span>
             <span

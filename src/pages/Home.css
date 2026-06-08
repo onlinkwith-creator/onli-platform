@@ -1175,6 +1175,31 @@
   border: none !important;
 }
 
+.interpreter-card .status-badge {
+  font-size: 11px !important;
+  height: 24px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  line-height: 1 !important;
+}
+
+.interpreter-card .verified-badge,
+.interpreter-card .registration-badge {
+  font-size: 11px !important;
+  height: 24px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  line-height: 1 !important;
+}
+
 .level-badge {
   display: flex !important;
   align-items: center !important;
