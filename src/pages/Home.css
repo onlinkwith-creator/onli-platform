@@ -1123,7 +1123,7 @@
   white-space: nowrap;
 }
 
-.home-activity-badge-mobile {
+.home-interpreter-head-badges .home-activity-badge-mobile {
   display: none;
 }
 
@@ -1270,7 +1270,7 @@
 }
 
 .home-interpreter-card-action {
-  margin-top: auto;
+  margin-top: 8px;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -2134,7 +2134,7 @@ span.home-footer-contact-item:hover {
     display: none;
   }
 
-  .home-activity-badge-mobile {
+  .home-interpreter-head-badges .home-activity-badge-mobile {
     display: inline-flex;
   }
 
