@@ -365,6 +365,9 @@ function Home({
             <button type="button" onClick={onRequestClick}>
               통역 의뢰하기
             </button>
+            <button type="button" onClick={() => scrollToSection("process")} className="home-secondary">
+              진행 방식 보기
+            </button>
           </div>
         </div>
 
@@ -400,7 +403,7 @@ function Home({
         </div>
       </section>
 
-      <section className="home-process">
+      <section id="process" className="home-process">
         <div className="home-process-head">
           <p className="home-brand-sub">PROCESS</p>
           <h2>진행 프로세스</h2>
