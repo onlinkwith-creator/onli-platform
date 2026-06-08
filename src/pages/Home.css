@@ -2072,7 +2072,7 @@ span.home-footer-contact-item:hover {
 
   .home-interpreter-grid-mobile {
     display: flex;
-    gap: 12px;
+    gap: 0;
     width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
@@ -2088,11 +2088,12 @@ span.home-footer-contact-item:hover {
   }
 
   .home-interpreter-grid-mobile .home-interpreter-card {
-    flex: 0 0 calc(100vw - 64px);
-    width: calc(100vw - 64px);
-    max-width: calc(100vw - 64px);
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
     scroll-snap-align: start;
     box-sizing: border-box;
+    padding: 18px;
   }
 
   .home-interpreter-card {
