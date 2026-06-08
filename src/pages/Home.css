@@ -459,10 +459,6 @@
   background: rgba(255, 255, 255, 0.72);
 }
 
-.home-feature > div {
-  min-width: 0;
-}
-
 .home-feature-symbol {
   display: inline-flex;
   width: 34px;
@@ -481,7 +477,6 @@
   margin-bottom: 5px;
   color: #111827;
   font-size: 15px;
-  overflow-wrap: break-word;
 }
 
 .home-feature span:last-child {
@@ -489,7 +484,6 @@
   color: #4b5563;
   font-size: 14px;
   line-height: 1.62;
-  overflow-wrap: break-word;
 }
 
 .home-process {
