@@ -411,7 +411,8 @@
 .jobs-filter-toggle,
 .home-job-mobile-level,
 .home-job-mobile-date,
-.home-job-mobile-summary {
+.home-job-mobile-summary,
+.home-job-mobile-category {
   display: none;
 }
 
@@ -2014,7 +2015,8 @@
   }
 
   .jobs-card-grid .home-job-card .home-job-mobile-date,
-  .jobs-card-grid .home-job-card .home-job-mobile-summary {
+  .jobs-card-grid .home-job-card .home-job-mobile-summary,
+  .jobs-card-grid .home-job-card .home-job-mobile-category {
     display: block;
     margin: 4px 0;
     color: #4b5563;
@@ -2026,6 +2028,10 @@
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: keep-all;
+  }
+
+  .jobs-card-grid .home-job-card .home-job-mobile-category {
+    white-space: nowrap;
   }
 
   .jobs-card-grid .home-job-card .home-job-card-action {

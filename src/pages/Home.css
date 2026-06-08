@@ -927,6 +927,12 @@
   white-space: nowrap;
 }
 
+.home-job-mobile-date,
+.home-job-mobile-summary,
+.home-job-mobile-category {
+  display: none;
+}
+
 .home-job-card dl {
   display: grid;
   gap: 0;
@@ -1960,6 +1966,19 @@ span.home-footer-contact-item:hover {
     display: none;
   }
 
+  .home-job-mobile-category {
+    display: block;
+    margin: 4px 0 0;
+    overflow: hidden;
+    color: #4b5563;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.45;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: keep-all;
+  }
+
   .home-job-card-action {
     margin-top: 4px;
   }
@@ -2071,7 +2090,8 @@ span.home-footer-contact-item:hover {
     font-size: 12px;
   }
 
-  .home-interpreter-info-item:nth-child(n + 4),
+  .home-interpreter-info-item:nth-child(2),
+  .home-interpreter-info-item:nth-child(n + 5),
   .home-interpreter-status-row {
     display: none;
   }

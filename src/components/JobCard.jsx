@@ -12,6 +12,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
   const locationLabel = job.location || job.event_location || "-";
   const recruitmentLabel = getRecruitmentCountDisplay(job) || "-";
   const levelLabel = getRequiredLevelDisplay(job) || "-";
+  const specialtyLabel = getJobSpecialty(job) || "-";
   const openDetail = () => onDetailClick?.(job);
   const handleKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -41,6 +42,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
           <h3 className="truncate">{job.event_name || job.title || "공고 제목 미입력"}</h3>
           <p className="home-job-mobile-date">{dateLabel}</p>
           <p className="home-job-mobile-summary">{locationLabel} · {recruitmentLabel}</p>
+          <p className="home-job-mobile-category">{specialtyLabel}</p>
         </div>
 
         <div className="home-job-info-list">
@@ -62,7 +64,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
           </div>
           <div className="home-job-info-item min-w-0">
             <Briefcase size={15} aria-hidden="true" />
-            <span className="truncate">{getJobSpecialty(job) || "-"}</span>
+            <span className="truncate">{specialtyLabel}</span>
           </div>
         </div>
       </div>
