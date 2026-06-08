@@ -423,12 +423,14 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 28px;
   width: 100%;
+  align-items: stretch;
 }
 
 .jobs-card-grid .home-job-card {
   display: flex;
   flex-direction: column;
-  height: 460px;
+  height: 100%;
+  min-height: 460px;
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -439,6 +441,7 @@
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
+  overflow: hidden;
   text-align: left;
 }
 
@@ -503,6 +506,8 @@
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 .jobs-card-grid .home-job-card h3 {
@@ -516,6 +521,9 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 /* Info lines layout with Lucide icons */
@@ -545,13 +553,17 @@
 .home-job-info-item span {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 /* Pricing Note soft banner */
 .home-job-level-note {
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 0 20px;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border: 1px solid rgba(124, 58, 237, 0.08);
   border-radius: 14px;
   background: rgba(124, 58, 237, 0.04);
@@ -559,15 +571,21 @@
   font-size: 12.5px;
   font-weight: 800;
   text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 .home-job-card-body {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .home-job-card-action {
   margin-top: auto;
+  padding-top: 16px;
   display: flex;
   flex-direction: column;
 }
@@ -595,7 +613,7 @@
 .home-job-card button {
   width: 100%;
   margin-top: auto;
-  height: 46px;
+  min-height: 46px;
   padding: 0 16px;
   border-radius: 14px;
   border: none;
@@ -605,6 +623,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
@@ -2002,7 +2023,9 @@
     line-height: 1.5;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
   }
 
   .jobs-card-grid .home-job-card .home-job-card-action {
