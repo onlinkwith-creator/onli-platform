@@ -1086,7 +1086,8 @@
 .home-interpreter-head {
   display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: flex-start;
+  gap: 6px;
   margin-bottom: 10px;
   flex-wrap: nowrap;
   min-width: 0;
@@ -1103,7 +1104,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  flex: 1 1 auto;
+  flex-shrink: 1;
 }
 
 .home-interpreter-head .home-interpreter-level {
