@@ -1116,6 +1116,9 @@
 }
 
 .home-interpreter-head .home-interpreter-level {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 8px 12px;
   border-radius: 999px;
   font-size: 13px;
@@ -1123,6 +1126,7 @@
   white-space: nowrap;
   flex-shrink: 0;
   margin-left: auto;
+  line-height: 1;
 }
 
 .home-interpreter-badges {
