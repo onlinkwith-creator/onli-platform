@@ -805,7 +805,7 @@ function PolicyPage({ policyKey, onNavigate }) {
             <span>KOREA-JAPAN ONLINK INTERPRETATION PLATFORM</span>
           </div>
           <div className="policy-footer-info">
-            <p>한일 비즈니스 매칭의 신뢰로운 파트너 | ONLINE 운영팀</p>
+            <p>한일 비즈니스 매칭의 신뢰로운 파트너 | ONLINK 운영팀</p>
             <p>
               운영 문의 이메일:{" "}
               <a href="mailto:onlinkcp@gmail.com">onlinkcp@gmail.com</a>
