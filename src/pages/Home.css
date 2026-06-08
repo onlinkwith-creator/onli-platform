@@ -676,13 +676,17 @@
 }
 
 .home-company-cta button:not(.home-secondary) {
-  padding: 14px 22px;
+  min-height: 58px;
+  padding: 14px 18px;
   border-radius: 14px;
   border: none;
   background: #38353c;
   color: #ffffff;
   font-family: inherit;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 12px 24px rgba(17, 24, 39, 0.14);
   transition:
@@ -710,7 +714,26 @@
 }
 
 .home-company-cta .home-cta-actions .home-secondary {
+  min-height: 58px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
   box-shadow: none;
+}
+
+.home-company-cta .home-cta-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  width: 100%;
+}
+
+.home-company-cta .home-cta-actions button {
+  width: 100%;
 }
 
 .home-interpreter-cta .home-cta-actions {
@@ -2594,6 +2617,7 @@ span.home-footer-contact-item:hover {
     width: 100%;
   }
 
+  .home-company-cta .home-cta-actions,
   .home-interpreter-cta .home-cta-actions {
     display: flex;
     flex-direction: column;
