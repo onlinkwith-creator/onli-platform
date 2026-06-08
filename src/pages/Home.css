@@ -1106,15 +1106,6 @@
   min-width: 0;
 }
 
-.home-name-level-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 8px;
-  min-width: 0;
-}
-
 .home-interpreter-head .home-interpreter-level {
   display: inline-flex;
   align-items: center;
@@ -1125,10 +1116,69 @@
   font-weight: 900;
   white-space: nowrap;
   flex-shrink: 0;
-  margin-left: auto;
+  margin-left: 0;
   line-height: 1;
 }
 
+.interpreter-card-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 6px !important;
+  width: 100% !important;
+}
+
+.interpreter-name {
+  margin: 0 !important;
+  text-align: left !important;
+}
+
+.interpreter-meta-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+}
+
+.interpreter-meta-row .level-badge {
+  margin-left: auto !important;
+}
+
+.interpreter-meta-row .status-badge,
+.interpreter-meta-row .registration-badge {
+  margin: 0 !important;
+}
+
+.registration-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  width: fit-content !important;
+  padding: 5px 8px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.registration-badge.verified {
+  background: rgba(16, 185, 129, 0.08) !important;
+  color: #059669 !important;
+  border: none !important;
+}
+
+.registration-badge.regular {
+  background: rgba(107, 114, 128, 0.08) !important;
+  color: #6b7280 !important;
+  border: none !important;
+}
+
+.level-badge {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
 .home-interpreter-badges {
   display: flex;
   flex-wrap: nowrap;
@@ -2143,7 +2193,7 @@ span.home-footer-contact-item:hover {
     flex-direction: column !important;
     align-items: flex-start !important;
     justify-content: flex-start !important;
-    gap: 0 !important;
+    gap: 6px !important;
     margin-bottom: 8px;
   }
 
@@ -2158,7 +2208,7 @@ span.home-footer-contact-item:hover {
   }
 
   .interpreter-status-badge {
-    margin-bottom: 8px !important;
+    margin-bottom: 0 !important;
     padding: 5px 9px !important;
     font-size: 11px !important;
   }
