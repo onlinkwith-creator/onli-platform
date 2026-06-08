@@ -58,6 +58,82 @@ const ICON_MAP = {
   arrowLeft: ArrowLeft
 };
 
+const getPolicyItemType = (item) => {
+  if (typeof item !== "string") {
+    return "paragraph";
+  }
+
+  if (/^\d+\.\s/.test(item)) {
+    return "numbered";
+  }
+
+  if (/^-\s/.test(item)) {
+    return "checked";
+  }
+
+  return "paragraph";
+};
+
+const getPolicyItemText = (item) => {
+  if (typeof item !== "string") {
+    return item;
+  }
+
+  return item.replace(/^\d+\.\s/, "").replace(/^-\s/, "");
+};
+
+const isContactText = (item) => {
+  return typeof item === "string" && (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item) || /^https?:\/\//.test(item));
+};
+
+const renderPolicyItems = (items) => {
+  const blocks = [];
+  let listItems = [];
+  let listType = null;
+
+  const flushList = () => {
+    if (!listItems.length) {
+      return;
+    }
+
+    const ListTag = listType === "numbered" ? "ol" : "ul";
+    blocks.push(
+      <ListTag key={`list-${blocks.length}`} className={`policy-list policy-list-${listType}`}>
+        {listItems.map((item, idx) => (
+          <li key={idx}>{getPolicyItemText(item)}</li>
+        ))}
+      </ListTag>
+    );
+
+    listItems = [];
+    listType = null;
+  };
+
+  items.forEach((item, idx) => {
+    const itemType = getPolicyItemType(item);
+
+    if (itemType === "numbered" || itemType === "checked") {
+      if (listType && listType !== itemType) {
+        flushList();
+      }
+
+      listType = itemType;
+      listItems.push(item);
+      return;
+    }
+
+    flushList();
+    blocks.push(
+      <p key={`paragraph-${idx}`} className={isContactText(item) ? "policy-contact-text" : undefined}>
+        {item}
+      </p>
+    );
+  });
+
+  flushList();
+  return blocks;
+};
+
 export const POLICY_PAGES = {
   commonTerms: {
     path: "/terms",
@@ -712,13 +788,7 @@ function PolicyPage({ policyKey, onNavigate }) {
                     <h2>{section.title}</h2>
                   </div>
                   <div className="policy-section-body">
-                    <ul>
-                      {section.items.map((item, idx) => (
-                        <li key={idx}>
-                          {typeof item === "string" ? item : item}
-                        </li>
-                      ))}
-                    </ul>
+                    {renderPolicyItems(section.items)}
                   </div>
                 </article>
               );
