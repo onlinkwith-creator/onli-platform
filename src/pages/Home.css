@@ -2021,7 +2021,7 @@ span.home-footer-contact-item:hover {
 
   .home-job-info-list {
     gap: 6px;
-    margin: 10px 0 0;
+    margin: 10px 0 8px;
     padding-bottom: 0;
     border-bottom: none;
   }
@@ -2052,7 +2052,7 @@ span.home-footer-contact-item:hover {
     justify-content: center;
     text-align: center;
     border-radius: 14px;
-    margin-top: 0;
+    margin-top: 6px;
     margin-bottom: 6px;
     padding: 0;
     font-size: 11px;
@@ -2063,6 +2063,18 @@ span.home-footer-contact-item:hover {
   .home-job-card button {
     min-height: 42px;
     margin-top: 0;
+  }
+
+  /* 사용자 지정 클래스 직접 반영 */
+  .job-card-info {
+    margin-bottom: 8px;
+  }
+  .job-card-divider {
+    margin: 10px 0;
+  }
+  .job-pay-level,
+  .level-rate-box {
+    margin-top: 6px;
   }
 
   .home-interpreters .home-section-head button {
@@ -2104,22 +2116,19 @@ span.home-footer-contact-item:hover {
     height: auto;
   }
 
-  /* 모바일: 이름 바로 옆에 뱃지 붙이기 (flex-start) */
+  /* 모바일: 활동중 뱃지 이름 위로 이동 및 세로(column) 배치 */
   .home-interpreter-head {
     display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
     justify-content: flex-start !important;
-    gap: 6px !important;
-    flex-wrap: nowrap;
+    gap: 4px !important;
     margin-bottom: 8px;
   }
 
   .home-interpreter-head h3 {
     font-size: 16px;
-    flex: 0 0 auto !important;
-    width: max-content !important;
-    max-width: 50% !important;
+    flex: 0 1 auto !important;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2129,14 +2138,8 @@ span.home-footer-contact-item:hover {
     display: flex;
     align-items: center;
     gap: 6px;
-    order: 1;
-    flex: 0 1 auto;
+    width: 100%;
     min-width: 0;
-  }
-
-  .home-interpreter-head .home-activity-badge {
-    order: 2;
-    flex-shrink: 0;
   }
 
   .home-interpreter-head .home-interpreter-level.lv1 {
@@ -2796,5 +2799,16 @@ span.home-footer-contact-item:hover {
   .home-footer-contact-item,
   .home-footer-trust-item {
     min-height: 0;
+  }
+}
+
+@media (min-width: 769px) {
+  /* 웹/PC 버전 등록된 통역사 카드의 활동중 뱃지 크기 조정 */
+  .home-interpreter-card .home-activity-badge,
+  .interpreter-card .status-badge {
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+    border-radius: 999px !important;
+    line-height: 1 !important;
   }
 }

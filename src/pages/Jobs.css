@@ -2053,8 +2053,20 @@
 
   .jobs-card-grid .home-job-card .home-job-card-action {
     flex: 0 0 auto;
-    margin-top: 8px;
+    margin-top: 6px;
     padding-top: 0;
+  }
+
+  /* 사용자 지정 클래스 직접 반영 */
+  .job-card-info {
+    margin-bottom: 8px;
+  }
+  .job-card-divider {
+    margin: 10px 0;
+  }
+  .job-pay-level,
+  .level-rate-box {
+    margin-top: 6px;
   }
 
   .jobs-card-grid .home-job-card .home-job-card-body {
