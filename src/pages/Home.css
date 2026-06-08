@@ -1689,6 +1689,10 @@ span.home-footer-contact-item:hover {
   line-height: 1.5;
 }
 
+.job-divider {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .home-header {
     margin-top: 0 !important;
@@ -2138,12 +2142,37 @@ span.home-footer-contact-item:hover {
   }
 
   /* 사용자 지정 클래스 직접 반영 */
+  .job-card {
+    height: auto !important;
+    min-height: unset !important;
+    padding-top: 20px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .job-card-footer {
+    margin-top: 12px !important;
+  }
+
+  .job-info-list {
+    margin-bottom: 12px !important;
+  }
+
+  .job-card-actions {
+    margin-top: 0 !important;
+  }
+
+  .job-divider,
+  .job-card-divider {
+    display: block !important;
+    border-top: 1px solid rgba(226, 232, 240, 0.8) !important;
+    margin: 8px 0 !important;
+    width: 100% !important;
+  }
+
   .job-card-info {
     margin-bottom: 8px;
   }
-  .job-card-divider {
-    margin: 10px 0;
-  }
+
   .job-pay-level,
   .level-rate-box {
     margin-top: 6px;

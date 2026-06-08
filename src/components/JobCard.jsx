@@ -23,7 +23,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
 
   return (
     <article
-      className="home-job-card"
+      className="home-job-card job-card"
       role={onDetailClick ? "link" : undefined}
       tabIndex={onDetailClick ? 0 : undefined}
       onClick={openDetail}
@@ -48,7 +48,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
           </p>
         </div>
 
-        <div className="home-job-info-list">
+        <div className="home-job-info-list job-info-list">
           <div className="home-job-info-item min-w-0">
             <Calendar size={15} aria-hidden="true" />
             <span className="truncate">{dateLabel}</span>
@@ -72,7 +72,9 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
         </div>
       </div>
 
-      <div className="home-job-card-action">
+      <div className="job-divider job-card-divider" />
+
+      <div className="home-job-card-action job-card-footer">
         <p className="home-job-level-note">Lv 기준 통역 단가 적용</p>
 
         <button
@@ -82,7 +84,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
             onApplyClick?.(job);
           }}
           disabled={!canApply}
-          className={canApply ? "apply-btn-active" : "apply-btn-disabled"}
+          className={canApply ? "apply-btn-active job-card-actions" : "apply-btn-disabled job-card-actions"}
         >
           {canApply ? "지원하기" : badge}
         </button>
