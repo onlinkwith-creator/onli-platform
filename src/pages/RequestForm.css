@@ -306,7 +306,8 @@
   grid-template-areas:
     "people right"
     "field right"
-    "gender right";
+    "gender right"
+    "estimate estimate";
   gap: 24px;
 }
 
@@ -314,7 +315,8 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-areas:
     "people field"
-    "gender gender";
+    "gender gender"
+    "estimate estimate";
 }
 
 .request-grid-request > * {
@@ -337,6 +339,55 @@
 
 .request-grid-area-gender {
   grid-area: gender;
+}
+
+.request-estimate-card {
+  grid-area: estimate;
+  width: 100%;
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid #ddd6fe;
+  border-radius: 18px;
+  background: #f7f5ff;
+}
+
+.request-estimate-label {
+  display: block;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.request-estimate-description {
+  margin: 6px 0 14px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.request-estimate-amount {
+  display: block;
+  color: #4f46e5;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.request-estimate-standard,
+.request-estimate-empty,
+.request-estimate-note {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.request-estimate-empty {
+  color: #475569;
 }
 
 /* Level guide box for requested level */
@@ -501,7 +552,16 @@
       "people"
       "right"
       "field"
-      "gender";
+      "gender"
+      "estimate";
+  }
+
+  .request-estimate-card {
+    margin-top: 0;
+  }
+
+  .request-estimate-amount {
+    font-size: 24px;
   }
 
   .request-submit-card {
