@@ -718,7 +718,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
       <div className="home-interpreter-card-body">
         <div className="home-interpreter-head">
           <span
-            className={`home-activity-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}
+            className={`home-job-status ${activityStatus === "active" ? "recruiting" : activityStatus === "paused" ? "closing_soon" : "closed"} interpreter-status-badge`}
           >
             {statusLabel}
           </span>
