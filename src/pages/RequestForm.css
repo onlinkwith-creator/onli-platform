@@ -409,23 +409,23 @@
 }
 
 .request-section-compact .level-guide-box {
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 
 .request-section-compact .level-guide-title {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .request-section-compact .level-guide-list {
-  gap: 6px;
+  gap: 4px;
 }
 
 .request-section-compact .level-guide-item {
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .request-section-compact .level-guide-note {
-  margin-top: 8px;
+  margin-top: 6px;
   line-height: 1.45;
 }
 
@@ -452,13 +452,13 @@
   margin-top: 0;
   padding: 14px 16px;
   border-radius: 14px;
-  background: rgba(79, 70, 229, 0.06);
-  border: 1px solid rgba(79, 70, 229, 0.12);
+  background: #fafaff;
+  border: 1px solid #e5e7eb;
 }
 .level-guide-title {
   font-size: 13px;
   font-weight: 700;
-  color: #3730a3;
+  color: #4f46e5;
   margin-bottom: 10px;
 }
 .level-guide-list {
@@ -468,10 +468,10 @@
 .level-guide-item {
   font-size: 13px;
   line-height: 1.6;
-  color: #475569;
+  color: #64748b;
 }
 .level-guide-item strong {
-  color: #111827;
+  color: #4f46e5;
   font-weight: 700;
   margin-right: 6px;
 }

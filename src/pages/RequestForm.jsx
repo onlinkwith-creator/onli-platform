@@ -560,12 +560,12 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                     helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
                   />
                   <div className="level-guide-box">
-                    <div className="level-guide-title">레벨 선택 가이드</div>
+                    <div className="level-guide-title">레벨 기준 안내</div>
                     <div className="level-guide-list">
-                      <div className="level-guide-item"><strong>LV1</strong> 현장 서포트 · 운영 지원 · 기본 응대</div>
-                      <div className="level-guide-item"><strong>LV2</strong> 고객 응대 · 바이어 상담 · 제품 설명</div>
-                      <div className="level-guide-item"><strong>LV3</strong> 바이어 상담 · 현장 운영 관리 · 시장조사</div>
-                      <div className="level-guide-item"><strong>LV4</strong> B2B 통역 · 비지니스 협의 · 수행통역</div>
+                      <div className="level-guide-item"><strong>LV1</strong> 기본 응대 / 운영 지원</div>
+                      <div className="level-guide-item"><strong>LV2</strong> 고객 응대 / 제품 설명</div>
+                      <div className="level-guide-item"><strong>LV3</strong> 상담 지원 / 현장 운영</div>
+                      <div className="level-guide-item"><strong>LV4</strong> B2B 협의 / 수행통역</div>
                     </div>
                     <div className="level-guide-note">레벨 선택이 어렵다면 운영팀 추천받기를 선택해주세요.</div>
                   </div>
