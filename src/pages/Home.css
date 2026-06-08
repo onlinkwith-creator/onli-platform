@@ -2160,18 +2160,20 @@ span.home-footer-contact-item:hover {
   }
 
   .job-card-body,
-  .job-card-content {
-    flex: unset !important;
+  .home-job-card-body,
+  .job-card-content,
+  .job-info-list {
+    flex: 0 0 auto !important;
     flex-grow: 0 !important;
+    margin-bottom: 8px !important;
   }
 
   .job-card-footer,
-  .job-card-actions {
-    margin-top: 10px !important;
-  }
-
-  .job-info-list {
-    margin-bottom: 12px !important;
+  .home-job-card-action,
+  .job-card-actions,
+  .home-job-card button {
+    margin-top: 8px !important;
+    padding-top: 0 !important;
   }
 
   .job-divider,
