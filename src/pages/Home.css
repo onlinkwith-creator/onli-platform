@@ -1964,18 +1964,7 @@ span.home-footer-contact-item:hover {
 
   .home-jobs-mobile-more {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-height: 46px;
     margin-top: 10px;
-    border: none;
-    border-radius: 14px;
-    background: #38353c;
-    color: #ffffff;
-    font-family: inherit;
-    font-weight: 900;
-    cursor: pointer;
   }
 
   .home-section-head > div {

@@ -472,7 +472,7 @@ function Home({
                   />
                 ))}
             </HomeCarousel>
-            <button type="button" onClick={onJobsClick} className="home-jobs-mobile-more">
+            <button type="button" onClick={onJobsClick} className="home-jobs-mobile-more home-mobile-section-action">
               전체 공고 확인하기
             </button>
           </>
