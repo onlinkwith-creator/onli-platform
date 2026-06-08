@@ -30,7 +30,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
       onKeyDown={onDetailClick ? handleKeyDown : undefined}
       aria-label={`${job.event_name || job.title || "통역 공고"} 상세 보기`}
     >
-      <div className="home-job-card-body">
+      <div className="home-job-card-body job-card-body">
         <div>
           <div className="home-job-card-top">
             <div className={`home-job-status ${status}`}>
