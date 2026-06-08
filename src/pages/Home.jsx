@@ -756,7 +756,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
             <span className="info-label">통역 횟수</span>
             <span className="info-value truncate">{experience}</span>
           </div>
-          {publicInfo?.label && (
+          {publicInfo?.label && publicInfo.label !== "통역 횟수" && (
             <div className="home-interpreter-info-item min-w-0">
               <User size={15} aria-hidden="true" />
               <span className="info-label">{publicInfo.label}</span>
