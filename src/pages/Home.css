@@ -594,6 +594,10 @@
   padding: 0 var(--home-section-padding-x) 48px;
 }
 
+.home-jobs-mobile-more {
+  display: none;
+}
+
 .home-cta-stack {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1954,8 +1958,23 @@ span.home-footer-contact-item:hover {
   }
 
   .home-jobs-preview .home-section-head button {
-    order: 2;
-    margin-top: 12px;
+    display: none;
+  }
+
+  .home-jobs-mobile-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 46px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 14px;
+    background: #38353c;
+    color: #ffffff;
+    font-family: inherit;
+    font-weight: 900;
+    cursor: pointer;
   }
 
   .home-section-head > div {
@@ -1995,7 +2014,7 @@ span.home-footer-contact-item:hover {
 
   .home-job-info-list {
     gap: 6px;
-    margin: 12px 0 8px;
+    margin: 12px 0 2px;
     padding-bottom: 0;
     border-bottom: none;
   }
@@ -2010,7 +2029,7 @@ span.home-footer-contact-item:hover {
   }
 
   .home-job-card-action {
-    margin-top: 4px;
+    margin-top: 8px;
   }
 
   .home-job-level-note {
@@ -2021,7 +2040,7 @@ span.home-footer-contact-item:hover {
     justify-content: center;
     text-align: center;
     border-radius: 14px;
-    margin-top: 14px;
+    margin-top: 0;
     margin-bottom: 8px;
     padding: 0;
     font-size: 11px;

@@ -456,21 +456,26 @@ function Home({
         ) : featuredJobs.length === 0 ? (
           <div className="home-empty">현재 표시할 공고가 없습니다.</div>
         ) : (
-          <HomeCarousel
-            railClassName="home-job-carousel"
-            ariaLabel="현재 모집 중인 통역 공고"
-            previousLabel="이전 공고 보기"
-            nextLabel="다음 공고 보기"
-          >
-              {featuredJobs.slice(0, 7).map((job) => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  onDetailClick={() => onJobDetailClick(job)}
-                  onApplyClick={() => onJobApplyClick(job)}
-                />
-              ))}
-          </HomeCarousel>
+          <>
+            <HomeCarousel
+              railClassName="home-job-carousel"
+              ariaLabel="현재 모집 중인 통역 공고"
+              previousLabel="이전 공고 보기"
+              nextLabel="다음 공고 보기"
+            >
+                {featuredJobs.slice(0, 7).map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    onDetailClick={() => onJobDetailClick(job)}
+                    onApplyClick={() => onJobApplyClick(job)}
+                  />
+                ))}
+            </HomeCarousel>
+            <button type="button" onClick={onJobsClick} className="home-jobs-mobile-more">
+              전체 공고 확인하기
+            </button>
+          </>
         )}
       </section>
 
