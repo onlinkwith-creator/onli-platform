@@ -1258,7 +1258,8 @@
 }
 
 .home-interpreter-card {
-  height: 450px;
+  min-height: 420px;
+  height: auto;
   box-sizing: border-box;
 }
 
@@ -1279,7 +1280,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin: 12px 0 16px;
+  margin: 12px 0 8px;
 }
 
 .home-interpreter-info-item {
