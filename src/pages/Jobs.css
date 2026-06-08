@@ -2052,7 +2052,13 @@
   }
 
   .jobs-card-grid .home-job-card .home-job-card-action {
-    margin-top: 12px;
+    flex: 0 0 auto;
+    margin-top: 8px;
+    padding-top: 0;
+  }
+
+  .jobs-card-grid .home-job-card .home-job-card-body {
+    flex: 0 0 auto;
   }
 
   .jobs-card-grid .home-job-card button {

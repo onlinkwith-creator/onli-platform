@@ -2006,7 +2006,7 @@ span.home-footer-contact-item:hover {
 
   .home-job-info-list {
     gap: 6px;
-    margin: 12px 0 2px;
+    margin: 10px 0 0;
     padding-bottom: 0;
     border-bottom: none;
   }
@@ -2021,7 +2021,12 @@ span.home-footer-contact-item:hover {
   }
 
   .home-job-card-action {
-    margin-top: 8px;
+    flex: 0 0 auto;
+    margin-top: 6px;
+  }
+
+  .home-job-card-body {
+    flex: 0 0 auto;
   }
 
   .home-job-level-note {
@@ -2033,7 +2038,7 @@ span.home-footer-contact-item:hover {
     text-align: center;
     border-radius: 14px;
     margin-top: 0;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     padding: 0;
     font-size: 11px;
     line-height: 1.2;
