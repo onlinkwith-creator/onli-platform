@@ -719,7 +719,6 @@ function InterpreterCard({ interpreter, onProfileClick }) {
         <div className="home-interpreter-head">
           <div className="min-w-0">
             <h3 className="truncate">{interpreter.name || "이름 미입력"}</h3>
-            <p className="truncate">{availableRegionLabel}</p>
           </div>
           <div className="home-interpreter-head-badges">
             <span
