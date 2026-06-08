@@ -1874,9 +1874,20 @@ span.home-footer-contact-item:hover {
     display: none;
   }
 
-  /* ── 통역 공고 / 통역사 카드: 모바일 1장씩 ── */
-  .home-job-card,
+  /* ── 통역사 카드: 모바일 1장씩 ── */
   .home-interpreter-card {
+    flex: 0 0 calc(100vw - 64px);
+    width: calc(100vw - 64px);
+    max-width: calc(100vw - 64px);
+    min-height: 0;
+    margin: 0;
+    padding: 18px;
+    scroll-snap-align: start;
+    box-sizing: border-box;
+  }
+
+  /* ── 공고 카드: 모바일 1장씩 ── */
+  .home-job-card {
     flex: 0 0 clamp(260px, 82vw, 270px);
     width: clamp(260px, 82vw, 270px);
     max-width: 82vw;
@@ -1916,6 +1927,11 @@ span.home-footer-contact-item:hover {
     width: clamp(260px, 82vw, 270px);
     max-width: 82vw;
     scroll-snap-align: start;
+  }
+
+  /* 통역사 섹션 overflow 제어 */
+  .home-interpreters {
+    overflow: hidden;
   }
 
   /* 통역사 캐러셀 (interpreter grid) */
@@ -2056,7 +2072,7 @@ span.home-footer-contact-item:hover {
 
   .home-interpreter-grid-mobile {
     display: flex;
-    gap: 14px;
+    gap: 12px;
     width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
@@ -2064,6 +2080,7 @@ span.home-footer-contact-item:hover {
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
   }
 
   .home-interpreter-grid-mobile::-webkit-scrollbar {
@@ -2071,10 +2088,11 @@ span.home-footer-contact-item:hover {
   }
 
   .home-interpreter-grid-mobile .home-interpreter-card {
-    flex: 0 0 clamp(260px, 82vw, 270px);
-    width: clamp(260px, 82vw, 270px);
-    max-width: 82vw;
+    flex: 0 0 calc(100vw - 64px);
+    width: calc(100vw - 64px);
+    max-width: calc(100vw - 64px);
     scroll-snap-align: start;
+    box-sizing: border-box;
   }
 
   .home-interpreter-card {
