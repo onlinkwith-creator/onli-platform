@@ -1103,19 +1103,19 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.home-name-level-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   min-width: 0;
 }
 
-.home-interpreter-head-badges {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-  margin-left: 0;
-}
-
-.home-interpreter-head-badges .home-interpreter-level {
+.home-interpreter-head .home-interpreter-level {
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 11.5px;
@@ -2125,10 +2125,18 @@ span.home-footer-contact-item:hover {
     text-overflow: ellipsis;
   }
 
-  .home-interpreter-head-badges {
+  .home-name-level-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    order: 1;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .home-interpreter-head .home-activity-badge {
+    order: 2;
     flex-shrink: 0;
-    gap: 5px;
-    margin-left: 0 !important;
   }
 
   .home-interpreter-head .home-interpreter-level.lv1 {
