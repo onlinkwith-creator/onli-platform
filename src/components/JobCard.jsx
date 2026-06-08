@@ -1,5 +1,5 @@
 import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
-import { formatDateRange } from "../utils/dateRange";
+import { formatCompactJobDateRange } from "../utils/dateRange";
 import { getJobSpecialty } from "../utils/jobDisplay";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import { Calendar, MapPin, Users, Award, Briefcase } from "lucide-react";
@@ -8,7 +8,7 @@ function JobCard({ job, onApplyClick, onDetailClick }) {
   const status = normalizeJobStatus(job);
   const canApply = canApplyToJob(job);
   const badge = getJobStatusLabel(job);
-  const dateLabel = formatDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-";
+  const dateLabel = formatCompactJobDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-";
   const locationLabel = job.location || job.event_location || "-";
   const recruitmentLabel = getRecruitmentCountDisplay(job) || "-";
   const levelLabel = getRequiredLevelDisplay(job) || "-";

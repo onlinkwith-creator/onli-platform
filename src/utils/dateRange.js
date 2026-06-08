@@ -13,6 +13,26 @@ export function formatDateRange(startDate, endDate, fallbackDate) {
   return formatDisplayDateRange(start, end);
 }
 
+export function formatCompactJobDateRange(startDate, endDate, fallbackDate) {
+  const fallbackRange = splitFallbackDate(fallbackDate);
+  const start = normalizeDateInput(startDate || fallbackRange[0]);
+  const end = normalizeDateInput(endDate || fallbackRange[1]);
+
+  if (!start) return "일정 미정";
+  if (!end || start === end) {
+    return formatDisplayDate(start);
+  }
+
+  const [startYear, startMonth] = start.split("-");
+  const [endYear, endMonth, endDay] = end.split("-");
+
+  if (startYear === endYear && startMonth === endMonth) {
+    return `${formatDisplayDate(start)} ~ ${endDay}`;
+  }
+
+  return formatDisplayDateRange(start, end);
+}
+
 export function getDateRangeStart(startDate, fallbackDate) {
   return normalizeDateInput(startDate || splitFallbackDate(fallbackDate)[0]);
 }
