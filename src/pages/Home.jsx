@@ -365,9 +365,6 @@ function Home({
             <button type="button" onClick={onRequestClick}>
               통역 의뢰하기
             </button>
-            <button type="button" onClick={() => scrollToSection("process")} className="home-secondary">
-              진행 방식 보기
-            </button>
           </div>
         </div>
 
