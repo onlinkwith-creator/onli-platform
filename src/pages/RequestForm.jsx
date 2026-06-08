@@ -538,28 +538,44 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                 isGeneralRequest ? "" : " request-grid-request-designated"
               }`}
             >
-              <Field
-                className="request-grid-area request-grid-area-people"
-                label="필요 인원 수"
-                name="requestedPeopleCount"
-                type="number"
-                min="1"
-                placeholder="예: 3"
-                value={form.requestedPeopleCount}
-                onChange={handleChange}
-                required
-              />
+              <div className="request-grid-area request-grid-area-left">
+                <Field
+                  className="request-grid-area-people"
+                  label="필요 인원 수"
+                  name="requestedPeopleCount"
+                  type="number"
+                  min="1"
+                  placeholder="예: 3"
+                  value={form.requestedPeopleCount}
+                  onChange={handleChange}
+                  required
+                />
+                <TabField
+                  className="request-grid-area-field"
+                  label="통역 분야"
+                  value={form.interpretationField}
+                  onChange={(value) => updateFormValue("interpretationField", value)}
+                  options={fieldOptions}
+                />
+                <TabField
+                  className="request-grid-area-gender"
+                  label="희망 성별"
+                  value={form.preferredGender}
+                  onChange={(value) => updateFormValue("preferredGender", value)}
+                  options={["성별 무관", "여성 희망", "남성 희망"]}
+                />
+              </div>
               {isGeneralRequest && (
                 <div className="request-grid-area request-grid-area-right">
                   <TabField
-                    className="request-grid-area request-grid-area-level"
+                    className="request-grid-area-level"
                     label="희망 통역 레벨"
                     value={form.requestedLevel}
                     onChange={(value) => updateFormValue("requestedLevel", value)}
                     options={levelOptions}
                     helpText="행사 성격에 맞는 통역 수준을 선택해주세요."
                   />
-                  <div className="level-guide-box">
+                  <div className="level-guide-box request-grid-area-guide">
                     <div className="level-guide-title">레벨 기준 안내</div>
                     <div className="level-guide-list">
                       <div className="level-guide-item"><strong>LV1</strong> 기본 응대 / 운영 지원</div>
@@ -571,20 +587,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                   </div>
                 </div>
               )}
-              <TabField
-                className="request-grid-area request-grid-area-field"
-                label="통역 분야"
-                value={form.interpretationField}
-                onChange={(value) => updateFormValue("interpretationField", value)}
-                options={fieldOptions}
-              />
-              <TabField
-                className="request-grid-area request-grid-area-gender"
-                label="희망 성별"
-                value={form.preferredGender}
-                onChange={(value) => updateFormValue("preferredGender", value)}
-                options={["성별 무관", "여성 희망", "남성 희망"]}
-              />
               <EstimatedPriceCard
                 amount={estimatedUsageAmount}
                 level={estimateLevel}

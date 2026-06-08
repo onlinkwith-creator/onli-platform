@@ -302,20 +302,18 @@
 
 .request-grid-request {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) 380px;
   grid-template-areas:
-    "people right"
-    "field right"
-    "gender right"
-    "estimate right";
+    "left right"
+    "estimate estimate";
   gap: 24px;
+  align-items: start;
 }
 
 .request-grid-request-designated {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-areas:
-    "people field"
-    "gender gender"
+    "left left"
     "estimate estimate";
 }
 
@@ -323,22 +321,19 @@
   min-width: 0;
 }
 
-.request-grid-area-people {
-  grid-area: people;
+.request-grid-area-left,
+.request-grid-area-right {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+
+.request-grid-area-left {
+  grid-area: left;
 }
 
 .request-grid-area-right {
   grid-area: right;
-  display: grid;
-  gap: 16px;
-}
-
-.request-grid-area-field {
-  grid-area: field;
-}
-
-.request-grid-area-gender {
-  grid-area: gender;
 }
 
 .request-estimate-card {
@@ -611,11 +606,38 @@
   .request-grid-request {
     grid-template-columns: 1fr;
     grid-template-areas:
-      "people"
+      "left"
       "right"
-      "field"
-      "gender"
       "estimate";
+  }
+
+  .request-grid-request .request-grid-area-left,
+  .request-grid-request .request-grid-area-right {
+    display: contents;
+  }
+
+  .request-grid-area-people {
+    order: 1;
+  }
+
+  .request-grid-area-level {
+    order: 2;
+  }
+
+  .request-grid-area-guide {
+    order: 3;
+  }
+
+  .request-grid-area-field {
+    order: 4;
+  }
+
+  .request-grid-area-gender {
+    order: 5;
+  }
+
+  .request-estimate-card {
+    order: 6;
   }
 
   .request-estimate-card {
