@@ -715,6 +715,12 @@ function InterpreterCard({ interpreter, onProfileClick }) {
       onKeyDown={handleCardKeyDown}
       aria-label={`${interpreter.name || "통역사"} 프로필 보기`}
     >
+      <span
+        className={`home-interpreter-level ${getHomeLevelClass(interpreter.level)} level-badge home-interpreter-level-badge`}
+        style={getLevelBadgeStyle(interpreter.level)}
+      >
+        {normalizeLevel(interpreter.level || "Lv1")}
+      </span>
       <div className="home-interpreter-card-body">
         <div className="home-interpreter-card-header">
           <h3 className="truncate home-interpreter-name">{interpreter.name || "이름 미입력"}</h3>
@@ -729,12 +735,6 @@ function InterpreterCard({ interpreter, onProfileClick }) {
                 {isApprovedInterpreter(interpreter) ? "검증됨" : "일반 등록"}
               </span>
             </div>
-            <span
-              className={`home-interpreter-level ${getHomeLevelClass(interpreter.level)} level-badge home-interpreter-level-badge`}
-              style={getLevelBadgeStyle(interpreter.level)}
-            >
-              {normalizeLevel(interpreter.level || "Lv1")}
-            </span>
           </div>
         </div>
 

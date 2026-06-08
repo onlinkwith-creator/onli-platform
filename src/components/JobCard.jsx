@@ -36,16 +36,9 @@ function JobCard({ job, onApplyClick, onDetailClick, className = "" }) {
             <div className={`home-job-status ${status}`}>
               {badge}
             </div>
-            <span className="home-job-mobile-level">{levelLabel}</span>
           </div>
           <p className="home-job-company truncate">{job.company_name || "기업명 확인 중"}</p>
           <h3 className="truncate">{job.event_name || job.title || "공고 제목 미입력"}</h3>
-          <p className="home-job-mobile-date">{dateLabel}</p>
-          <p className="home-job-mobile-summary">{locationLabel} · {recruitmentLabel}</p>
-          <p className="home-job-mobile-category">
-            <Briefcase size={15} aria-hidden="true" />
-            <span>{specialtyLabel}</span>
-          </p>
         </div>
 
         <div className="home-job-info-list job-info-list">
