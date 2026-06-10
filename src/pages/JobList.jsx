@@ -444,24 +444,24 @@ function JobListCard({ job, onApplyClick, onDetailClick }) {
         <div className="home-job-info-list job-info-list jobs-mobile-info-list">
           <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
             <Calendar size={15} aria-hidden="true" />
-            <span className="truncate">{dateLabel}</span>
+            <span className="truncate jobs-mobile-info-value">{dateLabel}</span>
           </div>
           <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
             <MapPin size={15} aria-hidden="true" />
-            <span className="truncate">{locationLabel}</span>
+            <span className="truncate jobs-mobile-info-value">{locationLabel}</span>
           </div>
           <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
             <Users size={15} aria-hidden="true" />
-            <span className="truncate">{recruitmentLabel}</span>
+            <span className="truncate jobs-mobile-info-value">{recruitmentLabel}</span>
           </div>
           <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
             <Award size={15} aria-hidden="true" />
-            <span className="truncate">{levelLabel}</span>
+            <span className="truncate jobs-mobile-info-value">{levelLabel}</span>
           </div>
           <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
             <Briefcase size={15} aria-hidden="true" />
-            <span className="truncate jobs-specialty-desktop">{specialtyLabel}</span>
-            <span className="truncate jobs-specialty-mobile">{mobileSpecialtyLabel}</span>
+            <span className="truncate jobs-specialty-desktop jobs-mobile-info-value">{specialtyLabel}</span>
+            <span className="truncate jobs-specialty-mobile jobs-mobile-info-value">{mobileSpecialtyLabel}</span>
           </div>
         </div>
       </div>

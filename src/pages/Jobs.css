@@ -2005,7 +2005,9 @@
 
   .jobs-card-grid .jobs-list-card .home-job-info-list {
     display: flex;
+    flex-direction: column;
     gap: 6px;
+    width: 100%;
     margin: 10px 0 8px;
     padding-bottom: 0;
     border-bottom: none;
@@ -2013,6 +2015,7 @@
 
   .jobs-card-grid .jobs-list-card .home-job-info-item {
     gap: 8px;
+    width: 100%;
     min-width: 0;
     font-size: 13px;
     line-height: 1.45;
@@ -2031,6 +2034,11 @@
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: keep-all;
+  }
+
+  .jobs-card-grid .jobs-list-card .jobs-mobile-info-value {
+    flex: 1 1 auto;
+    max-width: 100%;
   }
 
   .jobs-card-grid .jobs-list-card .jobs-specialty-desktop {
