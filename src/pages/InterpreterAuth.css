@@ -207,6 +207,10 @@
   align-items: start;
 }
 
+.interpreter-take-home-card {
+  margin: 22px 0;
+}
+
 .desktop-profile-view {
   display: block;
 }
@@ -1619,5 +1623,4 @@
   cursor: not-allowed;
   border: 1px solid #e5e7eb !important;
 }
-
 

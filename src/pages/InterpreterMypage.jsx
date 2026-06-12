@@ -15,6 +15,7 @@ import {
   CircleCheck,
   FileText,
 } from "lucide-react";
+import TakeHomeCalculator from "../components/TakeHomeCalculator";
 
 const TABS = [
   { id: "profile", label: "프로필 정보", icon: "👤" },
@@ -767,6 +768,8 @@ function InterpreterMypage({
                 </span>
               </div>
             </section>
+
+            <TakeHomeCalculator className="interpreter-take-home-card" />
 
             {/* Dashboard Workspace */}
             <section className="interpreter-mypage-grid">

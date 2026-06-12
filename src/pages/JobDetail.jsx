@@ -6,6 +6,7 @@ import {
   Briefcase,
   Building2,
   Calendar,
+  Calculator,
   ClipboardList,
   Clock,
   Languages,
@@ -15,7 +16,9 @@ import {
   Sparkles,
   Star,
   Users,
+  X,
 } from "lucide-react";
+import TakeHomeCalculator from "../components/TakeHomeCalculator";
 import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
@@ -80,6 +83,23 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
   const [existingApplication, setExistingApplication] = useState(null);
   const [applicationCheckLoading, setApplicationCheckLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isCalculatorOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setIsCalculatorOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCalculatorOpen]);
 
   const fetchJob = useCallback(async () => {
     if (!jobId) {
@@ -621,6 +641,15 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                     <Info icon={ShieldCheck} label="상태" value={getJobStatusLabel(job)} />
                   </div>
 
+                  <button
+                    type="button"
+                    className="job-take-home-button"
+                    onClick={() => setIsCalculatorOpen(true)}
+                  >
+                    <Calculator size={17} />
+                    예상 실수령액 확인하기
+                  </button>
+
                   <div className="job-info-detail-sections">
                     <section className="job-detail-desc-section">
                       <h2 className="job-section-title">공고 정보</h2>
@@ -799,6 +828,32 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
           </div>
         )}
       </div>
+      {isCalculatorOpen && (
+        <div
+          className="take-home-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setIsCalculatorOpen(false);
+          }}
+        >
+          <div
+            className="take-home-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="예상 실수령액 계산기"
+          >
+            <button
+              type="button"
+              className="take-home-modal-close"
+              onClick={() => setIsCalculatorOpen(false)}
+              aria-label="계산기 닫기"
+            >
+              <X size={20} />
+            </button>
+            <TakeHomeCalculator />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

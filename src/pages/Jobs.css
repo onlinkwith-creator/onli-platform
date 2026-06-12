@@ -1134,6 +1134,34 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.job-take-home-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  margin-top: 18px;
+  padding: 9px 15px;
+  border: 1px solid #cfc8ee;
+  border-radius: 11px;
+  background: #f8f7ff;
+  color: #5b50b7;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.job-take-home-button:hover {
+  border-color: #a99fe0;
+  background: #f1efff;
+}
+
+.job-take-home-button:focus-visible {
+  outline: 3px solid rgba(116, 103, 216, 0.22);
+  outline-offset: 2px;
+}
+
 .job-detail-mobile-summary-card,
 .job-detail-mobile-info-slider {
   display: none;
