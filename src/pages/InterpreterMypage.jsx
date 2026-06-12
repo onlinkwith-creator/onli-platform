@@ -66,6 +66,9 @@ function InterpreterMypage({
   const [expandedApplicationIds, setExpandedApplicationIds] = useState(
     () => new Set()
   );
+  const [expandedAssignmentIds, setExpandedAssignmentIds] = useState(
+    () => new Set()
+  );
 
   useEffect(() => {
     if (!withdrawalTarget) return undefined;
@@ -529,14 +532,8 @@ function InterpreterMypage({
         start_date,
         end_date,
         status,
-        jobs (
-          id,
-          job_no,
-          title,
-          company_name,
-          location,
-          language
-        )
+        created_at,
+        jobs (*)
       `)
       .eq("interpreter_id", interpreterId);
 
@@ -570,10 +567,10 @@ function InterpreterMypage({
         return mats.map((m) => ({ ...m, jobs: null }));
       }
 
-      const jobsMap = new Map(jobsList.map((j) => [j.id, j]));
+      const jobsMap = new Map(jobsList.map((j) => [String(j.id), j]));
       return mats.map((m) => ({
         ...m,
-        jobs: jobsMap.get(m.job_id) || null,
+        jobs: jobsMap.get(String(m.job_id)) || null,
       }));
     }
 
@@ -638,6 +635,18 @@ function InterpreterMypage({
         next.delete(applicationId);
       } else {
         next.add(applicationId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAssignmentDetails = (matchingId) => {
+    setExpandedAssignmentIds((current) => {
+      const next = new Set(current);
+      if (next.has(matchingId)) {
+        next.delete(matchingId);
+      } else {
+        next.add(matchingId);
       }
       return next;
     });
@@ -1554,101 +1563,12 @@ function InterpreterMypage({
 
                               {job ? (
                                 <>
-                                  <section className="application-info-section">
-                                    <h4>공고 정보</h4>
-                                    <div className="application-info-grid">
-                                      <ApplicationInfo
-                                        label="기업명"
-                                        value={job.company_name || "미등록"}
-                                      />
-                                      <ApplicationInfo
-                                        label="통역 언어"
-                                        value={job.language || "별도 안내"}
-                                      />
-                                      <ApplicationInfo
-                                        label="통역 레벨"
-                                        value={getJobLevelSummary(job)}
-                                      />
-                                      <ApplicationInfo
-                                        label="전문 분야"
-                                        value={getJobSpecialty(job)}
-                                      />
-                                      <ApplicationInfo
-                                        label="근무 장소"
-                                        value={job.location || job.event_location || "미등록"}
-                                      />
-                                      <ApplicationInfo
-                                        label="근무 일정"
-                                        value={formatDateRange(
-                                          job.start_date,
-                                          job.end_date,
-                                          job.event_date || job.date
-                                        )}
-                                      />
-                                      <ApplicationInfo label="근무 시간" value="별도 안내" />
-                                      <ApplicationInfo
-                                        label="모집 인원"
-                                        value={`${getRecruitmentCountDisplay(job)}명`}
-                                      />
-                                      <ApplicationInfo
-                                        label="성별 조건"
-                                        value={job.preferred_gender || "성별 무관"}
-                                      />
-                                      <ApplicationInfo
-                                        label="지급/단가 기준"
-                                        value={getJobPayDisplay(job)}
-                                      />
-                                      <ApplicationInfo
-                                        label="현재 공고 상태"
-                                        value={getJobStatusLabel(job.status)}
-                                      />
-                                    </div>
-
-                                    <button
-                                      type="button"
-                                      className="application-detail-toggle"
-                                      onClick={() => toggleApplicationDetails(app.id)}
-                                      aria-expanded={isExpanded}
-                                    >
-                                      {isExpanded ? "상세 정보 닫기" : "상세 정보 보기"}
-                                    </button>
-
-                                    {isExpanded && (
-                                      <div className="application-expanded-details">
-                                        <ApplicationDetail
-                                          label="공고 소개"
-                                          value={
-                                            job.description ||
-                                            job.job_description ||
-                                            "등록된 공고 소개가 없습니다."
-                                          }
-                                        />
-                                        <ApplicationDetail
-                                          label="원하는 통역사"
-                                          value={
-                                            job.preference ||
-                                            `${getJobLevelSummary(job)} 역량을 갖춘 통역사를 찾고 있습니다.`
-                                          }
-                                        />
-                                        <ApplicationDetail
-                                          label="우대사항 및 안내"
-                                          value={
-                                            job.dress_code ||
-                                            job.preferred_gender ||
-                                            "별도 안내"
-                                          }
-                                        />
-                                        <div className="application-detail-block">
-                                          <strong>추가 안내사항</strong>
-                                          <ul>
-                                            <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
-                                            <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
-                                            <li>운영팀 확인 후 최종 연락드립니다.</li>
-                                          </ul>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </section>
+                                  <JobInformationSection
+                                    job={job}
+                                    countLabel="모집 인원"
+                                    isExpanded={isExpanded}
+                                    onToggle={() => toggleApplicationDetails(app.id)}
+                                  />
 
                                   <section className="application-info-section is-personal">
                                     <h4>내 지원 정보</h4>
@@ -1740,14 +1660,17 @@ function InterpreterMypage({
                     ) : (
                       <div className="interpreter-assignment-list">
                         {matchings.map((mat) => {
-                          const jobTitle = mat.jobs?.title || "배정된 공고";
-                          const companyName = mat.jobs?.company_name || "비공개 협력사";
-                          const location = mat.jobs?.location || "-";
-                          const start = mat.start_date || mat.jobs?.start_date;
-                          const end = mat.end_date || mat.jobs?.end_date;
-                          const dateRange = start ? `${formatDate(start)} ~ ${formatDate(end)}` : "-";
+                          const job = mat.jobs;
+                          const jobTitle =
+                            job?.event_name || job?.title || "배정된 공고";
+                          const start = mat.start_date || job?.start_date;
+                          const end = mat.end_date || job?.end_date;
                           const statusLabel = getMatchingStatusLabel(mat.status);
                           const badgeClass = getStatusBadgeClass(mat.status);
+                          const isExpanded = expandedAssignmentIds.has(mat.id);
+                          const hasLinkedJob =
+                            job?.id &&
+                            String(mat.job_id) === String(job.id);
 
                           return (
                             <div key={mat.id} className="interpreter-assignment-card">
@@ -1758,16 +1681,70 @@ function InterpreterMypage({
                                 <span className={`status-badge ${badgeClass}`}>{statusLabel}</span>
                               </div>
                               <h3>{jobTitle}</h3>
-                              <div className="assignment-details">
-                                <p>
-                                  <span>🏢 파트너사:</span> {companyName}
+
+                              {job ? (
+                                <>
+                                  <JobInformationSection
+                                    job={job}
+                                    startDate={start}
+                                    endDate={end}
+                                    countLabel="모집 인원"
+                                    isExpanded={isExpanded}
+                                    onToggle={() => toggleAssignmentDetails(mat.id)}
+                                  />
+
+                                  <section className="application-info-section is-personal">
+                                    <h4>내 배정 정보</h4>
+                                    <div className="application-personal-meta">
+                                      <ApplicationInfo
+                                        label="배정 상태"
+                                        value={statusLabel}
+                                      />
+                                      <ApplicationInfo
+                                        label="배정 등록일"
+                                        value={formatDate(mat.created_at)}
+                                      />
+                                      <ApplicationInfo
+                                        label="업무 예정일"
+                                        value={formatDateRange(
+                                          start,
+                                          end,
+                                          job.event_date || job.date
+                                        )}
+                                      />
+                                      <ApplicationInfo
+                                        label="담당 기업"
+                                        value={job.company_name || "미등록"}
+                                      />
+                                      <ApplicationInfo
+                                        label="현재 진행 상태"
+                                        value={statusLabel}
+                                      />
+                                    </div>
+                                  </section>
+                                </>
+                              ) : (
+                                <p className="application-job-unavailable">
+                                  현재 공고 정보를 불러올 수 없습니다.
                                 </p>
-                                <p>
-                                  <span>📍 장소:</span> {location}
+                              )}
+
+                              <div className="application-card-footer assignment-card-footer">
+                                <p className="assignment-change-note">
+                                  배정이 완료된 업무의 변경 또는 취소가 필요한 경우 ON-LI에
+                                  문의해 주세요.
                                 </p>
-                                <p>
-                                  <span>📅 근무 기간:</span> {dateRange}
-                                </p>
+                                {hasLinkedJob && (
+                                  <div className="application-card-actions">
+                                    <button
+                                      type="button"
+                                      className="application-job-detail-button"
+                                      onClick={() => onJobDetailClick?.(mat.job_id)}
+                                    >
+                                      공고 상세 보기
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -1921,6 +1898,94 @@ function ApplicationInfo({ label, value }) {
       <span>{label}</span>
       <strong>{value || "미등록"}</strong>
     </div>
+  );
+}
+
+function JobInformationSection({
+  job,
+  startDate,
+  endDate,
+  countLabel,
+  isExpanded,
+  onToggle,
+}) {
+  return (
+    <section className="application-info-section">
+      <h4>공고 정보</h4>
+      <div className="application-info-grid">
+        <ApplicationInfo label="기업명" value={job.company_name || "미등록"} />
+        <ApplicationInfo label="통역 언어" value={job.language || "별도 안내"} />
+        <ApplicationInfo label="통역 레벨" value={getJobLevelSummary(job)} />
+        <ApplicationInfo label="전문 분야" value={getJobSpecialty(job)} />
+        <ApplicationInfo
+          label="근무 장소"
+          value={job.location || job.event_location || "미등록"}
+        />
+        <ApplicationInfo
+          label="근무 일정"
+          value={formatDateRange(
+            startDate || job.start_date,
+            endDate || job.end_date,
+            job.event_date || job.date
+          )}
+        />
+        <ApplicationInfo label="근무 시간" value="별도 안내" />
+        <ApplicationInfo
+          label={countLabel}
+          value={`${getRecruitmentCountDisplay(job)}명`}
+        />
+        <ApplicationInfo
+          label="성별 조건"
+          value={job.preferred_gender || "성별 무관"}
+        />
+        <ApplicationInfo label="지급/단가 기준" value={getJobPayDisplay(job)} />
+        <ApplicationInfo
+          label="현재 공고 상태"
+          value={getJobStatusLabel(job.status)}
+        />
+      </div>
+
+      <button
+        type="button"
+        className="application-detail-toggle"
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+      >
+        {isExpanded ? "상세 정보 닫기" : "상세 정보 보기"}
+      </button>
+
+      {isExpanded && (
+        <div className="application-expanded-details">
+          <ApplicationDetail
+            label="공고 소개"
+            value={
+              job.description ||
+              job.job_description ||
+              "등록된 공고 소개가 없습니다."
+            }
+          />
+          <ApplicationDetail
+            label="원하는 통역사"
+            value={
+              job.preference ||
+              `${getJobLevelSummary(job)} 역량을 갖춘 통역사를 찾고 있습니다.`
+            }
+          />
+          <ApplicationDetail
+            label="우대사항 및 안내"
+            value={job.dress_code || job.preferred_gender || "별도 안내"}
+          />
+          <div className="application-detail-block">
+            <strong>추가 안내사항</strong>
+            <ul>
+              <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
+              <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
+              <li>운영팀 확인 후 최종 연락드립니다.</li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

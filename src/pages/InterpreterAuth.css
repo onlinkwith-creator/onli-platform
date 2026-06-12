@@ -851,6 +851,20 @@
   gap: 8px;
 }
 
+.assignment-card-footer {
+  align-items: flex-end;
+}
+
+.assignment-change-note {
+  max-width: 520px;
+  margin: 0;
+  color: #756f82;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+  text-align: left;
+}
+
 .application-job-detail-button,
 .application-withdraw-button {
   flex: 0 0 auto;
@@ -1516,6 +1530,10 @@
   .application-card-footer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .assignment-card-footer {
+    align-items: stretch;
   }
 
   .application-info-grid,
