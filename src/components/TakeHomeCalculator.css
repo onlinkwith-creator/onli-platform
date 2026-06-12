@@ -44,9 +44,9 @@
 
 .take-home-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
-  align-items: end;
+  align-items: start;
 }
 
 .take-home-field {
@@ -56,11 +56,16 @@
   gap: 8px;
 }
 
-.take-home-field > span,
-.take-home-fixed-rate > span {
+.take-home-field > span {
   color: #4d4961;
   font-size: 13px;
   font-weight: 700;
+}
+
+.take-home-field small {
+  color: #777287;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .take-home-amount-input {
@@ -116,25 +121,8 @@
   font-size: 14px;
 }
 
-.take-home-fixed-rate {
-  display: flex;
-  height: 46px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 14px;
-  border: 1px solid #e4e0f5;
-  border-radius: 12px;
-  background: #f8f7ff;
-}
-
-.take-home-fixed-rate strong {
-  color: #6558c9;
-  font-size: 16px;
-}
-
 .take-home-type-description {
-  grid-column: 3;
+  grid-column: 2;
   min-height: 42px;
   padding: 9px 11px;
   border-radius: 10px;

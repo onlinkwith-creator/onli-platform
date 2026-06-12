@@ -22,6 +22,7 @@ const TABS = [
   { id: "applications", label: "지원 내역", icon: "📄" },
   { id: "assignments", label: "배정 내역", icon: "💼" },
   { id: "schedule", label: "일정 및 캘린더", icon: "📅" },
+  { id: "takeHome", label: "예상 실수령액 계산", icon: "🧮" },
 ];
 
 function InterpreterMypage({
@@ -768,8 +769,6 @@ function InterpreterMypage({
                 </span>
               </div>
             </section>
-
-            <TakeHomeCalculator className="interpreter-take-home-card" />
 
             {/* Dashboard Workspace */}
             <section className="interpreter-mypage-grid">
@@ -1589,6 +1588,10 @@ function InterpreterMypage({
                       })()
                     )}
                   </article>
+                )}
+
+                {activeTab === "takeHome" && (
+                  <TakeHomeCalculator className="animate-fade-in" />
                 )}
               </div>
             </section>

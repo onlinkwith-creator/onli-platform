@@ -2,8 +2,6 @@ import { useId, useMemo, useState } from "react";
 import { Calculator } from "lucide-react";
 import "./TakeHomeCalculator.css";
 
-const PLATFORM_FEE_RATE = 0.2;
-
 const SETTLEMENT_TYPES = {
   freelancer: {
     label: "개인 프리랜서",
@@ -14,7 +12,7 @@ const SETTLEMENT_TYPES = {
   business: {
     label: "사업자",
     description:
-      "원천징수 0원으로 예상되며, 별도 증빙 및 세금계산서·계산서 처리 여부는 개별 조건에 따라 달라질 수 있습니다.",
+      "원천징수 0원으로 예상되며, 실제 증빙 및 세금계산서·계산서 처리 여부는 개별 조건에 따라 달라질 수 있습니다.",
     incomeTaxRate: 0,
     localIncomeTaxRate: 0,
   },
@@ -29,24 +27,22 @@ const SETTLEMENT_TYPES = {
 
 const roundWon = (amount) => Math.max(0, Math.round(Number(amount) || 0));
 
-function calculateTakeHome(grossAmount, settlementType = "freelancer") {
-  const gross = roundWon(grossAmount);
+function calculateTakeHome(grossSettlement, settlementType = "freelancer") {
+  const settlementBeforeTax = roundWon(grossSettlement);
   const taxRates = SETTLEMENT_TYPES[settlementType] || SETTLEMENT_TYPES.freelancer;
-  const platformFee = roundWon(gross * PLATFORM_FEE_RATE);
-  const settlementBeforeTax = Math.max(0, gross - platformFee);
   const incomeTax = roundWon(settlementBeforeTax * taxRates.incomeTaxRate);
   const localIncomeTax = roundWon(settlementBeforeTax * taxRates.localIncomeTaxRate);
+  const totalWithholding = incomeTax + localIncomeTax;
   const estimatedTakeHome = Math.max(
     0,
-    settlementBeforeTax - incomeTax - localIncomeTax
+    settlementBeforeTax - totalWithholding
   );
 
   return {
-    gross,
-    platformFee,
     settlementBeforeTax,
     incomeTax,
     localIncomeTax,
+    totalWithholding,
     estimatedTakeHome,
   };
 }
@@ -79,15 +75,15 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
         <div>
           <h2>예상 실수령액 계산기</h2>
           <p>
-            통역료와 정산 유형을 입력하면 플랫폼 수수료와 원천징수를 반영한 예상
-            수령액을 확인할 수 있습니다.
+            세전 정산금과 정산 유형을 입력하면 원천징수를 반영한 예상 수령액을
+            확인할 수 있습니다.
           </p>
         </div>
       </div>
 
       <div className="take-home-form">
         <label className="take-home-field" htmlFor={inputId}>
-          <span>통역료 총액</span>
+          <span>세전 정산금</span>
           <div className="take-home-amount-input">
             <input
               id={inputId}
@@ -102,12 +98,8 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
             />
             <span id={`${inputId}-unit`}>원</span>
           </div>
+          <small>ON-LI에서 안내받은 통역사 정산 예정 금액을 입력하세요.</small>
         </label>
-
-        <div className="take-home-fixed-rate">
-          <span>플랫폼 수수료</span>
-          <strong>{PLATFORM_FEE_RATE * 100}%</strong>
-        </div>
 
         <label className="take-home-field" htmlFor={settlementTypeId}>
           <span>정산 유형</span>
@@ -129,14 +121,8 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
       </div>
 
       <div className="take-home-results" aria-live="polite">
-        <ResultRow label="통역료 총액" amount={calculation.gross} />
         <ResultRow
-          label={`ON-LI 플랫폼 수수료 ${PLATFORM_FEE_RATE * 100}%`}
-          amount={calculation.platformFee}
-          deduction
-        />
-        <ResultRow
-          label="통역사 세전 정산금"
+          label="세전 정산금"
           amount={calculation.settlementBeforeTax}
           emphasized
         />
@@ -144,6 +130,11 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
         <ResultRow
           label="지방소득세 0.3%"
           amount={calculation.localIncomeTax}
+          deduction
+        />
+        <ResultRow
+          label="총 원천징수액"
+          amount={calculation.totalWithholding}
           deduction
         />
         <ResultRow
@@ -156,8 +147,8 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
       <div className="take-home-notice">
         <p>
           본 계산 결과는 예상 금액이며 실제 정산액을 보증하지 않습니다. 통역사의
-          사업자 여부, 거주자 여부, 소득 구분, 원천징수 대상 여부 및 관련 세법에
-          따라 실제 지급액과 신고 방식이 달라질 수 있습니다.
+          사업자 여부, 거주자 여부, 소득 구분 및 원천징수 대상 여부에 따라 실제
+          지급액과 신고 방식이 달라질 수 있습니다.
         </p>
         <p>
           ON-LI는 기업과 통역사를 연결하고 정산 절차를 지원하는 플랫폼이며, 개별
