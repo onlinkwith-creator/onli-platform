@@ -345,6 +345,7 @@ function App() {
           onLoginClick={() => navigate("interpreterLogin", null, null)}
           onRegisterClick={openInterpreterRegister}
           onHomeClick={() => navigate("home", null, null)}
+          onJobDetailClick={(jobId) => navigate("jobDetail", null, jobId)}
           onSignOut={handleInterpreterSignOut}
         />
       )}

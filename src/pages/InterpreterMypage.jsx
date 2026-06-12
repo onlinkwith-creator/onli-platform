@@ -4,10 +4,18 @@ import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
   getApplicationStatusLabel,
+  getJobStatusLabel,
   getMatchingStatusLabel,
   getStatusBadgeClass,
 } from "../utils/status";
 import { normalizeLevel } from "../utils/levelBadge";
+import {
+  getJobLevelSummary,
+  getJobPayDisplay,
+  getJobSpecialty,
+} from "../utils/jobDisplay";
+import { formatDateRange } from "../utils/dateRange";
+import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
   canWithdrawJobApplication,
   isJobApplicationWithdrawalPermissionError,
@@ -37,6 +45,7 @@ function InterpreterMypage({
   onLoginClick,
   onRegisterClick,
   onHomeClick,
+  onJobDetailClick,
   onSignOut,
 }) {
   const [interpreter, setInterpreter] = useState(null);
@@ -54,6 +63,9 @@ function InterpreterMypage({
   const [isWithdrawingApplication, setIsWithdrawingApplication] = useState(false);
   const [withdrawalMessage, setWithdrawalMessage] = useState("");
   const [withdrawalError, setWithdrawalError] = useState("");
+  const [expandedApplicationIds, setExpandedApplicationIds] = useState(
+    () => new Set()
+  );
 
   useEffect(() => {
     if (!withdrawalTarget) return undefined;
@@ -460,15 +472,7 @@ function InterpreterMypage({
         message,
         status,
         created_at,
-        jobs (
-          id,
-          job_no,
-          title,
-          location,
-          start_date,
-          end_date,
-          language
-        )
+        jobs (*)
       `)
       .eq("interpreter_id", interpreterId);
 
@@ -502,10 +506,10 @@ function InterpreterMypage({
         return apps.map((a) => ({ ...a, jobs: null }));
       }
 
-      const jobsMap = new Map(jobsList.map((j) => [j.id, j]));
+      const jobsMap = new Map(jobsList.map((j) => [String(j.id), j]));
       return apps.map((a) => ({
         ...a,
-        jobs: jobsMap.get(a.job_id) || null,
+        jobs: jobsMap.get(String(a.job_id)) || null,
       }));
     }
 
@@ -605,6 +609,11 @@ function InterpreterMypage({
 
       const refreshedApplications = await fetchApplicationsData(interpreter.id);
       setApplications(refreshedApplications);
+      setExpandedApplicationIds((current) => {
+        const next = new Set(current);
+        next.delete(withdrawalTarget.id);
+        return next;
+      });
       setWithdrawalTarget(null);
       setWithdrawalMessage("지원이 철회되었습니다.");
     } catch (error) {
@@ -620,6 +629,18 @@ function InterpreterMypage({
     } finally {
       setIsWithdrawingApplication(false);
     }
+  };
+
+  const toggleApplicationDetails = (applicationId) => {
+    setExpandedApplicationIds((current) => {
+      const next = new Set(current);
+      if (next.has(applicationId)) {
+        next.delete(applicationId);
+      } else {
+        next.add(applicationId);
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -1509,17 +1530,19 @@ function InterpreterMypage({
                     ) : (
                       <div className="interpreter-application-list">
                         {applications.map((app) => {
-                          const jobTitle = app.jobs?.title || "삭제되었거나 찾을 수 없는 공고";
-                          const jobLocation = app.jobs?.location || "-";
-                          const start = app.jobs?.start_date;
-                          const end = app.jobs?.end_date;
-                          const jobDates = start ? `${formatDate(start)} ~ ${formatDate(end)}` : "-";
+                          const job = app.jobs;
+                          const jobTitle =
+                            job?.event_name || job?.title || "공고 제목 미등록";
                           const badgeClass = getStatusBadgeClass(app.status);
                           const statusLabel = getApplicationStatusLabel(app.status);
                           const canWithdraw = canWithdrawJobApplication(app.status);
                           const isMatched = ["accepted", "매칭완료"].includes(
                             String(app.status || "").trim().toLowerCase()
                           );
+                          const isExpanded = expandedApplicationIds.has(app.id);
+                          const hasLinkedJob =
+                            job?.id &&
+                            String(app.job_id) === String(job.id);
 
                           return (
                             <div key={app.id} className="interpreter-application-card">
@@ -1528,37 +1551,163 @@ function InterpreterMypage({
                                 <span className={`status-badge ${badgeClass}`}>{statusLabel}</span>
                               </div>
                               <h3>{jobTitle}</h3>
-                              <div className="app-job-details">
-                                <p>
-                                  <span>📍 위치:</span> {jobLocation}
+
+                              {job ? (
+                                <>
+                                  <section className="application-info-section">
+                                    <h4>공고 정보</h4>
+                                    <div className="application-info-grid">
+                                      <ApplicationInfo
+                                        label="기업명"
+                                        value={job.company_name || "미등록"}
+                                      />
+                                      <ApplicationInfo
+                                        label="통역 언어"
+                                        value={job.language || "별도 안내"}
+                                      />
+                                      <ApplicationInfo
+                                        label="통역 레벨"
+                                        value={getJobLevelSummary(job)}
+                                      />
+                                      <ApplicationInfo
+                                        label="전문 분야"
+                                        value={getJobSpecialty(job)}
+                                      />
+                                      <ApplicationInfo
+                                        label="근무 장소"
+                                        value={job.location || job.event_location || "미등록"}
+                                      />
+                                      <ApplicationInfo
+                                        label="근무 일정"
+                                        value={formatDateRange(
+                                          job.start_date,
+                                          job.end_date,
+                                          job.event_date || job.date
+                                        )}
+                                      />
+                                      <ApplicationInfo label="근무 시간" value="별도 안내" />
+                                      <ApplicationInfo
+                                        label="모집 인원"
+                                        value={`${getRecruitmentCountDisplay(job)}명`}
+                                      />
+                                      <ApplicationInfo
+                                        label="성별 조건"
+                                        value={job.preferred_gender || "성별 무관"}
+                                      />
+                                      <ApplicationInfo
+                                        label="지급/단가 기준"
+                                        value={getJobPayDisplay(job)}
+                                      />
+                                      <ApplicationInfo
+                                        label="현재 공고 상태"
+                                        value={getJobStatusLabel(job.status)}
+                                      />
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      className="application-detail-toggle"
+                                      onClick={() => toggleApplicationDetails(app.id)}
+                                      aria-expanded={isExpanded}
+                                    >
+                                      {isExpanded ? "상세 정보 닫기" : "상세 정보 보기"}
+                                    </button>
+
+                                    {isExpanded && (
+                                      <div className="application-expanded-details">
+                                        <ApplicationDetail
+                                          label="공고 소개"
+                                          value={
+                                            job.description ||
+                                            job.job_description ||
+                                            "등록된 공고 소개가 없습니다."
+                                          }
+                                        />
+                                        <ApplicationDetail
+                                          label="원하는 통역사"
+                                          value={
+                                            job.preference ||
+                                            `${getJobLevelSummary(job)} 역량을 갖춘 통역사를 찾고 있습니다.`
+                                          }
+                                        />
+                                        <ApplicationDetail
+                                          label="우대사항 및 안내"
+                                          value={
+                                            job.dress_code ||
+                                            job.preferred_gender ||
+                                            "별도 안내"
+                                          }
+                                        />
+                                        <div className="application-detail-block">
+                                          <strong>추가 안내사항</strong>
+                                          <ul>
+                                            <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
+                                            <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
+                                            <li>운영팀 확인 후 최종 연락드립니다.</li>
+                                          </ul>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </section>
+
+                                  <section className="application-info-section is-personal">
+                                    <h4>내 지원 정보</h4>
+                                    <div className="application-personal-info">
+                                      <div className="app-message-box">
+                                        <span>지원 메시지</span>
+                                        <p>{app.message || "작성한 지원 메시지가 없습니다."}</p>
+                                      </div>
+                                      <div className="application-personal-meta">
+                                        <ApplicationInfo
+                                          label="지원일"
+                                          value={formatDate(app.created_at)}
+                                        />
+                                        <ApplicationInfo
+                                          label="지원 상태"
+                                          value={statusLabel}
+                                        />
+                                        <ApplicationInfo
+                                          label="지원 철회"
+                                          value={canWithdraw ? "가능" : "불가"}
+                                        />
+                                      </div>
+                                    </div>
+                                  </section>
+                                </>
+                              ) : (
+                                <p className="application-job-unavailable">
+                                  현재 공고 정보를 불러올 수 없습니다.
                                 </p>
-                                <p>
-                                  <span>📅 일정:</span> {jobDates}
-                                </p>
-                                {app.message && (
-                                  <div className="app-message-box">
-                                    <span>✍️ 지원 메시지:</span>
-                                    <p>{app.message}</p>
-                                  </div>
-                                )}
-                              </div>
+                              )}
+
                               <div className="application-card-footer">
                                 <div className="app-date-row">
                                   지원 일시: {formatDate(app.created_at)}
                                 </div>
-                                {canWithdraw && (
-                                  <button
-                                    type="button"
-                                    className="application-withdraw-button"
-                                    onClick={() => {
-                                      setWithdrawalMessage("");
-                                      setWithdrawalError("");
-                                      setWithdrawalTarget(app);
-                                    }}
-                                  >
-                                    지원 철회
-                                  </button>
-                                )}
+                                <div className="application-card-actions">
+                                  {hasLinkedJob && (
+                                    <button
+                                      type="button"
+                                      className="application-job-detail-button"
+                                      onClick={() => onJobDetailClick?.(app.job_id)}
+                                    >
+                                      공고 상세 보기
+                                    </button>
+                                  )}
+                                  {canWithdraw && (
+                                    <button
+                                      type="button"
+                                      className="application-withdraw-button"
+                                      onClick={() => {
+                                        setWithdrawalMessage("");
+                                        setWithdrawalError("");
+                                        setWithdrawalTarget(app);
+                                      }}
+                                    >
+                                      지원 철회
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                               {isMatched && (
                                 <p className="application-withdrawal-note">
@@ -1763,6 +1912,24 @@ function InterpreterMypage({
         </div>
       )}
     </main>
+  );
+}
+
+function ApplicationInfo({ label, value }) {
+  return (
+    <div className="application-info-item">
+      <span>{label}</span>
+      <strong>{value || "미등록"}</strong>
+    </div>
+  );
+}
+
+function ApplicationDetail({ label, value }) {
+  return (
+    <div className="application-detail-block">
+      <strong>{label}</strong>
+      <p>{value || "별도 안내"}</p>
+    </div>
   );
 }
 
