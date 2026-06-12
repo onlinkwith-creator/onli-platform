@@ -8,12 +8,18 @@ import {
   getStatusBadgeClass,
 } from "../utils/status";
 import { normalizeLevel } from "../utils/levelBadge";
+import {
+  canWithdrawJobApplication,
+  isJobApplicationWithdrawalPermissionError,
+  withdrawOwnJobApplication,
+} from "../utils/applicationContact";
 import "./InterpreterAuth.css";
 import {
   Award,
   BriefcaseBusiness,
   CircleCheck,
   FileText,
+  X,
 } from "lucide-react";
 import TakeHomeCalculator from "../components/TakeHomeCalculator";
 
@@ -44,6 +50,28 @@ function InterpreterMypage({
   const [activeTab, setActiveTab] = useState("profile");
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [withdrawalTarget, setWithdrawalTarget] = useState(null);
+  const [isWithdrawingApplication, setIsWithdrawingApplication] = useState(false);
+  const [withdrawalMessage, setWithdrawalMessage] = useState("");
+  const [withdrawalError, setWithdrawalError] = useState("");
+
+  useEffect(() => {
+    if (!withdrawalTarget) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !isWithdrawingApplication) {
+        setWithdrawalTarget(null);
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [withdrawalTarget, isWithdrawingApplication]);
 
   // Collapsible sections for mobile view
   const [showIntro, setShowIntro] = useState(false);
@@ -546,6 +574,52 @@ function InterpreterMypage({
     }
 
     return data || [];
+  };
+
+  const handleConfirmWithdrawal = async () => {
+    if (
+      !supabase ||
+      !interpreter?.id ||
+      !withdrawalTarget?.id ||
+      isWithdrawingApplication
+    ) {
+      return;
+    }
+
+    setIsWithdrawingApplication(true);
+    setWithdrawalError("");
+    setWithdrawalMessage("");
+
+    try {
+      const deletedApplication = await withdrawOwnJobApplication(supabase, {
+        applicationId: withdrawalTarget.id,
+        interpreterId: interpreter.id,
+      });
+
+      if (!deletedApplication) {
+        setWithdrawalError(
+          "지원 상태가 변경되었거나 철회 권한을 확인할 수 없습니다. 새로고침 후 다시 확인해 주세요."
+        );
+        return;
+      }
+
+      const refreshedApplications = await fetchApplicationsData(interpreter.id);
+      setApplications(refreshedApplications);
+      setWithdrawalTarget(null);
+      setWithdrawalMessage("지원이 철회되었습니다.");
+    } catch (error) {
+      if (isJobApplicationWithdrawalPermissionError(error)) {
+        setWithdrawalError(
+          "지원 철회 권한을 확인할 수 없습니다. ON-LI에 문의해 주세요."
+        );
+      } else {
+        setWithdrawalError(
+          "지원을 철회하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        );
+      }
+    } finally {
+      setIsWithdrawingApplication(false);
+    }
   };
 
   useEffect(() => {
@@ -1408,6 +1482,16 @@ function InterpreterMypage({
                 {activeTab === "applications" && (
                   <article className="interpreter-mypage-card animate-fade-in">
                     <h2>지원 내역 목록</h2>
+                    {withdrawalMessage && (
+                      <p className="application-withdrawal-message is-success" role="status">
+                        {withdrawalMessage}
+                      </p>
+                    )}
+                    {withdrawalError && (
+                      <p className="application-withdrawal-message is-error" role="alert">
+                        {withdrawalError}
+                      </p>
+                    )}
                     {loadingData ? (
                       <p className="loading-text">지원 내역을 불러오고 있습니다...</p>
                     ) : applications.length === 0 ? (
@@ -1432,6 +1516,10 @@ function InterpreterMypage({
                           const jobDates = start ? `${formatDate(start)} ~ ${formatDate(end)}` : "-";
                           const badgeClass = getStatusBadgeClass(app.status);
                           const statusLabel = getApplicationStatusLabel(app.status);
+                          const canWithdraw = canWithdrawJobApplication(app.status);
+                          const isMatched = ["accepted", "매칭완료"].includes(
+                            String(app.status || "").trim().toLowerCase()
+                          );
 
                           return (
                             <div key={app.id} className="interpreter-application-card">
@@ -1454,9 +1542,30 @@ function InterpreterMypage({
                                   </div>
                                 )}
                               </div>
-                              <div className="app-date-row">
-                                지원 일시: {formatDate(app.created_at)}
+                              <div className="application-card-footer">
+                                <div className="app-date-row">
+                                  지원 일시: {formatDate(app.created_at)}
+                                </div>
+                                {canWithdraw && (
+                                  <button
+                                    type="button"
+                                    className="application-withdraw-button"
+                                    onClick={() => {
+                                      setWithdrawalMessage("");
+                                      setWithdrawalError("");
+                                      setWithdrawalTarget(app);
+                                    }}
+                                  >
+                                    지원 철회
+                                  </button>
+                                )}
                               </div>
+                              {isMatched && (
+                                <p className="application-withdrawal-note">
+                                  매칭이 완료된 지원은 직접 철회할 수 없습니다. 변경이
+                                  필요한 경우 ON-LI에 문의해 주세요.
+                                </p>
+                              )}
                             </div>
                           );
                         })}
@@ -1598,6 +1707,61 @@ function InterpreterMypage({
           </>
         )}
       </div>
+      {withdrawalTarget && (
+        <div
+          className="application-withdrawal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !isWithdrawingApplication
+            ) {
+              setWithdrawalTarget(null);
+            }
+          }}
+        >
+          <section
+            className="application-withdrawal-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="application-withdrawal-title"
+          >
+            <button
+              type="button"
+              className="application-withdrawal-close"
+              onClick={() => setWithdrawalTarget(null)}
+              disabled={isWithdrawingApplication}
+              aria-label="지원 철회 확인창 닫기"
+            >
+              <X size={19} />
+            </button>
+            <h2 id="application-withdrawal-title">지원을 철회하시겠습니까?</h2>
+            <p>
+              지원 철회 후에는 해당 지원 내역이 삭제됩니다.
+              <br />
+              다시 지원하려면 해당 공고에서 새로 지원해야 합니다.
+            </p>
+            <div className="application-withdrawal-actions">
+              <button
+                type="button"
+                className="application-withdrawal-cancel"
+                onClick={() => setWithdrawalTarget(null)}
+                disabled={isWithdrawingApplication}
+              >
+                계속 지원하기
+              </button>
+              <button
+                type="button"
+                className="application-withdrawal-confirm"
+                onClick={handleConfirmWithdrawal}
+                disabled={isWithdrawingApplication}
+              >
+                {isWithdrawingApplication ? "철회 중..." : "지원 철회"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

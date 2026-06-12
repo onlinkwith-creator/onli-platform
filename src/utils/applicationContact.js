@@ -1,6 +1,14 @@
 export const DUPLICATE_APPLICATION_MESSAGE =
   "이미 지원한 통역공고입니다.";
 
+const WITHDRAWABLE_APPLICATION_STATUSES = new Set([
+  "pending",
+  "reviewing",
+  "지원완료",
+  "검토중",
+  "보류",
+]);
+
 const LEGACY_JOB_APPLICATION_COLUMNS = [
   "agreed_terms",
   "agreed_policy",
@@ -59,6 +67,42 @@ export function getJobApplicationSubmitErrorMessage(error) {
   }
 
   return "제출에 실패했습니다. 잠시 후 다시 시도해주세요.";
+}
+
+export function canWithdrawJobApplication(status) {
+  return WITHDRAWABLE_APPLICATION_STATUSES.has(
+    String(status || "").trim().toLowerCase()
+  );
+}
+
+export function isJobApplicationWithdrawalPermissionError(error) {
+  return (
+    error?.code === "42501" ||
+    /row-level security policy|violates row-level security|permission denied|401|403/i.test(
+      error?.message || ""
+    )
+  );
+}
+
+export async function withdrawOwnJobApplication(
+  supabase,
+  { applicationId, interpreterId }
+) {
+  if (!supabase || !applicationId || !interpreterId) {
+    throw new Error("지원 철회 대상 정보가 올바르지 않습니다.");
+  }
+
+  const { data, error } = await supabase
+    .from("job_applications")
+    .delete()
+    .eq("id", applicationId)
+    .eq("interpreter_id", interpreterId)
+    .in("status", [...WITHDRAWABLE_APPLICATION_STATUSES])
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
 }
 
 export function buildLegacyJobApplicationPayload(error, payload) {

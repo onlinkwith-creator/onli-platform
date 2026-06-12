@@ -703,13 +703,151 @@
 }
 
 .app-date-row {
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid #e2e8f0;
   font-size: 12px;
   font-weight: 800;
-  color: #94a3b8;
-  text-align: right;
+  color: #64748b;
+}
+
+.application-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.application-withdraw-button {
+  flex: 0 0 auto;
+  padding: 8px 13px;
+  border: 1px solid #e6a3a3;
+  border-radius: 10px;
+  background: #fffafa;
+  color: #b64b4b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.application-withdraw-button:hover {
+  border-color: #d77d7d;
+  background: #fff3f3;
+}
+
+.application-withdrawal-note {
+  margin: 12px 0 0;
+  color: #8a5d3b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.application-withdrawal-message {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.application-withdrawal-message.is-success {
+  border: 1px solid #b9dfca;
+  background: #f1fbf5;
+  color: #26734a;
+}
+
+.application-withdrawal-message.is-error {
+  border: 1px solid #efc2c2;
+  background: #fff5f5;
+  color: #a33e3e;
+}
+
+.application-withdrawal-backdrop {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(30, 27, 48, 0.56);
+}
+
+.application-withdrawal-modal {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 28px;
+  border: 1px solid #e8e4f2;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(22, 18, 51, 0.26);
+}
+
+.application-withdrawal-modal h2 {
+  margin: 0 36px 12px 0;
+  color: #242037;
+  font-size: 20px;
+}
+
+.application-withdrawal-modal p {
+  margin: 0;
+  color: #696477;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.application-withdrawal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e0dced;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #625d70;
+  cursor: pointer;
+}
+
+.application-withdrawal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.application-withdrawal-actions button {
+  min-height: 42px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.application-withdrawal-actions button:disabled,
+.application-withdrawal-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.application-withdrawal-cancel {
+  border: 1px solid #d9d5e5;
+  background: #ffffff;
+  color: #554f62;
+}
+
+.application-withdrawal-confirm {
+  border: 1px solid #c86666;
+  background: #b95252;
+  color: #ffffff;
 }
 
 /* Schedule Timeline styling */
@@ -1228,6 +1366,33 @@
   .form-group-grid,
   .form-subgroup-grid {
     grid-template-columns: 1fr;
+  }
+
+  .application-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .application-withdraw-button {
+    width: 100%;
+  }
+
+  .application-withdrawal-backdrop {
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  .application-withdrawal-modal {
+    padding: 24px 18px 18px;
+    border-radius: 16px;
+  }
+
+  .application-withdrawal-actions {
+    flex-direction: column;
+  }
+
+  .application-withdrawal-actions button {
+    width: 100%;
   }
 }
 
