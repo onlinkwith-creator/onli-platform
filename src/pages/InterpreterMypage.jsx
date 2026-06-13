@@ -39,6 +39,29 @@ const TABS = [
   { id: "takeHome", label: "예상 실수령액 계산", icon: "🧮" },
 ];
 
+const LEVEL_PAYMENT_GUIDE = [
+  {
+    level: "LV1",
+    standard: "현장 보조 · 안내 · 운영 지원",
+    payment: "일급 180,000원",
+  },
+  {
+    level: "LV2",
+    standard: "고객 응대 · 일반 상담 통역",
+    payment: "일급 200,000원",
+  },
+  {
+    level: "LV3",
+    standard: "전문 상담 · 현장 운영 통역",
+    payment: "일급 230,000원",
+  },
+  {
+    level: "LV4",
+    standard: "비즈니스 협의 · 전문 통역",
+    payment: "일급 245,000원",
+  },
+];
+
 function InterpreterMypage({
   authLoading,
   user,
@@ -1927,7 +1950,10 @@ function InterpreterMypage({
                 )}
 
                 {activeTab === "takeHome" && (
-                  <TakeHomeCalculator className="animate-fade-in" />
+                  <div className="take-home-tab-content animate-fade-in">
+                    <TakeHomeCalculator />
+                    <LevelPaymentGuide />
+                  </div>
                 )}
               </div>
             </section>
@@ -2280,6 +2306,44 @@ function ResumeFileActions({
         </button>
       </div>
     </div>
+  );
+}
+
+function LevelPaymentGuide() {
+  return (
+    <section className="level-payment-guide" aria-labelledby="level-payment-guide-title">
+      <div className="level-payment-guide-head">
+        <h2 id="level-payment-guide-title">ON-LI 레벨별 통역 정산 기준</h2>
+        <p>통역 레벨 및 업무 난이도에 따라 적용되는 기본 정산 기준입니다.</p>
+      </div>
+
+      <div className="level-payment-table" role="table" aria-label="ON-LI 레벨별 통역 정산 기준">
+        <div className="level-payment-row level-payment-header" role="row">
+          <span role="columnheader">레벨</span>
+          <span role="columnheader">업무 기준</span>
+          <span role="columnheader">통역사 정산 기준</span>
+        </div>
+        {LEVEL_PAYMENT_GUIDE.map((item) => (
+          <div className="level-payment-row" role="row" key={item.level}>
+            <span className="level-payment-level" role="cell">
+              <span className="level-payment-badge">{item.level}</span>
+            </span>
+            <span className="level-payment-standard" role="cell">
+              {item.standard}
+            </span>
+            <strong className="level-payment-amount" role="cell">
+              {item.payment}
+            </strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="level-payment-notice">
+        <p>※ 표시 금액은 1일 기준 정산 금액입니다.</p>
+        <p>※ 실제 정산 금액은 행사 일정, 근무 시간, 전문 분야, 기업 요청 조건에 따라 달라질 수 있습니다.</p>
+        <p>※ 최종 금액은 각 통역 공고에 표시된 정산 금액을 기준으로 적용됩니다.</p>
+      </div>
+    </section>
   );
 }
 

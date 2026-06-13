@@ -1982,6 +1982,117 @@
   opacity: 0.62;
 }
 
+.take-home-tab-content {
+  display: grid;
+  gap: 18px;
+}
+
+.level-payment-guide {
+  width: 100%;
+  padding: 24px;
+  border: 1px solid #e4e0f5;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #25233a;
+  box-shadow: 0 12px 32px rgba(72, 61, 139, 0.08);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.level-payment-guide-head {
+  margin-bottom: 18px;
+}
+
+.level-payment-guide-head h2 {
+  margin: 0 0 6px;
+  color: #25233a;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.level-payment-guide-head p {
+  margin: 0;
+  color: #69667c;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.level-payment-table {
+  overflow: hidden;
+  border: 1px solid #ebe8f5;
+  border-radius: 14px;
+  background: #fcfbff;
+}
+
+.level-payment-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) minmax(150px, 0.7fr);
+  align-items: center;
+  gap: 16px;
+  padding: 13px 16px;
+  border-bottom: 1px solid #eeebf7;
+}
+
+.level-payment-row:last-child {
+  border-bottom: 0;
+}
+
+.level-payment-header {
+  background: #f5f3ff;
+  color: #5043b5;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.level-payment-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #eeeaff;
+  color: #5043b5;
+  font-size: 13px;
+  font-weight: 900;
+  box-sizing: border-box;
+}
+
+.level-payment-standard {
+  min-width: 0;
+  color: #4d4961;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.level-payment-amount {
+  color: #312d45;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.level-payment-notice {
+  display: grid;
+  gap: 5px;
+  margin-top: 16px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: #f8f7ff;
+}
+
+.level-payment-notice p {
+  margin: 0;
+  color: #69667c;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
 @media (max-width: 768px) {
   .interpreter-auth-page,
   .interpreter-mypage {
@@ -2011,6 +2122,39 @@
   .interpreter-mypage-card,
   .mypage-verification-card {
     padding: 22px;
+  }
+
+  .level-payment-guide {
+    padding: 18px;
+  }
+
+  .level-payment-table {
+    display: grid;
+    gap: 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .level-payment-header {
+    display: none;
+  }
+
+  .level-payment-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid #ebe8f5;
+    border-radius: 14px;
+    background: #fcfbff;
+  }
+
+  .level-payment-level {
+    display: flex;
+  }
+
+  .level-payment-amount {
+    text-align: left;
   }
 }
 
