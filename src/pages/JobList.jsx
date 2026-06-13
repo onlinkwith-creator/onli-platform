@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
-import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/jobStatus";
+import {
+  canApplyToJob,
+  compareJobsByDisplayPriority,
+  getJobDisplayStatusOrder,
+  getJobStatusLabel,
+  normalizeJobStatus,
+} from "../utils/jobStatus";
 import { formatCompactJobDateRange } from "../utils/dateRange";
 import { getJobSpecialty } from "../utils/jobDisplay";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
@@ -148,21 +154,20 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
     let result = [...filteredJobs];
     if (sortBy === "pay") {
       result.sort((a, b) => {
+        const statusDiff = getJobDisplayStatusOrder(a) - getJobDisplayStatusOrder(b);
+        if (statusDiff !== 0) return statusDiff;
+
         const parsePay = (jb) => {
           const val = jb.pay || jb.dailyPay || jb.daily_pay || jb.wage || jb.price || "";
           const num = Number(String(val).replace(/[^0-9]/g, ""));
           return isNaN(num) ? 0 : num;
         };
-        return parsePay(b) - parsePay(a);
+        const payDiff = parsePay(b) - parsePay(a);
+        if (payDiff !== 0) return payDiff;
+        return compareJobsByDisplayPriority(a, b);
       });
     } else {
-      // default: latest
-      result.sort((a, b) => {
-        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-        if (bTime !== aTime) return bTime - aTime;
-        return Number(b.id || 0) - Number(a.id || 0);
-      });
+      result.sort(compareJobsByDisplayPriority);
     }
     return result;
   }, [filteredJobs, sortBy]);

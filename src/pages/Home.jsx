@@ -10,6 +10,7 @@ import { getLevelBadgeClass, getLevelBadgeStyle, normalizeLevel } from "../utils
 import {
   getPrimaryPublicInterpreterInfo,
 } from "../utils/publicInterpreter";
+import { sortJobsByDisplayPriority } from "../utils/jobStatus";
 import "./Home.css";
 import {
   Building2,
@@ -133,7 +134,7 @@ function Home({
         return;
       }
 
-      setFeaturedJobs((data || []).slice(0, 7));
+      setFeaturedJobs(sortJobsByDisplayPriority(data || []).slice(0, 7));
     } catch (error) {
       console.error("jobs fetch error:", error);
       setFeaturedJobs([]);

@@ -1,5 +1,5 @@
 import { publicSupabase as defaultSupabase } from "../supabase";
-import { isPublicJob } from "./jobStatus";
+import { isPublicJob, sortJobsByDisplayPriority } from "./jobStatus";
 import { supabaseConfigError } from "../supabase";
 import { APPLICATION_STATUS } from "./status";
 
@@ -27,7 +27,8 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
   const result = await query;
 
   if (!result.error) {
-    const jobs = (result.data || []).filter(isPublicJob).slice(0, limit || undefined);
+    const jobs = sortJobsByDisplayPriority((result.data || []).filter(isPublicJob))
+      .slice(0, limit || undefined);
 
     return {
       data: await attachPublicJobCounts(supabase, jobs),
@@ -51,7 +52,8 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
     return fallbackResult;
   }
 
-  const jobs = (fallbackResult.data || []).filter(isPublicJob).slice(0, limit || undefined);
+  const jobs = sortJobsByDisplayPriority((fallbackResult.data || []).filter(isPublicJob))
+    .slice(0, limit || undefined);
 
   return {
     data: await attachPublicJobCounts(supabase, jobs),
