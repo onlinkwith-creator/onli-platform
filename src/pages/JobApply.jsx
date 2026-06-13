@@ -10,7 +10,6 @@ import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import {
   ensureInterpreterAuthLink,
-  isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
@@ -55,6 +54,7 @@ function JobApply({
   onSubmitSuccess,
   onHomeClick,
   onLoginClick,
+  onMypageClick,
   onRegisterClick,
 }) {
   const { user, loading: authLoading } = useAuth();
@@ -246,8 +246,8 @@ function JobApply({
       return;
     }
 
-    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
-      const message = "관리자 승인 완료 후 지원할 수 있습니다.";
+    if (!hasRegisteredResume(interpreterProfile)) {
+      const message = "이력서를 등록한 후 지원할 수 있습니다.";
       setErrorMessage(message);
       alert(message);
       return;
@@ -568,10 +568,13 @@ function JobApply({
                     통역사 등록하기
                   </button>
                 </div>
-              ) : !isInterpreterApprovedForApplication(interpreterProfile) ? (
+              ) : !hasRegisteredResume(interpreterProfile) ? (
                 <div className="jobs-success-inline">
-                  <h2>관리자 승인 대기 중입니다</h2>
-                  <p>관리자 승인 완료 후 공고에 지원할 수 있습니다.</p>
+                  <h2>이력서 등록이 필요합니다</h2>
+                  <p>통역 지원을 위해 이력서 등록이 필요합니다.</p>
+                  <button type="button" onClick={onMypageClick || onHomeClick}>
+                    이력서 등록하러 가기
+                  </button>
                 </div>
               ) : (
               <form onSubmit={handleSubmit}>
@@ -685,6 +688,7 @@ function JobApply({
                     !user ||
                     !interpreterProfile ||
                     !canApplyToJob(job) ||
+                    !hasRegisteredResume(interpreterProfile) ||
                     !areTermsAgreed(agreements, { requireCancelPolicy: true })
                   }
                 >
@@ -726,6 +730,14 @@ function isAgreementColumnError(error) {
     error?.code === "42703" ||
     error?.code === "PGRST204" ||
     /agreed_|column|schema cache/i.test(error?.message || "")
+  );
+}
+
+function hasRegisteredResume(profile = {}) {
+  return Boolean(
+    String(profile.resume_url || "").trim() ||
+      String(profile.resume_file_url || "").trim() ||
+      String(profile.resume_file_name || "").trim()
   );
 }
 

@@ -1453,6 +1453,9 @@ function InterpreterMypage({
                   {/* Verification Badge & Resume Card */}
                   <article className="mypage-verification-card animate-fade-in">
                     <h3>통역사 검증 & 배지 신청</h3>
+                    <p className="verification-status-desc resume-required-note">
+                      통역 공고 지원을 위해 이력서 등록은 필수입니다. ON-LI 운영팀 검토 후 검증 완료 배지가 표시될 수 있습니다.
+                    </p>
                     <input
                       ref={resumeActionInputRef}
                       type="file"
@@ -1509,8 +1512,7 @@ function InterpreterMypage({
                         <div className="verification-status-details">
                           <h4 className="verification-status-title">검증 배지 미보유</h4>
                           <p className="verification-status-desc">
-                            검증된 통역사 배지를 획득하려면 아래에서 이력서(경력 소개서) 파일을 업로드해주세요. 
-                            운영팀의 심사를 거쳐 배지가 수여됩니다.
+                            아래에서 이력서(경력 소개서) 파일을 업로드해주세요.
                           </p>
                           <ResumeFileActions
                             fileName={resumeFileName}

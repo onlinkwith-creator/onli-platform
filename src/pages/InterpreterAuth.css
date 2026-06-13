@@ -1726,6 +1726,10 @@
   word-break: keep-all;
 }
 
+.resume-required-note {
+  margin: 6px 0 16px;
+}
+
 .resume-submit-form {
   display: flex;
   flex-direction: column;

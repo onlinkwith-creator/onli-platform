@@ -33,7 +33,6 @@ import { attachPublicJobCounts } from "../utils/jobsApi";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
   ensureInterpreterAuthLink,
-  isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
@@ -66,7 +65,7 @@ const initialForm = {
 
 // TODO: 실서비스 전에는 Supabase Auth 기반으로 통역사 본인 계정만 지원 가능하게 해야 함.
 
-function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick, onHomeClick }) {
+function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick, onHomeClick, onMypageClick }) {
   const { user, loading: authLoading } = useAuth();
   const [interpreterProfile, setInterpreterProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -256,8 +255,8 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       return;
     }
 
-    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
-      const message = "관리자 승인 완료 후 지원할 수 있습니다.";
+    if (!hasRegisteredResume(interpreterProfile)) {
+      const message = "이력서를 등록한 후 지원할 수 있습니다.";
       setErrorMessage(message);
       alert(message);
       return;
@@ -721,10 +720,13 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                               통역사 등록하기 <ArrowRight size={16} />
                             </button>
                           </div>
-                        ) : !isInterpreterApprovedForApplication(interpreterProfile) ? (
+                        ) : !hasRegisteredResume(interpreterProfile) ? (
                           <div className="job-register-required-box">
-                            <h2>관리자 승인 대기 중입니다</h2>
-                            <p>관리자 승인 완료 후 공고에 지원할 수 있습니다.</p>
+                            <h2>이력서 등록이 필요합니다</h2>
+                            <p>통역 지원을 위해 이력서 등록이 필요합니다.</p>
+                            <button type="button" onClick={onMypageClick} className="job-register-outline-btn">
+                              이력서 등록하러 가기 <ArrowRight size={16} />
+                            </button>
                           </div>
                         ) : (
                           <form onSubmit={handleSubmit}>
@@ -767,6 +769,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                                 submitting ||
                                 applicationCheckLoading ||
                                 !canApplyToJob(job) ||
+                                !hasRegisteredResume(interpreterProfile) ||
                                 !areTermsAgreed(agreements, { requireCancelPolicy: true })
                               }
                             >
@@ -838,6 +841,14 @@ function isAgreementColumnError(error) {
     error?.code === "42703" ||
     error?.code === "PGRST204" ||
     /agreed_|column|schema cache/i.test(error?.message || "")
+  );
+}
+
+function hasRegisteredResume(profile = {}) {
+  return Boolean(
+    String(profile.resume_url || "").trim() ||
+      String(profile.resume_file_url || "").trim() ||
+      String(profile.resume_file_name || "").trim()
   );
 }
 

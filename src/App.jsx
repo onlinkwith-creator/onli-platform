@@ -422,6 +422,7 @@ function App() {
           onHomeClick={() => navigate("home", null, null)}
           onLoginClick={() => navigate("login", null, null)}
           onRegisterClick={openInterpreterRegister}
+          onMypageClick={() => navigate("interpreterMypage", null, null)}
         />
       )}
 
