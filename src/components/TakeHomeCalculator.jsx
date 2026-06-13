@@ -5,13 +5,13 @@ import "./TakeHomeCalculator.css";
 const SETTLEMENT_TYPES = {
   freelancer: {
     label: "개인 통역사",
-    description: "3.3% 원천징수 후 지급 · 소득세 3% + 지방소득세 0.3%",
+    description: "3.3% 원천징수 후 지급",
     incomeTaxRate: 0.03,
     localIncomeTaxRate: 0.003,
   },
   business: {
     label: "사업자 통역사",
-    description: "원천징수 없이 정산 · 사업자 정산 대상",
+    description: "원천징수 없이 사업자 정산 대상",
     incomeTaxRate: 0,
     localIncomeTaxRate: 0,
   },
@@ -204,10 +204,10 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
               </option>
             ))}
           </select>
+          <small className="take-home-type-description">
+            {SETTLEMENT_TYPES[settlementType].description}
+          </small>
         </label>
-        <p className="take-home-type-description">
-          {SETTLEMENT_TYPES[settlementType].description}
-        </p>
       </div>
 
       <div className="take-home-results" aria-live="polite">

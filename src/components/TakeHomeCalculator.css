@@ -233,11 +233,10 @@
 }
 
 .take-home-type-description {
-  grid-column: 2;
-  min-height: 42px;
-  padding: 9px 11px;
-  border-radius: 10px;
-  background: #f8f7ff;
+  margin-top: -2px;
+  color: #777287;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .take-home-results {
@@ -366,11 +365,6 @@
 
   .take-home-form {
     grid-template-columns: 1fr;
-  }
-
-  .take-home-type-description {
-    grid-column: auto;
-    min-height: 0;
   }
 
   .take-home-level-options {
