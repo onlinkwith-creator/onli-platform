@@ -664,6 +664,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                           <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
                           <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
                           <li>운영팀 확인 후 최종 연락드립니다.</li>
+                          <li>배정 확정 후 지원 취소 및 철회 시 취소 규정에 따라 위약금이 발생할 수 있습니다.</li>
                         </ul>
                       </div>
                     </section>
@@ -758,10 +759,6 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                               requireCancelPolicy
                               role="interpreter"
                             />
-
-                            <p className="jobs-notice">
-                              배정 확정 후 지원 취소 및 철회 시 취소 규정에 따라 위약금이 발생할 수 있습니다.
-                            </p>
 
                             <button
                               type="submit"
