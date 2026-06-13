@@ -23,6 +23,7 @@ const LEVEL_PAYMENT_GUIDE = [
   { level: "LV3", amount: 230000 },
   { level: "LV4", amount: 245000 },
 ];
+const WORKDAY_OPTIONS = [1, 2, 3, 4, 5];
 
 const roundWon = (amount) => Math.max(0, Math.round(Number(amount) || 0));
 
@@ -55,6 +56,9 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
   const settlementTypeId = useId();
   const [grossAmount, setGrossAmount] = useState(() => roundWon(initialAmount));
   const [settlementType, setSettlementType] = useState("freelancer");
+  const [selectedLevel, setSelectedLevel] = useState(null);
+  const [workdays, setWorkdays] = useState(1);
+  const [isCustomWorkdays, setIsCustomWorkdays] = useState(false);
   const calculation = useMemo(
     () => calculateTakeHome(grossAmount, settlementType),
     [grossAmount, settlementType]
@@ -62,7 +66,36 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
 
   const handleAmountChange = (event) => {
     const digitsOnly = event.target.value.replace(/\D/g, "");
+    setSelectedLevel(null);
     setGrossAmount(digitsOnly ? Number(digitsOnly) : 0);
+  };
+
+  const applyLevelAndWorkdays = (level, nextWorkdays = workdays) => {
+    const safeWorkdays = Math.max(1, Number(nextWorkdays) || 1);
+    setSelectedLevel(level);
+    setWorkdays(safeWorkdays);
+    setGrossAmount(level.amount * safeWorkdays);
+  };
+
+  const handleLevelSelect = (level) => {
+    applyLevelAndWorkdays(level);
+  };
+
+  const handleWorkdaySelect = (days) => {
+    setIsCustomWorkdays(false);
+    setWorkdays(days);
+    if (selectedLevel) {
+      setGrossAmount(selectedLevel.amount * days);
+    }
+  };
+
+  const handleCustomWorkdaysChange = (event) => {
+    const digitsOnly = event.target.value.replace(/\D/g, "");
+    const nextWorkdays = digitsOnly ? Math.max(1, Number(digitsOnly)) : "";
+    setWorkdays(nextWorkdays);
+    if (selectedLevel && nextWorkdays) {
+      setGrossAmount(selectedLevel.amount * nextWorkdays);
+    }
   };
 
   return (
@@ -105,15 +138,55 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
                 <button
                   type="button"
                   className={`take-home-level-option${
-                    grossAmount === item.amount ? " is-selected" : ""
+                    selectedLevel?.level === item.level ? " is-selected" : ""
                   }`}
-                  onClick={() => setGrossAmount(item.amount)}
+                  onClick={() => handleLevelSelect(item)}
                   key={item.level}
                 >
                   <b>{item.level}</b>
                   <span>{item.amount.toLocaleString("ko-KR")}원</span>
                 </button>
               ))}
+            </div>
+            <div className="take-home-workday-selector" aria-label="근무일수">
+              <strong>근무일수</strong>
+              <div className="take-home-workday-options">
+                {WORKDAY_OPTIONS.map((days) => (
+                  <button
+                    type="button"
+                    className={`take-home-workday-option${
+                      !isCustomWorkdays && Number(workdays) === days ? " is-selected" : ""
+                    }`}
+                    onClick={() => handleWorkdaySelect(days)}
+                    key={days}
+                  >
+                    {days}일
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`take-home-workday-option${
+                    isCustomWorkdays ? " is-selected" : ""
+                  }`}
+                  onClick={() => setIsCustomWorkdays(true)}
+                >
+                  직접입력
+                </button>
+              </div>
+              {isCustomWorkdays && (
+                <label className="take-home-custom-workdays">
+                  <span>직접 입력</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={workdays || ""}
+                    onChange={handleCustomWorkdaysChange}
+                    placeholder="근무일수"
+                  />
+                  <span>일</span>
+                </label>
+              )}
             </div>
           </div>
         </label>

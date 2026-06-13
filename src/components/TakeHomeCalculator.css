@@ -70,14 +70,15 @@
 
 .take-home-level-reference {
   display: grid;
-  gap: 7px;
+  gap: 10px;
   padding: 10px 11px;
   border: 1px solid #ebe8f5;
   border-radius: 10px;
   background: #f8f7ff;
 }
 
-.take-home-level-reference > strong {
+.take-home-level-reference > strong,
+.take-home-workday-selector > strong {
   color: #5043b5;
   font-size: 12px;
   font-weight: 900;
@@ -90,7 +91,8 @@
   gap: 6px;
 }
 
-.take-home-level-option {
+.take-home-level-option,
+.take-home-workday-option {
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -108,6 +110,11 @@
   transition: all 0.18s ease;
 }
 
+.take-home-workday-option {
+  min-height: 34px;
+  padding: 7px 9px;
+}
+
 .take-home-level-option b {
   color: #5043b5;
   font-weight: 900;
@@ -118,16 +125,58 @@
 }
 
 .take-home-level-option:hover,
-.take-home-level-option.is-selected {
+.take-home-level-option.is-selected,
+.take-home-workday-option:hover,
+.take-home-workday-option.is-selected {
   border-color: #7467d8;
   background: #eeeaff;
   color: #312d45;
   box-shadow: 0 4px 10px rgba(80, 67, 181, 0.12);
 }
 
-.take-home-level-option:focus-visible {
+.take-home-level-option:focus-visible,
+.take-home-workday-option:focus-visible {
   outline: 3px solid rgba(116, 103, 216, 0.18);
   outline-offset: 2px;
+}
+
+.take-home-workday-selector {
+  display: grid;
+  gap: 7px;
+}
+
+.take-home-workday-options {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.take-home-custom-workdays {
+  display: grid;
+  grid-template-columns: auto minmax(70px, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  color: #4d4961;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.take-home-custom-workdays input {
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d8d3ec;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #25233a;
+  font: inherit;
+  text-align: right;
+}
+
+.take-home-custom-workdays input:focus {
+  border-color: #7467d8;
+  box-shadow: 0 0 0 3px rgba(116, 103, 216, 0.12);
+  outline: none;
 }
 
 .take-home-amount-input {
@@ -325,6 +374,10 @@
   }
 
   .take-home-level-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .take-home-workday-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
