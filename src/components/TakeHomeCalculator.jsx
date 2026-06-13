@@ -18,10 +18,10 @@ const SETTLEMENT_TYPES = {
 };
 
 const LEVEL_PAYMENT_GUIDE = [
-  { level: "LV1", amount: "180,000원" },
-  { level: "LV2", amount: "200,000원" },
-  { level: "LV3", amount: "230,000원" },
-  { level: "LV4", amount: "245,000원" },
+  { level: "LV1", amount: 180000 },
+  { level: "LV2", amount: 200000 },
+  { level: "LV3", amount: 230000 },
+  { level: "LV4", amount: 245000 },
 ];
 
 const roundWon = (amount) => Math.max(0, Math.round(Number(amount) || 0));
@@ -100,11 +100,19 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
           <small>ON-LI에서 안내받은 통역사 정산 예정 금액을 입력하세요.</small>
           <div className="take-home-level-reference" aria-label="ON-LI 기준 정산 금액">
             <strong>ON-LI 기준 정산 금액</strong>
-            <div>
+            <div className="take-home-level-options">
               {LEVEL_PAYMENT_GUIDE.map((item) => (
-                <span key={item.level}>
-                  <b>{item.level}</b> {item.amount}
-                </span>
+                <button
+                  type="button"
+                  className={`take-home-level-option${
+                    grossAmount === item.amount ? " is-selected" : ""
+                  }`}
+                  onClick={() => setGrossAmount(item.amount)}
+                  key={item.level}
+                >
+                  <b>{item.level}</b>
+                  <span>{item.amount.toLocaleString("ko-KR")}원</span>
+                </button>
               ))}
             </div>
           </div>
