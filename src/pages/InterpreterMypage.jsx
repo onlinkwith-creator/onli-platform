@@ -442,6 +442,7 @@ function InterpreterMypage({
       resume_file_name: uploadResult.fileName,
       resume_uploaded_at: new Date().toISOString(),
       resume_submitted_at: new Date().toISOString(),
+      approved: false,
     };
 
     const { data: dbData, error: dbError } = await supabase
@@ -523,6 +524,7 @@ function InterpreterMypage({
       resume_file_name: null,
       resume_uploaded_at: null,
       resume_submitted_at: null,
+      approved: false,
     };
 
     const { data, error } = await supabase
@@ -785,6 +787,8 @@ function InterpreterMypage({
   const activityStatus = getActivityStatus(interpreter);
   const resumeFileUrl = interpreter?.resume_file_url || interpreter?.resume_url || "";
   const resumeFileName = interpreter?.resume_file_name || (resumeFileUrl ? "이력서 파일" : "");
+  const hasResume = Boolean(String(resumeFileUrl || "").trim());
+  const isVerifiedWithResume = interpreter?.approved === true && hasResume;
 
   // DB-driven recent events from matchings
   const recentAssignedEvents = (matchings || [])
@@ -1464,7 +1468,7 @@ function InterpreterMypage({
                       style={{ display: "none" }}
                     />
                     
-                    {interpreter.approved ? (
+                    {isVerifiedWithResume ? (
                       <div className="verification-status-box verified">
                         <span className="verification-status-badge verified">✨ 검증 완료</span>
                         <div className="verification-status-details">
@@ -1485,9 +1489,9 @@ function InterpreterMypage({
                           />
                         </div>
                       </div>
-                    ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
+                    ) : hasResume ? (
                       <div className="verification-status-box pending">
-                        <span className="verification-status-badge pending">⏳ 검토 대기</span>
+                        <span className="verification-status-badge pending">⏳ 검증 대기</span>
                         <div className="verification-status-details">
                           <h4 className="verification-status-title">이력서 검토 중</h4>
                           <p className="verification-status-desc">
@@ -1508,9 +1512,9 @@ function InterpreterMypage({
                       </div>
                     ) : (
                       <div className="verification-status-box unsubmitted">
-                        <span className="verification-status-badge unsubmitted">📄 이력서 미제출</span>
+                        <span className="verification-status-badge unsubmitted">📄 이력서 등록 필요</span>
                         <div className="verification-status-details">
-                          <h4 className="verification-status-title">검증 배지 미보유</h4>
+                          <h4 className="verification-status-title">이력서 등록 필요</h4>
                           <p className="verification-status-desc">
                             아래에서 이력서(경력 소개서) 파일을 업로드해주세요.
                           </p>
