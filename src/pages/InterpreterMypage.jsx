@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import {
   INTERPRETER_ACTIVITY_STATUS,
@@ -113,6 +113,8 @@ function InterpreterMypage({
   const [isSubmittingResume, setIsSubmittingResume] = useState(false);
   const [resumeFile, setResumeFile] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [resumeActionMode, setResumeActionMode] = useState("");
+  const resumeActionInputRef = useRef(null);
 
   const fetchInterpreterProfile = async () => {
     if (authLoading) return;
@@ -321,10 +323,9 @@ function InterpreterMypage({
       return;
     }
 
-    const allowedExtensions = ["pdf", "doc", "docx", "png", "jpg", "jpeg"];
     const fileExtension = file.name.split(".").pop().toLowerCase();
-    if (!allowedExtensions.includes(fileExtension)) {
-      alert("허용되지 않는 파일 형식입니다. (PDF, DOC, DOCX, PNG, JPG 파일만 가능)");
+    if (fileExtension !== "pdf" && file.type !== "application/pdf") {
+      alert("PDF 파일만 업로드할 수 있습니다.");
       return;
     }
 
@@ -334,13 +335,8 @@ function InterpreterMypage({
   const handleDownloadResume = async (filePath, fileName) => {
     if (!supabase || !filePath) return;
     try {
-      let resolvedPath = filePath;
-      if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-        const parts = filePath.split("/resume-files/");
-        if (parts.length > 1) {
-          resolvedPath = parts[1].split("?")[0];
-        }
-      }
+      const resolvedPath = getResumeStoragePath(filePath);
+      if (!resolvedPath) throw new Error("Resume storage path is empty");
 
       const { data, error } = await supabase.storage
         .from("resume-files")
@@ -354,22 +350,27 @@ function InterpreterMypage({
     }
   };
 
-  const handleUpdateResume = async (e) => {
-    e.preventDefault();
-    if (isSubmittingResume || !supabase || !interpreter || !user) return;
+  const removeResumeFileFromStorage = async (fileUrl) => {
+    const filePath = getResumeStoragePath(fileUrl);
+    if (!supabase || !filePath) return;
 
-    if (!resumeFile) {
-      alert("업로드할 이력서 파일을 선택해주세요.");
-      return;
+    const { error } = await supabase.storage
+      .from("resume-files")
+      .remove([filePath]);
+
+    if (error) {
+      console.warn("Resume storage delete skipped", error);
     }
+  };
 
-    setIsSubmittingResume(true);
+  const uploadResumeFile = async (file, { failureMessage = "이력서 파일 업로드에 실패했습니다. 다시 시도해주세요." } = {}) => {
+    if (!file || !supabase || !interpreter || !user) return null;
 
-    // 1. Supabase Storage bucket 존재 여부 확인
+    // Supabase Storage bucket 존재 여부 확인
     try {
       const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
       if (bucketsError) throw bucketsError;
-      
+
       const bucketExists = buckets?.some(b => b.id === "resume-files");
       if (!bucketExists) {
         console.error("resume-files bucket not found");
@@ -378,26 +379,15 @@ function InterpreterMypage({
       console.error("Failed to check storage buckets:", err);
     }
 
-    let filePath = "";
-    let fileUrl = "";
-    let fileName = "";
-
-    // 4. safe filename 처리
-    const safeFileName = resumeFile.name
+    const safeFileName = file.name
       .replace(/\s+/g, "_")
       .replace(/[^\w.-]/g, "");
+    const filePath = `${user.id}/${Date.now()}_${safeFileName}`;
 
-    // 5. 업로드 경로 수정
-    filePath = `${user.id}/${Date.now()}_${safeFileName}`;
-    fileName = resumeFile.name;
-
-    // 3. Storage upload 실행
-    // authenticated user upload 허용 필요
-    // Supabase Storage에서 resume-files bucket 생성 필요
     try {
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from("resume-files")
-        .upload(filePath, resumeFile, {
+        .upload(filePath, file, {
           upsert: true,
         });
 
@@ -406,14 +396,17 @@ function InterpreterMypage({
         throw error;
       }
 
-      // 8. public URL 생성 수정
       const {
         data: { publicUrl },
       } = supabase.storage
         .from("resume-files")
         .getPublicUrl(filePath);
 
-      fileUrl = publicUrl;
+      return {
+        fileName: file.name,
+        filePath,
+        fileUrl: publicUrl,
+      };
     } catch (uploadError) {
       console.error("Resume upload error:", uploadError);
       console.error("Details: ", {
@@ -421,19 +414,34 @@ function InterpreterMypage({
         filePath,
         userId: user.id,
       });
-      alert("이력서 파일 업로드에 실패했습니다. 다시 시도해주세요.");
+      alert(failureMessage);
+      return null;
+    }
+  };
+
+  const saveResumeUpload = async (file, { successMessage = "이력서가 정상 제출되었습니다.", failureMessage = "이력서 제출에 실패했습니다. 다시 시도해주세요.", deletePrevious = false } = {}) => {
+    if (isSubmittingResume || !supabase || !interpreter || !user) return;
+
+    if (!file) {
+      alert("업로드할 이력서 파일을 선택해주세요.");
+      return;
+    }
+
+    setIsSubmittingResume(true);
+
+    const previousFileUrl = interpreter.resume_file_url || interpreter.resume_url || "";
+    const uploadResult = await uploadResumeFile(file, { failureMessage });
+    if (!uploadResult) {
       setIsSubmittingResume(false);
       return;
     }
 
-    // 7. DB 저장은 업로드 성공 후만 실행
     const payload = {
-      resume_file_url: fileUrl,
-      resume_file_name: fileName,
+      resume_url: null,
+      resume_file_url: uploadResult.fileUrl,
+      resume_file_name: uploadResult.fileName,
       resume_uploaded_at: new Date().toISOString(),
       resume_submitted_at: new Date().toISOString(),
-      badge_review_status: "review_pending",
-      status: "pending",
     };
 
     const { data: dbData, error: dbError } = await supabase
@@ -450,12 +458,90 @@ function InterpreterMypage({
         payload,
         userId: user.id,
       });
-      alert("이력서 제출에 실패했습니다. 다시 시도해주세요.");
+      alert(failureMessage);
     } else {
       setInterpreter(dbData);
-      alert("이력서가 정상 제출되었습니다.");
+      if (deletePrevious && previousFileUrl && previousFileUrl !== uploadResult.fileUrl) {
+        await removeResumeFileFromStorage(previousFileUrl);
+      }
+      alert(successMessage);
       setResumeFile(null);
     }
+    setIsSubmittingResume(false);
+  };
+
+  const handleUpdateResume = async (e) => {
+    e.preventDefault();
+    await saveResumeUpload(resumeFile);
+  };
+
+  const openResumeFilePicker = (mode) => {
+    if (isSubmittingResume) return;
+    setResumeActionMode(mode);
+    if (resumeActionInputRef.current) {
+      resumeActionInputRef.current.value = "";
+      resumeActionInputRef.current.click();
+    }
+  };
+
+  const handleResumeActionFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const maxSize = 10 * 1024 * 1024;
+    const fileExtension = file.name.split(".").pop().toLowerCase();
+    if (file.size > maxSize) {
+      alert("파일 크기는 최대 10MB까지 가능합니다.");
+      setResumeActionMode("");
+      return;
+    }
+    if (fileExtension !== "pdf" && file.type !== "application/pdf") {
+      alert("PDF 파일만 업로드할 수 있습니다.");
+      setResumeActionMode("");
+      return;
+    }
+
+    const mode = resumeActionMode || (interpreter?.resume_file_url || interpreter?.resume_url ? "edit" : "register");
+    await saveResumeUpload(file, {
+      successMessage: mode === "edit" ? "이력서가 수정되었습니다." : "이력서가 등록되었습니다.",
+      failureMessage: mode === "edit" ? "이력서 수정에 실패했습니다." : "이력서 등록에 실패했습니다.",
+      deletePrevious: mode === "edit",
+    });
+    setResumeActionMode("");
+  };
+
+  const handleDeleteResume = async () => {
+    if (isSubmittingResume || !supabase || !interpreter) return;
+    if (!window.confirm("등록된 이력서를 삭제하시겠습니까?")) return;
+
+    setIsSubmittingResume(true);
+    const previousFileUrl = interpreter.resume_file_url || interpreter.resume_url || "";
+    const payload = {
+      resume_url: null,
+      resume_file_url: null,
+      resume_file_name: null,
+      resume_uploaded_at: null,
+      resume_submitted_at: null,
+    };
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Failed to delete resume from DB", error);
+      alert("이력서 삭제에 실패했습니다.");
+      setIsSubmittingResume(false);
+      return;
+    }
+
+    setInterpreter(data || { ...interpreter, ...payload });
+    setResumeFile(null);
+    await removeResumeFileFromStorage(previousFileUrl);
     setIsSubmittingResume(false);
   };
 
@@ -709,6 +795,8 @@ function InterpreterMypage({
   }
 
   const activityStatus = getActivityStatus(interpreter);
+  const resumeFileUrl = interpreter?.resume_file_url || interpreter?.resume_url || "";
+  const resumeFileName = interpreter?.resume_file_name || (resumeFileUrl ? "이력서 파일" : "");
 
   // DB-driven recent events from matchings
   const recentAssignedEvents = (matchings || [])
@@ -1377,6 +1465,13 @@ function InterpreterMypage({
                   {/* Verification Badge & Resume Card */}
                   <article className="mypage-verification-card animate-fade-in">
                     <h3>통역사 검증 & 배지 신청</h3>
+                    <input
+                      ref={resumeActionInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={handleResumeActionFileChange}
+                      style={{ display: "none" }}
+                    />
                     
                     {interpreter.approved ? (
                       <div className="verification-status-box verified">
@@ -1387,11 +1482,16 @@ function InterpreterMypage({
                             귀하는 ON-LI 공식 인증을 받은 신뢰할 수 있는 통역사입니다. 
                             프로필에 검증 완료 배지가 표시되며 공고 추천 및 매칭에서 우선 순위를 얻게 됩니다.
                           </p>
-                          {interpreter.resume_file_name && (
-                            <div className="verification-status-file-link" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer", marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "6px", color: "#d97706", fontWeight: "700", fontSize: "13px" }}>
-                              📎 {interpreter.resume_file_name} (이력서 보기)
-                            </div>
-                          )}
+                          <ResumeFileActions
+                            fileName={resumeFileName}
+                            fileUrl={resumeFileUrl}
+                            isBusy={isSubmittingResume}
+                            mode={resumeActionMode}
+                            onView={() => handleDownloadResume(resumeFileUrl, resumeFileName)}
+                            onEdit={() => openResumeFilePicker("edit")}
+                            onDelete={handleDeleteResume}
+                            onRegister={() => openResumeFilePicker("register")}
+                          />
                         </div>
                       </div>
                     ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
@@ -1403,11 +1503,16 @@ function InterpreterMypage({
                             제출하신 이력서를 바탕으로 운영팀에서 검증 절차를 진행 중입니다. 
                             심사는 영업일 기준 1~3일 소요됩니다.
                           </p>
-                          {interpreter.resume_file_name && (
-                            <div className="verification-status-file-link" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer", marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "6px", color: "#5b5cf0", fontWeight: "700", fontSize: "13px" }}>
-                              📎 {interpreter.resume_file_name} (이력서 다운로드)
-                            </div>
-                          )}
+                          <ResumeFileActions
+                            fileName={resumeFileName}
+                            fileUrl={resumeFileUrl}
+                            isBusy={isSubmittingResume}
+                            mode={resumeActionMode}
+                            onView={() => handleDownloadResume(resumeFileUrl, resumeFileName)}
+                            onEdit={() => openResumeFilePicker("edit")}
+                            onDelete={handleDeleteResume}
+                            onRegister={() => openResumeFilePicker("register")}
+                          />
                         </div>
                       </div>
                     ) : (
@@ -1419,6 +1524,16 @@ function InterpreterMypage({
                             검증된 통역사 배지를 획득하려면 아래에서 이력서(경력 소개서) 파일을 업로드해주세요. 
                             운영팀의 심사를 거쳐 배지가 수여됩니다.
                           </p>
+                          <ResumeFileActions
+                            fileName={resumeFileName}
+                            fileUrl={resumeFileUrl}
+                            isBusy={isSubmittingResume}
+                            mode={resumeActionMode}
+                            onView={() => handleDownloadResume(resumeFileUrl, resumeFileName)}
+                            onEdit={() => openResumeFilePicker("edit")}
+                            onDelete={handleDeleteResume}
+                            onRegister={() => openResumeFilePicker("register")}
+                          />
                         </div>
                       </div>
                     )}
@@ -1443,7 +1558,7 @@ function InterpreterMypage({
                             <input
                               id="resume-file-input"
                               type="file"
-                              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                              accept="application/pdf,.pdf"
                               onChange={(e) => {
                                 const file = e.target.files[0];
                                 if (file) handleFileSelection(file);
@@ -1453,8 +1568,8 @@ function InterpreterMypage({
                             
                             <label htmlFor="resume-file-input" className="resume-upload-label">
                               <span className="upload-icon">📤</span>
-                              <strong>PDF / DOCX / 포트폴리오 파일 업로드</strong>
-                              <span className="upload-tip">허용 형식: PDF, DOC, DOCX, PNG, JPG (최대 10MB)</span>
+                              <strong>PDF 이력서 파일 업로드</strong>
+                              <span className="upload-tip">허용 형식: PDF (최대 10MB)</span>
                             </label>
                           </div>
                         </div>
@@ -1481,14 +1596,14 @@ function InterpreterMypage({
                         {!resumeFile && interpreter.resume_file_name && (
                           <div className="resume-selected-file-card uploaded">
                             <span className="file-icon">✅</span>
-                            <div className="file-details" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer" }}>
+                            <div className="file-details" onClick={() => handleDownloadResume(resumeFileUrl, resumeFileName)} style={{ cursor: "pointer" }}>
                               <span className="file-name">{interpreter.resume_file_name}</span>
                               <span className="file-uploaded-at">제출일: {interpreter.resume_uploaded_at ? new Date(interpreter.resume_uploaded_at).toLocaleDateString() : "확인 불가"}</span>
                             </div>
                             <button 
                               type="button" 
                               className="file-download-btn"
-                              onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)}
+                              onClick={() => handleDownloadResume(resumeFileUrl, resumeFileName)}
                               title="다운로드"
                             >
                               📥
@@ -2007,6 +2122,66 @@ function ProfileRow({ label, value }) {
   );
 }
 
+function ResumeFileActions({
+  fileName,
+  fileUrl,
+  isBusy,
+  mode,
+  onView,
+  onEdit,
+  onDelete,
+  onRegister,
+}) {
+  const hasResume = Boolean(fileName || fileUrl);
+
+  if (!hasResume) {
+    return (
+      <div className="resume-file-actions is-empty">
+        <span>등록된 이력서가 없습니다.</span>
+        <button
+          type="button"
+          className="resume-inline-action"
+          onClick={onRegister}
+          disabled={isBusy}
+        >
+          {isBusy && mode === "register" ? "업로드 중..." : "이력서 등록"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="resume-file-actions">
+      <button
+        type="button"
+        className="resume-file-view-link"
+        onClick={onView}
+        disabled={!fileUrl || isBusy}
+      >
+        📎 {fileName || "이력서 파일"} (이력서 보기)
+      </button>
+      <div className="resume-file-action-buttons">
+        <button
+          type="button"
+          className="resume-inline-action"
+          onClick={onEdit}
+          disabled={isBusy}
+        >
+          {isBusy && mode === "edit" ? "업로드 중..." : "수정"}
+        </button>
+        <button
+          type="button"
+          className="resume-inline-action danger"
+          onClick={onDelete}
+          disabled={isBusy}
+        >
+          삭제
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function formatDate(dateString) {
   if (!dateString) return "-";
   const date = new Date(dateString);
@@ -2033,6 +2208,18 @@ function getDaysRemaining(startDateStr) {
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function getResumeStoragePath(filePath) {
+  if (!filePath) return "";
+  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+    const parts = filePath.split("/resume-files/");
+    if (parts.length > 1) {
+      return decodeURIComponent(parts[1].split("?")[0]);
+    }
+    return "";
+  }
+  return filePath;
 }
 
 function getActivityStatus(interpreter) {

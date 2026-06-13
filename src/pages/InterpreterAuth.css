@@ -1837,6 +1837,96 @@
   background: #e0e7ff;
 }
 
+.resume-file-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 12px;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.resume-file-actions.is-empty {
+  color: #64748b;
+}
+
+.resume-file-view-link {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #5b5cf0;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.verification-status-box.verified .resume-file-view-link {
+  color: #d97706;
+}
+
+.resume-file-view-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.resume-file-view-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  text-decoration: none;
+}
+
+.resume-file-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resume-inline-action {
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.resume-inline-action:hover {
+  border-color: #a5b4fc;
+  background: #f8fafc;
+  color: #3730a3;
+}
+
+.resume-inline-action.danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: #fff7f7;
+}
+
+.resume-inline-action.danger:hover {
+  border-color: #fca5a5;
+  background: #fee2e2;
+}
+
+.resume-inline-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 @media (max-width: 768px) {
   .interpreter-auth-page,
   .interpreter-mypage {
