@@ -739,13 +739,7 @@ function InterpreterMypage({
 
   const toggleApplicationDetails = (applicationId) => {
     setExpandedApplicationIds((current) => {
-      const next = new Set(current);
-      if (next.has(applicationId)) {
-        next.delete(applicationId);
-      } else {
-        next.add(applicationId);
-      }
-      return next;
+      return current.has(applicationId) ? new Set() : new Set([applicationId]);
     });
   };
 
@@ -1660,6 +1654,9 @@ function InterpreterMypage({
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">📄</span>
                         <p>아직 지원한 통역 공고가 없습니다.</p>
+                        <p className="empty-sub">
+                          관심 있는 공고에 지원하면 이곳에서 확인할 수 있습니다.
+                        </p>
                         <button
                           type="button"
                           className="interpreter-auth-primary"
@@ -1684,87 +1681,77 @@ function InterpreterMypage({
                           const hasLinkedJob =
                             job?.id &&
                             String(app.job_id) === String(job.id);
+                          const applicationNo = app.application_no || `No.${app.id}`;
+                          const scheduleText = formatDateRange(
+                            job?.start_date,
+                            job?.end_date,
+                            job?.event_date || job?.date
+                          );
+                          const locationText =
+                            job?.location || job?.event_location || "장소 미등록";
 
                           return (
                             <div key={app.id} className="interpreter-application-card">
                               <div className="card-top-row">
-                                <span className="app-no">{app.application_no || `No.${app.id}`}</span>
+                                <span className="app-no">{applicationNo}</span>
                                 <span className={`status-badge ${badgeClass}`}>{statusLabel}</span>
                               </div>
-                              <h3>{jobTitle}</h3>
-
-                              {job ? (
-                                <>
-                                  <JobInformationSection
-                                    job={job}
-                                    countLabel="모집 인원"
-                                    isExpanded={isExpanded}
-                                    onToggle={() => toggleApplicationDetails(app.id)}
-                                  />
-
-                                  <section className="application-info-section is-personal">
-                                    <h4>내 지원 정보</h4>
-                                    <div className="application-personal-info">
-                                      <div className="app-message-box">
-                                        <span>지원 메시지</span>
-                                        <p>{app.message || "작성한 지원 메시지가 없습니다."}</p>
-                                      </div>
-                                      <div className="application-personal-meta">
-                                        <ApplicationInfo
-                                          label="지원일"
-                                          value={formatDate(app.created_at)}
-                                        />
-                                        <ApplicationInfo
-                                          label="지원 상태"
-                                          value={statusLabel}
-                                        />
-                                        <ApplicationInfo
-                                          label="지원 철회"
-                                          value={canWithdraw ? "가능" : "불가"}
-                                        />
-                                      </div>
-                                    </div>
-                                  </section>
-                                </>
-                              ) : (
-                                <p className="application-job-unavailable">
-                                  현재 공고 정보를 불러올 수 없습니다.
+                              <div
+                                className="application-list-summary"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => toggleApplicationDetails(app.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    toggleApplicationDetails(app.id);
+                                  }
+                                }}
+                              >
+                                <h3>{jobTitle}</h3>
+                                <p className="application-company">
+                                  {job?.company_name || "기업명 미등록"}
                                 </p>
+                                <p className="application-primary-meta">
+                                  {scheduleText} / {locationText}
+                                </p>
+                                <p className="application-secondary-meta">
+                                  {getJobLevelSummary(job || {})} · {getJobSpecialty(job || {})}
+                                </p>
+                                <p className="application-language">
+                                  {job?.language || "통역 언어 미등록"}
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                className="application-detail-toggle"
+                                onClick={() => toggleApplicationDetails(app.id)}
+                                aria-expanded={isExpanded}
+                              >
+                                {isExpanded ? "접기" : "상세 보기"}
+                              </button>
+
+                              {isExpanded && job && (
+                                <ApplicationDetailPanel
+                                  application={app}
+                                  job={job}
+                                  statusLabel={statusLabel}
+                                  canWithdraw={canWithdraw}
+                                  isMatched={isMatched}
+                                  hasLinkedJob={hasLinkedJob}
+                                  onJobDetailClick={onJobDetailClick}
+                                  onWithdraw={() => {
+                                    setWithdrawalMessage("");
+                                    setWithdrawalError("");
+                                    setWithdrawalTarget(app);
+                                  }}
+                                />
                               )}
 
-                              <div className="application-card-footer">
-                                <div className="app-date-row">
-                                  지원 일시: {formatDate(app.created_at)}
-                                </div>
-                                <div className="application-card-actions">
-                                  {hasLinkedJob && (
-                                    <button
-                                      type="button"
-                                      className="application-job-detail-button"
-                                      onClick={() => onJobDetailClick?.(app.job_id)}
-                                    >
-                                      공고 상세 보기
-                                    </button>
-                                  )}
-                                  {canWithdraw && (
-                                    <button
-                                      type="button"
-                                      className="application-withdraw-button"
-                                      onClick={() => {
-                                        setWithdrawalMessage("");
-                                        setWithdrawalError("");
-                                        setWithdrawalTarget(app);
-                                      }}
-                                    >
-                                      지원 철회
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              {isMatched && (
-                                <p className="application-withdrawal-note">
-                                  매칭이 완료된 지원은 직접 철회할 수 없습니다. 변경이
-                                  필요한 경우 ON-LI에 문의해 주세요.
+                              {isExpanded && !job && (
+                                <p className="application-job-unavailable">
+                                  현재 공고 정보를 불러올 수 없습니다.
                                 </p>
                               )}
                             </div>
@@ -2024,6 +2011,102 @@ function ApplicationInfo({ label, value }) {
     <div className="application-info-item">
       <span>{label}</span>
       <strong>{value || "미등록"}</strong>
+    </div>
+  );
+}
+
+function ApplicationDetailPanel({
+  application,
+  job,
+  statusLabel,
+  canWithdraw,
+  isMatched,
+  hasLinkedJob,
+  onJobDetailClick,
+  onWithdraw,
+}) {
+  return (
+    <div className="application-expanded-panel">
+      <section className="application-info-section">
+        <h4>공고 정보</h4>
+        <div className="application-info-grid">
+          <ApplicationInfo label="기업명" value={job.company_name || "미등록"} />
+          <ApplicationInfo label="통역 언어" value={job.language || "별도 안내"} />
+          <ApplicationInfo label="통역 레벨" value={getJobLevelSummary(job)} />
+          <ApplicationInfo label="전문 분야" value={getJobSpecialty(job)} />
+          <ApplicationInfo
+            label="근무 장소"
+            value={job.location || job.event_location || "미등록"}
+          />
+          <ApplicationInfo
+            label="근무 일정"
+            value={formatDateRange(job.start_date, job.end_date, job.event_date || job.date)}
+          />
+          <ApplicationInfo label="근무 시간" value="별도 안내" />
+          <ApplicationInfo
+            label="모집 인원"
+            value={`${getRecruitmentCountDisplay(job)}명`}
+          />
+          <ApplicationInfo
+            label="성별 조건"
+            value={job.preferred_gender || "성별 무관"}
+          />
+          <ApplicationInfo label="지급/단가 기준" value={getJobPayDisplay(job)} />
+          <ApplicationInfo
+            label="현재 공고 상태"
+            value={getJobStatusLabel(job.status)}
+          />
+        </div>
+      </section>
+
+      <section className="application-info-section is-personal">
+        <h4>내 지원 정보</h4>
+        <div className="application-personal-info">
+          {application.message && (
+            <div className="app-message-box">
+              <span>지원 메모</span>
+              <p>{application.message}</p>
+            </div>
+          )}
+          <div className="application-personal-meta">
+            <ApplicationInfo label="지원 상태" value={statusLabel} />
+            <ApplicationInfo label="지원 등록일" value={formatDate(application.created_at)} />
+            <ApplicationInfo label="지원 철회" value={canWithdraw ? "가능" : "불가"} />
+          </div>
+        </div>
+      </section>
+
+      <div className="application-card-footer">
+        <div className="app-date-row">
+          지원 일시: {formatDate(application.created_at)}
+        </div>
+        <div className="application-card-actions">
+          {hasLinkedJob && (
+            <button
+              type="button"
+              className="application-job-detail-button"
+              onClick={() => onJobDetailClick?.(application.job_id)}
+            >
+              공고 상세 보기
+            </button>
+          )}
+          {canWithdraw && (
+            <button
+              type="button"
+              className="application-withdraw-button"
+              onClick={onWithdraw}
+            >
+              지원 철회
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isMatched && (
+        <p className="application-withdrawal-note">
+          매칭이 완료된 지원은 직접 철회할 수 없습니다. 변경이 필요한 경우 ON-LI에 문의해 주세요.
+        </p>
+      )}
     </div>
   );
 }

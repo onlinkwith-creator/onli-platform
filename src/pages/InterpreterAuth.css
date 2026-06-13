@@ -661,6 +661,7 @@
   overflow-wrap: anywhere;
 }
 
+.application-list-summary,
 .assignment-list-summary {
   display: grid;
   gap: 6px;
@@ -669,15 +670,21 @@
   outline: none;
 }
 
+.application-list-summary:focus-visible,
 .assignment-list-summary:focus-visible {
   border-radius: 10px;
   box-shadow: 0 0 0 3px rgba(91, 92, 240, 0.16);
 }
 
+.application-list-summary h3,
 .assignment-list-summary h3 {
   margin-bottom: 2px;
 }
 
+.application-company,
+.application-primary-meta,
+.application-secondary-meta,
+.application-language,
 .assignment-company,
 .assignment-primary-meta,
 .assignment-secondary-meta,
@@ -690,12 +697,14 @@
   overflow-wrap: anywhere;
 }
 
+.application-company,
 .assignment-company {
   color: #312e52;
   font-size: 14px;
   font-weight: 900;
 }
 
+.application-language,
 .assignment-language {
   color: #64748b;
 }
@@ -704,6 +713,7 @@
   margin-top: 16px;
 }
 
+.application-expanded-panel,
 .assignment-expanded-panel {
   display: grid;
   gap: 18px;
