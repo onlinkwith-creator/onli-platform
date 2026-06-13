@@ -20,6 +20,11 @@ const LEGACY_JOB_APPLICATION_COLUMNS = [
   "applicant_phone",
 ];
 
+const LEGACY_JOB_APPLICATION_COLUMN_GROUPS = [
+  ["agreed_cancel_policy", "cancel_policy_agreed_at"],
+  ["agreed_terms", "agreed_policy", "agreed_at"],
+];
+
 export function normalizeApplicationEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -44,6 +49,22 @@ export function getSupabaseErrorDetails(error) {
     details: error?.details || "",
     hint: error?.hint || "",
   };
+}
+
+export function isAgreementColumnError(error) {
+  const message = [
+    error?.message,
+    error?.details,
+    error?.hint,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /agreed_|cancel_policy_agreed_at|column|schema cache/i.test(message)
+  );
 }
 
 export function getJobApplicationSubmitErrorMessage(error) {
@@ -125,6 +146,16 @@ export function buildLegacyJobApplicationPayload(error, payload) {
   const columnsToRemove = missingColumns.length
     ? missingColumns
     : LEGACY_JOB_APPLICATION_COLUMNS;
+
+  LEGACY_JOB_APPLICATION_COLUMN_GROUPS.forEach((group) => {
+    if (group.some((column) => columnsToRemove.includes(column))) {
+      group.forEach((column) => {
+        if (!columnsToRemove.includes(column)) {
+          columnsToRemove.push(column);
+        }
+      });
+    }
+  });
 
   const nextPayload = { ...payload };
   columnsToRemove.forEach((column) => {

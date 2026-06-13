@@ -42,6 +42,7 @@ import {
   findExistingJobApplication,
   getJobApplicationSubmitErrorMessage,
   getSupabaseErrorDetails,
+  isAgreementColumnError,
   isDuplicateApplicationError,
   normalizeApplicationEmail,
   normalizeApplicationPhone,
@@ -407,7 +408,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
 
       if (error) {
         const errorDetails = getSupabaseErrorDetails(error);
-        console.error("지원서 제출 실패:", {
+        console.error("지원 저장 실패:", {
           ...errorDetails,
           table: "job_applications",
           payloadKeys: Object.keys(insertPayload || {}),
@@ -471,7 +472,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
     } catch (error) {
-      console.error("지원 실패:", getSupabaseErrorDetails(error));
+      console.error("지원 저장 실패:", getSupabaseErrorDetails(error));
       if (isDuplicateApplicationError(error)) {
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
@@ -834,14 +835,6 @@ function Info({ icon: Icon, label, value }) {
 
 function MessageBox({ text }) {
   return <div className="jobs-message">{text}</div>;
-}
-
-function isAgreementColumnError(error) {
-  return (
-    error?.code === "42703" ||
-    error?.code === "PGRST204" ||
-    /agreed_|column|schema cache/i.test(error?.message || "")
-  );
 }
 
 function hasRegisteredResume(profile = {}) {
