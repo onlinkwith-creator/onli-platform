@@ -263,7 +263,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       return;
     }
 
-    if (!areTermsAgreed(agreements)) {
+    if (!areTermsAgreed(agreements, { requireCancelPolicy: true })) {
       const message = "약관 동의 후 제출 가능합니다.";
       setErrorMessage(message);
       alert(message);
@@ -306,6 +306,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     );
     setInterpreterProfile(matchedInterpreter);
 
+    const agreedAt = new Date().toISOString();
     const application = {
       job_id: job.id,
       interpreter_id: matchedInterpreter?.id || null,
@@ -325,7 +326,9 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       status: "pending",
       agreed_terms: true,
       agreed_policy: true,
-      agreed_at: new Date().toISOString(),
+      agreed_cancel_policy: true,
+      agreed_at: agreedAt,
+      cancel_policy_agreed_at: agreedAt,
     };
 
     const existingApplication = await findExistingJobApplication(supabase, {
@@ -752,8 +755,13 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                             <TermsAgreement
                               agreements={agreements}
                               onChange={handleAgreementChange}
+                              requireCancelPolicy
                               role="interpreter"
                             />
+
+                            <p className="jobs-notice">
+                              배정 확정 후 지원 취소 및 철회 시 취소 규정에 따라 위약금이 발생할 수 있습니다.
+                            </p>
 
                             <button
                               type="submit"
@@ -762,7 +770,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                                 submitting ||
                                 applicationCheckLoading ||
                                 !canApplyToJob(job) ||
-                                !areTermsAgreed(agreements)
+                                !areTermsAgreed(agreements, { requireCancelPolicy: true })
                               }
                             >
                               {canApplyToJob(job)

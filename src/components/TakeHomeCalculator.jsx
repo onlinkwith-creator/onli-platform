@@ -4,22 +4,14 @@ import "./TakeHomeCalculator.css";
 
 const SETTLEMENT_TYPES = {
   freelancer: {
-    label: "개인 프리랜서",
-    description: "소득세 3% + 지방소득세 0.3% (총 3.3% 예상 공제)",
+    label: "개인 통역사",
+    description: "3.3% 원천징수 후 지급 · 소득세 3% + 지방소득세 0.3%",
     incomeTaxRate: 0.03,
     localIncomeTaxRate: 0.003,
   },
   business: {
-    label: "사업자",
-    description:
-      "원천징수 0원으로 예상되며, 실제 증빙 및 세금계산서·계산서 처리 여부는 개별 조건에 따라 달라질 수 있습니다.",
-    incomeTaxRate: 0,
-    localIncomeTaxRate: 0,
-  },
-  exempt: {
-    label: "원천징수 비대상",
-    description:
-      "원천징수 0원으로 예상되며, 실제 비대상 여부는 개별 세무 조건에 따라 달라질 수 있습니다.",
+    label: "사업자 통역사",
+    description: "원천징수 없이 정산 · 사업자 정산 대상",
     incomeTaxRate: 0,
     localIncomeTaxRate: 0,
   },
@@ -75,7 +67,7 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
         <div>
           <h2>예상 실수령액 계산기</h2>
           <p>
-            세전 정산금과 정산 유형을 입력하면 원천징수를 반영한 예상 수령액을
+            예정 정산 금액과 정산 유형을 입력하면 공제 예상액을 반영한 입금 금액을
             확인할 수 있습니다.
           </p>
         </div>
@@ -83,7 +75,7 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
 
       <div className="take-home-form">
         <label className="take-home-field" htmlFor={inputId}>
-          <span>세전 정산금</span>
+          <span>예정 정산 금액</span>
           <div className="take-home-amount-input">
             <input
               id={inputId}
@@ -122,7 +114,7 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
 
       <div className="take-home-results" aria-live="polite">
         <ResultRow
-          label="세전 정산금"
+          label="예정 정산 금액"
           amount={calculation.settlementBeforeTax}
           emphasized
         />
@@ -133,12 +125,12 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
           deduction
         />
         <ResultRow
-          label="총 원천징수액"
+          label="총 공제 예상액"
           amount={calculation.totalWithholding}
           deduction
         />
         <ResultRow
-          label="예상 실수령액"
+          label="예상 입금 금액"
           amount={calculation.estimatedTakeHome}
           total
         />
@@ -146,13 +138,13 @@ function TakeHomeCalculator({ initialAmount = 0, className = "" }) {
 
       <div className="take-home-notice">
         <p>
-          본 계산 결과는 예상 금액이며 실제 정산액을 보증하지 않습니다. 통역사의
-          사업자 여부, 거주자 여부, 소득 구분 및 원천징수 대상 여부에 따라 실제
-          지급액과 신고 방식이 달라질 수 있습니다.
+          ※ 표시 금액은 예상 금액이며 실제 정산 과정에서 차이가 발생할 수 있습니다.
         </p>
         <p>
-          ON-LI는 기업과 통역사를 연결하고 정산 절차를 지원하는 플랫폼이며, 개별
-          이용자의 세무 신고 또는 세금 결과를 보증하지 않습니다.
+          ※ 세금 신고 및 납부 의무는 개인의 상황에 따라 달라질 수 있습니다.
+        </p>
+        <p>
+          ON-LI는 통역 업무 연결 및 정산 지원 플랫폼이며 세무 신고를 대행하지 않습니다.
         </p>
       </div>
     </section>

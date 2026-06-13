@@ -10,7 +10,15 @@ const rolePolicyLinks = {
   client: { href: "/client-policy", label: "기업 의뢰 약관" },
 };
 
-function TermsAgreement({ agreements, className = "", onChange, role = "client" }) {
+const cancelPolicyLink = { href: "/terms#cancel-policy", label: "취소 및 노쇼 규정" };
+
+function TermsAgreement({
+  agreements,
+  className = "",
+  onChange,
+  requireCancelPolicy = false,
+  role = "client",
+}) {
   const rolePolicy = rolePolicyLinks[role] || rolePolicyLinks.client;
 
   return (
@@ -39,6 +47,19 @@ function TermsAgreement({ agreements, className = "", onChange, role = "client" 
           에 동의합니다.
         </span>
       </label>
+      {requireCancelPolicy && (
+        <label className="terms-agreement-row">
+          <input
+            type="checkbox"
+            checked={agreements.agreedCancelPolicy}
+            onChange={(event) => onChange("agreedCancelPolicy", event.target.checked)}
+          />
+          <span>
+            <TermsLink href={cancelPolicyLink.href}>{cancelPolicyLink.label}</TermsLink>
+            에 동의합니다.
+          </span>
+        </label>
+      )}
     </div>
   );
 }
@@ -51,13 +72,18 @@ function TermsLink({ children, href }) {
   );
 }
 
-export function areTermsAgreed(agreements) {
-  return Boolean(agreements.agreedPolicy && agreements.agreedTerms);
+export function areTermsAgreed(agreements, { requireCancelPolicy = false } = {}) {
+  return Boolean(
+    agreements.agreedPolicy &&
+      agreements.agreedTerms &&
+      (!requireCancelPolicy || agreements.agreedCancelPolicy)
+  );
 }
 
 export const initialTermsAgreement = {
   agreedPolicy: false,
   agreedTerms: false,
+  agreedCancelPolicy: false,
 };
 
 export default TermsAgreement;

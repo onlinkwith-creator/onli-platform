@@ -253,7 +253,7 @@ function JobApply({
       return;
     }
 
-    if (!areTermsAgreed(agreements)) {
+    if (!areTermsAgreed(agreements, { requireCancelPolicy: true })) {
       const message = "약관 동의 후 제출 가능합니다.";
       setErrorMessage(message);
       alert(message);
@@ -295,6 +295,7 @@ function JobApply({
     );
     setInterpreterProfile(matchedInterpreter);
 
+    const agreedAt = new Date().toISOString();
     const application = {
       job_id: job.id,
       interpreter_id: matchedInterpreter?.id || null,
@@ -314,7 +315,9 @@ function JobApply({
       status: "pending",
       agreed_terms: true,
       agreed_policy: true,
-      agreed_at: new Date().toISOString(),
+      agreed_cancel_policy: true,
+      agreed_at: agreedAt,
+      cancel_policy_agreed_at: agreedAt,
     };
     const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
 
@@ -661,11 +664,14 @@ function JobApply({
                 <TermsAgreement
                   agreements={agreements}
                   onChange={handleAgreementChange}
+                  requireCancelPolicy
                   role="interpreter"
                 />
 
                 <p className="jobs-notice">
                   제출된 지원서는 ON-LI 운영팀 검토 후 공고 담당자에게 전달됩니다.
+                  <br />
+                  배정 확정 후 지원 취소 및 철회 시 취소 규정에 따라 위약금이 발생할 수 있습니다.
                 </p>
 
                 <button
@@ -679,7 +685,7 @@ function JobApply({
                     !user ||
                     !interpreterProfile ||
                     !canApplyToJob(job) ||
-                    !areTermsAgreed(agreements)
+                    !areTermsAgreed(agreements, { requireCancelPolicy: true })
                   }
                 >
                   {!canApplyToJob(job)

@@ -12,7 +12,9 @@ const WITHDRAWABLE_APPLICATION_STATUSES = new Set([
 const LEGACY_JOB_APPLICATION_COLUMNS = [
   "agreed_terms",
   "agreed_policy",
+  "agreed_cancel_policy",
   "agreed_at",
+  "cancel_policy_agreed_at",
   "application_no",
   "applicant_email",
   "applicant_phone",

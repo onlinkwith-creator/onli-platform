@@ -134,6 +134,8 @@ const renderPolicyItems = (items) => {
   return blocks;
 };
 
+const getSectionId = (section) => section.id || section.title;
+
 export const POLICY_PAGES = {
   commonTerms: {
     path: "/terms",
@@ -206,6 +208,26 @@ export const POLICY_PAGES = {
           "ON-LI는 기업과 통역사 간의 원활한 매칭, 업무 조율, 플랫폼 운영, 정산 관리 등을 위해 플랫폼 이용 수수료를 수취할 수 있습니다.",
           "기업이 ON-LI에 지급한 통역 서비스 이용 대금 중 ON-LI의 플랫폼 이용 수수료 및 정산 관리 비용을 제외한 금액은 통역사에게 정산됩니다.",
           "ON-LI의 수수료율, 정산 방식, 지급 시기 등은 서비스 화면, 개별 안내 또는 별도 합의에 따라 정할 수 있습니다."
+        ],
+      },
+      {
+        id: "cancel-policy",
+        iconName: "alertTriangle",
+        title: "제7조 (통역 업무 취소 및 노쇼 규정)",
+        items: [
+          "① 배정 확정 후 책임",
+          "통역사는 ON-LI 운영팀의 최종 배정 안내를 받은 시점부터 해당 통역 일정 수행 의무가 발생합니다.",
+          "② 취소 기준",
+          "통역사의 개인 사정으로 업무 참여가 어려운 경우 즉시 ON-LI 운영팀에 알려야 하며, 취소 시점에 따라 아래 기준이 적용될 수 있습니다.",
+          "- 행사 시작 15일 전까지 취소: 위약금 없음. 단, 반복적인 취소 발생 시 향후 매칭 우선순위가 조정될 수 있습니다.",
+          "- 행사 시작 14일 전 ~ 8일 전 취소: 예정 정산 금액의 최대 30% 위약금 발생 가능",
+          "- 행사 시작 7일 전 ~ 3일 전 취소: 예정 정산 금액의 최대 50% 위약금 발생 가능",
+          "- 행사 시작 48시간 이내 취소: 예정 정산 금액의 최대 80% 위약금 발생 가능",
+          "- 행사 당일 취소 및 무단 불참(노쇼): 예정 정산 금액의 최대 100% 위약금 발생 가능. 향후 ON-LI 서비스 이용 및 매칭 제한 가능",
+          "③ 예외 사항",
+          "질병, 사고, 천재지변 등 불가피한 사유가 있는 경우 증빙 자료 및 상황 확인 후 별도 검토합니다.",
+          "④ 위약금 산정 기준",
+          "위약금은 실제 발생한 운영 손실, 대체 통역사 섭외 비용, 기업 대응 비용 등을 종합적으로 고려하여 산정됩니다."
         ],
       },
     ],
@@ -631,6 +653,28 @@ function PolicyPage({ policyKey, onNavigate }) {
     };
   }, [policyKey]);
 
+  useEffect(() => {
+    const hash = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+    if (!hash) return;
+
+    const timer = window.setTimeout(() => {
+      const element = document.getElementById(hash);
+      if (!element) return;
+
+      const offset = 100;
+      const bodyRect = document.body.getBoundingClientRect().top;
+      const elementRect = element.getBoundingClientRect().top;
+      const elementPosition = elementRect - bodyRect;
+
+      window.scrollTo({
+        top: elementPosition - offset,
+        behavior: "smooth",
+      });
+    }, 100);
+
+    return () => window.clearTimeout(timer);
+  }, [policyKey]);
+
   const handlePolicyChange = (e, path, targetKey) => {
     e.preventDefault();
     if (onNavigate) {
@@ -705,7 +749,9 @@ function PolicyPage({ policyKey, onNavigate }) {
       );
     }
 
-    const contactSectionId = policy.sections[policy.sections.length - 1]?.title;
+    const contactSectionId = policy.sections[policy.sections.length - 1]
+      ? getSectionId(policy.sections[policy.sections.length - 1])
+      : "";
     if (contactSectionId) {
       links.push(
         <button
@@ -742,15 +788,18 @@ function PolicyPage({ policyKey, onNavigate }) {
 
         {/* 모바일 가로 스크롤 메뉴바 */}
         <nav className="policy-mobile-pills" aria-label="섹션 메뉴 수평 스크롤">
-          {policy.sections.map((section) => (
-            <button
-              key={`pill-${section.title}`}
-              className={`policy-pill-btn ${activeSectionId === section.title ? "active" : ""}`}
-              onClick={(e) => scrollToSection(e, section.title)}
-            >
-              {section.title.split(". ")[1] || section.title}
-            </button>
-          ))}
+          {policy.sections.map((section) => {
+            const sectionId = getSectionId(section);
+            return (
+              <button
+                key={`pill-${sectionId}`}
+                className={`policy-pill-btn ${activeSectionId === sectionId ? "active" : ""}`}
+                onClick={(e) => scrollToSection(e, sectionId)}
+              >
+                {section.title.split(". ")[1] || section.title}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="policy-layout">
@@ -759,18 +808,21 @@ function PolicyPage({ policyKey, onNavigate }) {
             <nav className="policy-sidebar-nav" aria-label="약관 색인 네비게이션">
               <p className="policy-sidebar-title">목차 색인</p>
               <ul>
-                {policy.sections.map((section) => (
-                  <li key={`nav-${section.title}`}>
-                    <a
-                      href={`#${section.title}`}
-                      className={activeSectionId === section.title ? "active" : ""}
-                      onClick={(e) => scrollToSection(e, section.title)}
-                    >
-                      <span className="nav-bullet" />
-                      {section.title}
-                    </a>
-                  </li>
-                ))}
+                {policy.sections.map((section) => {
+                  const sectionId = getSectionId(section);
+                  return (
+                    <li key={`nav-${sectionId}`}>
+                      <a
+                        href={`#${sectionId}`}
+                        className={activeSectionId === sectionId ? "active" : ""}
+                        onClick={(e) => scrollToSection(e, sectionId)}
+                      >
+                        <span className="nav-bullet" />
+                        {section.title}
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             </nav>
           </aside>
@@ -779,8 +831,9 @@ function PolicyPage({ policyKey, onNavigate }) {
           <section className="policy-content" aria-label={policy.title}>
             {policy.sections.map((section) => {
               const IconComponent = ICON_MAP[section.iconName] || FileText;
+              const sectionId = getSectionId(section);
               return (
-                <article key={section.title} id={section.title} className="policy-section">
+                <article key={sectionId} id={sectionId} className="policy-section">
                   <div className="policy-section-header">
                     <div className="policy-section-icon-box">
                       <IconComponent size={20} className="policy-section-icon" />
