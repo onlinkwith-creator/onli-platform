@@ -368,6 +368,48 @@
   font-size: 28px;
   font-weight: 800;
   line-height: 1.2;
+  white-space: nowrap;
+}
+
+.request-estimate-breakdown {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.request-estimate-row,
+.request-estimate-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.request-estimate-row span,
+.request-estimate-total span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.request-estimate-row strong {
+  color: #475569;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.request-estimate-divider {
+  height: 1px;
+  margin: 14px 0;
+  background: #ddd6fe;
+}
+
+.request-estimate-total {
+  margin-top: 0;
 }
 
 .request-estimate-standard,

@@ -117,6 +117,7 @@ const INTERPRETER_UPDATE_COLUMNS = new Set([
   "specialties",
   "available_regions",
   "admin_memo",
+  "resume_verified_email_sent_at",
   "updated_at",
 ]);
 const INTERPRETER_STATUS_VALUES = new Set(INTERPRETER_STATUSES);
@@ -299,6 +300,7 @@ function Admin({ onBackClick }) {
     status: "all",
     activity: "all",
     approved: "all",
+    resumeReview: "all",
     duplicate: "all",
   });
   const [requestFilters, setRequestFilters] = useState({
@@ -533,6 +535,10 @@ function Admin({ onBackClick }) {
     () => interpreters.filter((interpreter) => isPendingInterpreter(interpreter)),
     [interpreters]
   );
+  const pendingResumeReviewInterpreters = useMemo(
+    () => interpreters.filter((interpreter) => isResumeReviewPending(interpreter)),
+    [interpreters]
+  );
   const newJobApplications = useMemo(
     () => jobApplications.filter((application) => isNewJobApplication(application)),
     [jobApplications]
@@ -652,6 +658,10 @@ function Admin({ onBackClick }) {
       const matchesApproved =
         interpreterFilters.approved === "all" ||
         String(Boolean(interpreter.approved)) === interpreterFilters.approved;
+      const matchesResumeReview =
+        interpreterFilters.resumeReview === "all" ||
+        (interpreterFilters.resumeReview === "resume_review_pending" &&
+          isResumeReviewPending(interpreter));
       const matchesDuplicate =
         interpreterFilters.duplicate === "all" ||
         duplicateInterpreterResult.duplicateIds.has(interpreter.id);
@@ -662,6 +672,7 @@ function Admin({ onBackClick }) {
         matchesStatus &&
         matchesActivity &&
         matchesApproved &&
+        matchesResumeReview &&
         matchesDuplicate
       );
     }).sort(sortInterpretersForAdmin);
@@ -780,6 +791,7 @@ function Admin({ onBackClick }) {
         status: "all",
         activity: "all",
         approved: "all",
+        resumeReview: "all",
         duplicate: "all",
       });
       setActiveTab("interpreters");
@@ -997,6 +1009,12 @@ function Admin({ onBackClick }) {
       interpreter &&
       interpreter.status !== "active";
     const nextInterpreter = data[0] || { ...interpreter, ...updatePayload };
+    const shouldSendResumeVerifiedEmail =
+      interpreter &&
+      isInterpreterResumeVerificationComplete(nextInterpreter) &&
+      !isInterpreterResumeVerificationComplete(interpreter) &&
+      !getResumeVerifiedEmailSentAt(interpreter) &&
+      !getResumeVerifiedEmailSentAt(nextInterpreter);
 
     setInterpreters((current) =>
       current.map((item) => (item.id === id ? { ...item, ...nextInterpreter } : item))
@@ -1016,10 +1034,61 @@ function Admin({ onBackClick }) {
       });
     }
 
+    let resumeVerifiedFeedback = "";
+    if (shouldSendResumeVerifiedEmail) {
+      const recipientEmail = getInterpreterVerificationEmail(nextInterpreter);
+
+      if (!recipientEmail) {
+        resumeVerifiedFeedback =
+          "검증 완료 처리됨. 등록 이메일이 없어 안내 메일은 발송되지 않았습니다.";
+      } else {
+        const emailResult = await sendAutoEmail("resume_verified", recipientEmail, {
+          requestId: nextInterpreter.id,
+          interpreterId: nextInterpreter.id,
+          name: nextInterpreter.name,
+          email: recipientEmail,
+          dedupeKey: `resume_verified:${nextInterpreter.id}`,
+        });
+
+        if (emailResult.ok) {
+          const sentAt = new Date().toISOString();
+          const timestampResult = await updateInterpreterResumeVerifiedEmailSentAt(
+            nextInterpreter.id,
+            sentAt
+          );
+
+          if (!timestampResult.error) {
+            nextInterpreter.resume_verified_email_sent_at = sentAt;
+            setInterpreters((current) =>
+              current.map((item) =>
+                item.id === id
+                  ? { ...item, resume_verified_email_sent_at: sentAt }
+                  : item
+              )
+            );
+            setSelectedInterpreter((current) =>
+              current?.id === id
+                ? { ...current, resume_verified_email_sent_at: sentAt }
+                : current
+            );
+          } else {
+            console.error("검증 완료 이메일 발송 시각 저장 실패:", timestampResult.error);
+          }
+
+          resumeVerifiedFeedback =
+            "이력서 검증 완료 처리 및 안내 이메일 발송이 완료되었습니다.";
+        } else {
+          console.error("이력서 검증 완료 안내 이메일 발송 실패:", emailResult.error || emailResult);
+          resumeVerifiedFeedback =
+            "검증 완료 처리는 완료되었지만 안내 이메일 발송에 실패했습니다.";
+        }
+      }
+    }
+
     await fetchAdminData();
 
     if (options.showSuccess) {
-      alert("수정 완료");
+      alert(resumeVerifiedFeedback || "수정 완료");
     }
 
     return true;
@@ -2690,6 +2759,7 @@ function Admin({ onBackClick }) {
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 interpreters={pendingInterpreters}
                 jobsById={jobsById}
+                pendingResumeReviewCount={pendingResumeReviewInterpreters.length}
                 savingKey={savingKey}
                 onConfirmApplication={confirmNewJobApplication}
                 onOpenApplicationsTab={() => {
@@ -2700,6 +2770,18 @@ function Admin({ onBackClick }) {
                   setActiveTab("applications");
                 }}
                 onOpenInterpreterModal={openInterpreterModal}
+                onOpenResumeReview={() => {
+                  setInterpreterFilters({
+                    search: "",
+                    level: "all",
+                    status: "all",
+                    activity: "all",
+                    approved: "all",
+                    resumeReview: "resume_review_pending",
+                    duplicate: "all",
+                  });
+                  setActiveTab("interpreters");
+                }}
                 updateInterpreter={updateInterpreter}
                 deleteInterpreter={deleteInterpreter}
               />
@@ -2744,6 +2826,11 @@ function Admin({ onBackClick }) {
                 filters={interpreterFilters}
                 interpreters={filteredInterpreters}
                 duplicateResult={duplicateInterpreterResult}
+                emptyText={
+                  interpreterFilters.resumeReview === "resume_review_pending"
+                    ? "현재 이력서 심사 대기 중인 통역사가 없습니다."
+                    : undefined
+                }
                 savingKey={savingKey}
                 setFilters={setInterpreterFilters}
                 onOpenModal={openInterpreterModal}
@@ -3090,30 +3177,53 @@ function NewApplicationManagement({
   getInterpreterScheduleConflicts,
   interpreters,
   jobsById,
+  pendingResumeReviewCount,
   savingKey,
   onConfirmApplication,
   onOpenApplicationsTab,
   onOpenInterpreterModal,
+  onOpenResumeReview,
   updateInterpreter,
   deleteInterpreter,
 }) {
-  const hasNewItems = interpreters.length > 0 || applications.length > 0;
-
-  if (!hasNewItems) {
-    return (
-      <section className="admin-section">
-        <SectionTitle count="0건" title="신규 지원 관리" />
-        <MessageBox text="새로 들어온 지원이 없습니다." />
-      </section>
-    );
-  }
-
   return (
     <section className="admin-section">
       <SectionTitle
         count={`${interpreters.length + applications.length}건`}
         title="신규 지원 관리"
       />
+
+      <div className="admin-subsection">
+        <SectionTitle count={`${pendingResumeReviewCount}건`} title="이력서 심사 대기" />
+        <article
+          className="admin-list-card admin-resume-review-card"
+          role="button"
+          tabIndex={0}
+          onClick={onOpenResumeReview}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onOpenResumeReview();
+            }
+          }}
+        >
+          <div className="admin-list-card-head">
+            <div>
+              <span className="admin-card-meta">이력서 심사 대기</span>
+              <h3>{pendingResumeReviewCount}건</h3>
+            </div>
+            <span className="status-badge pending">심사 대기</span>
+          </div>
+          <p className="admin-card-description">
+            제출된 이력서를 확인하고 검증 여부를 처리하세요.
+          </p>
+          <div className="admin-card-actions">
+            <span className="admin-link-button warning">
+              심사 대기 확인
+            </span>
+          </div>
+        </article>
+      </div>
 
       <div className="admin-subsection">
         <SectionTitle count={`${interpreters.length}명`} title="통역사 신규 등록" />
@@ -4399,6 +4509,7 @@ function ApplicantDetailItem({ full = false, label, multiline = false, value }) 
 
 function InterpreterManagement({
   duplicateResult,
+  emptyText,
   filters,
   interpreters,
   savingKey,
@@ -4469,6 +4580,15 @@ function InterpreterManagement({
           <option value="true">검증 뱃지 노출</option>
         </select>
         <select
+          value={filters.resumeReview}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, resumeReview: event.target.value }))
+          }
+        >
+          <option value="all">전체 이력서</option>
+          <option value="resume_review_pending">이력서 심사 대기</option>
+        </select>
+        <select
           value={filters.duplicate}
           onChange={(event) =>
             setFilters((current) => ({ ...current, duplicate: event.target.value }))
@@ -4480,7 +4600,7 @@ function InterpreterManagement({
       </div>
 
       {interpreters.length === 0 ? (
-        <MessageBox text="조건에 맞는 통역사가 없습니다." />
+        <MessageBox text={emptyText || "조건에 맞는 통역사가 없습니다."} />
       ) : (
         <div className="admin-management-card-grid admin-interpreter-grid">
           {interpreters.map((interpreter) => (
@@ -4552,7 +4672,7 @@ function InterpreterCard({
               ✨ 검증 완료
             </span>
           )}
-          {!interpreter.approved && (interpreter.resume_url || interpreter.resume_file_url) && (
+          {isResumeReviewPending(interpreter) && (
             <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a' }}>
               ⏳ 심사 대기
             </span>
@@ -6996,7 +7116,24 @@ function cleanPayload(payload) {
 }
 
 function prepareInterpreterUpdatePayload(changes = {}) {
-  const payload = cleanPayload(changes);
+  const normalizedChanges = { ...changes };
+
+  if (isResumeVerificationStatusValue(normalizedChanges.status)) {
+    if (!("approved" in normalizedChanges)) {
+      normalizedChanges.approved = true;
+    }
+    delete normalizedChanges.status;
+  }
+
+  if (!("approved" in normalizedChanges)) {
+    if ("resume_verified" in normalizedChanges) {
+      normalizedChanges.approved = normalizedChanges.resume_verified;
+    } else if ("verified" in normalizedChanges) {
+      normalizedChanges.approved = normalizedChanges.verified;
+    }
+  }
+
+  const payload = cleanPayload(normalizedChanges);
 
   if ("age" in payload && String(payload.age || "").trim() !== "") {
     const age = toNonNegativeInteger(payload.age);
@@ -7038,6 +7175,72 @@ function prepareInterpreterUpdatePayload(changes = {}) {
   }
 
   return { payload, errorMessage: "" };
+}
+
+function isResumeVerificationStatusValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return [
+    "이력서 검증 완료",
+    "검증 완료",
+    "verified",
+    "resume_verified",
+  ].includes(normalized);
+}
+
+function isResumeReviewPending(interpreter = {}) {
+  const hasResume =
+    Boolean(interpreter.resume_url) ||
+    Boolean(interpreter.resume_file_url) ||
+    Boolean(interpreter.resume_path) ||
+    interpreter.resume_uploaded === true ||
+    interpreter.resume_submitted === true ||
+    Boolean(interpreter.resume_submitted_at);
+  const verificationStatus = String(interpreter.verification_status || "")
+    .trim()
+    .toLowerCase();
+  const isVerified =
+    interpreter.resume_verified === true ||
+    interpreter.verified === true ||
+    interpreter.approved === true ||
+    verificationStatus === "verified";
+
+  return hasResume && !isVerified;
+}
+
+function isInterpreterResumeVerificationComplete(interpreter = {}) {
+  return Boolean(
+    interpreter.resume_verified ?? interpreter.verified ?? interpreter.approved
+  );
+}
+
+function getResumeVerifiedEmailSentAt(interpreter = {}) {
+  return interpreter.resume_verified_email_sent_at || "";
+}
+
+function getInterpreterVerificationEmail(interpreter = {}) {
+  return getEmailRecipient(
+    interpreter.email,
+    interpreter.contact_email,
+    interpreter.applicant_email
+  );
+}
+
+async function updateInterpreterResumeVerifiedEmailSentAt(interpreterId, sentAt) {
+  const { data, error } = await supabase
+    .from("interpreters")
+    .update({ resume_verified_email_sent_at: sentAt })
+    .eq("id", interpreterId)
+    .select("id, resume_verified_email_sent_at")
+    .single();
+
+  if (!error) return { data, error: null };
+
+  if (isMissingColumnError(error)) {
+    console.warn("resume_verified_email_sent_at 컬럼이 없어 발송 시각 저장을 건너뜁니다.", error);
+    return { data: null, error: null, skipped: true };
+  }
+
+  return { data: null, error };
 }
 
 function toNonNegativeInteger(value) {

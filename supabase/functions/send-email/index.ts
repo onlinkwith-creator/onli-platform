@@ -20,6 +20,7 @@ const subjects = {
   company_request_under_review: "[ON-LI] 통역 의뢰 검토가 진행 중입니다",
   company_matching_confirmed: "[ON-LI] 통역사 배정이 완료되었습니다",
   interpreter_approved: "[ON-LI] 통역사 등록이 승인되었습니다",
+  resume_verified: "ON-LI 이력서 검증이 완료되었습니다",
   interpreter_matching_confirmed: "[ON-LI] 통역 배정이 확정되었습니다",
   interpreter_schedule_reminder: "[ON-LI] 통역 일정 안내드립니다",
   designated_request_received_interpreter: "[ON-LI] 지정 통역 의뢰가 도착했습니다",
@@ -271,6 +272,21 @@ function buildHtml(type: EmailType, payload: Payload) {
             ["활동 지역", field(payload, "availableRegions")],
             ["전문 분야", field(payload, "specialties")],
           ])}
+        `
+      );
+    case "resume_verified":
+      return layout(
+        "ON-LI 이력서 검증이 완료되었습니다",
+        `
+          <p>안녕하세요, ON-LI 운영팀입니다.</p>
+          <p>제출해주신 이력서 확인이 완료되어, ON-LI 통역사 검증이 완료되었습니다.</p>
+          <p>이제 ON-LI 플랫폼 내 통역 공고에 지원하실 수 있습니다.</p>
+          <p>향후 통역 공고 지원 시, 등록하신 프로필과 이력서를 바탕으로 배정 검토가 진행됩니다.</p>
+          <p style="margin:24px 0;">
+            <a href="https://onli-platform.vercel.app" style="display:inline-block; padding:12px 18px; background:#5b5cf0; color:#ffffff; text-decoration:none; border-radius:8px; font-weight:700;">통역 공고 확인하기</a>
+          </p>
+          <p>감사합니다.</p>
+          <p>ON-LI 운영팀</p>
         `
       );
     case "company_request_received_user":

@@ -710,21 +710,34 @@ function EstimatedPriceCard({
   isRecommendedLevel,
 }) {
   const hasAmount = amount !== null;
+  const vatAmount = hasAmount ? Math.round(amount * 0.1) : null;
+  const totalAmount = hasAmount ? amount + vatAmount : null;
 
   return (
     <aside className="request-estimate-card" aria-live="polite">
       <div>
         <span className="request-estimate-label">예상 이용 금액</span>
-        <p className="request-estimate-description">
-          선택한 기간, 인원 수, 통역 레벨 기준의 기업 예상 이용 금액입니다.
-        </p>
       </div>
 
       {hasAmount ? (
         <>
-          <strong className="request-estimate-amount">{formatWon(amount)}</strong>
+          <div className="request-estimate-breakdown">
+            <div className="request-estimate-row">
+              <span>공급가액</span>
+              <strong>{formatWon(amount)}</strong>
+            </div>
+            <div className="request-estimate-row">
+              <span>부가세 (VAT 10%)</span>
+              <strong>{formatWon(vatAmount)}</strong>
+            </div>
+          </div>
+          <div className="request-estimate-divider" aria-hidden="true" />
+          <div className="request-estimate-total">
+            <span>예상 결제 금액</span>
+            <strong className="request-estimate-amount">{formatWon(totalAmount)}</strong>
+          </div>
           <p className="request-estimate-standard">
-            기준: {level} 기업 금액 {formatWon(dailyRate)} × {days}일 × {peopleCount}명
+            기준: {level} 기준 금액 {formatWon(dailyRate)} × {days}일 × {peopleCount}명
           </p>
         </>
       ) : isRecommendedLevel ? (
@@ -738,10 +751,7 @@ function EstimatedPriceCard({
       )}
 
       <p className="request-estimate-note">
-        최종 금액은 행사 내용, 업무 범위, 통역사 배정 상황에 따라 달라질 수 있습니다.
-      </p>
-      <p className="request-estimate-note">
-        ※ 본 금액은 자동 계산된 기업 예상 금액이며, 최종 견적은 ON-LI 운영팀 확인 후 확정됩니다.
+        ※ 표시 금액은 예상 견적이며 최종 금액은 행사 내용, 업무 범위, 통역사 배정 상황에 따라 달라질 수 있습니다.
       </p>
     </aside>
   );
