@@ -112,7 +112,7 @@ const SUB_TAB_TO_MAIN_TAB = Object.fromEntries(
 );
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
-const INTERPRETER_DOCUMENT_BUCKET = "interpreter-documents";
+const INTERPRETER_DOCUMENT_BUCKET = "resume-files";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",

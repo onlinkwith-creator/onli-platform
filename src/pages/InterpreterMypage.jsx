@@ -39,20 +39,20 @@ const TABS = [
   { id: "takeHome", label: "예상 실수령액 계산", icon: "🧮" },
 ];
 
-const SETTLEMENT_DOCUMENT_BUCKET = "interpreter-documents";
+const SETTLEMENT_DOCUMENT_BUCKET = "resume-files";
 const SETTLEMENT_DOCUMENT_MAX_SIZE = 10 * 1024 * 1024;
 const SETTLEMENT_DOCUMENT_TYPES = {
   bankbook: {
     label: "통장 사본",
     description: "정산 받을 계좌 확인을 위해 등록해주세요.",
-    folder: "bankbook",
+    filePrefix: "bankbook",
     urlField: "bankbook_file_url",
     nameField: "bankbook_file_name",
   },
   businessLicense: {
     label: "사업자등록증",
     description: "사업자 정산 대상인 경우 등록해주세요.",
-    folder: "business-license",
+    filePrefix: "business_license",
     urlField: "business_license_file_url",
     nameField: "business_license_file_name",
   },
@@ -588,19 +588,20 @@ function InterpreterMypage({
   };
 
   const uploadSettlementDocumentFile = async (file, docConfig) => {
-    if (!file || !supabase || !interpreter || !docConfig) return null;
+    if (!file || !supabase || !interpreter || !user || !docConfig) return null;
 
-    const safeFileName = file.name
-      .replace(/\s+/g, "_")
-      .replace(/[^\w.-]/g, "");
-    const filePath = `${interpreter.id}/${docConfig.folder}/${Date.now()}_${safeFileName}`;
+    const fileExtension = String(file.name.split(".").pop() || "").toLowerCase();
+    const filePath = `interpreter-documents/${user.id}/settlement/${docConfig.filePrefix}_${Date.now()}.${fileExtension}`;
 
     try {
       const { error } = await supabase.storage
         .from(SETTLEMENT_DOCUMENT_BUCKET)
         .upload(filePath, file, { upsert: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Storage upload error:", error);
+        throw error;
+      }
 
       const {
         data: { publicUrl },
@@ -614,10 +615,78 @@ function InterpreterMypage({
         fileUrl: publicUrl,
       };
     } catch (error) {
-      console.error("Settlement document upload failed", error);
+      console.error("Storage upload error:", error);
       alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
       return null;
     }
+  };
+
+  const updateSettlementDocumentMetadata = async (payload) => {
+    if (!supabase || !interpreter || !user) {
+      return { data: null, error: new Error("Missing Supabase, interpreter, or user") };
+    }
+
+    const normalizedUserEmail = normalizeEmail(user.email);
+    const canMatchUserId =
+      Object.prototype.hasOwnProperty.call(interpreter, "user_id") &&
+      interpreter.user_id === user.id;
+    const canMatchAuthUser =
+      Object.prototype.hasOwnProperty.call(interpreter, "auth_user_id") &&
+      interpreter.auth_user_id === user.id;
+
+    const updateByColumn = async (column, value) => {
+      const result = await supabase
+        .from("interpreters")
+        .update(payload)
+        .eq(column, value)
+        .select("*")
+        .single();
+
+      if (result.error) {
+        console.error("DB update error:", result.error);
+      }
+
+      return result;
+    };
+
+    if (canMatchUserId) {
+      const result = await updateByColumn("user_id", user.id);
+      if (!result.error) return result;
+    }
+
+    if (canMatchAuthUser) {
+      const result = await updateByColumn("auth_user_id", user.id);
+      if (!result.error) return result;
+    }
+
+    if (normalizedUserEmail) {
+      const result = await supabase
+        .from("interpreters")
+        .update(payload)
+        .eq("id", interpreter.id)
+        .ilike("email", normalizedUserEmail)
+        .select("*")
+        .single();
+
+      if (result.error) {
+        console.error("DB update error:", result.error);
+      } else {
+        return result;
+      }
+    }
+
+    const result = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (result.error) {
+      console.error("DB update error:", result.error);
+    }
+
+    return result;
   };
 
   const removeSettlementDocumentFromStorage = async (fileUrl) => {
@@ -688,15 +757,10 @@ function InterpreterMypage({
       [docConfig.nameField]: uploadResult.fileName,
     };
 
-    const { data, error } = await supabase
-      .from("interpreters")
-      .update(payload)
-      .eq("id", interpreter.id)
-      .select("*")
-      .single();
+    const { data, error } = await updateSettlementDocumentMetadata(payload);
 
     if (error) {
-      console.error("Failed to save settlement document metadata", error);
+      console.error("DB update error:", error);
       await removeSettlementDocumentFromStorage(uploadResult.fileUrl);
       alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
     } else {
@@ -723,15 +787,10 @@ function InterpreterMypage({
       [docConfig.nameField]: null,
     };
 
-    const { data, error } = await supabase
-      .from("interpreters")
-      .update(payload)
-      .eq("id", interpreter.id)
-      .select("*")
-      .single();
+    const { data, error } = await updateSettlementDocumentMetadata(payload);
 
     if (error) {
-      console.error("Failed to delete settlement document metadata", error);
+      console.error("DB update error:", error);
       alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
       setUploadingSettlementDocType("");
       return;
