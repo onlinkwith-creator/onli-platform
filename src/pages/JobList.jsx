@@ -195,9 +195,18 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
         {/* Premium Recruiter Hero Section */}
         <div className="jobs-hero-container">
           <div className="jobs-hero-left">
-            <button type="button" onClick={onBackClick} className="jobs-back-btn">
-              ← 메인으로
-            </button>
+            <div className="jobs-hero-actions">
+              <button type="button" onClick={onBackClick} className="jobs-back-btn">
+                ← 메인으로
+              </button>
+              <button
+                type="button"
+                className="jobs-create-btn"
+                onClick={onCreateJobClick}
+              >
+                + 통역공고 등록
+              </button>
+            </div>
             <span className="jobs-kicker">ON-LI JOBS</span>
             <h1 className="jobs-hero-title">전체 통역 공고</h1>
             <p className="jobs-hero-subtitle">
@@ -208,14 +217,6 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
 
           <div className="jobs-hero-right">
             <div className="jobs-hero-illustration-wrapper">
-              <button
-                type="button"
-                className="jobs-create-btn"
-                onClick={onCreateJobClick}
-              >
-                통역공고 등록
-              </button>
-
               <div className="jobs-hero-illustration">
                 <div className="illustration-glow-circle-1" />
                 <div className="illustration-glow-circle-2" />
