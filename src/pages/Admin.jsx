@@ -5937,6 +5937,19 @@ function SettlementRequestCard({
 }
 
 function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
+  const [selectedUrgentItem, setSelectedUrgentItem] = useState(null);
+
+  const handleOpenUrgentDetail = (item) => {
+    setSelectedUrgentItem(item);
+  };
+
+  const handleMoveToRequest = () => {
+    if (!selectedUrgentItem) return;
+    const request = selectedUrgentItem.request;
+    setSelectedUrgentItem(null);
+    onOpenRequest(request);
+  };
+
   return (
     <section className="admin-operation-overview" aria-label="오늘 운영과 긴급 요청">
       <div className="admin-operation-panel admin-today-panel">
@@ -5986,26 +5999,170 @@ function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
           {urgentItems.length === 0 ? (
             <p className="admin-empty-text">긴급 확인이 필요한 의뢰가 없습니다.</p>
           ) : (
-            urgentItems.slice(0, 4).map((item) => (
-              <article className="admin-urgent-item" key={`urgent-${item.request.id}`}>
-                <div className="admin-urgent-topline">
-                  <span>{item.dDayLabel}</span>
-                  <small>{item.reason}</small>
-                </div>
-                <h3>{item.request.event_name || "-"}</h3>
-                <p>{item.dateLabel}</p>
-                <p>{item.request.event_location || "-"}</p>
-                <p>{item.interpreters || "통역사 미배정"}</p>
-                <button type="button" onClick={() => onOpenRequest(item.request)}>
-                  바로 확인
-                </button>
-              </article>
-            ))
+            <div className="admin-urgent-list" role="list">
+              <div className="admin-urgent-list-head" aria-hidden="true">
+                <span>상태</span>
+                <span>행사명</span>
+                <span>날짜</span>
+                <span>관리</span>
+              </div>
+              <div className="admin-urgent-list-scroll">
+                {urgentItems.map((item) => (
+                  <button
+                    type="button"
+                    className="admin-urgent-row"
+                    key={`urgent-${item.request.id}`}
+                    onClick={() => handleOpenUrgentDetail(item)}
+                    role="listitem"
+                  >
+                    <span className={`admin-urgent-dday ${getUrgentDdayTone(item)}`}>
+                      {item.dDayLabel}
+                    </span>
+                    <span className="admin-urgent-event">
+                      <strong>{item.request.event_name || "-"}</strong>
+                      <small>{item.reason}</small>
+                    </span>
+                    <span className="admin-urgent-date">
+                      {formatUrgentShortDate(item.request)}
+                    </span>
+                    <span className="admin-urgent-manage">확인</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
+
+      {selectedUrgentItem && (
+        <UrgentRequestDetailModal
+          item={selectedUrgentItem}
+          onClose={() => setSelectedUrgentItem(null)}
+          onMoveToRequest={handleMoveToRequest}
+        />
+      )}
     </section>
   );
+}
+
+function UrgentRequestDetailModal({ item, onClose, onMoveToRequest }) {
+  const request = item.request || {};
+
+  return (
+    <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
+      <section
+        className="admin-modal-card admin-urgent-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="urgent-request-detail-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <div>
+            <p className="admin-kicker">URGENT</p>
+            <h2 id="urgent-request-detail-title">긴급 요청 상세</h2>
+          </div>
+          <button
+            type="button"
+            className="admin-modal-icon-close"
+            onClick={onClose}
+            aria-label="닫기"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        <dl className="admin-urgent-detail-list">
+          <div>
+            <dt>의뢰번호</dt>
+            <dd>{getRequestDisplayNumber(request)}</dd>
+          </div>
+          <div>
+            <dt>기업명</dt>
+            <dd>{request.company_name || request.companyName || "-"}</dd>
+          </div>
+          <div>
+            <dt>행사명</dt>
+            <dd>{request.event_name || "-"}</dd>
+          </div>
+          <div>
+            <dt>행사 날짜</dt>
+            <dd>{item.dateLabel || formatDateRange(request.start_date, request.end_date, request.event_date)}</dd>
+          </div>
+          <div>
+            <dt>장소</dt>
+            <dd>{request.event_location || "-"}</dd>
+          </div>
+          <div>
+            <dt>필요 인원</dt>
+            <dd>{getRequestPeopleCountLabel(request)}</dd>
+          </div>
+          <div>
+            <dt>현재 지원자</dt>
+            <dd>{getRequestApplicantCountLabel(request)}</dd>
+          </div>
+          <div>
+            <dt>매칭 상태</dt>
+            <dd>{item.reason || getMatchingStatusLabel(request.matching_status || request.status)}</dd>
+          </div>
+        </dl>
+
+        <div className="admin-urgent-detail-actions">
+          <button type="button" className="admin-auth-primary" onClick={onMoveToRequest}>
+            의뢰 관리로 이동
+          </button>
+          <button type="button" className="admin-auth-secondary" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function getUrgentDdayTone(item = {}) {
+  const dDay = Number(item.priority);
+  if (Number.isFinite(dDay) && dDay <= 3) return "is-red";
+  return "is-orange";
+}
+
+function formatUrgentShortDate(request = {}) {
+  const date = getRequestPrimaryDate(request);
+  if (!date) return "-";
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${month}.${day}`;
+}
+
+function getRequestDisplayNumber(request = {}) {
+  return (
+    formatManagementNumber(request.management_number) ||
+    request.request_no ||
+    request.request_number ||
+    request.id ||
+    "-"
+  );
+}
+
+function getRequestPeopleCountLabel(request = {}) {
+  const count =
+    request.requested_people_count ??
+    request.people_count ??
+    request.required_people_count ??
+    request.interpreter_count;
+  return count || count === 0 ? `${count}명` : "-";
+}
+
+function getRequestApplicantCountLabel(request = {}) {
+  const count =
+    request.applicant_count ??
+    request.application_count ??
+    request.applications_count ??
+    request.request_applications_count ??
+    request.current_applicant_count;
+  return count || count === 0 ? `${count}명` : "확인 필요";
 }
 
 function MetricCard({ label, value, description, icon: Icon, tone = "purple", onClick }) {

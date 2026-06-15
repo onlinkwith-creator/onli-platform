@@ -202,7 +202,7 @@
 }
 
 .admin-urgent-panel {
-  background: #fff1f2;
+  background: #ffffff;
   border-color: #fecdd3;
 }
 
@@ -235,8 +235,7 @@
   gap: 8px;
 }
 
-.admin-operation-item,
-.admin-urgent-item {
+.admin-operation-item {
   padding: 12px 14px;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
@@ -257,16 +256,14 @@
   font-weight: 900;
 }
 
-.admin-operation-item h3,
-.admin-urgent-item h3 {
+.admin-operation-item h3 {
   margin: 0 0 6px;
   color: #111827;
   font-size: 15px;
   font-weight: 900;
 }
 
-.admin-operation-item p,
-.admin-urgent-item p {
+.admin-operation-item p {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -276,41 +273,179 @@
   font-weight: 800;
 }
 
-.admin-urgent-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
+.admin-urgent-list {
+  overflow: hidden;
+  border: 1px solid #fee2e2;
+  border-radius: 14px;
+  background: #ffffff;
 }
 
-.admin-urgent-topline span {
+.admin-urgent-list-head,
+.admin-urgent-row {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr) 76px 54px;
+  gap: 12px;
+  align-items: center;
+}
+
+.admin-urgent-list-head {
+  min-height: 38px;
+  padding: 0 14px;
+  border-bottom: 1px solid #fee2e2;
+  background: #fff7f7;
+  color: #9f1239;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-urgent-list-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.admin-urgent-row {
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.admin-urgent-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-urgent-row:hover {
+  background: #fff7f7;
+}
+
+.admin-urgent-dday {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
   padding: 5px 9px;
   border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-urgent-dday.is-red {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.admin-urgent-dday.is-orange {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.admin-urgent-event {
+  min-width: 0;
+}
+
+.admin-urgent-event strong,
+.admin-urgent-event small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-urgent-event strong {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-urgent-event small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-urgent-date,
+.admin-urgent-manage {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-urgent-manage {
+  color: #4f46e5;
+  text-align: right;
+}
+
+.admin-urgent-detail-modal {
+  max-width: 640px;
+}
+
+.admin-urgent-detail-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.admin-urgent-detail-list div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.admin-urgent-detail-list dt {
+  color: #64748b;
   font-size: 12px;
   font-weight: 900;
 }
 
-.admin-urgent-topline small {
-  color: #be123c;
-  font-size: 12px;
-  font-weight: 900;
+.admin-urgent-detail-list dd {
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
 }
 
-.admin-urgent-item button {
-  width: 100%;
-  margin-top: 10px;
+.admin-urgent-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.admin-urgent-detail-actions button {
   min-height: 40px;
-  border: none;
+  padding: 10px 14px;
   border-radius: 10px;
-  background: #ef4444;
-  color: #ffffff;
-  cursor: pointer;
   font: inherit;
   font-size: 13px;
   font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-urgent-detail-actions .admin-auth-primary {
+  border: none;
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.admin-urgent-detail-actions .admin-auth-secondary {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
 }
 
 .admin-empty-text {
@@ -3207,7 +3342,6 @@
   .admin-request-card-head,
   .admin-list-card-head,
   .admin-panel-head,
-  .admin-urgent-topline,
   .admin-interpreter-modal-head,
   .admin-interpreter-profile-pane,
   .admin-interpreter-memo-actions,
@@ -3386,6 +3520,61 @@
     max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .admin-urgent-list-head {
+    display: none;
+  }
+
+  .admin-urgent-list {
+    border: 0;
+    background: transparent;
+  }
+
+  .admin-urgent-list-scroll {
+    display: grid;
+    gap: 10px;
+    max-height: 400px;
+  }
+
+  .admin-urgent-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px 12px;
+    min-height: 0;
+    padding: 14px;
+    border: 1px solid #fee2e2;
+    border-radius: 14px;
+    background: #ffffff;
+  }
+
+  .admin-urgent-event {
+    grid-column: 2;
+  }
+
+  .admin-urgent-event strong,
+  .admin-urgent-event small {
+    white-space: normal;
+  }
+
+  .admin-urgent-date {
+    grid-column: 2;
+  }
+
+  .admin-urgent-manage {
+    display: none;
+  }
+
+  .admin-urgent-detail-list div {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .admin-urgent-detail-actions {
+    flex-direction: column;
+  }
+
+  .admin-urgent-detail-actions button {
+    width: 100%;
   }
 }
 
