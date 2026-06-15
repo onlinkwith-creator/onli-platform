@@ -88,7 +88,7 @@
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 15px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .admin-metric-card {
@@ -190,10 +190,14 @@
   grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
   align-items: start;
   gap: 15px;
-  margin-bottom: 20px;
+  height: auto;
+  min-height: 0;
+  margin-bottom: 12px;
 }
 
 .admin-operation-panel {
+  height: auto;
+  min-height: 0;
   padding: 18px 20px;
   border: 1px solid #e5e7eb;
   border-radius: 18px;
@@ -1681,7 +1685,7 @@
 }
 
 .admin-main-tabs {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .admin-main-tabs button {
@@ -1690,7 +1694,7 @@
 }
 
 .admin-sub-tabs {
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   border-radius: 12px;
   box-shadow: none;
 }
@@ -3023,6 +3027,8 @@
 
   .admin-operation-overview {
     grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 10px;
   }
 
   .admin-job-date-range,
@@ -3239,6 +3245,7 @@
   .admin-tabs {
     display: flex;
     width: 100%;
+    margin-bottom: 6px;
     overflow-x: auto;
     box-sizing: border-box;
   }
@@ -3414,6 +3421,7 @@
 
   .admin-tabs {
     margin-right: -10px;
+    margin-bottom: 6px;
     margin-left: -10px;
     border-right: 0;
     border-left: 0;
