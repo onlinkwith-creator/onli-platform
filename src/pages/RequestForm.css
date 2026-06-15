@@ -373,8 +373,8 @@
 
 .request-estimate-breakdown {
   display: grid;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .request-estimate-row,
@@ -388,15 +388,23 @@
 .request-estimate-row span,
 .request-estimate-total span {
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1.4;
   white-space: nowrap;
 }
 
+.request-estimate-detail-label {
+  display: block;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
 .request-estimate-row strong {
   color: #475569;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.4;
   white-space: nowrap;
@@ -404,7 +412,7 @@
 
 .request-estimate-divider {
   height: 1px;
-  margin: 14px 0;
+  margin: 12px 0 10px;
   background: #ddd6fe;
 }
 
@@ -434,7 +442,7 @@
 .request-estimate-note {
   margin: 10px 0 0;
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.55;
   word-break: keep-all;

@@ -589,10 +589,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
               )}
               <EstimatedPriceCard
                 amount={estimatedUsageAmount}
-                level={estimateLevel}
-                dailyRate={estimateDailyRate}
-                days={estimateDays}
-                peopleCount={estimatePeopleCount}
                 isRecommendedLevel={isRecommendedLevel}
               />
             </div>
@@ -703,15 +699,11 @@ function TabField({ label, options, value, onChange, helpText, className }) {
 
 function EstimatedPriceCard({
   amount,
-  level,
-  dailyRate,
-  days,
-  peopleCount,
   isRecommendedLevel,
 }) {
   const hasAmount = amount !== null;
-  const taxAmount = hasAmount ? Math.floor(amount * 0.1) : null;
-  const totalAmount = hasAmount ? amount + taxAmount : null;
+  const platformFee = hasAmount ? Math.round(amount * 0.03) : null;
+  const totalAmount = hasAmount ? amount + platformFee : null;
 
   return (
     <aside className="request-estimate-card" aria-live="polite">
@@ -721,25 +713,28 @@ function EstimatedPriceCard({
 
       {hasAmount ? (
         <>
-          <div className="request-estimate-breakdown">
-            <div className="request-estimate-row">
-              <span>공급가액</span>
-              <strong>{formatWon(amount)}</strong>
-            </div>
-          </div>
-          <div className="request-estimate-divider" aria-hidden="true" />
           <div className="request-estimate-total">
-            <span>세금 포함 금액</span>
+            <span>총 이용 예정 금액</span>
             <strong className="request-estimate-amount">{formatWon(totalAmount)}</strong>
           </div>
-          <span className="request-estimate-receipt-badge">현금영수증 발행 가능</span>
-          <p className="request-estimate-standard">
-            기준: {level} 공급가 {formatWon(dailyRate)} × {days}일 × {peopleCount}명 + 세금 10%
-          </p>
+          <div className="request-estimate-divider" aria-hidden="true" />
+          <span className="request-estimate-detail-label">상세 내역</span>
+          <div className="request-estimate-breakdown">
+            <div className="request-estimate-row">
+              <span>통역 활동 비용</span>
+              <strong>{formatWon(amount)}</strong>
+            </div>
+            <div className="request-estimate-row">
+              <span>ON-LI 플랫폼 이용 수수료</span>
+              <strong>{formatWon(platformFee)}</strong>
+            </div>
+          </div>
         </>
       ) : isRecommendedLevel ? (
         <p className="request-estimate-empty">
-          운영팀 추천 선택 시 최종 금액은 ON-LI 운영팀 확인 후 안내됩니다.
+          ON-LI 운영팀이 행사 조건 확인 후
+          <br />
+          최적의 통역 인력을 추천하고 최종 금액을 안내드립니다.
         </p>
       ) : (
         <p className="request-estimate-empty">
@@ -748,11 +743,11 @@ function EstimatedPriceCard({
       )}
 
       <p className="request-estimate-note">
-        ※ 표시 금액은 세금 포함 예상 결제금액입니다.
+        ※ 표시 금액은 ON-LI 플랫폼 이용 수수료가 포함된 최종 예상 금액입니다.
         <br />
-        ※ ON-LI는 현금영수증 발행이 가능합니다.
+        ※ 현금영수증 발행이 가능합니다.
         <br />
-        ※ 최종 금액은 행사 내용, 업무 범위, 통역사 배정 상황에 따라 변경될 수 있습니다.
+        ※ 최종 금액은 일정, 업무 범위, 매칭 조건에 따라 변경될 수 있습니다.
       </p>
     </aside>
   );
