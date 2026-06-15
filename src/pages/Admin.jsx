@@ -71,6 +71,7 @@ import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/ema
 import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
+  normalizeRequestType,
   isDesignatedRequest,
 } from "../utils/designatedRequest";
 import {
@@ -176,7 +177,7 @@ const EMPTY_REQUEST_EDIT_DRAFT = {
   event_name: "",
   company_name: "",
   request_no: "",
-  request_type: "일반의뢰",
+  request_type: "general",
   start_date: "",
   end_date: "",
   event_location: "",
@@ -1222,6 +1223,9 @@ function Admin({ onBackClick }) {
     const nextInterpreterPrice = getInterpreterPayment({ ...request, ...changes });
     const payload = {
       ...changes,
+      ...(Object.prototype.hasOwnProperty.call(changes, "request_type")
+        ? { request_type: normalizeRequestType(changes.request_type) }
+        : {}),
       company_amount: nextClientPrice,
       interpreter_payment: nextInterpreterPrice,
       platform_profit: nextClientPrice - nextInterpreterPrice,
@@ -1252,6 +1256,7 @@ function Admin({ onBackClick }) {
       delete legacyPayload.assignment_status;
       delete legacyPayload.operation_status;
       delete legacyPayload.settlement_status;
+      delete legacyPayload.request_type;
 
       const fallbackResult = await supabase
         .from("requests")
@@ -1533,7 +1538,7 @@ function Admin({ onBackClick }) {
       event_name: draft.event_name,
       company_name: draft.company_name,
       request_no: draft.request_no,
-      request_type: draft.request_type,
+      request_type: normalizeRequestType(draft.request_type),
       start_date: draft.start_date,
       end_date: draft.end_date,
       event_date: draft.start_date,
@@ -3743,10 +3748,12 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
         <FieldControl label="의뢰 유형">
           <InlineSelect
             options={[
-              { label: "일반의뢰", value: "일반의뢰" },
-              { label: "지정의뢰", value: "지정의뢰" },
+              { label: "일반의뢰", value: "general" },
+              { label: "지정의뢰", value: "designated" },
+              { label: "긴급의뢰", value: "urgent" },
+              { label: "비공개의뢰", value: "private" },
             ]}
-            value={form.request_type || "일반의뢰"}
+            value={normalizeRequestType(form.request_type)}
             onChange={(value) => onChange("request_type", value)}
           />
         </FieldControl>

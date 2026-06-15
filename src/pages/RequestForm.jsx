@@ -22,6 +22,7 @@ import {
   addManagementNumber,
   isManagementNumberConflict,
 } from "../utils/managementNumber";
+import { normalizeRequestType } from "../utils/designatedRequest";
 import "./RequestForm.css";
 
 const initialForm = {
@@ -215,6 +216,11 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     const interpreterPay = calculateInterpreterPay(estimatedPrice);
     const requestDetails = form.requestDetails;
     const contact = form.contactEmailOrPhone;
+    const requestType = interpreter
+      ? "designated"
+      : urgency === "NORMAL"
+        ? "general"
+        : "urgent";
 
     const requestPayload = {
       interpreter_id: interpreter?.id || null,
@@ -240,6 +246,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       interpreter_pay: interpreterPay,
       request_details: requestDetails,
       request_detail: requestDetails,
+      request_type: normalizeRequestType(requestType),
       status: MATCHING_STATUS.DRAFT,
       assignment_status: ASSIGNMENT_STATUS.WAITING,
       operation_status: OPERATION_STATUS.BEFORE_OPERATION,
@@ -257,7 +264,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     };
     const designatedPayload = {
       ...requestPayload,
-      request_type: interpreter ? "지정의뢰" : "일반의뢰",
       selected_interpreter_id: interpreter?.id || null,
       selected_interpreter_name: interpreter?.name || "",
     };
@@ -303,6 +309,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       delete legacyRequestPayload.assignment_status;
       delete legacyRequestPayload.operation_status;
       delete legacyRequestPayload.settlement_status;
+      delete legacyRequestPayload.request_type;
       delete legacyRequestPayload.request_no;
       const fallbackResult = await supabase
         .from("requests")
