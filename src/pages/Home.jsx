@@ -360,7 +360,11 @@ function Home({
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR COMPANIES</p>
             <h2>통역 의뢰가 필요하신가요?</h2>
-            <p>의뢰 내용을 보내주시면 운영팀 검토 후 공고 등록과 매칭을 진행합니다.</p>
+            <p>
+              일본 현장 통역 준비를 더 간편하게.
+              <br />
+              전시회, 상담회, 출장 일정에 맞는 통역 인력을 ON-LI에서 찾아보세요.
+            </p>
           </div>
           <div className="home-cta-actions">
             <button type="button" onClick={onRequestClick}>
