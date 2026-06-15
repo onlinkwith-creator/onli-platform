@@ -76,7 +76,7 @@
 
 .about-hero {
   display: flex;
-  min-height: 500px;
+  min-height: 560px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -88,6 +88,47 @@
   box-shadow: var(--onli-card-shadow);
   backdrop-filter: blur(18px);
   text-align: center;
+}
+
+.about-stat-grid {
+  display: grid;
+  width: min(100%, 820px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.about-stat-card {
+  display: flex;
+  min-height: 104px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 8px 24px rgba(120, 120, 160, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+.about-stat-card strong {
+  color: #4f46e5;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.about-stat-card span {
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  word-break: keep-all;
 }
 
 .about-pill {
@@ -204,6 +245,80 @@
   word-break: keep-all;
 }
 
+.about-challenge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.about-challenge-card {
+  display: flex;
+  min-height: 360px;
+  flex-direction: column;
+  gap: 16px;
+  padding: 26px;
+  border: 1px solid var(--onli-border);
+  border-radius: var(--onli-card-radius);
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--onli-card-shadow);
+  backdrop-filter: blur(18px);
+}
+
+.about-challenge-card h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 19px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.about-problem-text {
+  margin: 0;
+  color: #4b5563;
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+.about-solution-arrow {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(238, 242, 255, 0.95);
+  color: #4f46e5;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.about-solution-box {
+  margin-top: auto;
+  padding: 18px;
+  border: 1px solid rgba(129, 140, 248, 0.18);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.76);
+}
+
+.about-solution-box strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.about-solution-box p {
+  margin: 0;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
 .about-feature-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -260,6 +375,46 @@
   font-size: 14px;
   font-weight: 650;
   line-height: 1.72;
+  word-break: keep-all;
+}
+
+.about-field-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.about-field-card {
+  display: flex;
+  min-height: 112px;
+  align-items: center;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--onli-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--onli-card-shadow);
+  backdrop-filter: blur(18px);
+}
+
+.about-field-card span {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(245, 243, 255, 0.95));
+  font-size: 19px;
+}
+
+.about-field-card strong {
+  min-width: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.4;
   word-break: keep-all;
 }
 
@@ -415,7 +570,48 @@
   word-break: keep-all;
 }
 
+.about-final-cta {
+  display: flex;
+  min-height: 300px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin-top: var(--about-section-gap);
+  padding: 48px 36px;
+  border: 1px solid rgba(129, 140, 248, 0.18);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #ffffff 0%, #f8faff 55%, #f3f0ff 100%);
+  box-shadow: var(--onli-card-shadow-hover);
+  text-align: center;
+}
+
+.about-final-cta .about-section-eyebrow {
+  margin: 0;
+}
+
+.about-final-cta h2 {
+  margin: 0;
+  color: #111827;
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 850;
+  line-height: 1.25;
+  letter-spacing: 0;
+  word-break: keep-all;
+}
+
 @media (max-width: 1024px) {
+  .about-stat-grid,
+  .about-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .about-challenge-grid {
+    grid-template-columns: 1fr;
+  }
+
   .about-feature-grid,
   .about-process-timeline {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -451,6 +647,24 @@
     gap: 18px;
     padding: 46px 18px;
     border-radius: 22px;
+  }
+
+  .about-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .about-stat-card {
+    min-height: 92px;
+    padding: 14px 10px;
+  }
+
+  .about-stat-card strong {
+    font-size: 22px;
+  }
+
+  .about-stat-card span {
+    font-size: 12px;
   }
 
   .about-pill {
@@ -501,6 +715,21 @@
     gap: 12px;
   }
 
+  .about-challenge-card {
+    min-height: 0;
+    gap: 14px;
+    padding: 20px;
+    border-radius: 18px;
+  }
+
+  .about-challenge-card h3 {
+    font-size: 17px;
+  }
+
+  .about-problem-text {
+    font-size: 13.5px;
+  }
+
   .about-feature-card {
     min-height: 0;
     grid-template-columns: auto minmax(0, 1fr);
@@ -525,6 +754,23 @@
     gap: 12px;
     padding: 16px;
     border-radius: 18px;
+  }
+
+  .about-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .about-field-card {
+    min-height: 96px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .about-field-card strong {
+    font-size: 13px;
   }
 
   .about-process-timeline::before {
@@ -564,5 +810,15 @@
 
   .about-trust-list {
     grid-template-columns: 1fr;
+  }
+
+  .about-final-cta {
+    min-height: 260px;
+    padding: 36px 18px;
+    border-radius: 22px;
+  }
+
+  .about-final-cta h2 {
+    font-size: 27px;
   }
 }
