@@ -1,205 +1,156 @@
-const features = [
+import "./About.css";
+
+const serviceFeatures = [
   {
-    title: "한일 비즈니스 통역 특화",
-    text: "전시·상담·미팅 현장 중심 매칭",
+    number: "01",
+    title: "한일 비즈니스 특화",
+    text: "전시회, 상담회, 미팅 등 한일 비즈니스 현장에 필요한 통역 인력을 연결합니다.",
   },
   {
-    title: "운영팀 검토 후 매칭",
-    text: "일정·난이도 기준 통역사 배정",
+    number: "02",
+    title: "조건 기반 매칭 지원",
+    text: "일정, 분야, 경험 정보를 기반으로 기업 조건에 맞는 인력 확인을 지원합니다.",
   },
   {
-    title: "현장 대응 가능",
-    text: "단순 전달을 넘어 부스 응대, 바이어 상담, 제품 설명 등 현장 커뮤니케이션을 지원합니다.",
+    number: "03",
+    title: "다양한 현장 경험",
+    text: "부스 운영, 제품 설명, 상담 지원 등 다양한 경험을 가진 통역 인력을 확인할 수 있습니다.",
   },
   {
-    title: "레벨 기준을 통한 품질 관리",
-    text: "LV1~LV4 기준으로 현장 난이도와 통역사의 경험을 함께 고려해 안정적인 배정을 돕습니다.",
+    number: "04",
+    title: "레벨 정보 제공",
+    text: "LV1~LV4 기준을 통해 가능 업무 범위와 경험 정보를 쉽게 확인할 수 있습니다.",
   },
+];
+
+const processSteps = [
+  {
+    number: "01",
+    title: "기업 의뢰 등록",
+    text: "필요 일정과 조건을 입력합니다.",
+  },
+  {
+    number: "02",
+    title: "통역 인력 확인",
+    text: "조건에 맞는 지원자를 확인합니다.",
+  },
+  {
+    number: "03",
+    title: "매칭 진행",
+    text: "기업과 통역사의 일정 및 조건을 조율합니다.",
+  },
+  {
+    number: "04",
+    title: "현장 진행",
+    text: "매칭된 통역사가 현장에서 활동합니다.",
+  },
+];
+
+const trustItems = [
+  "통역사 프로필 관리",
+  "이력 및 경험 정보 확인",
+  "일정 관리 지원",
+  "정산 프로세스 지원",
 ];
 
 function About({ onBackClick, onRequestClick, onListClick }) {
   return (
-    <div style={styles.page}>
-      <div style={styles.shell}>
+    <div className="about-page">
+      <div className="about-bg-glow" />
+
+      <main className="about-shell">
         <button
           type="button"
           onClick={onBackClick}
-          className="main-return-button"
-          style={styles.backButton}
+          className="main-return-button about-back-button"
         >
           ← 메인으로
         </button>
 
-        <section style={styles.hero}>
-          <p style={styles.kicker}>ABOUT ON-LI</p>
-          <h1 style={styles.title}>ON-LI 소개</h1>
-          <div style={styles.body}>
+        <section className="about-hero">
+          <p className="about-pill">ABOUT ON-LI</p>
+          <h1 className="about-hero-title">
+            한국 기업과 일본 통역 인력을 연결하는
+            <br />
+            <strong>비즈니스 통역 매칭 플랫폼</strong>
+          </h1>
+          <div className="about-hero-copy">
             <p>
-              ON-LI는 한국 기업과 일본 현장을 연결하는 한일 비즈니스 통역
-              매칭 서비스입니다. 전시회, 상담회, 비즈니스 미팅 등 다양한
-              현장에서 필요한 통역 인력을 보다 빠르고 안정적으로 연결합니다.
+              ON-LI는 전시회, 상담회, 비즈니스 미팅 등 다양한 현장에서
+              필요한 통역 인력 연결을 지원합니다.
             </p>
             <p>
-              전시회·상담회·비즈니스 미팅에 최적화된 검증 통역사를 직접 매칭합니다.
+              기업과 통역사가 더 쉽고 안전하게 연결될 수 있도록 정보 제공,
+              일정 조율, 매칭 진행을 지원합니다.
             </p>
           </div>
-          <div style={styles.actions}>
-            <button type="button" onClick={onRequestClick} style={styles.primary}>
+          <div className="about-hero-actions">
+            <button type="button" onClick={onRequestClick} className="about-primary-button">
               통역 의뢰하기
             </button>
-            <button type="button" onClick={onListClick} style={styles.secondary}>
-              통역사 보기
+            <button type="button" onClick={onListClick} className="about-secondary-button">
+              통역 인력 보기
             </button>
           </div>
         </section>
 
-        <section style={styles.featureSection}>
-          <div style={styles.sectionHead}>
-            <p style={styles.kicker}>SERVICE</p>
-            <h2 style={styles.sectionTitle}>서비스 특징</h2>
-          </div>
+        <SectionHeader eyebrow="SERVICE" title="ON-LI가 제공하는 연결 경험" />
+        <section className="about-feature-grid" aria-label="ON-LI 서비스 특징">
+          {serviceFeatures.map((feature) => (
+            <article className="about-feature-card" key={feature.title}>
+              <span className="about-feature-symbol">{feature.number}</span>
+              <div>
+                <h3>{feature.title}</h3>
+                <p>{feature.text}</p>
+              </div>
+            </article>
+          ))}
+        </section>
 
-          <div style={styles.featureGrid}>
-            {features.map((feature, index) => (
-              <article key={feature.title} style={styles.featureCard}>
-                <span style={styles.featureNumber}>{index + 1}</span>
-                <h3 style={styles.featureTitle}>{feature.title}</h3>
-                <p style={styles.featureText}>{feature.text}</p>
+        <section className="about-process-section">
+          <SectionHeader eyebrow="PROCESS" title="간편한 매칭 과정" />
+          <div className="about-process-timeline">
+            {processSteps.map((step) => (
+              <article className="about-process-step" key={step.title}>
+                <span className="about-step-number">{step.number}</span>
+                <div className="about-step-copy">
+                  <strong>{step.title}</strong>
+                  <small>{step.text}</small>
+                </div>
               </article>
             ))}
           </div>
         </section>
-      </div>
+
+        <section className="about-trust-section">
+          <div className="about-trust-copy">
+            <SectionHeader eyebrow="TRUST" title="더 안정적인 연결을 위해" />
+            <p>
+              ON-LI는 기업과 통역 인력이 필요한 정보를 확인하고 일정과 정산
+              흐름을 더 편하게 이어갈 수 있도록 운영 지원을 제공합니다.
+            </p>
+          </div>
+          <div className="about-trust-list" aria-label="신뢰 지원 항목">
+            {trustItems.map((item, index) => (
+              <div className="about-trust-item" key={item}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{item}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
 
-const styles = {
-  page: {
-    minHeight: "100vh",
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "48px 24px",
-    background:
-      "radial-gradient(circle at 80% 18%, rgba(99, 102, 241, 0.1), transparent 30%), linear-gradient(135deg, #f8fafc, #eef2ff)",
-    color: "#111827",
-  },
-  shell: {
-    maxWidth: "1240px",
-    margin: "0 auto",
-  },
-  backButton: {
-    marginBottom: "30px",
-    padding: "12px 18px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#111827",
-    cursor: "pointer",
-    fontWeight: "700",
-  },
-  hero: {
-    background: "rgba(255, 255, 255, 0.94)",
-    border: "1px solid rgba(255, 255, 255, 0.85)",
-    borderRadius: "18px",
-    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
-    padding: "34px",
-  },
-  kicker: {
-    margin: "0 0 8px",
-    fontSize: "12px",
-    letterSpacing: "4px",
-    color: "#4f46e5",
-    fontWeight: "900",
-  },
-  title: {
-    margin: 0,
-    color: "#111827",
-    fontSize: "48px",
-    fontWeight: "800",
-    marginBottom: "28px",
-  },
-  body: {
-    maxWidth: "720px",
-    margin: "0 auto",
-    textAlign: "center",
-    lineHeight: 1.9,
-    fontSize: "16px",
-    color: "#4b5563",
-    wordBreak: "keep-all",
-  },
-  actions: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "12px",
-    marginTop: "28px",
-  },
-  primary: {
-    padding: "14px 18px",
-    borderRadius: "14px",
-    border: "none",
-    background: "#4f46e5",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontWeight: "900",
-  },
-  secondary: {
-    padding: "14px 18px",
-    borderRadius: "14px",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#374151",
-    cursor: "pointer",
-    fontWeight: "900",
-  },
-  featureSection: {
-    marginTop: "30px",
-  },
-  sectionHead: {
-    marginBottom: "18px",
-  },
-  sectionTitle: {
-    margin: 0,
-    color: "#111827",
-    fontSize: "30px",
-    fontWeight: "900",
-  },
-  featureGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-    gap: "18px",
-  },
-  featureCard: {
-    background: "rgba(255, 255, 255, 0.94)",
-    border: "1px solid rgba(255, 255, 255, 0.85)",
-    borderRadius: "18px",
-    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
-    padding: "24px",
-  },
-  featureNumber: {
-    display: "inline-flex",
-    width: "30px",
-    height: "30px",
-    borderRadius: "999px",
-    background: "#eef2ff",
-    color: "#4f46e5",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "13px",
-    fontWeight: "900",
-  },
-  featureTitle: {
-    margin: "16px 0 8px",
-    color: "#111827",
-    fontSize: "18px",
-    fontWeight: "900",
-  },
-  featureText: {
-    margin: 0,
-    color: "#4b5563",
-    fontSize: "14px",
-    lineHeight: 1.7,
-  },
-};
+function SectionHeader({ eyebrow, title }) {
+  return (
+    <div className="about-section-head">
+      <p className="about-section-eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+    </div>
+  );
+}
 
 export default About;

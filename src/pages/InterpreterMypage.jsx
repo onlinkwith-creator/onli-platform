@@ -39,6 +39,25 @@ const TABS = [
   { id: "takeHome", label: "예상 실수령액 계산", icon: "🧮" },
 ];
 
+const SETTLEMENT_DOCUMENT_BUCKET = "interpreter-documents";
+const SETTLEMENT_DOCUMENT_MAX_SIZE = 10 * 1024 * 1024;
+const SETTLEMENT_DOCUMENT_TYPES = {
+  bankbook: {
+    label: "통장 사본",
+    description: "정산 받을 계좌 확인을 위해 등록해주세요.",
+    folder: "bankbook",
+    urlField: "bankbook_file_url",
+    nameField: "bankbook_file_name",
+  },
+  businessLicense: {
+    label: "사업자등록증",
+    description: "사업자 정산 대상인 경우 등록해주세요.",
+    folder: "business-license",
+    urlField: "business_license_file_url",
+    nameField: "business_license_file_name",
+  },
+};
+
 function InterpreterMypage({
   authLoading,
   user,
@@ -115,6 +134,9 @@ function InterpreterMypage({
   const [isDragOver, setIsDragOver] = useState(false);
   const [resumeActionMode, setResumeActionMode] = useState("");
   const resumeActionInputRef = useRef(null);
+  const [uploadingSettlementDocType, setUploadingSettlementDocType] = useState("");
+  const [settlementDocActionType, setSettlementDocActionType] = useState("");
+  const settlementDocInputRef = useRef(null);
 
   const fetchInterpreterProfile = async () => {
     if (authLoading) return;
@@ -545,6 +567,179 @@ function InterpreterMypage({
     setResumeFile(null);
     await removeResumeFileFromStorage(previousFileUrl);
     setIsSubmittingResume(false);
+  };
+
+  const validateSettlementDocumentFile = (file) => {
+    if (!file) return false;
+
+    const fileExtension = String(file.name.split(".").pop() || "").toLowerCase();
+    const allowedExtensions = ["pdf", "jpg", "jpeg", "png"];
+    if (!allowedExtensions.includes(fileExtension)) {
+      alert("PDF, JPG, PNG 파일만 업로드할 수 있습니다.");
+      return false;
+    }
+
+    if (file.size > SETTLEMENT_DOCUMENT_MAX_SIZE) {
+      alert("파일 용량은 10MB 이하만 업로드할 수 있습니다.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const uploadSettlementDocumentFile = async (file, docConfig) => {
+    if (!file || !supabase || !interpreter || !docConfig) return null;
+
+    const safeFileName = file.name
+      .replace(/\s+/g, "_")
+      .replace(/[^\w.-]/g, "");
+    const filePath = `${interpreter.id}/${docConfig.folder}/${Date.now()}_${safeFileName}`;
+
+    try {
+      const { error } = await supabase.storage
+        .from(SETTLEMENT_DOCUMENT_BUCKET)
+        .upload(filePath, file, { upsert: true });
+
+      if (error) throw error;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage
+        .from(SETTLEMENT_DOCUMENT_BUCKET)
+        .getPublicUrl(filePath);
+
+      return {
+        fileName: file.name,
+        filePath,
+        fileUrl: publicUrl,
+      };
+    } catch (error) {
+      console.error("Settlement document upload failed", error);
+      alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
+      return null;
+    }
+  };
+
+  const removeSettlementDocumentFromStorage = async (fileUrl) => {
+    const filePath = getStoragePathFromUrl(fileUrl, SETTLEMENT_DOCUMENT_BUCKET);
+    if (!supabase || !filePath) return;
+
+    const { error } = await supabase.storage
+      .from(SETTLEMENT_DOCUMENT_BUCKET)
+      .remove([filePath]);
+
+    if (error) {
+      console.warn("Settlement document storage delete skipped", error);
+    }
+  };
+
+  const openSettlementDocument = async (fileUrl) => {
+    if (!supabase || !fileUrl) return;
+
+    try {
+      const resolvedPath = getStoragePathFromUrl(fileUrl, SETTLEMENT_DOCUMENT_BUCKET);
+      if (!resolvedPath) throw new Error("Settlement document storage path is empty");
+
+      const { data, error } = await supabase.storage
+        .from(SETTLEMENT_DOCUMENT_BUCKET)
+        .createSignedUrl(resolvedPath, 60);
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank");
+    } catch (error) {
+      console.error("Failed to generate settlement document signed URL", error);
+      alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
+    }
+  };
+
+  const openSettlementDocumentPicker = (docType) => {
+    if (uploadingSettlementDocType) return;
+    setSettlementDocActionType(docType);
+    if (settlementDocInputRef.current) {
+      settlementDocInputRef.current.value = "";
+      settlementDocInputRef.current.click();
+    }
+  };
+
+  const handleSettlementDocumentFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const docType = settlementDocActionType;
+    const docConfig = SETTLEMENT_DOCUMENT_TYPES[docType];
+    if (!docConfig || !validateSettlementDocumentFile(file)) {
+      setSettlementDocActionType("");
+      return;
+    }
+
+    setUploadingSettlementDocType(docType);
+
+    const previousFileUrl = interpreter?.[docConfig.urlField] || "";
+    const uploadResult = await uploadSettlementDocumentFile(file, docConfig);
+    if (!uploadResult) {
+      setUploadingSettlementDocType("");
+      setSettlementDocActionType("");
+      return;
+    }
+
+    const payload = {
+      [docConfig.urlField]: uploadResult.fileUrl,
+      [docConfig.nameField]: uploadResult.fileName,
+    };
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Failed to save settlement document metadata", error);
+      await removeSettlementDocumentFromStorage(uploadResult.fileUrl);
+      alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
+    } else {
+      setInterpreter(data || { ...interpreter, ...payload });
+      if (previousFileUrl && previousFileUrl !== uploadResult.fileUrl) {
+        await removeSettlementDocumentFromStorage(previousFileUrl);
+      }
+      alert("정산 서류가 등록되었습니다.");
+    }
+
+    setUploadingSettlementDocType("");
+    setSettlementDocActionType("");
+  };
+
+  const handleDeleteSettlementDocument = async (docType) => {
+    const docConfig = SETTLEMENT_DOCUMENT_TYPES[docType];
+    if (!docConfig || uploadingSettlementDocType || !supabase || !interpreter) return;
+    if (!window.confirm(`${docConfig.label} 파일을 삭제하시겠습니까?`)) return;
+
+    setUploadingSettlementDocType(docType);
+    const previousFileUrl = interpreter?.[docConfig.urlField] || "";
+    const payload = {
+      [docConfig.urlField]: null,
+      [docConfig.nameField]: null,
+    };
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Failed to delete settlement document metadata", error);
+      alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
+      setUploadingSettlementDocType("");
+      return;
+    }
+
+    setInterpreter(data || { ...interpreter, ...payload });
+    await removeSettlementDocumentFromStorage(previousFileUrl);
+    setUploadingSettlementDocType("");
   };
 
   const fetchApplicationsData = async (interpreterId) => {
@@ -1615,6 +1810,35 @@ function InterpreterMypage({
                       </form>
                     )}
                   </article>
+
+                  <article className="mypage-verification-card settlement-documents-card animate-fade-in">
+                    <h3>정산 서류 등록</h3>
+                    <p className="verification-status-desc resume-required-note">
+                      정산 진행을 위해 필요한 서류를 등록해주세요. 등록된 서류는 ON-LI 운영팀의 정산 확인 용도로만 사용됩니다.
+                    </p>
+                    <input
+                      ref={settlementDocInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
+                      onChange={handleSettlementDocumentFileChange}
+                      style={{ display: "none" }}
+                    />
+                    <div className="settlement-document-grid">
+                      {Object.entries(SETTLEMENT_DOCUMENT_TYPES).map(([docType, docConfig]) => (
+                        <SettlementDocumentCard
+                          key={docType}
+                          label={docConfig.label}
+                          description={docConfig.description}
+                          fileName={interpreter?.[docConfig.nameField]}
+                          fileUrl={interpreter?.[docConfig.urlField]}
+                          isBusy={uploadingSettlementDocType === docType}
+                          onUpload={() => openSettlementDocumentPicker(docType)}
+                          onView={() => openSettlementDocument(interpreter?.[docConfig.urlField])}
+                          onDelete={() => handleDeleteSettlementDocument(docType)}
+                        />
+                      ))}
+                    </div>
+                  </article>
                 </>
               )}
 
@@ -2372,6 +2596,56 @@ function ResumeFileActions({
   );
 }
 
+function SettlementDocumentCard({
+  label,
+  description,
+  fileName,
+  fileUrl,
+  isBusy,
+  onUpload,
+  onView,
+  onDelete,
+}) {
+  const hasFile = Boolean(fileName || fileUrl);
+
+  return (
+    <section className="settlement-document-box">
+      <div>
+        <h4>{label}</h4>
+        <p>{description}</p>
+        <span>업로드 가능 형식: PDF, JPG, PNG</span>
+      </div>
+
+      {hasFile ? (
+        <div className="settlement-document-file">
+          <span className="file-icon">📎</span>
+          <strong>{fileName || label}</strong>
+          <div className="settlement-document-actions">
+            <button type="button" onClick={onView} disabled={!fileUrl || isBusy}>
+              보기
+            </button>
+            <button type="button" onClick={onUpload} disabled={isBusy}>
+              {isBusy ? "업로드 중..." : "수정"}
+            </button>
+            <button type="button" className="danger" onClick={onDelete} disabled={isBusy}>
+              삭제
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="settlement-document-upload-button"
+          onClick={onUpload}
+          disabled={isBusy}
+        >
+          {isBusy ? "업로드 중..." : "파일 업로드"}
+        </button>
+      )}
+    </section>
+  );
+}
+
 function formatDate(dateString) {
   if (!dateString) return "-";
   const date = new Date(dateString);
@@ -2401,9 +2675,13 @@ function normalizeEmail(value) {
 }
 
 function getResumeStoragePath(filePath) {
+  return getStoragePathFromUrl(filePath, "resume-files");
+}
+
+function getStoragePathFromUrl(filePath, bucketName) {
   if (!filePath) return "";
   if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-    const parts = filePath.split("/resume-files/");
+    const parts = filePath.split(`/${bucketName}/`);
     if (parts.length > 1) {
       return decodeURIComponent(parts[1].split("?")[0]);
     }

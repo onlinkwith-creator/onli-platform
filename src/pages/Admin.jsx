@@ -112,6 +112,7 @@ const SUB_TAB_TO_MAIN_TAB = Object.fromEntries(
 );
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
+const INTERPRETER_DOCUMENT_BUCKET = "interpreter-documents";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -4908,6 +4909,24 @@ function InterpreterModal({
     }
   };
 
+  const handleOpenInterpreterDocument = async (filePath) => {
+    if (!supabase || !filePath) return;
+    try {
+      const resolvedPath = getStoragePathFromUrl(filePath, INTERPRETER_DOCUMENT_BUCKET);
+      if (!resolvedPath) throw new Error("Interpreter document storage path is empty");
+
+      const { data, error } = await supabase.storage
+        .from(INTERPRETER_DOCUMENT_BUCKET)
+        .createSignedUrl(resolvedPath, 60);
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank");
+    } catch (err) {
+      console.error("Failed to generate interpreter document signed URL", err);
+      alert("정산 서류 파일을 열 수 없습니다. 권한이 없거나 링크가 만료되었습니다.");
+    }
+  };
+
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const levelLabel = normalizeLevel(interpreter.level);
   const approvalStatus = approvalLabel;
@@ -5050,6 +5069,34 @@ function InterpreterModal({
                     value={formatDateTime(interpreter.resume_submitted_at)}
                   />
                 )}
+                <InterpreterDetailItem
+                  label="통장 사본"
+                  value={
+                    interpreter.bankbook_file_url ? (
+                      <InterpreterDocumentLink
+                        fileName={interpreter.bankbook_file_name}
+                        fallbackLabel="통장 사본"
+                        onClick={() => handleOpenInterpreterDocument(interpreter.bankbook_file_url)}
+                      />
+                    ) : (
+                      "미등록"
+                    )
+                  }
+                />
+                <InterpreterDetailItem
+                  label="사업자등록증"
+                  value={
+                    interpreter.business_license_file_url ? (
+                      <InterpreterDocumentLink
+                        fileName={interpreter.business_license_file_name}
+                        fallbackLabel="사업자등록증"
+                        onClick={() => handleOpenInterpreterDocument(interpreter.business_license_file_url)}
+                      />
+                    ) : (
+                      "미등록"
+                    )
+                  }
+                />
                 <InterpreterDetailItem label="검증된 통역사 뱃지" value={interpreter.approved ? "검증 완료" : "미검증"} />
                 <InterpreterDetailItem label="공개 활동 상태" value={activityLabel} />
               </InterpreterDetailSection>
@@ -5525,6 +5572,23 @@ function InterpreterDetailItem({ label, value }) {
     <div className="admin-interpreter-detail-item">
       <dt>{label}</dt>
       <dd>{value || "미입력"}</dd>
+    </div>
+  );
+}
+
+function InterpreterDocumentLink({ fallbackLabel, fileName, onClick }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+      <span style={{ fontSize: "13px", color: "#4b5563", fontWeight: "700", wordBreak: "break-all" }}>
+        📎 {fileName || fallbackLabel}
+      </span>
+      <button
+        type="button"
+        onClick={onClick}
+        style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#5b5cf0", color: "#ffffff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
+      >
+        보기
+      </button>
     </div>
   );
 }
@@ -7606,6 +7670,18 @@ function groupByStringKey(items, key) {
     map.set(itemKey, [...list, item]);
     return map;
   }, new Map());
+}
+
+function getStoragePathFromUrl(filePath, bucketName) {
+  if (!filePath) return "";
+  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+    const parts = filePath.split(`/${bucketName}/`);
+    if (parts.length > 1) {
+      return decodeURIComponent(parts[1].split("?")[0]);
+    }
+    return "";
+  }
+  return filePath;
 }
 
 function getStatusLabel(status) {
