@@ -1514,6 +1514,7 @@
 .admin-tabs {
   display: flex;
   width: fit-content;
+  max-width: 100%;
   gap: 6px;
   padding: 6px;
   margin-bottom: 8px;
@@ -1521,6 +1522,8 @@
   border-radius: 14px;
   background: #ffffff;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-tabs button {
@@ -1540,6 +1543,47 @@
   background: #4f46e5;
   color: #ffffff;
   box-shadow: 0 10px 26px rgba(79, 70, 229, 0.24);
+}
+
+.admin-main-tabs {
+  margin-bottom: 6px;
+}
+
+.admin-main-tabs button {
+  padding: 12px 18px;
+  font-size: 14px;
+}
+
+.admin-sub-tabs {
+  margin-bottom: 18px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.admin-sub-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  font-size: 12px;
+}
+
+.admin-sub-tabs button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.admin-sub-tabs button.is-active span {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .admin-tabs button:focus-visible,

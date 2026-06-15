@@ -83,16 +83,33 @@ import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
 
-const TABS = [
-  { id: "newRequests", label: "신규 의뢰 관리" },
-  { id: "newApplications", label: "신규 지원 관리" },
-  { id: "requests", label: "의뢰 관리" },
-  { id: "completedRequests", label: "완료 의뢰" },
-  { id: "jobs", label: "통역 공고 관리" },
-  { id: "interpreters", label: "통역사 관리" },
-  { id: "applications", label: "지원자 관리" },
-  { id: "matching", label: "정산 관리" },
+const MAIN_TABS = [
+  { id: "new", label: "신규", defaultSubTab: "new_requests" },
+  { id: "requests", label: "의뢰 관리", defaultSubTab: "requests" },
+  { id: "interpreters", label: "통역사 관리", defaultSubTab: "interpreters" },
+  { id: "settlement", label: "정산 관리", defaultSubTab: "settlement" },
 ];
+const SUB_TABS = {
+  new: [
+    { id: "new_requests", label: "신규 의뢰" },
+    { id: "new_applications", label: "신규 지원" },
+  ],
+  requests: [
+    { id: "requests", label: "의뢰 관리" },
+    { id: "completed_requests", label: "완료 의뢰" },
+    { id: "jobs", label: "통역 공고 관리" },
+  ],
+  interpreters: [
+    { id: "interpreters", label: "통역사 관리" },
+    { id: "interpreter_applications", label: "통역 지원 관리" },
+  ],
+  settlement: [{ id: "settlement", label: "정산 관리" }],
+};
+const SUB_TAB_TO_MAIN_TAB = Object.fromEntries(
+  Object.entries(SUB_TABS).flatMap(([mainTabId, subTabs]) =>
+    subTabs.map((subTab) => [subTab.id, mainTabId])
+  )
+);
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const INTERPRETER_UPDATE_COLUMNS = new Set([
@@ -267,7 +284,8 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
 
 function Admin({ onBackClick }) {
   const { user, signOut, adminProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState("requests");
+  const [activeMainTab, setActiveMainTab] = useState("new");
+  const [activeSubTab, setActiveSubTab] = useState("new_requests");
   const [requests, setRequests] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
@@ -719,6 +737,32 @@ function Admin({ onBackClick }) {
     [matchings]
   );
 
+  const currentSubTabs = SUB_TABS[activeMainTab] || [];
+
+  const switchMainTab = (mainTabId) => {
+    const mainTab = MAIN_TABS.find((tab) => tab.id === mainTabId);
+    if (!mainTab) return;
+    setActiveMainTab(mainTab.id);
+    setActiveSubTab(mainTab.defaultSubTab);
+  };
+
+  const switchSubTab = (subTabId) => {
+    setActiveMainTab(SUB_TAB_TO_MAIN_TAB[subTabId] || "new");
+    setActiveSubTab(subTabId);
+  };
+
+  const getSubTabCount = (subTabId) => {
+    if (subTabId === "new_requests") return newRequests.length;
+    if (subTabId === "new_applications") {
+      return pendingInterpreters.length + newJobApplications.length;
+    }
+    if (subTabId === "requests") return activeRequests.length;
+    if (subTabId === "completed_requests") return completedRequests.length;
+    if (subTabId === "interpreter_applications") return jobApplications.length;
+    if (subTabId === "settlement") return settlementPendingRequests.length;
+    return null;
+  };
+
   const metricCards = [
     {
       label: "전체 의뢰",
@@ -758,7 +802,7 @@ function Admin({ onBackClick }) {
       description: "검토가 필요한 지원",
       tone: "orange",
       icon: Eye,
-      targetTab: "applications",
+      targetTab: "interpreter_applications",
     },
     {
       label: "정산 대기",
@@ -766,12 +810,12 @@ function Admin({ onBackClick }) {
       description: "정산 처리 필요",
       tone: "indigo",
       icon: CheckCircle2,
-      targetTab: "matching",
+      targetTab: "settlement",
     },
   ];
 
   const switchToJobsTab = () => {
-    setActiveTab("jobs");
+    switchSubTab("jobs");
   };
 
   const handleMetricCardClick = (card) => {
@@ -783,7 +827,7 @@ function Admin({ onBackClick }) {
         status: "all",
         public: "all",
       }));
-      setActiveTab("requests");
+      switchSubTab("requests");
     } else if (card.label === "전체 통역사") {
       setInterpreterFilters({
         search: "",
@@ -794,26 +838,26 @@ function Admin({ onBackClick }) {
         resumeReview: "all",
         duplicate: "all",
       });
-      setActiveTab("interpreters");
+      switchSubTab("interpreters");
     } else if (card.label === "신규 통역사 지원") {
-      setActiveTab("newApplications");
+      switchSubTab("new_applications");
     } else if (card.label === "신규 의뢰") {
-      setActiveTab("newRequests");
+      switchSubTab("new_requests");
     } else if (card.label === "미확인 지원") {
       setApplicationFilters({
         status: "unchecked",
         duplicate: "all",
       });
-      setActiveTab("newApplications");
+      switchSubTab("new_applications");
     } else if (card.label === "정산 대기") {
       setMatchingFilters((prev) => ({
         ...prev,
         month: "",
         status: "settlement_pending",
       }));
-      setActiveTab("matching");
+      switchSubTab("settlement");
     } else {
-      setActiveTab(card.targetTab);
+      switchSubTab(card.targetTab);
     }
   };
 
@@ -2682,25 +2726,42 @@ function Admin({ onBackClick }) {
               todayItems={operationDashboard.todayItems}
               urgentItems={operationDashboard.urgentItems}
               onOpenRequest={(request) => {
-                setActiveTab("requests");
+                switchSubTab("requests");
                 openRequestModal("detail", request);
               }}
             />
 
-            <nav className="admin-tabs" aria-label="관리자 메뉴">
-              {TABS.map((tab) => (
+            <nav className="admin-tabs admin-main-tabs" aria-label="관리자 상위 메뉴">
+              {MAIN_TABS.map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
-                  className={activeTab === tab.id ? "is-active" : ""}
-                  onClick={() => setActiveTab(tab.id)}
+                  className={activeMainTab === tab.id ? "is-active" : ""}
+                  onClick={() => switchMainTab(tab.id)}
                 >
                   {tab.label}
                 </button>
               ))}
             </nav>
+            <nav className="admin-tabs admin-sub-tabs" aria-label="관리자 하위 메뉴">
+              {currentSubTabs.map((tab) => {
+                const count = getSubTabCount(tab.id);
 
-            {activeTab === "requests" && (
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={activeSubTab === tab.id ? "is-active" : ""}
+                    onClick={() => switchSubTab(tab.id)}
+                  >
+                    {tab.label}
+                    {count !== null && <span>{count}</span>}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {activeSubTab === "requests" && (
               <RequestManagement
                 applicationsRequestId={applicationsRequestId}
                 assignmentDrafts={assignmentDrafts}
@@ -2733,7 +2794,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeTab === "newRequests" && (
+            {activeSubTab === "new_requests" && (
               <NewRequestManagement
                 requests={newRequests}
                 savingKey={savingKey}
@@ -2747,12 +2808,12 @@ function Admin({ onBackClick }) {
                     status: "all",
                     public: "all",
                   }));
-                  setActiveTab("requests");
+                  switchSubTab("requests");
                 }}
               />
             )}
 
-            {activeTab === "newApplications" && (
+            {activeSubTab === "new_applications" && (
               <NewApplicationManagement
                 applications={newJobApplications}
                 duplicateResult={duplicateApplicationResult}
@@ -2767,7 +2828,7 @@ function Admin({ onBackClick }) {
                     status: "all",
                     duplicate: "all",
                   });
-                  setActiveTab("applications");
+                  switchSubTab("interpreter_applications");
                 }}
                 onOpenInterpreterModal={openInterpreterModal}
                 onOpenResumeReview={() => {
@@ -2780,14 +2841,14 @@ function Admin({ onBackClick }) {
                     resumeReview: "resume_review_pending",
                     duplicate: "all",
                   });
-                  setActiveTab("interpreters");
+                  switchSubTab("interpreters");
                 }}
                 updateInterpreter={updateInterpreter}
                 deleteInterpreter={deleteInterpreter}
               />
             )}
 
-            {activeTab === "completedRequests" && (
+            {activeSubTab === "completed_requests" && (
               <RequestManagement
                 applicationsRequestId={applicationsRequestId}
                 assignmentDrafts={assignmentDrafts}
@@ -2821,7 +2882,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeTab === "interpreters" && (
+            {activeSubTab === "interpreters" && (
               <InterpreterManagement
                 filters={interpreterFilters}
                 interpreters={filteredInterpreters}
@@ -2839,7 +2900,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeTab === "jobs" && (
+            {activeSubTab === "jobs" && (
               <AdminJobs
                 embedded
                 jobs={jobs}
@@ -2854,7 +2915,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeTab === "applications" && (
+            {activeSubTab === "interpreter_applications" && (
               <ApplicationManagement
                 applications={jobApplications}
                 duplicateResult={duplicateApplicationResult}
@@ -2868,7 +2929,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeTab === "matching" && (
+            {activeSubTab === "settlement" && (
               <SettlementManagement
                 filters={matchingFilters}
                 requests={requests}
