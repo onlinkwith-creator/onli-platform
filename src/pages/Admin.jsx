@@ -1344,7 +1344,14 @@ function Admin({ onBackClick }) {
       .single();
 
     if (error && isMissingColumnError(error)) {
-      ({ data, error } = await updateRequestWithFallback(request.id, fallbackPayload));
+      const fallbackResult = await supabase
+        .from("requests")
+        .update(fallbackPayload)
+        .eq("id", request.id)
+        .select("*")
+        .single();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
     }
 
     setSavingKey("");
@@ -1358,10 +1365,11 @@ function Admin({ onBackClick }) {
     setRequests((current) =>
       current.map((item) =>
         item.id === request.id
-          ? { ...item, ...(data || checkedPayload) }
+          ? { ...item, ...checkedPayload, ...(data || {}) }
           : item
       )
     );
+    alert("확인 처리되었습니다. 의뢰 관리에서 확인할 수 있습니다.");
     await fetchAdminData();
     return true;
   };
@@ -7761,8 +7769,16 @@ function isNewRequest(request = {}) {
   const hasAdminChecked = Object.prototype.hasOwnProperty.call(request, "admin_checked");
   const hasCheckedAt = Object.prototype.hasOwnProperty.call(request, "checked_at");
 
-  if (hasAdminChecked || hasCheckedAt) {
-    return request.admin_checked === false || (hasCheckedAt && !request.checked_at);
+  if (hasAdminChecked && request.admin_checked === true) {
+    return false;
+  }
+
+  if (hasCheckedAt && request.checked_at) {
+    return false;
+  }
+
+  if (hasAdminChecked && request.admin_checked === false) {
+    return true;
   }
 
   const statusValues = [

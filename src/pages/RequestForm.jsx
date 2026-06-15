@@ -247,6 +247,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       request_details: requestDetails,
       request_detail: requestDetails,
       request_type: normalizeRequestType(requestType),
+      admin_checked: false,
+      checked_at: null,
       status: MATCHING_STATUS.DRAFT,
       assignment_status: ASSIGNMENT_STATUS.WAITING,
       operation_status: OPERATION_STATUS.BEFORE_OPERATION,
@@ -310,6 +312,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       delete legacyRequestPayload.operation_status;
       delete legacyRequestPayload.settlement_status;
       delete legacyRequestPayload.request_type;
+      delete legacyRequestPayload.admin_checked;
+      delete legacyRequestPayload.checked_at;
       delete legacyRequestPayload.request_no;
       const fallbackResult = await supabase
         .from("requests")
