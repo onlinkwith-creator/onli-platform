@@ -185,17 +185,12 @@ function InterpreterList({ onBackClick, onDetailClick }) {
     <div className="interpreter-list-page">
       <div className="home-bg-glow" />
       <div className="interpreter-list-shell">
-        <button onClick={onBackClick} className="main-return-button">
-          ← 메인으로
-        </button>
-
-        <button onClick={onBackClick} className="mobile-back-link">
-          ← 메인으로
-        </button>
-
         {/* Premium Recruiter Hero Section */}
         <div className="interpreter-list-hero-content interpreter-hero">
           <div className="interpreter-list-hero-text">
+            <button onClick={onBackClick} className="main-return-button">
+              ← 메인으로
+            </button>
             <span className="interpreter-list-hero-label">검증된 전문가와 함께하세요</span>
             <h1 className="interpreter-list-hero-title">등록 통역사</h1>
             <p className="interpreter-list-hero-subtitle">
