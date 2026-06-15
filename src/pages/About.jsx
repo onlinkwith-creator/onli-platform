@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../supabase";
 import "./About.css";
 
 const serviceFeatures = [
@@ -21,13 +23,6 @@ const serviceFeatures = [
     title: "레벨 정보 제공",
     text: "LV1~LV4 기준으로 가능 업무 범위 확인을 돕습니다.",
   },
-];
-
-const heroStats = [
-  { label: "누적 매칭", value: "00+" },
-  { label: "등록 통역 인력", value: "00+" },
-  { label: "대응 가능 분야", value: "8개+" },
-  { label: "지원 지역", value: "일본 주요 지역" },
 ];
 
 const challengeCards = [
@@ -93,6 +88,68 @@ const trustItems = [
 ];
 
 function About({ onBackClick, onRequestClick, onListClick }) {
+  const [stats, setStats] = useState({
+    matchedRequests: 0,
+    activeInterpreters: 0,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchStats = async () => {
+      try {
+        const [matchedResult, interpreterResult] = await Promise.all([
+          supabase
+            .from("requests")
+            .select("id", { count: "exact", head: true })
+            .or("matching_status.eq.matched,assigned_interpreter_id.not.is.null"),
+          supabase
+            .from("interpreters")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "active"),
+        ]);
+
+        if (matchedResult.error) {
+          console.error("About matched request count error:", matchedResult.error);
+        }
+        if (interpreterResult.error) {
+          console.error("About active interpreter count error:", interpreterResult.error);
+        }
+
+        if (!isMounted) return;
+
+        setStats({
+          matchedRequests: matchedResult.error ? 0 : matchedResult.count || 0,
+          activeInterpreters: interpreterResult.error ? 0 : interpreterResult.count || 0,
+        });
+      } catch (error) {
+        console.error("About stats fetch error:", error);
+        if (isMounted) {
+          setStats({
+            matchedRequests: 0,
+            activeInterpreters: 0,
+          });
+        }
+      }
+    };
+
+    fetchStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const heroStats = useMemo(
+    () => [
+      { label: "누적 매칭", value: `${stats.matchedRequests}+` },
+      { label: "등록 통역 인력", value: `${stats.activeInterpreters}+` },
+      { label: "대응 가능 분야", value: "8개+" },
+      { label: "지원 지역", value: "일본 전역" },
+    ],
+    [stats.activeInterpreters, stats.matchedRequests]
+  );
+
   return (
     <div className="about-page">
       <div className="about-bg-glow" />
