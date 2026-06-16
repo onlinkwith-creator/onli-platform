@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_iEUcuBD7P0uj898EBwc0eEuQ' }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_WJEelnBUTTsH7fip0nKAKrE4h9K6' }}
 
     steps:
       - name: Checkout repository
@@ -34,20 +34,6 @@ jobs:
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
-
-      - name: Resolve Vercel project settings
-        if: env.VERCEL_TOKEN != ''
-        run: |
-          ORG_ID="${VERCEL_ORG_ID}"
-          PROJECT_ID="${VERCEL_PROJECT_ID}"
-
-          if [ -f ".vercel/project.json" ]; then
-            ORG_ID="${ORG_ID:-$(node -e "const p=require('./.vercel/project.json'); console.log(p.orgId || '')")}"
-            PROJECT_ID="${PROJECT_ID:-$(node -e "const p=require('./.vercel/project.json'); console.log(p.projectId || '')")}"
-          fi
-
-          echo "VERCEL_ORG_ID=${ORG_ID}" >> "$GITHUB_ENV"
-          echo "VERCEL_PROJECT_ID=${PROJECT_ID}" >> "$GITHUB_ENV"
 
       - name: Skip when Vercel secrets are missing
         if: env.VERCEL_TOKEN == '' || env.VERCEL_ORG_ID == '' || env.VERCEL_PROJECT_ID == ''
