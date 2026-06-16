@@ -1058,7 +1058,6 @@ function InterpreterMypage({
     const withdrawnAt = new Date().toISOString();
     const payload = {
       status: WITHDRAWN_STATUS,
-      is_public: false,
       withdrawn_at: withdrawnAt,
     };
 

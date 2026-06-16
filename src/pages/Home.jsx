@@ -82,8 +82,7 @@ function Home({
       const { data, error } = await supabase
         .from("interpreters")
         .select("*")
-        .neq("status", "withdrawn")
-        .eq("is_public", true);
+        .neq("status", "withdrawn");
 
       if (error) {
         console.error("Interpreters fetch error:", {

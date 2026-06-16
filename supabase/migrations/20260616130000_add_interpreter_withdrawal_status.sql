@@ -4,10 +4,6 @@ add column if not exists withdrawn_at timestamptz;
 create index if not exists interpreters_withdrawn_at_idx
 on public.interpreters(withdrawn_at);
 
-create index if not exists interpreters_public_active_idx
-on public.interpreters(status, is_public)
-where coalesce(status, '') <> 'withdrawn';
-
 drop policy if exists "Interpreters can withdraw own profile" on public.interpreters;
 create policy "Interpreters can withdraw own profile"
 on public.interpreters

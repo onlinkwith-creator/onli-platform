@@ -138,7 +138,6 @@ const INTERPRETER_UPDATE_COLUMNS = new Set([
   "specialties",
   "available_regions",
   "admin_memo",
-  "is_public",
   "withdrawn_at",
   "resume_verified_email_sent_at",
   "updated_at",
@@ -4865,7 +4864,6 @@ function InterpreterCard({
             updateInterpreter(interpreter.id, {
               status: "active",
               activity_status: INTERPRETER_ACTIVITY_STATUS.ACTIVE,
-              is_public: true,
               withdrawn_at: null,
             })
           }
@@ -7523,10 +7521,6 @@ function prepareInterpreterUpdatePayload(changes = {}) {
 
   if ("approved" in payload) {
     payload.approved = normalizeBoolean(payload.approved);
-  }
-
-  if ("is_public" in payload) {
-    payload.is_public = normalizeBoolean(payload.is_public);
   }
 
   if ("status" in payload) {

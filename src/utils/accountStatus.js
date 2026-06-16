@@ -8,8 +8,7 @@ export function isWithdrawnInterpreter(interpreter = {}) {
 }
 
 export function isPublicInterpreterVisible(interpreter = {}) {
-  if (!interpreter || isWithdrawnInterpreter(interpreter)) return false;
-  return interpreter.is_public === true;
+  return Boolean(interpreter) && !isWithdrawnInterpreter(interpreter);
 }
 
 export function getPublicInterpreterDisplayName(interpreter = {}) {
