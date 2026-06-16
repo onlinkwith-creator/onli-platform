@@ -251,17 +251,18 @@ function Home({
 
       <main className="home-main" id="about-onli">
         <section className="home-hero">
-          <p className="home-pill">한일 비지니스 통역 매칭 플랫폼</p>
+          <p className="home-pill">검증된 한일 비즈니스 통역 플랫폼</p>
 
           <h1 className="home-hero-title">
-            <span>한일 비즈니스 통역을</span>
+            <span>한일 비즈니스를 연결하는</span>
             <br />
-            <strong>더 정확하고 빠르게.</strong>
+            <strong>전문 통역 매칭 플랫폼 ON-LI</strong>
           </h1>
 
           <p className="home-description">
-            ON-LI는 전시회, 미팅, 상담회 현장에 맞는 통역 인재를 연결하는
-            한일 통역 매칭 플랫폼입니다.
+            전시회 · 상담회 · 기업 미팅에 맞는
+            <br />
+            검증된 통역 인재를 빠르게 연결합니다.
           </p>
 
           <p className="home-sub-badge">전시회 · 상담회 · 비즈니스 미팅 특화</p>
