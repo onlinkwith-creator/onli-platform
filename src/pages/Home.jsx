@@ -67,12 +67,6 @@ const trustCards = [
   },
 ];
 
-const interpreterGuidePoints = [
-  "분야별 경력 등록",
-  "프로젝트 단위 매칭",
-  "비즈니스 현장 경험 확대",
-];
-
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
@@ -420,7 +414,7 @@ function Home({
             <p>
               일본 현장 통역 준비를 더 간편하게.
               <br />
-              전시회, 상담회, 출장 일정에 맞는 통역 인력을 ON-LI에서 찾아보세요.
+              전시회, 상담회, 출장 일정에 맞는 통역 인력을 찾아보세요.
             </p>
           </div>
           <div className="home-cta-actions">
@@ -439,16 +433,12 @@ function Home({
           </div>
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR INTERPRETERS</p>
-            <h2>통역 경험을 ON-LI와 연결하세요</h2>
+            <h2>통역사로 활동하고 싶으신가요?</h2>
             <p>
-              한국어와 일본어 능력을 가진 분이라면 일본 거주자와 한국 거주자 모두 등록 가능합니다.
-              전문 분야, 통역 경험, 가능 일정을 등록하고 조건에 맞는 프로젝트와 연결될 수 있습니다.
+              한국어와 일본어 능력을 바탕으로
+              <br />
+              비즈니스 현장에서 활동할 통역사를 모집합니다.
             </p>
-            <ul className="home-interpreter-point-list">
-              {interpreterGuidePoints.map((point) => (
-                <li key={point}>✓ {point}</li>
-              ))}
-            </ul>
           </div>
           <div className="home-cta-actions">
             <button
@@ -461,11 +451,6 @@ function Home({
             <button type="button" onClick={onListClick} className="home-secondary">
               등록된 통역사 보기
             </button>
-            {!user && (
-              <button type="button" onClick={onInterpreterLoginClick} className="home-secondary">
-                통역사 로그인
-              </button>
-            )}
           </div>
         </div>
       </section>
