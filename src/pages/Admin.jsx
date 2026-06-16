@@ -658,6 +658,8 @@ function Admin({ onBackClick }) {
     return interpreters.filter((interpreter) => {
       const searchableText = [
         interpreter.name,
+        interpreter.email,
+        interpreter.phone,
         interpreter.region,
         interpreter.school,
         interpreter.jlpt,
@@ -673,9 +675,9 @@ function Admin({ onBackClick }) {
         interpreter.level === interpreterFilters.level;
       const matchesStatus =
         interpreterFilters.status === "all" ||
-        (interpreterFilters.status === WITHDRAWN_STATUS &&
-          isWithdrawnInterpreter(interpreter)) ||
-        (!isWithdrawnInterpreter(interpreter) &&
+        (interpreterFilters.status === WITHDRAWN_STATUS
+          ? String(interpreter.status || "").trim().toLowerCase() === WITHDRAWN_STATUS
+          : !isWithdrawnInterpreter(interpreter) &&
         (interpreterFilters.status === "inactive"
           ? getInterpreterActivityStatus(interpreter) === INTERPRETER_ACTIVITY_STATUS.INACTIVE
           : getInterpreterFilterStatus(interpreter) === interpreterFilters.status));
@@ -4628,14 +4630,10 @@ function InterpreterManagement({
             setFilters((current) => ({ ...current, status: event.target.value }))
           }
         >
-          <option value="all">전체 상태</option>
-          <option value="pending">신규 통역사 지원</option>
-          <option value="active">승인 완료</option>
-          <option value="withdrawn">탈퇴 회원</option>
-          <option value="inactive">비활성</option>
-          <option value="rejected">반려</option>
-          <option value="warning">경고</option>
-          <option value="suspended">정지</option>
+          <option value="all">전체</option>
+          <option value="active">활동중</option>
+          <option value="pending">승인대기</option>
+          <option value="withdrawn">탈퇴회원</option>
         </select>
         <select
           value={filters.activity}
@@ -4771,6 +4769,8 @@ function InterpreterCard({
 
       <dl className="admin-card-summary">
         <Info label="통역사번호" value={formatManagementNumber(interpreter.interpreter_no)} />
+        <Info label="이메일" value={interpreter.email} />
+        <Info label="연락처" value={interpreter.phone} />
         <Info label="레벨" value={normalizeLevel(interpreter.level)} />
         <Info label="승인 상태" value={approvalLabel} />
         <Info label="활동 상태" value={activityLabel} />
