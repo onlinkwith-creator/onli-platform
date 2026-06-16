@@ -295,7 +295,7 @@
 
 .home-main {
   margin-top: 0;
-  padding: 76px var(--home-section-padding-x) var(--home-section-gap);
+  padding: 76px var(--home-section-padding-x) 24px;
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
   gap: 84px;
@@ -498,7 +498,7 @@
 }
 
 .home-about-summary {
-  margin-top: var(--home-section-gap);
+  margin-top: 24px;
   margin-bottom: 56px;
   padding: 0 var(--home-section-padding-x);
 }
@@ -1964,7 +1964,7 @@ span.home-footer-contact-item:hover {
     grid-template-columns: 1fr;
     gap: 18px;
     padding-top: 24px;
-    padding-bottom: 20px;
+    padding-bottom: 16px;
     text-align: center;
   }
 
@@ -2017,7 +2017,7 @@ span.home-footer-contact-item:hover {
   .home-about-summary {
     grid-template-columns: 1fr;
     gap: 16px;
-    margin-top: 32px;
+    margin-top: 24px;
     margin-bottom: 36px;
     padding: 20px;
   }
