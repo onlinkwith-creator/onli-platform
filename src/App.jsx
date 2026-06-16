@@ -203,6 +203,7 @@ function App() {
         .eq("id", selectedInterpreterId)
         .eq("approved", true)
         .neq("status", "withdrawn")
+        .eq("is_public", true)
         .in("status", ["active", "warning"])
         .single();
 
