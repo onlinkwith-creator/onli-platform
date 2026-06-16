@@ -235,7 +235,8 @@ function InterpreterMypage({
       });
     }
 
-    const nextInterpreter = matches[0] || null;
+    const nextInterpreter =
+      matches.find((item) => !isWithdrawnInterpreter(item)) || matches[0] || null;
     setInterpreter(nextInterpreter);
     if (isWithdrawnInterpreter(nextInterpreter)) {
       setStatus("withdrawn");

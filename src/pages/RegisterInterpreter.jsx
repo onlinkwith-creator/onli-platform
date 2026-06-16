@@ -187,7 +187,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
     console.log("BEFORE DB INSERT");
 
     const managementConfig = MANAGEMENT_NUMBER_CONFIG.interpreters;
-    const basePayload = {
+    const profilePayload = {
       name: form.name,
       gender: form.gender,
       age: form.age,
@@ -203,34 +203,64 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       specialties: form.specialties,
       available_regions: form.availableRegions,
       available_tasks: form.availableTasks,
-      approved: false,
-      status: "pending",
       agreed_terms: true,
       agreed_policy: true,
       agreed_at: new Date().toISOString(),
     };
-    let payload = await addManagementNumber({
-      supabase,
-      table: "interpreters",
-      payload: { ...basePayload, auth_user_id: user.id },
-      ...managementConfig,
-    });
+    const basePayload = {
+      ...profilePayload,
+      approved: false,
+      status: "pending",
+    };
+    const existingInterpreter = await findExistingInterpreterProfile(user, userEmail);
+    const isReactivatingWithdrawn = isWithdrawnProfile(existingInterpreter);
 
-    let { data, error } = await insertInterpreter(payload);
+    let payload = null;
+    let data = null;
+    let error = null;
 
-    if (isManagementNumberConflict(error, managementConfig.column)) {
+    if (existingInterpreter?.id) {
+      payload = {
+        ...profilePayload,
+        auth_user_id: user.id,
+        ...(isReactivatingWithdrawn
+          ? {
+              status: "active",
+              is_public: true,
+              withdrawn_at: null,
+            }
+          : {}),
+      };
+
+      const updateResult = await updateExistingInterpreter(existingInterpreter.id, payload);
+      data = updateResult.data;
+      error = updateResult.error;
+    } else {
       payload = await addManagementNumber({
         supabase,
         table: "interpreters",
         payload: { ...basePayload, auth_user_id: user.id },
         ...managementConfig,
       });
-      const retryResult = await insertInterpreter(payload);
-      data = retryResult.data;
-      error = retryResult.error;
+
+      const insertResult = await insertInterpreter(payload);
+      data = insertResult.data;
+      error = insertResult.error;
+
+      if (isManagementNumberConflict(error, managementConfig.column)) {
+        payload = await addManagementNumber({
+          supabase,
+          table: "interpreters",
+          payload: { ...basePayload, auth_user_id: user.id },
+          ...managementConfig,
+        });
+        const retryResult = await insertInterpreter(payload);
+        data = retryResult.data;
+        error = retryResult.error;
+      }
     }
 
-    console.log("DB INSERT RESULT", {
+    console.log("DB UPSERT RESULT", {
       data,
       error,
     });
@@ -239,9 +269,9 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       if (isAgreementColumnError(error)) {
         console.error("약관 동의 저장 실패:", error);
       }
-      console.error("Interpreter insert error:", error);
-      console.error("DB INSERT ERROR", error);
-      console.error("insert failed", {
+      console.error("Interpreter save error:", error);
+      console.error("DB SAVE ERROR", error);
+      console.error("save failed", {
         table: "interpreters",
         payload,
         error,
@@ -314,7 +344,9 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
 
     setAgreements(initialTermsAgreement);
     setSuccessMessage(
-      "등록 신청이 완료되었습니다. 승인 후 마이페이지 이용을 위해 통역사 계정을 생성해주세요."
+      isReactivatingWithdrawn
+        ? "재가입 신청이 완료되었습니다. 프로필 정보가 다시 활성화되었습니다."
+        : "등록 신청이 완료되었습니다. 승인 후 마이페이지 이용을 위해 통역사 계정을 생성해주세요."
     );
     setTimeout(() => {
       onSubmitSuccess?.();
@@ -518,6 +550,76 @@ function isMissingColumnError(error) {
     error?.code === "PGRST204" ||
     /column|schema cache/i.test(error?.message || "")
   );
+}
+
+function isWithdrawnProfile(profile = {}) {
+  const status = String(profile?.status || "").trim().toLowerCase();
+  return status === "withdrawn" || Boolean(profile?.withdrawn_at);
+}
+
+async function findExistingInterpreterProfile(user, email) {
+  const selectColumns = "id, email, status, withdrawn_at, auth_user_id";
+  const exactEmail = normalizeEmail(email);
+
+  const { data, error } = await supabase
+    .from("interpreters")
+    .select(selectColumns)
+    .or(`auth_user_id.eq.${user.id},email.ilike.${exactEmail}`);
+
+  if (error && isMissingColumnError(error) && /auth_user_id/i.test(error.message || "")) {
+    console.warn("Retry interpreter lookup without auth_user_id column", error);
+    return findExistingInterpreterProfileByEmail(exactEmail);
+  }
+
+  if (error) {
+    throw error;
+  }
+
+  return pickExistingInterpreterProfile(data || [], user, exactEmail);
+}
+
+async function findExistingInterpreterProfileByEmail(email) {
+  const { data, error } = await supabase
+    .from("interpreters")
+    .select("id, email, status, withdrawn_at")
+    .ilike("email", email);
+
+  if (error) throw error;
+
+  return pickExistingInterpreterProfile(data || [], null, email);
+}
+
+function pickExistingInterpreterProfile(profiles = [], user, email) {
+  const exactEmail = normalizeEmail(email);
+  return (
+    profiles.find((profile) => profile.auth_user_id && profile.auth_user_id === user?.id) ||
+    profiles.find((profile) => normalizeEmail(profile.email) === exactEmail) ||
+    null
+  );
+}
+
+async function updateExistingInterpreter(id, payload) {
+  const { data, error } = await supabase
+    .from("interpreters")
+    .update(payload)
+    .eq("id", id)
+    .select("id")
+    .single();
+
+  if (!error || !isMissingColumnError(error) || !("auth_user_id" in payload)) {
+    return { data, error };
+  }
+
+  console.warn("Retry interpreter update without auth_user_id column", error);
+  const legacyPayload = { ...payload };
+  delete legacyPayload.auth_user_id;
+
+  return supabase
+    .from("interpreters")
+    .update(legacyPayload)
+    .eq("id", id)
+    .select("id")
+    .single();
 }
 
 async function insertInterpreter(payload) {
