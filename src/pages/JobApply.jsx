@@ -12,6 +12,10 @@ import {
   ensureInterpreterAuthLink,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
+import {
+  WITHDRAWN_ACCOUNT_MESSAGE,
+  isWithdrawnInterpreter,
+} from "../utils/accountStatus";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
@@ -146,7 +150,10 @@ function JobApply({
           user
         );
 
-        if (matched) {
+        if (matched && isWithdrawnInterpreter(matched)) {
+          setInterpreterProfile(matched);
+          setErrorMessage(WITHDRAWN_ACCOUNT_MESSAGE);
+        } else if (matched) {
           setInterpreterProfile(matched);
           setForm({
             name: matched.name || "",
@@ -244,6 +251,12 @@ function JobApply({
       setErrorMessage(message);
       alert(message);
       onRegisterClick?.();
+      return;
+    }
+
+    if (isWithdrawnInterpreter(interpreterProfile)) {
+      setErrorMessage(WITHDRAWN_ACCOUNT_MESSAGE);
+      alert(WITHDRAWN_ACCOUNT_MESSAGE);
       return;
     }
 
@@ -569,6 +582,11 @@ function JobApply({
                     통역사 등록하기
                   </button>
                 </div>
+              ) : isWithdrawnInterpreter(interpreterProfile) ? (
+                <div className="jobs-success-inline">
+                  <h2>탈퇴 처리된 계정입니다</h2>
+                  <p>{WITHDRAWN_ACCOUNT_MESSAGE}</p>
+                </div>
               ) : !hasRegisteredResume(interpreterProfile) ? (
                 <div className="jobs-success-inline">
                   <h2>이력서 등록이 필요합니다</h2>
@@ -688,6 +706,7 @@ function JobApply({
                     profileLoading ||
                     !user ||
                     !interpreterProfile ||
+                    isWithdrawnInterpreter(interpreterProfile) ||
                     !canApplyToJob(job) ||
                     !hasRegisteredResume(interpreterProfile) ||
                     !areTermsAgreed(agreements, { requireCancelPolicy: true })
@@ -695,6 +714,8 @@ function JobApply({
                 >
                   {!canApplyToJob(job)
                     ? "마감됨"
+                    : isWithdrawnInterpreter(interpreterProfile)
+                      ? "지원 불가"
                     : submitted
                       ? "지원된 통역공고입니다"
                     : applicationCheckLoading

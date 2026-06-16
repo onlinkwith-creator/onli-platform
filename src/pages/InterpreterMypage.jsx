@@ -21,6 +21,11 @@ import {
   isJobApplicationWithdrawalPermissionError,
   withdrawOwnJobApplication,
 } from "../utils/applicationContact";
+import {
+  WITHDRAWN_ACCOUNT_MESSAGE,
+  WITHDRAWN_STATUS,
+  isWithdrawnInterpreter,
+} from "../utils/accountStatus";
 import "./InterpreterAuth.css";
 import {
   Award,
@@ -82,6 +87,9 @@ function InterpreterMypage({
   const [isWithdrawingApplication, setIsWithdrawingApplication] = useState(false);
   const [withdrawalMessage, setWithdrawalMessage] = useState("");
   const [withdrawalError, setWithdrawalError] = useState("");
+  const [isAccountWithdrawalOpen, setIsAccountWithdrawalOpen] = useState(false);
+  const [accountWithdrawalText, setAccountWithdrawalText] = useState("");
+  const [isWithdrawingAccount, setIsWithdrawingAccount] = useState(false);
   const [expandedApplicationIds, setExpandedApplicationIds] = useState(
     () => new Set()
   );
@@ -106,6 +114,24 @@ function InterpreterMypage({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [withdrawalTarget, isWithdrawingApplication]);
+
+  useEffect(() => {
+    if (!isAccountWithdrawalOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !isWithdrawingAccount) {
+        setIsAccountWithdrawalOpen(false);
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isAccountWithdrawalOpen, isWithdrawingAccount]);
 
   // Collapsible sections for mobile view
   const [showIntro, setShowIntro] = useState(false);
@@ -211,6 +237,12 @@ function InterpreterMypage({
 
     const nextInterpreter = matches[0] || null;
     setInterpreter(nextInterpreter);
+    if (isWithdrawnInterpreter(nextInterpreter)) {
+      setStatus("withdrawn");
+      setLoading(false);
+      return;
+    }
+
     setStatus(nextInterpreter ? "ready" : "notRegistered");
 
     if (nextInterpreter) {
@@ -1006,6 +1038,56 @@ function InterpreterMypage({
     setIsUpdatingStatus(false);
   };
 
+  const closeAccountWithdrawalModal = () => {
+    if (isWithdrawingAccount) return;
+    setIsAccountWithdrawalOpen(false);
+    setAccountWithdrawalText("");
+  };
+
+  const handleWithdrawAccount = async () => {
+    if (
+      isWithdrawingAccount ||
+      accountWithdrawalText !== "탈퇴합니다" ||
+      !supabase ||
+      !interpreter?.id ||
+      !user
+    ) {
+      return;
+    }
+
+    const withdrawnAt = new Date().toISOString();
+    const payload = {
+      status: WITHDRAWN_STATUS,
+      is_public: false,
+      withdrawn_at: withdrawnAt,
+    };
+
+    setIsWithdrawingAccount(true);
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Account withdrawal failed", error);
+      alert(`회원 탈퇴 신청에 실패했습니다. (${error.message})`);
+      setIsWithdrawingAccount(false);
+      return;
+    }
+
+    await updateOptionalUserWithdrawalTables(user, withdrawnAt);
+
+    setInterpreter(data || { ...interpreter, ...payload });
+    setStatus("withdrawn");
+    setIsAccountWithdrawalOpen(false);
+    setAccountWithdrawalText("");
+    setIsWithdrawingAccount(false);
+    alert("회원 탈퇴 신청이 완료되었습니다.");
+  };
+
   if (authLoading || loading) {
     return (
       <main className="interpreter-auth-page">
@@ -1031,6 +1113,26 @@ function InterpreterMypage({
             </button>
             <button type="button" className="interpreter-auth-secondary" onClick={onHomeClick}>
               메인으로 돌아가기
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (status === "withdrawn") {
+    return (
+      <main className="interpreter-auth-page">
+        <section className="interpreter-auth-card">
+          <p className="interpreter-auth-kicker">ON-LI INTERPRETER</p>
+          <h1>탈퇴 처리된 계정입니다</h1>
+          <p>{WITHDRAWN_ACCOUNT_MESSAGE}</p>
+          <div className="interpreter-auth-form">
+            <button type="button" className="interpreter-auth-secondary" onClick={onHomeClick}>
+              메인으로 돌아가기
+            </button>
+            <button type="button" className="interpreter-auth-primary" onClick={onSignOut}>
+              로그아웃
             </button>
           </div>
         </section>
@@ -2207,9 +2309,87 @@ function InterpreterMypage({
                 )}
               </div>
             </section>
+            <section className="interpreter-account-management">
+              <article className="interpreter-mypage-card">
+                <h2>계정 관리</h2>
+                <p>
+                  회원 탈퇴 시 프로필은 공개 목록에서 표시되지 않으며, 진행 중인 의뢰,
+                  지원, 정산 기록은 운영 및 법적 보관 목적에 따라 보관될 수 있습니다.
+                </p>
+                <button
+                  type="button"
+                  className="interpreter-danger-outline-button"
+                  onClick={() => setIsAccountWithdrawalOpen(true)}
+                >
+                  회원 탈퇴
+                </button>
+              </article>
+            </section>
           </>
         )}
       </div>
+      {isAccountWithdrawalOpen && (
+        <div
+          className="application-withdrawal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeAccountWithdrawalModal();
+            }
+          }}
+        >
+          <section
+            className="application-withdrawal-modal account-withdrawal-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="account-withdrawal-title"
+          >
+            <button
+              type="button"
+              className="application-withdrawal-close"
+              onClick={closeAccountWithdrawalModal}
+              disabled={isWithdrawingAccount}
+              aria-label="회원 탈퇴 확인창 닫기"
+            >
+              <X size={19} />
+            </button>
+            <h2 id="account-withdrawal-title">회원 탈퇴</h2>
+            <p>
+              회원 탈퇴 시 ON-LI 이용이 제한되며, 등록된 프로필은 공개 목록에서 표시되지 않습니다.
+              <br />
+              진행 중인 의뢰, 지원, 정산 기록은 운영 및 법적 보관 목적에 따라 일정 기간 보관될 수 있습니다.
+            </p>
+            <label className="account-withdrawal-confirm-field">
+              <span>탈퇴를 진행하려면 아래 문구를 입력해주세요.</span>
+              <strong>탈퇴합니다</strong>
+              <input
+                value={accountWithdrawalText}
+                onChange={(event) => setAccountWithdrawalText(event.target.value)}
+                disabled={isWithdrawingAccount}
+                autoFocus
+              />
+            </label>
+            <div className="application-withdrawal-actions">
+              <button
+                type="button"
+                className="application-withdrawal-cancel"
+                onClick={closeAccountWithdrawalModal}
+                disabled={isWithdrawingAccount}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="application-withdrawal-confirm"
+                onClick={handleWithdrawAccount}
+                disabled={isWithdrawingAccount || accountWithdrawalText !== "탈퇴합니다"}
+              >
+                {isWithdrawingAccount ? "처리 중..." : "탈퇴 신청"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {withdrawalTarget && (
         <div
           className="application-withdrawal-backdrop"
@@ -2266,6 +2446,38 @@ function InterpreterMypage({
         </div>
       )}
     </main>
+  );
+}
+
+async function updateOptionalUserWithdrawalTables(user, withdrawnAt) {
+  if (!supabase || !user?.id) return;
+
+  const payload = {
+    status: WITHDRAWN_STATUS,
+    withdrawn_at: withdrawnAt,
+  };
+
+  await Promise.all(
+    ["profiles", "users"].map(async (table) => {
+      const { error } = await supabase
+        .from(table)
+        .update(payload)
+        .eq("id", user.id);
+
+      if (error && !isMissingTableOrColumnError(error)) {
+        console.warn(`${table} withdrawal update skipped`, error);
+      }
+    })
+  );
+}
+
+function isMissingTableOrColumnError(error) {
+  return (
+    error?.code === "42P01" ||
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    error?.code === "PGRST205" ||
+    /schema cache|does not exist|column|table/i.test(error?.message || "")
   );
 }
 

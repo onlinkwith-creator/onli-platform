@@ -6,6 +6,7 @@ import {
   getInterpreterActivityStatusLabel,
 } from "../utils/status";
 import { Briefcase, Languages, MapPin, Star } from "lucide-react";
+import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import "./InterpreterList.css";
 
 const initialFilters = {
@@ -94,7 +95,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
         return;
       }
 
-      setInterpreters(data || []);
+      setInterpreters((data || []).filter(isPublicInterpreterVisible));
       setLoading(false);
     };
 

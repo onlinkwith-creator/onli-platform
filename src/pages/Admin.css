@@ -2509,6 +2509,11 @@
   gap: 14px;
 }
 
+.admin-interpreter-history-grid {
+  margin-top: 14px;
+  margin-bottom: 18px;
+}
+
 .admin-interpreter-detail-section,
 .admin-interpreter-memo-card {
   min-width: 0;

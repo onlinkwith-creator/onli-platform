@@ -3,6 +3,7 @@ import {
   Briefcase,
   CheckCircle2,
   Eye,
+  FileText,
   Languages,
   LayoutGrid,
   List,
@@ -80,6 +81,7 @@ import {
   isManagementNumberConflict,
 } from "../utils/managementNumber";
 import { useAuth } from "../hooks/useAuth";
+import { WITHDRAWN_STATUS, isWithdrawnInterpreter } from "../utils/accountStatus";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
@@ -111,7 +113,7 @@ const SUB_TAB_TO_MAIN_TAB = Object.fromEntries(
     subTabs.map((subTab) => [subTab.id, mainTabId])
   )
 );
-const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
+const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended", "withdrawn"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const INTERPRETER_DOCUMENT_BUCKET = "resume-files";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
@@ -136,6 +138,8 @@ const INTERPRETER_UPDATE_COLUMNS = new Set([
   "specialties",
   "available_regions",
   "admin_memo",
+  "is_public",
+  "withdrawn_at",
   "resume_verified_email_sent_at",
   "updated_at",
 ]);
@@ -669,9 +673,12 @@ function Admin({ onBackClick }) {
         interpreter.level === interpreterFilters.level;
       const matchesStatus =
         interpreterFilters.status === "all" ||
+        (interpreterFilters.status === WITHDRAWN_STATUS &&
+          isWithdrawnInterpreter(interpreter)) ||
+        (!isWithdrawnInterpreter(interpreter) &&
         (interpreterFilters.status === "inactive"
           ? getInterpreterActivityStatus(interpreter) === INTERPRETER_ACTIVITY_STATUS.INACTIVE
-          : getInterpreterFilterStatus(interpreter) === interpreterFilters.status);
+          : getInterpreterFilterStatus(interpreter) === interpreterFilters.status));
       const matchesActivity =
         interpreterFilters.activity === "all" ||
         getInterpreterActivityStatus(interpreter) === interpreterFilters.activity;
@@ -1327,12 +1334,10 @@ function Admin({ onBackClick }) {
     const checkedPayload = {
       admin_checked: true,
       checked_at: checkedAt,
-      updated_at: checkedAt,
     };
     const fallbackPayload = {
       status: MATCHING_STATUS.ASSIGNED,
       assignment_status: ASSIGNMENT_STATUS.WAITING,
-      updated_at: checkedAt,
     };
 
     setSavingKey(`new-request-${request.id}`);
@@ -1840,7 +1845,6 @@ function Admin({ onBackClick }) {
 
     const payload = {
       settlement_status: "정산완료",
-      updated_at: new Date().toISOString(),
     };
 
     setSavingKey(`settlement-pending-${request.id}`);
@@ -1852,7 +1856,7 @@ function Admin({ onBackClick }) {
     if (error && isMissingColumnError(error)) {
       ({ error } = await supabase
         .from("requests")
-        .update({ settlement_status: payload.settlement_status })
+        .update(payload)
         .eq("id", request.id));
     }
 
@@ -2537,10 +2541,7 @@ function Admin({ onBackClick }) {
       return false;
     }
 
-    const payload = {
-      ...changes,
-      updated_at: new Date().toISOString(),
-    };
+    const payload = { ...changes };
 
     setSavingKey(`settlement-request-${request.id}`);
     let { data, error } = await supabase
@@ -2956,8 +2957,10 @@ function Admin({ onBackClick }) {
             )}
 
             <InterpreterModal
+              applications={jobApplications}
               draft={interpreterEditDraft}
               interpreter={selectedInterpreter}
+              matchings={matchings}
               duplicateReasons={
                 selectedInterpreter
                   ? duplicateInterpreterResult.reasonMap.get(selectedInterpreter.id) || []
@@ -4628,6 +4631,7 @@ function InterpreterManagement({
           <option value="all">전체 상태</option>
           <option value="pending">신규 통역사 지원</option>
           <option value="active">승인 완료</option>
+          <option value="withdrawn">탈퇴 회원</option>
           <option value="inactive">비활성</option>
           <option value="rejected">반려</option>
           <option value="warning">경고</option>
@@ -4654,7 +4658,7 @@ function InterpreterManagement({
         >
           <option value="all">전체 뱃지</option>
           <option value="false">뱃지 미노출</option>
-          <option value="true">검증 뱃지 노출</option>
+          <option value="true">검증 완료</option>
         </select>
         <select
           value={filters.resumeReview}
@@ -4712,6 +4716,7 @@ function InterpreterCard({
   const activityLabel = getInterpreterActivityStatusLabel(activityStatus);
   const isSaving = savingKey === `interpreter-${interpreter.id}`;
   const duplicateTitle = duplicateReasons.join(", ");
+  const isWithdrawn = isWithdrawnInterpreter(interpreter);
 
   const handleDownloadFile = async (filePath, fileName) => {
     if (!supabase || !filePath) return;
@@ -4769,6 +4774,9 @@ function InterpreterCard({
         <Info label="레벨" value={normalizeLevel(interpreter.level)} />
         <Info label="승인 상태" value={approvalLabel} />
         <Info label="활동 상태" value={activityLabel} />
+        {isWithdrawn && (
+          <Info label="탈퇴일" value={formatDateTime(interpreter.withdrawn_at)} />
+        )}
         <Info
           label="이력서 제출"
           value={
@@ -4857,10 +4865,12 @@ function InterpreterCard({
             updateInterpreter(interpreter.id, {
               status: "active",
               activity_status: INTERPRETER_ACTIVITY_STATUS.ACTIVE,
+              is_public: true,
+              withdrawn_at: null,
             })
           }
         >
-          승인
+          {isWithdrawn ? "계정 복구" : "승인"}
         </button>
         <button
           type="button"
@@ -4888,10 +4898,12 @@ function InterpreterCard({
 }
 
 function InterpreterModal({
+  applications = [],
   draft,
   duplicateReasons = [],
   duplicateSuspected = false,
   interpreter,
+  matchings = [],
   modalType,
   saving,
   onChangeDraft,
@@ -4961,6 +4973,18 @@ function InterpreterModal({
     interpreter.memo ||
     interpreter.note ||
     "";
+  const relatedApplications = applications.filter((application) => {
+    return (
+      String(application.interpreter_id || "") === String(interpreter.id) ||
+      (application.email &&
+        interpreter.email &&
+        String(application.email).toLowerCase().trim() ===
+          String(interpreter.email).toLowerCase().trim())
+    );
+  });
+  const relatedSettlements = matchings.filter(
+    (matching) => String(matching.interpreter_id || "") === String(interpreter.id)
+  );
 
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
@@ -5038,6 +5062,12 @@ function InterpreterModal({
                 <InterpreterDetailItem label="나이" value={interpreter.age} />
                 <InterpreterDetailItem label="레벨" value={levelLabel} />
                 <InterpreterDetailItem label="승인 상태" value={approvalLabel} />
+                {isWithdrawnInterpreter(interpreter) && (
+                  <InterpreterDetailItem
+                    label="탈퇴일"
+                    value={formatDateTime(interpreter.withdrawn_at)}
+                  />
+                )}
                 <InterpreterDetailItem
                   label="제출된 이력서"
                   value={
@@ -5163,6 +5193,38 @@ function InterpreterModal({
                 <InterpreterDetailItem label="공개 노출" value="관리자 전용 정보" />
               </InterpreterDetailSection>
             </div>
+
+            {isWithdrawnInterpreter(interpreter) && (
+              <div className="admin-interpreter-detail-grid admin-interpreter-history-grid">
+                <InterpreterDetailSection icon={FileText} title="지원 내역">
+                  {relatedApplications.length === 0 ? (
+                    <InterpreterDetailItem label="지원 내역" value="지원 내역 없음" />
+                  ) : (
+                    relatedApplications.slice(0, 5).map((application) => (
+                      <InterpreterDetailItem
+                        key={application.id}
+                        label={formatManagementNumber(application.application_no) || `지원 ${application.id}`}
+                        value={`${getApplicationStatusLabel(application.status)} · ${formatDate(application.created_at)}`}
+                      />
+                    ))
+                  )}
+                </InterpreterDetailSection>
+
+                <InterpreterDetailSection icon={Briefcase} title="정산 내역">
+                  {relatedSettlements.length === 0 ? (
+                    <InterpreterDetailItem label="정산 내역" value="정산 내역 없음" />
+                  ) : (
+                    relatedSettlements.slice(0, 5).map((matching) => (
+                      <InterpreterDetailItem
+                        key={matching.id}
+                        label={formatManagementNumber(matching.matching_no) || `매칭 ${matching.id}`}
+                        value={`${getMatchingStatusLabel(matching.status)} · ${formatDateRange(matching.start_date, matching.end_date)}`}
+                      />
+                    ))
+                  )}
+                </InterpreterDetailSection>
+              </div>
+            )}
 
             <section className="admin-interpreter-verification-card" style={{
               background: "var(--bg)",
@@ -7463,6 +7525,10 @@ function prepareInterpreterUpdatePayload(changes = {}) {
     payload.approved = normalizeBoolean(payload.approved);
   }
 
+  if ("is_public" in payload) {
+    payload.is_public = normalizeBoolean(payload.is_public);
+  }
+
   if ("status" in payload) {
     payload.status = normalizeInterpreterStatus(payload.status);
   }
@@ -7553,6 +7619,7 @@ function normalizeBoolean(value) {
 
 function normalizeInterpreterStatus(status) {
   const normalized = String(status || "").trim().toLowerCase();
+  if (["withdrawn", "탈퇴", "탈퇴 회원", "탈퇴회원"].includes(normalized)) return WITHDRAWN_STATUS;
   if (["승인 대기", "대기", "pending"].includes(normalized)) return "pending";
   if (["승인 완료", "승인", "활동중", "approved", "active"].includes(normalized)) return "active";
   if (["거절", "반려", "rejected"].includes(normalized)) return "rejected";
@@ -7746,6 +7813,7 @@ function getExperienceLabel(interpreter) {
 }
 
 function getInterpreterFilterStatus(interpreter = {}) {
+  if (isWithdrawnInterpreter(interpreter)) return WITHDRAWN_STATUS;
   const status = String(interpreter.status || "").toLowerCase().trim();
   if (status === "rejected" || status === "반려") return "rejected";
   if (status === "active" || status === "활동중" || status === "승인 완료") return "active";
@@ -7820,6 +7888,7 @@ function doesRequestMatchManagementStatusFilter(request = {}, filter = "all") {
 }
 
 function getInterpreterStatusLabel(interpreter = {}) {
+  if (isWithdrawnInterpreter(interpreter)) return "탈퇴 회원";
   const status = String(interpreter.status || "").toLowerCase().trim();
   if (status === "rejected" || status === "반려") return "반려";
   if (status === "active" || status === "활동중" || status === "승인 완료") return "승인 완료";

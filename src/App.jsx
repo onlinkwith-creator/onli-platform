@@ -17,6 +17,7 @@ import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
 import { useAuth } from "./hooks/useAuth";
 import { supabase } from "./supabase";
 import { PUBLIC_INTERPRETER_SELECT } from "./utils/publicInterpreter";
+import { isPublicInterpreterVisible } from "./utils/accountStatus";
 
 const POLICY_PATH_TO_KEY = Object.fromEntries(
   Object.entries(POLICY_PAGES).map(([key, policy]) => [policy.path, key])
@@ -201,6 +202,7 @@ function App() {
         .select(PUBLIC_INTERPRETER_SELECT)
         .eq("id", selectedInterpreterId)
         .eq("approved", true)
+        .neq("status", "withdrawn")
         .in("status", ["active", "warning"])
         .single();
 
@@ -209,7 +211,7 @@ function App() {
         return;
       }
 
-      setSelectedInterpreter(data || null);
+      setSelectedInterpreter(isPublicInterpreterVisible(data) ? data : null);
     };
 
     queueMicrotask(fetchInterpreter);

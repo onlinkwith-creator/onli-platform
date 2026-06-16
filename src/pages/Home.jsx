@@ -10,6 +10,7 @@ import { getLevelBadgeClass, getLevelBadgeStyle, normalizeLevel } from "../utils
 import {
   getPrimaryPublicInterpreterInfo,
 } from "../utils/publicInterpreter";
+import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import { sortJobsByDisplayPriority } from "../utils/jobStatus";
 import "./Home.css";
 import {
@@ -96,7 +97,7 @@ function Home({
         return;
       }
 
-      setFeaturedInterpreters((data || []).slice(0, 10));
+      setFeaturedInterpreters((data || []).filter(isPublicInterpreterVisible).slice(0, 10));
     } catch (error) {
       console.error(error);
       setFeaturedInterpreters([]);
