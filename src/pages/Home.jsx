@@ -30,6 +30,49 @@ import {
   X,
 } from "lucide-react";
 
+const seoServiceParagraphs = [
+  "ON-LI는 한국과 일본을 연결하는 한일 통역 플랫폼입니다. 일본 전시회, 바이어 상담회, 기업 미팅 등 다양한 비즈니스 현장에 맞는 검증된 일본어 통역 인재를 연결합니다.",
+  "전문 분야와 경험을 기반으로 한 통역사 매칭을 통해 전시회 통역, 비즈니스 통역, 수행 통역, 일본 출장 통역까지 목적에 맞는 통역 환경을 지원합니다.",
+];
+
+const useCaseCards = [
+  "일본 전시회 부스 통역",
+  "해외 바이어 상담회",
+  "한일 비즈니스 미팅",
+  "공장 및 현장 방문",
+  "일본 출장 수행 통역",
+  "온라인 화상회의",
+];
+
+const trustCards = [
+  {
+    number: "01",
+    title: "어떤 통역사를 매칭하나요?",
+    text: "이력서와 경험 정보를 기반으로 검토된 한일 비즈니스 통역사를 연결합니다.",
+  },
+  {
+    number: "02",
+    title: "어떤 분야를 지원하나요?",
+    text: "전시회, 상담회, 기업 미팅, 현장 운영 등 다양한 비즈니스 상황을 지원합니다.",
+  },
+  {
+    number: "03",
+    title: "진행 과정은 어떻게 되나요?",
+    text: "의뢰 접수 → 조건 확인 → 통역사 추천 → 자료 공유 → 현장 진행 → 피드백",
+  },
+  {
+    number: "04",
+    title: "요금은 어떻게 산정되나요?",
+    text: "일정, 시간, 통역 난이도, 요구되는 전문성 기준으로 산정됩니다.",
+  },
+];
+
+const interpreterGuidePoints = [
+  "분야별 경력 등록",
+  "프로젝트 단위 매칭",
+  "비즈니스 현장 경험 확대",
+];
+
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
@@ -291,6 +334,16 @@ function Home({
         </section>
       </main>
 
+      <section className="home-seo-copy" aria-labelledby="home-seo-title">
+        <p className="home-brand-sub">BUSINESS INTERPRETATION</p>
+        <h2 id="home-seo-title">한일 비즈니스 현장을 위한 전문 통역 플랫폼</h2>
+        <div className="home-seo-copy-body">
+          {seoServiceParagraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
+      </section>
+
       <section className="home-mobile-overview-slider" aria-label="ON-LI 특징 및 진행 프로세스">
         <article className="home-mobile-overview-slide">
           <h3>ON-LI의 특징</h3>
@@ -386,11 +439,16 @@ function Home({
           </div>
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR INTERPRETERS</p>
-            <h2>통역사로 활동하고 싶으신가요?</h2>
+            <h2>통역 경험을 ON-LI와 연결하세요</h2>
             <p>
-              한국어와 일본어 능력을 바탕으로 전시회·비즈니스 현장에서 활동할
-              통역사를 모집합니다.
+              한국어와 일본어 능력을 가진 분이라면 일본 거주자와 한국 거주자 모두 등록 가능합니다.
+              전문 분야, 통역 경험, 가능 일정을 등록하고 조건에 맞는 프로젝트와 연결될 수 있습니다.
             </p>
+            <ul className="home-interpreter-point-list">
+              {interpreterGuidePoints.map((point) => (
+                <li key={point}>✓ {point}</li>
+              ))}
+            </ul>
           </div>
           <div className="home-cta-actions">
             <button
@@ -444,6 +502,37 @@ function Home({
             title="최종 배정 완료"
             text="사전 안내 후 일정 확정"
           />
+        </div>
+      </section>
+
+      <section className="home-use-cases" aria-labelledby="home-use-cases-title">
+        <div className="home-section-simple-head">
+          <p className="home-brand-sub">USE CASES</p>
+          <h2 id="home-use-cases-title">이런 현장에서 ON-LI를 이용할 수 있습니다.</h2>
+        </div>
+        <div className="home-use-case-grid">
+          {useCaseCards.map((item) => (
+            <article className="home-use-case-card" key={item}>
+              <span aria-hidden="true">✓</span>
+              <h3>{item}</h3>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-trust-block" aria-labelledby="home-trust-title">
+        <div className="home-section-simple-head">
+          <p className="home-brand-sub">TRUST</p>
+          <h2 id="home-trust-title">ON-LI는 어떻게 통역사를 연결하나요?</h2>
+        </div>
+        <div className="home-trust-grid">
+          {trustCards.map((card) => (
+            <article className="home-trust-card" key={card.number}>
+              <span>{card.number}</span>
+              <h3>{card.title}</h3>
+              <p>{card.text}</p>
+            </article>
+          ))}
         </div>
       </section>
 

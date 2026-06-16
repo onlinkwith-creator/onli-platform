@@ -28,15 +28,22 @@ import "./RequestForm.css";
 const initialForm = {
   companyName: "",
   contactName: "",
-  contactEmailOrPhone: "",
+  contactPhone: "",
+  contactEmail: "",
   eventName: "",
   startDate: "",
   endDate: "",
   eventLocation: "",
+  expectedHours: "",
   requestedLevel: "운영팀 추천받기",
-  requestedPeopleCount: "",
+  requestedPeopleCount: "1",
   preferredGender: "성별 무관",
-  interpretationField: "일반 비즈니스",
+  interpretationLanguages: [],
+  interpretationTypes: [],
+  industryField: "무역",
+  customIndustryField: "",
+  referenceMaterial: "없음",
+  referenceFileName: "",
   requestDetails: "",
 };
 
@@ -62,23 +69,30 @@ const getInclusiveDateCount = (startDate, endDate) => {
 };
 
 const fieldOptions = [
-  "뷰티/코스메",
-  "패션",
-  "식품",
-  "의료/헬스케어",
-  "IT/스타트업",
-  "관광/문화",
-  "제조/기계",
-  "일반 비즈니스",
+  "화장품",
+  "IT",
+  "제조",
+  "무역",
+  "의료",
+  "기타",
+];
+
+const languageOptions = ["한국어 → 일본어", "일본어 → 한국어", "양방향"];
+const interpretationTypeOptions = [
+  "전시회 통역",
+  "바이어 상담회 통역",
+  "기업 미팅",
+  "수행 통역",
+  "온라인 통역",
   "기타",
 ];
 
 const requestSteps = [
-  "의뢰 접수",
+  "견적 요청",
   "운영팀 검토",
-  "공고 등록",
-  "매칭 진행",
-  "배정 완료",
+  "조건 확인",
+  "통역사 추천",
+  "일정 확정",
 ];
 
 const sectionMeta = {
@@ -90,27 +104,17 @@ const sectionMeta = {
   event: {
     icon: "02",
     title: "행사 정보",
-    description: "통역이 필요한 행사명을 알려주세요.",
-  },
-  period: {
-    icon: "03",
-    title: "행사 기간",
-    description: "시작일과 종료일을 선택해주세요.",
-  },
-  location: {
-    icon: "04",
-    title: "행사 장소",
-    description: "통역사가 방문할 장소를 입력해주세요.",
+    description: "견적 산정에 필요한 일정과 장소를 입력해주세요.",
   },
   request: {
-    icon: "05",
-    title: "통역 요청 정보",
-    description: "매칭에 필요한 조건을 선택해주세요.",
+    icon: "03",
+    title: "통역 조건",
+    description: "언어, 유형, 분야를 선택해주세요.",
   },
   details: {
-    icon: "06",
-    title: "추가 요청사항",
-    description: "행사 목적이나 현장 요청을 남겨주세요.",
+    icon: "04",
+    title: "참고 자료 및 요청사항",
+    description: "자료 보유 여부와 추가 요청을 알려주세요.",
   },
 };
 
@@ -154,6 +158,20 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       ...current,
       [name]: value,
     }));
+  };
+
+  const toggleArrayValue = (name, value) => {
+    setForm((current) => {
+      const selected = current[name] || [];
+      const next = selected.includes(value)
+        ? selected.filter((item) => item !== value)
+        : [...selected, value];
+
+      return {
+        ...current,
+        [name]: next,
+      };
+    });
   };
 
   const handleAgreementChange = (name, checked) => {
@@ -206,16 +224,48 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       return;
     }
 
+    if (form.interpretationLanguages.length === 0) {
+      const message = "통역 언어를 1개 이상 선택해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
+
+    if (form.interpretationTypes.length === 0) {
+      const message = "통역 유형을 1개 이상 선택해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
+
     const urgency = getUrgency(form.startDate);
     const estimatedPrice = calculateEstimatedPrice({
       level: interpreter?.level,
       experienceCount: interpreter?.experience_count,
       urgency,
-      workHours: 0,
+      workHours: Number(form.expectedHours || 0),
     });
     const interpreterPay = calculateInterpreterPay(estimatedPrice);
-    const requestDetails = form.requestDetails;
-    const contact = form.contactEmailOrPhone;
+    const industryField =
+      form.industryField === "기타"
+        ? form.customIndustryField.trim() || "기타"
+        : form.industryField;
+    const requestDetails = [
+      `통역 언어: ${form.interpretationLanguages.join(", ")}`,
+      `통역 유형: ${form.interpretationTypes.join(", ")}`,
+      `산업 분야: ${industryField}`,
+      `예상 통역 시간: ${form.expectedHours}시간`,
+      `참고 자료: ${form.referenceMaterial}${
+        form.referenceFileName ? ` (${form.referenceFileName})` : ""
+      }`,
+      form.requestDetails ? `추가 요청사항: ${form.requestDetails}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const contact = `${form.contactPhone} / ${form.contactEmail}`;
+    const eventName =
+      form.eventName.trim() ||
+      `${form.companyName} ${form.interpretationTypes[0] || "통역"} 견적 요청`;
     const requestType = interpreter
       ? "designated"
       : urgency === "NORMAL"
@@ -229,18 +279,18 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       contact_name: form.contactName,
       contact_email_or_phone: contact,
       manager_name: form.contactName,
-      email: contact,
-      phone: contact,
-      event_name: form.eventName,
+      email: form.contactEmail,
+      phone: form.contactPhone,
+      event_name: eventName,
       event_date: form.startDate,
       start_date: form.startDate,
       end_date: form.endDate,
       event_location: form.eventLocation,
-      work_hours: 0,
+      work_hours: Number(form.expectedHours || 0),
       requested_level: requestedLevel,
       requested_people_count: Number(form.requestedPeopleCount || 1),
       preferred_gender: form.preferredGender,
-      interpretation_field: form.interpretationField,
+      interpretation_field: industryField,
       urgency,
       estimated_price: estimatedPrice,
       interpreter_pay: interpreterPay,
@@ -255,7 +305,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
       is_public: false,
       job_description: requestDetails,
-      job_field: form.interpretationField,
+      job_field: industryField,
       required_level:
         requestedLevel === "운영팀 추천받기" ? null : requestedLevel,
       required_count: Number(form.requestedPeopleCount || 1),
@@ -348,11 +398,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     }
 
     const companyEmail = getEmailRecipient(
-      form.company_email,
-      form.contact_email,
-      form.email,
-      form.manager_email,
-      form.contactEmailOrPhone,
+      form.contactEmail,
       requestPayload.email,
       requestPayload.contact_email_or_phone
     );
@@ -453,7 +499,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       console.error("Company admin email failed", error);
     }
 
-    alert("의뢰 문의가 접수되었습니다.");
+    alert(
+      "통역 의뢰가 접수되었습니다.\n\nON-LI 담당자가 내용을 확인 후\n영업일 기준 3시간 이내 연락드립니다."
+    );
     setForm(initialForm);
     setAgreements(initialTermsAgreement);
     onSubmitSuccess();
@@ -481,13 +529,13 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         <header className="request-hero">
           <div>
             <p className="request-eyebrow">ON-LI REQUEST</p>
-            <h1>통역 의뢰하기</h1>
+            <h1>무료 견적 요청</h1>
             <p className="request-description">
               {isGeneralRequest
-                ? "전시회·상담회·비즈니스 미팅 등 통역이 필요한 일정 정보를 입력해주세요."
-                : `${interpreter?.name || "선택한 통역사"}님과의 매칭 검토에 필요한 행사 정보를 입력해주세요.`}
+                ? "전시회·상담회·기업 미팅 등 통역이 필요한 일정 정보를 입력해주세요."
+                : `${interpreter?.name || "선택한 통역사"}님과의 매칭 검토에 필요한 견적 정보를 입력해주세요.`}
               <br />
-              접수 후 ON-LI 운영팀이 내용을 검토하여 적합한 통역사를 매칭합니다.
+              접수 후 ON-LI 담당자가 조건을 확인하고 빠르게 견적을 안내드립니다.
             </p>
           </div>
           <div className="request-hero-mark" aria-hidden="true">
@@ -509,23 +557,20 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
         <form onSubmit={handleSubmit} className="request-form-shell">
           <SectionBlock meta={sectionMeta.basic}>
-            <div className="request-grid request-grid-3">
+            <div className="request-grid request-grid-2">
               <Field label="회사명" name="companyName" value={form.companyName} onChange={handleChange} required />
               <Field label="담당자명" name="contactName" value={form.contactName} onChange={handleChange} required />
-              <Field label="연락처 또는 이메일" name="contactEmailOrPhone" value={form.contactEmailOrPhone} onChange={handleChange} required />
+              <Field label="연락처" name="contactPhone" type="tel" value={form.contactPhone} onChange={handleChange} required />
+              <Field label="이메일" name="contactEmail" type="email" value={form.contactEmail} onChange={handleChange} required />
             </div>
           </SectionBlock>
 
           <SectionBlock meta={sectionMeta.event}>
-            <Field label="행사명" name="eventName" value={form.eventName} onChange={handleChange} required />
-          </SectionBlock>
-
-          <SectionBlock meta={sectionMeta.period}>
-            <div className="request-full-width">
+            <div className="request-grid request-grid-2">
               <DateRangeInput
                 required
                 showQuickButtons
-                label="행사 기간"
+                label="행사 날짜"
                 startDate={form.startDate}
                 endDate={form.endDate}
                 onChange={({ startDate, endDate }) =>
@@ -536,11 +581,20 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                   }))
                 }
               />
+              <Field label="장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
+              <Field
+                label="예상 통역 시간"
+                name="expectedHours"
+                type="number"
+                min="1"
+                step="0.5"
+                placeholder="예: 6"
+                value={form.expectedHours}
+                onChange={handleChange}
+                required
+              />
+              <Field label="행사명 또는 프로젝트명" name="eventName" value={form.eventName} onChange={handleChange} placeholder="선택 입력" />
             </div>
-          </SectionBlock>
-
-          <SectionBlock meta={sectionMeta.location}>
-            <Field label="행사 장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
           </SectionBlock>
 
           <SectionBlock meta={sectionMeta.request} className="request-section-compact">
@@ -550,6 +604,35 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
               }`}
             >
               <div className="request-grid-area request-grid-area-left">
+                <CheckboxGroup
+                  label="통역 언어"
+                  options={languageOptions}
+                  values={form.interpretationLanguages}
+                  onChange={(value) => toggleArrayValue("interpretationLanguages", value)}
+                />
+                <CheckboxGroup
+                  label="통역 유형"
+                  options={interpretationTypeOptions}
+                  values={form.interpretationTypes}
+                  onChange={(value) => toggleArrayValue("interpretationTypes", value)}
+                />
+                <TabField
+                  className="request-grid-area-field"
+                  label="산업 분야"
+                  value={form.industryField}
+                  onChange={(value) => updateFormValue("industryField", value)}
+                  options={fieldOptions}
+                />
+                {form.industryField === "기타" && (
+                  <Field
+                    label="기타 산업 분야"
+                    name="customIndustryField"
+                    value={form.customIndustryField}
+                    onChange={handleChange}
+                    placeholder="산업 분야를 입력해주세요"
+                    required
+                  />
+                )}
                 <Field
                   className="request-grid-area-people"
                   label="필요 인원 수"
@@ -560,13 +643,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                   value={form.requestedPeopleCount}
                   onChange={handleChange}
                   required
-                />
-                <TabField
-                  className="request-grid-area-field"
-                  label="통역 분야"
-                  value={form.interpretationField}
-                  onChange={(value) => updateFormValue("interpretationField", value)}
-                  options={fieldOptions}
                 />
                 <TabField
                   className="request-grid-area-gender"
@@ -606,6 +682,30 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
           </SectionBlock>
 
           <SectionBlock meta={sectionMeta.details}>
+            <TabField
+              label="참고 자료"
+              value={form.referenceMaterial}
+              onChange={(value) => updateFormValue("referenceMaterial", value)}
+              options={["있음", "없음"]}
+            />
+            {form.referenceMaterial === "있음" && (
+              <label className="request-field request-full-width">
+                <span className="request-field-label">참고 자료 파일</span>
+                <input
+                  type="file"
+                  className="request-input request-file-input"
+                  onChange={(event) =>
+                    updateFormValue(
+                      "referenceFileName",
+                      event.target.files?.[0]?.name || ""
+                    )
+                  }
+                />
+                <span className="request-help-text">
+                  파일명은 요청 내용에 함께 기록됩니다. 대용량 자료는 접수 후 담당자에게 공유해주세요.
+                </span>
+              </label>
+            )}
             <label className="request-field request-full-width">
               <span className="request-field-label">요청 내용</span>
               <textarea
@@ -632,8 +732,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
           <div className="request-submit-card">
             <div>
-              <strong>정확한 정보를 입력해주시면 더 빠르고 정확한 매칭이 가능합니다.</strong>
-              <p>문의사항은 언제든지 연락주세요. 친절하게 안내해드리겠습니다.</p>
+              <strong>무료 견적 요청 후 영업일 기준 3시간 이내 연락드립니다.</strong>
+              <p>일정, 장소, 분야를 확인한 뒤 적합한 통역 조건과 예상 금액을 안내합니다.</p>
               <span className="request-security-note">
                 입력하신 정보는 안전하게 보호되며, 통역 매칭 용도로만 사용됩니다.
               </span>
@@ -643,7 +743,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
               disabled={isSubmitDisabled}
               className="request-submit-button"
             >
-              {isSubmitting ? "접수 중..." : "통역 의뢰 제출하기"}
+              {isSubmitting ? "접수 중..." : "무료 견적 요청하기"}
             </button>
           </div>
         </form>
@@ -705,6 +805,26 @@ function TabField({ label, options, value, onChange, helpText, className }) {
       </div>
       {helpText && <span className="request-help-text">{helpText}</span>}
     </div>
+  );
+}
+
+function CheckboxGroup({ label, options, values, onChange, className }) {
+  return (
+    <fieldset className={`request-field request-checkbox-field${className ? ` ${className}` : ""}`}>
+      <legend className="request-field-label">{label}</legend>
+      <div className="request-checkbox-grid">
+        {options.map((option) => (
+          <label key={option} className="request-checkbox-option">
+            <input
+              type="checkbox"
+              checked={values.includes(option)}
+              onChange={() => onChange(option)}
+            />
+            <span>{option}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

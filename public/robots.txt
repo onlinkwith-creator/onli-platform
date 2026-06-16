@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://onli-platform.vercel.app/sitemap.xml
