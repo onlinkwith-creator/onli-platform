@@ -42,6 +42,7 @@ const initialForm = {
   customIndustryField: "",
   referenceMaterial: "없음",
   referenceFileName: "",
+  referenceFile: null,
   requestDetails: "",
 };
 
@@ -76,6 +77,7 @@ const fieldOptions = [
 ];
 
 const defaultInterpretationLanguage = "한일 통역";
+const requestReferenceBucket = "request-reference-files";
 const interpretationTypeOptions = [
   "전시회 통역",
   "바이어 상담회 통역",
@@ -141,6 +143,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const referenceFileInputRef = useRef(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   const handleChange = (event) => {
@@ -170,6 +173,71 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         [name]: next,
       };
     });
+  };
+
+  const handleReferenceMaterialChange = (value) => {
+    setForm((current) => ({
+      ...current,
+      referenceMaterial: value,
+      ...(value === "없음"
+        ? {
+            referenceFileName: "",
+            referenceFile: null,
+          }
+        : {}),
+    }));
+
+    if (value === "없음" && referenceFileInputRef.current) {
+      referenceFileInputRef.current.value = "";
+    }
+  };
+
+  const handleReferenceFileChange = (file) => {
+    if (!file) {
+      updateFormValue("referenceFileName", "");
+      updateFormValue("referenceFile", null);
+      return;
+    }
+
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert("참고 자료 파일은 최대 20MB까지 업로드할 수 있습니다.");
+      if (referenceFileInputRef.current) referenceFileInputRef.current.value = "";
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      referenceFileName: file.name,
+      referenceFile: file,
+    }));
+  };
+
+  const uploadReferenceFile = async (file) => {
+    if (!file) return null;
+
+    const safeFileName = getSafeStorageFileName(file.name);
+    const filePath = `requests/${Date.now()}_${getStorageId()}_${safeFileName}`;
+
+    const { error } = await supabase.storage
+      .from(requestReferenceBucket)
+      .upload(filePath, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("Reference file upload failed:", error);
+      const message = "참고 자료 파일 업로드에 실패했습니다. 다시 시도해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      throw error;
+    }
+
+    return {
+      fileName: file.name,
+      filePath,
+    };
   };
 
   const handleAgreementChange = (name, checked) => {
@@ -241,6 +309,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       form.industryField === "기타"
         ? form.customIndustryField.trim() || "기타"
         : form.industryField;
+    const referenceFileUpload = await uploadReferenceFile(form.referenceFile);
     const requestDetails = [
       `통역 언어: ${defaultInterpretationLanguage}`,
       `통역 유형: ${form.interpretationTypes.join(", ")}`,
@@ -248,6 +317,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       `참고 자료: ${form.referenceMaterial}${
         form.referenceFileName ? ` (${form.referenceFileName})` : ""
       }`,
+      referenceFileUpload?.fileName ? `참고 자료 파일명: ${referenceFileUpload.fileName}` : "",
+      referenceFileUpload?.filePath ? `참고 자료 파일 경로: ${referenceFileUpload.filePath}` : "",
       form.requestDetails ? `추가 요청사항: ${form.requestDetails}` : "",
     ]
       .filter(Boolean)
@@ -493,6 +564,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       "통역 의뢰가 접수되었습니다.\n\nON-LI 담당자가 내용을 확인 후\n영업일 기준 3시간 이내 연락드립니다."
     );
     setForm(initialForm);
+    if (referenceFileInputRef.current) {
+      referenceFileInputRef.current.value = "";
+    }
     setAgreements(initialTermsAgreement);
     onSubmitSuccess();
     } finally {
@@ -660,20 +734,18 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
             <TabField
               label="참고 자료"
               value={form.referenceMaterial}
-              onChange={(value) => updateFormValue("referenceMaterial", value)}
+              onChange={handleReferenceMaterialChange}
               options={["있음", "없음"]}
             />
             {form.referenceMaterial === "있음" && (
               <label className="request-field request-full-width">
                 <span className="request-field-label">참고 자료 파일</span>
                 <input
+                  ref={referenceFileInputRef}
                   type="file"
                   className="request-input request-file-input"
                   onChange={(event) =>
-                    updateFormValue(
-                      "referenceFileName",
-                      event.target.files?.[0]?.name || ""
-                    )
+                    handleReferenceFileChange(event.target.files?.[0] || null)
                   }
                 />
                 <span className="request-help-text">
@@ -751,6 +823,23 @@ function isAgreementColumnError(error) {
     error?.code === "PGRST204" ||
     /agreed_|column|schema cache/i.test(error?.message || "")
   );
+}
+
+function getSafeStorageFileName(fileName) {
+  const normalized = String(fileName || "reference-file")
+    .normalize("NFKD")
+    .replace(/\s+/g, "_")
+    .replace(/[^\w.-]/g, "");
+
+  return normalized || "reference-file";
+}
+
+function getStorageId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return Math.random().toString(36).slice(2, 12);
 }
 
 function Field({ label, className, ...inputProps }) {

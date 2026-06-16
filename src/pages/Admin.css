@@ -2218,6 +2218,57 @@
   font-size: 13px;
   line-height: 1.45;
   word-break: keep-all;
+  white-space: pre-line;
+}
+
+.admin-reference-file-block {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid #e0e7ff;
+  border-radius: 11px;
+  background: #f8f7ff;
+}
+
+.admin-reference-file-label {
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-reference-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-reference-file-name {
+  min-width: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.admin-reference-file-row button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: #5b5cf0;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-reference-file-empty {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .admin-detail-list {

@@ -116,6 +116,7 @@ const SUB_TAB_TO_MAIN_TAB = Object.fromEntries(
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended", "withdrawn"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const INTERPRETER_DOCUMENT_BUCKET = "resume-files";
+const REQUEST_REFERENCE_BUCKET = "request-reference-files";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -4217,6 +4218,30 @@ function RequestDetailPanel({
       !assignedInterpreterIds.has(String(interpreter.id))
   );
   const scheduleRange = getAssignmentScheduleRange(request, job);
+  const requestDescription = getRequestDescription(request);
+  const referenceFile = getRequestReferenceFile(requestDescription);
+  const visibleRequestDescription = removeRequestReferenceFileMeta(requestDescription);
+
+  const handleOpenReferenceFile = async () => {
+    if (!referenceFile?.path) return;
+
+    if (referenceFile.path.startsWith("http://") || referenceFile.path.startsWith("https://")) {
+      window.open(referenceFile.path, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.storage
+        .from(REQUEST_REFERENCE_BUCKET)
+        .createSignedUrl(referenceFile.path, 60);
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Failed to open request reference file:", error);
+      alert("참고 자료 파일을 열 수 없습니다. 권한 또는 파일 경로를 확인해주세요.");
+    }
+  };
 
   return (
     <div className="admin-detail-panel">
@@ -4270,7 +4295,11 @@ function RequestDetailPanel({
 
       <div>
         <h3>업무 내용</h3>
-        <p>{request.job_description || request.request_detail || "-"}</p>
+        <p>{visibleRequestDescription || "-"}</p>
+        <RequestReferenceFileBlock
+          file={referenceFile}
+          onOpen={handleOpenReferenceFile}
+        />
         <h3>복장/주의사항</h3>
         <p>{request.dress_code || "추후 안내"}</p>
       </div>
@@ -6426,6 +6455,26 @@ function FieldControl({ label, children }) {
   );
 }
 
+function RequestReferenceFileBlock({ file, onOpen }) {
+  if (!file) return null;
+
+  return (
+    <div className="admin-reference-file-block">
+      <span className="admin-reference-file-label">참고 자료</span>
+      <div className="admin-reference-file-row">
+        <span className="admin-reference-file-name">📎 {file.name || "첨부 파일"}</span>
+        {file.path ? (
+          <button type="button" onClick={onOpen}>
+            보기 / 다운로드
+          </button>
+        ) : (
+          <span className="admin-reference-file-empty">파일 링크 없음</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Info({ label, value }) {
   return (
     <div>
@@ -7931,6 +7980,46 @@ function getStoragePathFromUrl(filePath, bucketName) {
     return "";
   }
   return filePath;
+}
+
+function getRequestDescription(request = {}) {
+  return (
+    request.job_description ||
+    request.request_detail ||
+    request.request_details ||
+    ""
+  );
+}
+
+function getRequestReferenceFile(description = "") {
+  const fileName =
+    description.match(/^참고 자료 파일명:\s*(.+)$/m)?.[1]?.trim() ||
+    description.match(/^참고 자료:\s*있음\s*\((.+)\)$/m)?.[1]?.trim() ||
+    "";
+  const filePath =
+    description.match(/^참고 자료 파일 경로:\s*(.+)$/m)?.[1]?.trim() ||
+    description.match(/^참고 자료 파일 URL:\s*(.+)$/m)?.[1]?.trim() ||
+    "";
+
+  if (!fileName && !filePath) return null;
+
+  return {
+    name: fileName || filePath.split("/").pop() || "첨부 파일",
+    path: getStoragePathFromUrl(filePath, REQUEST_REFERENCE_BUCKET) || filePath,
+  };
+}
+
+function removeRequestReferenceFileMeta(description = "") {
+  return description
+    .split("\n")
+    .filter(
+      (line) =>
+        !/^참고 자료 파일명:\s*/.test(line) &&
+        !/^참고 자료 파일 경로:\s*/.test(line) &&
+        !/^참고 자료 파일 URL:\s*/.test(line)
+    )
+    .join("\n")
+    .trim();
 }
 
 function getStatusLabel(status) {
