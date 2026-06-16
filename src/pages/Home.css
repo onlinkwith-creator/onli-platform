@@ -90,37 +90,33 @@
   border-bottom: 1px solid rgba(226, 232, 240, 0.8);
   box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
   transition: background-color 200ms ease, border-color 200ms ease;
-  min-height: 96px;
-  overflow: visible;
 }
 
 .home-header-inner {
   max-width: var(--home-container-max);
   width: 100%;
   margin: 0 auto;
-  padding: 18px 32px;
-  min-height: 96px;
-  height: auto;
+  padding: 0 32px;
+  height: 76px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   box-sizing: border-box;
-  overflow: visible;
 }
 
 .home-logo-area {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   user-select: none;
   padding-left: 10px;
-  overflow: visible;
+  line-height: 1;
 }
 
 .home-header-logo {
-  max-height: 52px;
-  height: 52px;
+  max-height: 48px;
+  height: 42px;
   width: auto;
   object-fit: contain;
   flex-shrink: 0;
@@ -187,9 +183,8 @@
   display: flex;
   align-items: center;
   gap: 38px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  overflow: visible;
 }
 
 .home-mobile-header-actions {
@@ -222,10 +217,10 @@
 .home-header-user-zone {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   margin-left: 12px;
-  flex-wrap: wrap;
-  overflow: visible;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .home-header-user-zone .home-user-email {
@@ -235,6 +230,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .home-header-divider {
@@ -1732,29 +1728,28 @@ span.home-footer-contact-item:hover {
   }
 
   .home-header-inner {
-    height: auto;
-    min-height: 96px;
-    padding: 16px 20px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 14px;
+    height: 76px;
+    padding: 0 20px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
   }
 
   .home-nav {
-    width: 100%;
-    justify-content: flex-start;
-    gap: 16px;
+    width: auto;
+    justify-content: flex-end;
+    gap: 14px;
   }
   
   .home-header-user-zone {
     margin-left: 0;
-    flex-wrap: wrap;
-    gap: 12px;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .home-header-logo {
-    max-height: 48px !important;
-    height: 48px !important;
+    max-height: 42px !important;
+    height: 36px !important;
     width: auto !important;
     opacity: 0.88 !important;
   }
@@ -1856,13 +1851,12 @@ span.home-footer-contact-item:hover {
 
   .home-header-inner {
     position: relative;
-    min-height: 96px;
-    height: auto;
+    height: 64px;
     max-width: none;
-    padding: 18px 20px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+    padding: 0 20px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
   }
 
   .home-logo-area {
@@ -1873,9 +1867,9 @@ span.home-footer-contact-item:hover {
   }
 
   .home-header-logo {
-    max-height: 48px !important;
+    max-height: 42px !important;
     width: auto !important;
-    height: 48px !important;
+    height: 36px !important;
   }
 
   .home-header-brand-title {
@@ -1893,11 +1887,8 @@ span.home-footer-contact-item:hover {
   .home-mobile-header-actions {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 8px;
-    width: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
+    margin-left: auto;
   }
 
   .home-mobile-login-btn {
@@ -2349,7 +2340,7 @@ span.home-footer-contact-item:hover {
 
   .home-nav {
     position: absolute;
-    top: calc(100% - 4px);
+    top: 64px;
     right: 20px;
     left: 20px;
     z-index: 10;
@@ -2401,11 +2392,7 @@ span.home-footer-contact-item:hover {
   }
 
   .home-header-user-zone .home-user-email {
-    overflow: hidden;
-    padding: 8px 12px;
-    font-size: 12.5px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: none;
   }
 
   .home-header-divider {
