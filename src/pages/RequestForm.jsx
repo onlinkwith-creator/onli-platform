@@ -34,11 +34,9 @@ const initialForm = {
   startDate: "",
   endDate: "",
   eventLocation: "",
-  expectedHours: "",
   requestedLevel: "운영팀 추천받기",
   requestedPeopleCount: "1",
   preferredGender: "성별 무관",
-  interpretationLanguages: [],
   interpretationTypes: [],
   industryField: "무역",
   customIndustryField: "",
@@ -77,7 +75,7 @@ const fieldOptions = [
   "기타",
 ];
 
-const languageOptions = ["한국어 → 일본어", "일본어 → 한국어", "양방향"];
+const defaultInterpretationLanguage = "한일 통역";
 const interpretationTypeOptions = [
   "전시회 통역",
   "바이어 상담회 통역",
@@ -109,7 +107,7 @@ const sectionMeta = {
   request: {
     icon: "03",
     title: "통역 조건",
-    description: "언어, 유형, 분야를 선택해주세요.",
+    description: "유형, 분야를 선택해주세요.",
   },
   details: {
     icon: "04",
@@ -224,13 +222,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       return;
     }
 
-    if (form.interpretationLanguages.length === 0) {
-      const message = "통역 언어를 1개 이상 선택해주세요.";
-      setErrorMessage(message);
-      alert(message);
-      return;
-    }
-
     if (form.interpretationTypes.length === 0) {
       const message = "통역 유형을 1개 이상 선택해주세요.";
       setErrorMessage(message);
@@ -243,7 +234,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       level: interpreter?.level,
       experienceCount: interpreter?.experience_count,
       urgency,
-      workHours: Number(form.expectedHours || 0),
+      workHours: 0,
     });
     const interpreterPay = calculateInterpreterPay(estimatedPrice);
     const industryField =
@@ -251,10 +242,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         ? form.customIndustryField.trim() || "기타"
         : form.industryField;
     const requestDetails = [
-      `통역 언어: ${form.interpretationLanguages.join(", ")}`,
+      `통역 언어: ${defaultInterpretationLanguage}`,
       `통역 유형: ${form.interpretationTypes.join(", ")}`,
       `산업 분야: ${industryField}`,
-      `예상 통역 시간: ${form.expectedHours}시간`,
       `참고 자료: ${form.referenceMaterial}${
         form.referenceFileName ? ` (${form.referenceFileName})` : ""
       }`,
@@ -286,7 +276,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       start_date: form.startDate,
       end_date: form.endDate,
       event_location: form.eventLocation,
-      work_hours: Number(form.expectedHours || 0),
+      work_hours: 0,
       requested_level: requestedLevel,
       requested_people_count: Number(form.requestedPeopleCount || 1),
       preferred_gender: form.preferredGender,
@@ -582,17 +572,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                 }
               />
               <Field label="장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
-              <Field
-                label="예상 통역 시간"
-                name="expectedHours"
-                type="number"
-                min="1"
-                step="0.5"
-                placeholder="예: 6"
-                value={form.expectedHours}
-                onChange={handleChange}
-                required
-              />
               <Field label="행사명 또는 프로젝트명" name="eventName" value={form.eventName} onChange={handleChange} placeholder="선택 입력" />
             </div>
           </SectionBlock>
@@ -604,12 +583,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
               }`}
             >
               <div className="request-grid-area request-grid-area-left">
-                <CheckboxGroup
-                  label="통역 언어"
-                  options={languageOptions}
-                  values={form.interpretationLanguages}
-                  onChange={(value) => toggleArrayValue("interpretationLanguages", value)}
-                />
                 <CheckboxGroup
                   label="통역 유형"
                   options={interpretationTypeOptions}
