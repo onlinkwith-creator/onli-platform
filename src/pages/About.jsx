@@ -47,44 +47,74 @@ const challengeCards = [
 ];
 
 const fieldCards = [
-  { icon: "💄", label: "뷰티 / 코스메" },
-  { icon: "🍱", label: "식품" },
-  { icon: "👗", label: "패션" },
-  { icon: "💻", label: "IT / 스타트업" },
-  { icon: "🏥", label: "의료 / 헬스케어" },
-  { icon: "⚙️", label: "제조 / 기계" },
-  { icon: "🗺️", label: "관광 / 문화" },
-  { icon: "💼", label: "일반 비즈니스" },
+  { icon: "🏢", label: "일본 전시회 통역" },
+  { icon: "🤝", label: "바이어 상담회 통역" },
+  { icon: "💼", label: "한일 비즈니스 미팅" },
+  { icon: "🏭", label: "공장 및 현장 방문" },
+  { icon: "✈", label: "일본 출장 수행 통역" },
+  { icon: "💻", label: "온라인 화상회의 통역" },
 ];
 
 const processSteps = [
   {
     number: "01",
-    title: "기업 의뢰 등록",
-    text: "필요 일정과 업무 조건 입력",
+    title: "의뢰 접수",
+    text: "필요 일정과 조건을 전달합니다.",
   },
   {
     number: "02",
-    title: "통역 인력 확인",
-    text: "조건에 맞는 지원자 정보 확인",
+    title: "조건 확인",
+    text: "현장 조건과 통역 범위를 확인합니다.",
   },
   {
     number: "03",
-    title: "매칭 진행",
-    text: "일정 및 업무 조건 조율",
+    title: "통역사 추천",
+    text: "목적에 맞는 통역사를 추천합니다.",
   },
   {
     number: "04",
-    title: "현장 활동",
-    text: "매칭된 통역사가 현장에서 활동합니다.",
+    title: "자료 공유",
+    text: "사전 자료와 진행 정보를 공유합니다.",
+  },
+  {
+    number: "05",
+    title: "현장/온라인 진행",
+    text: "행사 현장 또는 온라인 미팅을 지원합니다.",
+  },
+  {
+    number: "06",
+    title: "피드백",
+    text: "진행 후 필요한 피드백을 확인합니다.",
   },
 ];
 
-const trustItems = [
-  "통역사 프로필 관리",
-  "이력 및 경험 정보 확인",
-  "일정 관리 지원",
-  "정산 프로세스 지원",
+const matchingMethodCards = [
+  {
+    number: "01",
+    title: "검증된 통역사",
+    text: "이력서와 통역 경험 정보를 기반으로 통역사를 검토합니다.",
+  },
+  {
+    number: "02",
+    title: "분야별 매칭",
+    text: "전시회, 상담회, 기업 미팅 등 목적에 맞는 통역사를 연결합니다.",
+  },
+  {
+    number: "03",
+    title: "진행 관리",
+    text: "의뢰 접수부터 조건 확인, 자료 공유, 현장 진행까지 지원합니다.",
+  },
+  {
+    number: "04",
+    title: "기준별 요금 산정",
+    text: "일정, 시간, 분야, 통역 난이도, 요구되는 전문성을 기준으로 산정합니다.",
+  },
+];
+
+const interpreterPoints = [
+  "분야별 경력 등록",
+  "프로젝트 단위 매칭",
+  "비즈니스 현장 경험 확대",
 ];
 
 function About({ onBackClick, onRequestClick, onListClick }) {
@@ -217,6 +247,25 @@ function About({ onBackClick, onRequestClick, onListClick }) {
           ))}
         </section>
 
+        <section className="about-business-section" aria-labelledby="about-business-title">
+          <div>
+            <p className="about-section-eyebrow">BUSINESS INTERPRETATION</p>
+            <h2 id="about-business-title">한일 비즈니스 현장을 위한 전문 통역 플랫폼</h2>
+          </div>
+          <div className="about-business-copy">
+            <p>
+              ON-LI는 한국과 일본을 연결하는 한일 통역 플랫폼입니다.
+              일본 전시회, 바이어 상담회, 기업 미팅 등 다양한 비즈니스 현장에 맞는
+              검증된 일본어 통역 인재를 연결합니다.
+            </p>
+            <p>
+              전문 분야와 경험을 기반으로 한 통역사 매칭을 통해
+              전시회 통역, 비즈니스 통역, 수행 통역, 일본 출장 통역까지
+              목적에 맞는 통역 환경을 지원합니다.
+            </p>
+          </div>
+        </section>
+
         <SectionHeader eyebrow="SERVICE" title="ON-LI가 제공하는 연결 경험" />
         <section className="about-feature-grid" aria-label="ON-LI 서비스 특징">
           {serviceFeatures.map((feature) => (
@@ -230,7 +279,11 @@ function About({ onBackClick, onRequestClick, onListClick }) {
           ))}
         </section>
 
-        <SectionHeader eyebrow="FIELD" title="다양한 산업 현장 지원" />
+        <SectionHeader
+          eyebrow="FIELD"
+          title="지원 가능한 통역 현장"
+          description="ON-LI는 다양한 한일 비즈니스 상황에 맞는 통역 인재를 연결합니다."
+        />
         <section className="about-field-grid" aria-label="지원 산업 분야">
           {fieldCards.map((field) => (
             <article className="about-field-card" key={field.label}>
@@ -241,7 +294,11 @@ function About({ onBackClick, onRequestClick, onListClick }) {
         </section>
 
         <section className="about-process-section">
-          <SectionHeader eyebrow="PROCESS" title="간편한 매칭 과정" />
+          <SectionHeader
+            eyebrow="PROCESS"
+            title="진행 절차"
+            description="의뢰 내용과 현장 조건을 확인한 뒤 적합한 통역사를 추천하고, 사전 자료 공유부터 현장 진행까지 안정적으로 지원합니다."
+          />
           <div className="about-process-timeline">
             {processSteps.map((step) => (
               <article className="about-process-step" key={step.title}>
@@ -257,17 +314,38 @@ function About({ onBackClick, onRequestClick, onListClick }) {
 
         <section className="about-trust-section">
           <div className="about-trust-copy">
-            <SectionHeader eyebrow="TRUST" title="더 안정적인 연결을 위해" />
+            <SectionHeader eyebrow="TRUST" title="ON-LI는 어떻게 통역사를 연결하나요?" />
             <p>
-              ON-LI는 기업과 통역 인력이 필요한 정보를 확인하고 일정과 정산
-              흐름을 더 편하게 이어갈 수 있도록 운영 지원을 제공합니다.
+              통역 경험과 현장 조건을 함께 확인해 기업의 목적에 맞는 통역 환경을 지원합니다.
             </p>
           </div>
           <div className="about-trust-list" aria-label="신뢰 지원 항목">
-            {trustItems.map((item, index) => (
-              <div className="about-trust-item" key={item}>
+            {matchingMethodCards.map((item) => (
+              <div className="about-trust-item" key={item.title}>
+                <span>{item.number}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="about-interpreter-guide">
+          <div className="about-interpreter-guide-copy">
+            <p className="about-section-eyebrow">FOR INTERPRETERS</p>
+            <h2>통역 경험을 ON-LI와 연결하세요</h2>
+            <p>
+              한국어와 일본어 능력을 가진 분이라면 일본 거주자와 한국 거주자 모두 등록 가능합니다.
+              전문 분야, 통역 경험, 가능 일정을 등록하고 조건에 맞는 프로젝트와 연결될 수 있습니다.
+            </p>
+          </div>
+          <div className="about-interpreter-point-list">
+            {interpreterPoints.map((point, index) => (
+              <div className="about-interpreter-point" key={point}>
                 <span>{String(index + 1).padStart(2, "0")}</span>
-                <strong>{item}</strong>
+                <strong>{point}</strong>
               </div>
             ))}
           </div>
@@ -294,11 +372,12 @@ function About({ onBackClick, onRequestClick, onListClick }) {
   );
 }
 
-function SectionHeader({ eyebrow, title }) {
+function SectionHeader({ eyebrow, title, description }) {
   return (
     <div className="about-section-head">
       <p className="about-section-eyebrow">{eyebrow}</p>
       <h2>{title}</h2>
+      {description && <p className="about-section-description">{description}</p>}
     </div>
   );
 }

@@ -30,43 +30,6 @@ import {
   X,
 } from "lucide-react";
 
-const seoServiceParagraphs = [
-  "ON-LI는 한국과 일본을 연결하는 한일 통역 플랫폼입니다. 일본 전시회, 바이어 상담회, 기업 미팅 등 다양한 비즈니스 현장에 맞는 검증된 일본어 통역 인재를 연결합니다.",
-  "전문 분야와 경험을 기반으로 한 통역사 매칭을 통해 전시회 통역, 비즈니스 통역, 수행 통역, 일본 출장 통역까지 목적에 맞는 통역 환경을 지원합니다.",
-];
-
-const useCaseCards = [
-  "일본 전시회 부스 통역",
-  "해외 바이어 상담회",
-  "한일 비즈니스 미팅",
-  "공장 및 현장 방문",
-  "일본 출장 수행 통역",
-  "온라인 화상회의",
-];
-
-const trustCards = [
-  {
-    number: "01",
-    title: "어떤 통역사를 매칭하나요?",
-    text: "이력서와 경험 정보를 기반으로 검토된 한일 비즈니스 통역사를 연결합니다.",
-  },
-  {
-    number: "02",
-    title: "어떤 분야를 지원하나요?",
-    text: "전시회, 상담회, 기업 미팅, 현장 운영 등 다양한 비즈니스 상황을 지원합니다.",
-  },
-  {
-    number: "03",
-    title: "진행 과정은 어떻게 되나요?",
-    text: "의뢰 접수 → 조건 확인 → 통역사 추천 → 자료 공유 → 현장 진행 → 피드백",
-  },
-  {
-    number: "04",
-    title: "요금은 어떻게 산정되나요?",
-    text: "일정, 시간, 통역 난이도, 요구되는 전문성 기준으로 산정됩니다.",
-  },
-];
-
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
@@ -328,17 +291,22 @@ function Home({
         </section>
       </main>
 
-      <section className="home-seo-copy" aria-labelledby="home-seo-title">
-        <p className="home-brand-sub">BUSINESS INTERPRETATION</p>
-        <h2 id="home-seo-title">한일 비즈니스 현장을 위한 전문 통역 플랫폼</h2>
-        <div className="home-seo-copy-body">
-          {seoServiceParagraphs.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
+      <section className="home-about-summary" aria-labelledby="home-about-summary-title">
+        <div>
+          <p className="home-brand-sub">ABOUT ON-LI</p>
+          <h2 id="home-about-summary-title">필요한 현장에 맞는 통역 인재를 빠르게 연결합니다.</h2>
+          <p>
+            전시회 · 상담회 · 기업 미팅에 맞는
+            <br />
+            검증된 통역 인재를 빠르게 연결합니다.
+          </p>
         </div>
+        <button type="button" onClick={onAboutClick}>
+          ON-LI 소개 보기
+        </button>
       </section>
 
-      <section className="home-mobile-overview-slider" aria-label="ON-LI 특징 및 진행 프로세스">
+      <section className="home-mobile-overview-slider" aria-label="ON-LI 특징">
         <article className="home-mobile-overview-slide">
           <h3>ON-LI의 특징</h3>
           <div className="home-mobile-feature-list">
@@ -357,48 +325,6 @@ function Home({
               title="모집부터 정산까지 한 번에."
               text="매칭부터 관리까지 ON-LI에서 간편하게."
             />
-          </div>
-        </article>
-
-        <article className="home-mobile-overview-slide home-mobile-process-slide">
-          <div className="home-mobile-process-head">
-            <p className="home-brand-sub">PROCESS</p>
-            <h3>진행 프로세스</h3>
-          </div>
-          <div className="home-mobile-process-list">
-            <div className="process-group">
-              <Step
-                number="1"
-                title="기업 의뢰 접수"
-                text="행사 일정·장소·인원을 전달"
-              />
-              <Step
-                number="2"
-                title="운영팀 검토"
-                text="의뢰 내용과 필요 레벨 확인"
-              />
-            </div>
-
-            <div className="process-single">
-              <Step
-                number="3"
-                title="공고 등록 및 모집"
-                text="관리자 확인 후 통역사 모집"
-              />
-            </div>
-
-            <div className="process-group">
-              <Step
-                number="4"
-                title="매칭 진행"
-                text="조건에 맞는 통역사 선정"
-              />
-              <Step
-                number="5"
-                title="최종 배정 완료"
-                text="사전 안내 후 일정 확정"
-              />
-            </div>
           </div>
         </article>
       </section>
@@ -452,72 +378,6 @@ function Home({
               등록된 통역사 보기
             </button>
           </div>
-        </div>
-      </section>
-
-      <section id="process" className="home-process">
-        <div className="home-process-head">
-          <p className="home-brand-sub">PROCESS</p>
-          <h2>진행 프로세스</h2>
-        </div>
-
-        <div className="home-process-timeline">
-          <Step
-            number="1"
-            title="기업 의뢰 접수"
-            text="행사 일정·장소·인원을 전달"
-          />
-          <Step
-            number="2"
-            title="운영팀 검토"
-            text="의뢰 내용과 필요 레벨 확인"
-          />
-          <Step
-            number="3"
-            title="공고 등록 및 모집"
-            text="관리자 확인 후 통역사 모집"
-          />
-          <Step
-            number="4"
-            title="매칭 진행"
-            text="조건에 맞는 통역사 선정"
-          />
-          <Step
-            number="5"
-            title="최종 배정 완료"
-            text="사전 안내 후 일정 확정"
-          />
-        </div>
-      </section>
-
-      <section className="home-use-cases" aria-labelledby="home-use-cases-title">
-        <div className="home-section-simple-head">
-          <p className="home-brand-sub">USE CASES</p>
-          <h2 id="home-use-cases-title">이런 현장에서 ON-LI를 이용할 수 있습니다.</h2>
-        </div>
-        <div className="home-use-case-grid">
-          {useCaseCards.map((item) => (
-            <article className="home-use-case-card" key={item}>
-              <span aria-hidden="true">✓</span>
-              <h3>{item}</h3>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="home-trust-block" aria-labelledby="home-trust-title">
-        <div className="home-section-simple-head">
-          <p className="home-brand-sub">TRUST</p>
-          <h2 id="home-trust-title">ON-LI는 어떻게 통역사를 연결하나요?</h2>
-        </div>
-        <div className="home-trust-grid">
-          {trustCards.map((card) => (
-            <article className="home-trust-card" key={card.number}>
-              <span>{card.number}</span>
-              <h3>{card.title}</h3>
-              <p>{card.text}</p>
-            </article>
-          ))}
         </div>
       </section>
 
@@ -736,18 +596,6 @@ function Feature({ symbol, title, text }) {
       <div>
         <strong>{title}</strong>
         <span>{text}</span>
-      </div>
-    </div>
-  );
-}
-
-function Step({ number, title, text }) {
-  return (
-    <div className="home-step">
-      <span className="home-step-number">{number}</span>
-      <div className="home-step-copy">
-        <strong>{title}</strong>
-        <small>{text}</small>
       </div>
     </div>
   );

@@ -64,10 +64,8 @@
 }
 
 .home-main,
-.home-seo-copy,
+.home-about-summary,
 .home-process,
-.home-use-cases,
-.home-trust-block,
 .home-cta-stack,
 .home-jobs-preview,
 .home-interpreters,
@@ -499,70 +497,17 @@
   padding: 0 var(--home-section-padding-x);
 }
 
-.home-seo-copy,
-.home-use-cases,
-.home-trust-block {
+.home-about-summary {
   margin-top: var(--home-section-gap);
   padding: 0 var(--home-section-padding-x);
 }
 
-.home-seo-copy {
+.home-about-summary {
   display: grid;
-  gap: 18px;
-  padding-top: 4px;
-}
-
-.home-seo-copy h2,
-.home-section-simple-head h2 {
-  margin: 0;
-  color: #111827;
-  font-size: 26px;
-  font-weight: 900;
-  line-height: 1.35;
-  word-break: keep-all;
-}
-
-.home-seo-copy-body {
-  display: grid;
-  gap: 12px;
-  padding: 28px 32px;
-  border-radius: var(--onli-card-radius);
-  background: rgba(255, 255, 255, 0.66);
-  border: 1px solid var(--onli-border);
-  box-shadow: var(--onli-card-shadow);
-  backdrop-filter: blur(16px);
-}
-
-.home-seo-copy-body p {
-  margin: 0;
-  color: #4b5563;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.85;
-  word-break: keep-all;
-}
-
-.home-section-simple-head {
-  margin-bottom: 18px;
-}
-
-.home-use-case-grid,
-.home-trust-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.home-use-case-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.home-trust-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.home-use-case-card,
-.home-trust-card {
-  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  padding: 26px 30px;
   border-radius: var(--onli-card-radius);
   background: rgba(255, 255, 255, 0.66);
   border: 1px solid var(--onli-border);
@@ -571,71 +516,36 @@
   text-align: left;
 }
 
-.home-use-case-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 92px;
-  padding: 22px 24px;
-}
-
-.home-use-case-card span,
-.home-trust-card span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: #eef2ff;
-  color: #4f46e5;
-  font-weight: 900;
-}
-
-.home-use-case-card span {
-  width: 30px;
-  height: 30px;
-  font-size: 14px;
-}
-
-.home-use-case-card h3 {
+.home-about-summary h2 {
   margin: 0;
   color: #111827;
-  font-size: 16px;
+  font-size: 24px;
   font-weight: 900;
-  line-height: 1.45;
+  line-height: 1.35;
   word-break: keep-all;
 }
 
-.home-trust-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 230px;
-  padding: 24px;
-}
-
-.home-trust-card span {
-  width: 38px;
-  height: 38px;
-  font-size: 12px;
-}
-
-.home-trust-card h3 {
-  margin: 0;
-  color: #111827;
-  font-size: 17px;
-  font-weight: 900;
-  line-height: 1.42;
-  word-break: keep-all;
-}
-
-.home-trust-card p {
-  margin: 0;
+.home-about-summary p:not(.home-brand-sub) {
+  margin: 10px 0 0;
   color: #4b5563;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1.75;
+  line-height: 1.7;
   word-break: keep-all;
+}
+
+.home-about-summary button {
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .home-process-head {
@@ -1970,11 +1880,9 @@ span.home-footer-contact-item:hover {
   }
 
   .home-main,
-  .home-seo-copy,
+  .home-about-summary,
   .home-mobile-overview-slider,
   .home-process,
-  .home-use-cases,
-  .home-trust-block,
   .home-cta-stack,
   .home-jobs-preview,
   .home-interpreters {
@@ -2105,40 +2013,25 @@ span.home-footer-contact-item:hover {
     margin-top: 28px;
   }
 
-  .home-seo-copy,
-  .home-use-cases,
-  .home-trust-block {
+  .home-about-summary {
+    grid-template-columns: 1fr;
+    gap: 16px;
     margin-top: 32px;
+    padding: 20px;
   }
 
-  .home-seo-copy h2,
-  .home-section-simple-head h2 {
+  .home-about-summary h2 {
     font-size: 22px;
     text-align: left;
   }
 
-  .home-seo-copy-body {
-    padding: 20px;
-  }
-
-  .home-seo-copy-body p {
+  .home-about-summary p:not(.home-brand-sub) {
     font-size: 14px;
     line-height: 1.75;
   }
 
-  .home-use-case-grid,
-  .home-trust-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-use-case-card {
-    min-height: 78px;
-    padding: 18px;
-  }
-
-  .home-trust-card {
-    min-height: 0;
-    padding: 20px;
+  .home-about-summary button {
+    width: 100%;
   }
 
   .home-carousel-wrap {
