@@ -31,46 +31,51 @@ import {
 } from "lucide-react";
 
 const seoServiceParagraphs = [
-  "ON-LI는 한국과 일본을 연결하는 한일 통역 플랫폼입니다. 일본 전시회, 바이어 상담회, 기업 미팅 등 다양한 비즈니스 현장에 맞는 검증된 일본어 통역 인재를 연결합니다.",
-  "전문 분야와 경험을 기반으로 한 통역사 매칭을 통해 전시회 통역, 비즈니스 통역, 수행 통역, 일본 출장 통역까지 목적에 맞는 통역 환경을 지원합니다.",
+  "ON-LI는 한국과 일본 기업의 원활한 소통을 위해 전시회, 바이어 상담회, 기업 미팅 경험을 가진 검증된 일본어 통역 인재를 연결합니다.",
+  "전문 분야와 현장 경험을 기반으로 전시회 통역, 비즈니스 통역, 수행 통역, 일본 출장 통역까지 목적에 맞는 통역 환경을 지원합니다.",
+];
+
+const seoKeywordTags = [
+  "한일 통역",
+  "일본어 통역",
+  "비즈니스 통역",
+  "전시회 통역",
+  "바이어 상담회 통역",
+  "수행 통역",
+  "통역사 매칭",
+  "일본 출장 통역",
 ];
 
 const useCaseCards = [
-  "일본 전시회 부스 통역",
-  "해외 바이어 상담회",
-  "한일 비즈니스 미팅",
-  "공장 및 현장 방문",
-  "일본 출장 수행 통역",
-  "온라인 화상회의",
+  { icon: "🏢", title: "일본 전시회 통역" },
+  { icon: "🤝", title: "바이어 상담회" },
+  { icon: "💼", title: "비즈니스 미팅" },
+  { icon: "🏭", title: "공장 및 현장 방문" },
+  { icon: "✈", title: "일본 출장 수행 통역" },
+  { icon: "💻", title: "온라인 화상회의" },
 ];
 
 const trustCards = [
   {
     number: "01",
-    title: "어떤 통역사를 매칭하나요?",
-    text: "이력서와 경험 정보를 기반으로 검토된 한일 비즈니스 통역사를 연결합니다.",
+    title: "검증된 통역사",
+    text: "이력서 · 경험 기반 검토",
   },
   {
     number: "02",
-    title: "어떤 분야를 지원하나요?",
-    text: "전시회, 상담회, 기업 미팅, 현장 운영 등 다양한 비즈니스 상황을 지원합니다.",
+    title: "전문 분야 매칭",
+    text: "전시회 · 상담회 · 미팅 목적별 추천",
   },
   {
     number: "03",
-    title: "진행 과정은 어떻게 되나요?",
-    text: "의뢰 접수 → 조건 확인 → 통역사 추천 → 자료 공유 → 현장 진행 → 피드백",
+    title: "진행 관리",
+    text: "의뢰 접수부터 현장 진행까지 지원",
   },
   {
     number: "04",
-    title: "요금은 어떻게 산정되나요?",
-    text: "일정, 시간, 통역 난이도, 요구되는 전문성 기준으로 산정됩니다.",
+    title: "기준별 요금 산정",
+    text: "시간 · 분야 · 난이도 기준",
   },
-];
-
-const interpreterGuidePoints = [
-  "분야별 경력 등록",
-  "프로젝트 단위 매칭",
-  "비즈니스 현장 경험 확대",
 ];
 
 function getSupabaseErrorMessage(error, fallback) {
@@ -334,16 +339,6 @@ function Home({
         </section>
       </main>
 
-      <section className="home-seo-copy" aria-labelledby="home-seo-title">
-        <p className="home-brand-sub">BUSINESS INTERPRETATION</p>
-        <h2 id="home-seo-title">한일 비즈니스 현장을 위한 전문 통역 플랫폼</h2>
-        <div className="home-seo-copy-body">
-          {seoServiceParagraphs.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-        </div>
-      </section>
-
       <section className="home-mobile-overview-slider" aria-label="ON-LI 특징 및 진행 프로세스">
         <article className="home-mobile-overview-slide">
           <h3>ON-LI의 특징</h3>
@@ -369,66 +364,141 @@ function Home({
         <article className="home-mobile-overview-slide home-mobile-process-slide">
           <div className="home-mobile-process-head">
             <p className="home-brand-sub">PROCESS</p>
-            <h3>진행 프로세스</h3>
+            <h3>의뢰부터 매칭까지 간단하게</h3>
           </div>
           <div className="home-mobile-process-list">
             <div className="process-group">
               <Step
                 number="1"
-                title="기업 의뢰 접수"
-                text="행사 일정·장소·인원을 전달"
+                title="의뢰 접수"
+                text="필요 일정과 조건 전달"
               />
               <Step
                 number="2"
-                title="운영팀 검토"
-                text="의뢰 내용과 필요 레벨 확인"
-              />
-            </div>
-
-            <div className="process-single">
-              <Step
-                number="3"
-                title="공고 등록 및 모집"
-                text="관리자 확인 후 통역사 모집"
+                title="조건 확인"
+                text="장소·시간·분야 확인"
               />
             </div>
 
             <div className="process-group">
               <Step
-                number="4"
-                title="매칭 진행"
-                text="조건에 맞는 통역사 선정"
+                number="3"
+                title="통역사 추천"
+                text="목적에 맞는 인재 안내"
               />
               <Step
-                number="5"
-                title="최종 배정 완료"
-                text="사전 안내 후 일정 확정"
+                number="4"
+                title="일정 확정"
+                text="자료 공유 후 진행"
               />
             </div>
           </div>
         </article>
       </section>
 
+      <section id="process" className="home-process">
+        <div className="home-process-head">
+          <p className="home-brand-sub">PROCESS</p>
+          <h2>의뢰부터 매칭까지 간단하게</h2>
+        </div>
+
+        <div className="home-process-timeline">
+          <Step
+            number="1"
+            title="의뢰 접수"
+            text="필요 일정과 조건 전달"
+          />
+          <Step
+            number="2"
+            title="조건 확인"
+            text="장소·시간·분야 확인"
+          />
+          <Step
+            number="3"
+            title="통역사 추천"
+            text="목적에 맞는 인재 안내"
+          />
+          <Step
+            number="4"
+            title="일정 확정"
+            text="자료 공유 후 진행"
+          />
+        </div>
+      </section>
+
+      <section className="home-use-cases" aria-labelledby="home-use-cases-title">
+        <div className="home-section-simple-head">
+          <p className="home-brand-sub">USE CASES</p>
+          <h2 id="home-use-cases-title">이런 현장에서 ON-LI를 이용할 수 있습니다.</h2>
+          <p>필요한 현장에 맞는 한일 통역 인재를 연결합니다.</p>
+        </div>
+        <div className="home-use-case-grid">
+          {useCaseCards.map((item) => (
+            <article className="home-use-case-card" key={item.title}>
+              <span aria-hidden="true">{item.icon}</span>
+              <h3>{item.title}</h3>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-trust-block" aria-labelledby="home-trust-title">
+        <div className="home-section-simple-head">
+          <p className="home-brand-sub">TRUST</p>
+          <h2 id="home-trust-title">ON-LI 매칭 시스템</h2>
+        </div>
+        <div className="home-trust-grid">
+          {trustCards.map((card) => (
+            <article className="home-trust-card" key={card.number}>
+              <span>{card.number}</span>
+              <h3>{card.title}</h3>
+              <p>{card.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-seo-copy" aria-labelledby="home-seo-title">
+        <p className="home-brand-sub">BUSINESS INTERPRETATION</p>
+        <h2 id="home-seo-title">
+          한일 비즈니스 현장을 위한
+          <br />
+          전문 통역 플랫폼
+        </h2>
+        <div className="home-seo-copy-body">
+          {seoServiceParagraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
+        <div className="home-seo-keyword-list" aria-label="지원 키워드">
+          {seoKeywordTags.map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
+      </section>
+
       <section className="home-cta-stack" aria-label="ON-LI 이용 안내">
+        <div className="home-cta-section-head">
+          <p className="home-brand-sub">ON-LI MATCHING</p>
+          <h2>기업과 통역사를 연결합니다</h2>
+          <p>
+            의뢰 조건과 통역 경험을 기반으로 비즈니스 현장에 적합한 매칭을 지원합니다.
+          </p>
+        </div>
         <div className="home-company-cta">
           <div className="home-cta-icon" aria-hidden="true">
               <Building2 size={28} strokeWidth={1.8} />
           </div>
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR COMPANIES</p>
-            <h2>통역 의뢰가 필요하신가요?</h2>
+            <h2>전문 통역 인재가 필요하신가요?</h2>
             <p>
-              일본 현장 통역 준비를 더 간편하게.
-              <br />
-              전시회, 상담회, 출장 일정에 맞는 통역 인력을 ON-LI에서 찾아보세요.
+              전시회, 상담회, 기업 미팅 조건에 맞는 검증된 통역사를 연결합니다.
             </p>
           </div>
           <div className="home-cta-actions">
             <button type="button" onClick={onRequestClick}>
-              통역 의뢰하기
-            </button>
-            <button type="button" onClick={onJobsClick} className="home-secondary">
-              전체 통역공고 확인하기
+              무료 견적 요청하기
             </button>
           </div>
         </div>
@@ -439,16 +509,10 @@ function Home({
           </div>
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR INTERPRETERS</p>
-            <h2>통역 경험을 ON-LI와 연결하세요</h2>
+            <h2>통역 경험을 활용하고 싶으신가요?</h2>
             <p>
-              한국어와 일본어 능력을 가진 분이라면 일본 거주자와 한국 거주자 모두 등록 가능합니다.
-              전문 분야, 통역 경험, 가능 일정을 등록하고 조건에 맞는 프로젝트와 연결될 수 있습니다.
+              전문 분야와 가능 일정을 등록하고 조건에 맞는 프로젝트에 참여하세요.
             </p>
-            <ul className="home-interpreter-point-list">
-              {interpreterGuidePoints.map((point) => (
-                <li key={point}>✓ {point}</li>
-              ))}
-            </ul>
           </div>
           <div className="home-cta-actions">
             <button
@@ -458,81 +522,7 @@ function Home({
             >
               통역사 등록하기
             </button>
-            <button type="button" onClick={onListClick} className="home-secondary">
-              등록된 통역사 보기
-            </button>
-            {!user && (
-              <button type="button" onClick={onInterpreterLoginClick} className="home-secondary">
-                통역사 로그인
-              </button>
-            )}
           </div>
-        </div>
-      </section>
-
-      <section id="process" className="home-process">
-        <div className="home-process-head">
-          <p className="home-brand-sub">PROCESS</p>
-          <h2>진행 프로세스</h2>
-        </div>
-
-        <div className="home-process-timeline">
-          <Step
-            number="1"
-            title="기업 의뢰 접수"
-            text="행사 일정·장소·인원을 전달"
-          />
-          <Step
-            number="2"
-            title="운영팀 검토"
-            text="의뢰 내용과 필요 레벨 확인"
-          />
-          <Step
-            number="3"
-            title="공고 등록 및 모집"
-            text="관리자 확인 후 통역사 모집"
-          />
-          <Step
-            number="4"
-            title="매칭 진행"
-            text="조건에 맞는 통역사 선정"
-          />
-          <Step
-            number="5"
-            title="최종 배정 완료"
-            text="사전 안내 후 일정 확정"
-          />
-        </div>
-      </section>
-
-      <section className="home-use-cases" aria-labelledby="home-use-cases-title">
-        <div className="home-section-simple-head">
-          <p className="home-brand-sub">USE CASES</p>
-          <h2 id="home-use-cases-title">이런 현장에서 ON-LI를 이용할 수 있습니다.</h2>
-        </div>
-        <div className="home-use-case-grid">
-          {useCaseCards.map((item) => (
-            <article className="home-use-case-card" key={item}>
-              <span aria-hidden="true">✓</span>
-              <h3>{item}</h3>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="home-trust-block" aria-labelledby="home-trust-title">
-        <div className="home-section-simple-head">
-          <p className="home-brand-sub">TRUST</p>
-          <h2 id="home-trust-title">ON-LI는 어떻게 통역사를 연결하나요?</h2>
-        </div>
-        <div className="home-trust-grid">
-          {trustCards.map((card) => (
-            <article className="home-trust-card" key={card.number}>
-              <span>{card.number}</span>
-              <h3>{card.title}</h3>
-              <p>{card.text}</p>
-            </article>
-          ))}
         </div>
       </section>
 
