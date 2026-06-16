@@ -82,7 +82,8 @@ function InterpreterList({ onBackClick, onDetailClick }) {
       const { data, error } = await supabase
         .from("interpreters")
         .select("*")
-        .neq("status", "withdrawn");
+        .neq("status", "withdrawn")
+        .eq("is_public", true);
 
       if (error) {
         console.error("Interpreters fetch error:", {

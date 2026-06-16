@@ -13,6 +13,7 @@ export const PUBLIC_INTERPRETER_SELECT = [
   "available_tasks",
   "level",
   "approved",
+  "is_public",
   "status",
   "withdrawn_at",
   "activity_status",
