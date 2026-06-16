@@ -35,12 +35,28 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      - name: Skip when Vercel secrets are missing
-        if: env.VERCEL_TOKEN == '' || env.VERCEL_ORG_ID == '' || env.VERCEL_PROJECT_ID == ''
-        run: echo "Skipping GitHub Actions Vercel deploy because Vercel secrets are not fully configured. Vercel Git integration will handle deployment."
+      - name: Validate Vercel token
+        id: vercel-auth
+        run: |
+          if [ -z "${VERCEL_TOKEN}" ]; then
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping GitHub Actions Vercel deploy because VERCEL_TOKEN is not configured. Vercel Git integration will handle deployment."
+            exit 0
+          fi
+
+          if vercel whoami --token="${VERCEL_TOKEN}" >/dev/null 2>&1; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping GitHub Actions Vercel deploy because VERCEL_TOKEN is invalid. Vercel Git integration will handle deployment."
+          fi
+
+      - name: Skip when Vercel project settings are missing
+        if: steps.vercel-auth.outputs.valid == 'true' && (env.VERCEL_ORG_ID == '' || env.VERCEL_PROJECT_ID == '')
+        run: echo "Skipping GitHub Actions Vercel deploy because Vercel project settings are not fully configured. Vercel Git integration will handle deployment."
 
       - name: Pull Vercel environment
-        if: env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        if: steps.vercel-auth.outputs.valid == 'true' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
@@ -49,7 +65,7 @@ jobs:
           fi
 
       - name: Build Vercel artifact
-        if: env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        if: steps.vercel-auth.outputs.valid == 'true' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             vercel build --prod --token="${VERCEL_TOKEN}"
@@ -58,7 +74,7 @@ jobs:
           fi
 
       - name: Deploy Vercel artifact
-        if: env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        if: steps.vercel-auth.outputs.valid == 'true' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}"
