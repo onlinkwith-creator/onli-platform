@@ -1,5 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../supabase";
 import "./About.css";
 
 const serviceFeatures = [
@@ -106,8 +104,8 @@ const matchingMethodCards = [
   },
   {
     number: "04",
-    title: "기준별 요금 산정",
-    text: "일정, 시간, 분야, 통역 난이도, 요구되는 전문성을 기준으로 산정합니다.",
+    title: "운영 지원",
+    text: "일정 확인과 자료 공유, 현장 진행부터 피드백까지 안정적으로 지원합니다.",
   },
 ];
 
@@ -118,68 +116,6 @@ const interpreterPoints = [
 ];
 
 function About({ onBackClick, onRequestClick, onListClick }) {
-  const [stats, setStats] = useState({
-    matchedRequests: 0,
-    activeInterpreters: 0,
-  });
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchStats = async () => {
-      try {
-        const [matchedResult, interpreterResult] = await Promise.all([
-          supabase
-            .from("requests")
-            .select("id", { count: "exact", head: true })
-            .or("matching_status.eq.matched,assigned_interpreter_id.not.is.null"),
-          supabase
-            .from("interpreters")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "active"),
-        ]);
-
-        if (matchedResult.error) {
-          console.error("About matched request count error:", matchedResult.error);
-        }
-        if (interpreterResult.error) {
-          console.error("About active interpreter count error:", interpreterResult.error);
-        }
-
-        if (!isMounted) return;
-
-        setStats({
-          matchedRequests: matchedResult.error ? 0 : matchedResult.count || 0,
-          activeInterpreters: interpreterResult.error ? 0 : interpreterResult.count || 0,
-        });
-      } catch (error) {
-        console.error("About stats fetch error:", error);
-        if (isMounted) {
-          setStats({
-            matchedRequests: 0,
-            activeInterpreters: 0,
-          });
-        }
-      }
-    };
-
-    fetchStats();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const heroStats = useMemo(
-    () => [
-      { label: "누적 매칭", value: `${stats.matchedRequests}+` },
-      { label: "등록 통역 인력", value: `${stats.activeInterpreters}+` },
-      { label: "대응 가능 분야", value: "8개+" },
-      { label: "지원 지역", value: "일본 전역" },
-    ],
-    [stats.activeInterpreters, stats.matchedRequests]
-  );
-
   return (
     <div className="about-page">
       <div className="about-bg-glow" />
@@ -218,11 +154,42 @@ function About({ onBackClick, onRequestClick, onListClick }) {
               통역 인력 보기
             </button>
           </div>
-          <div className="about-stat-grid" aria-label="ON-LI 신뢰 지표">
-            {heroStats.map((stat) => (
-              <div className="about-stat-card" key={stat.label}>
-                <strong>{stat.value}</strong>
-                <span>{stat.label}</span>
+        </section>
+
+        <section className="about-interpreter-guide">
+          <div className="about-interpreter-guide-copy">
+            <p className="about-section-eyebrow">FOR INTERPRETERS</p>
+            <h2>통역 경험을 ON-LI와 연결하세요</h2>
+            <p>
+              한국어와 일본어 능력을 가진 분이라면 일본 거주자와 한국 거주자 모두 등록 가능합니다.
+              전문 분야, 통역 경험, 가능 일정을 등록하고 조건에 맞는 프로젝트와 연결될 수 있습니다.
+            </p>
+          </div>
+          <div className="about-interpreter-point-list">
+            {interpreterPoints.map((point, index) => (
+              <div className="about-interpreter-point" key={point}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{point}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="about-trust-section">
+          <div className="about-trust-copy">
+            <SectionHeader eyebrow="TRUST" title="ON-LI는 어떻게 통역사를 연결하나요?" />
+            <p>
+              통역 경험과 현장 조건을 함께 확인해 기업의 목적에 맞는 통역 환경을 지원합니다.
+            </p>
+          </div>
+          <div className="about-trust-list" aria-label="신뢰 지원 항목">
+            {matchingMethodCards.map((item) => (
+              <div className="about-trust-item" key={item.title}>
+                <span>{item.number}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.text}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -243,6 +210,20 @@ function About({ onBackClick, onRequestClick, onListClick }) {
                 <strong>ON-LI</strong>
                 <p>{card.solution}</p>
               </div>
+            </article>
+          ))}
+        </section>
+
+        <SectionHeader
+          eyebrow="FIELD"
+          title="지원 가능한 통역 현장"
+          description="ON-LI는 다양한 한일 비즈니스 상황에 맞는 통역 인재를 연결합니다."
+        />
+        <section className="about-field-grid" aria-label="지원 산업 분야">
+          {fieldCards.map((field) => (
+            <article className="about-field-card" key={field.label}>
+              <span aria-hidden="true">{field.icon}</span>
+              <strong>{field.label}</strong>
             </article>
           ))}
         </section>
@@ -279,20 +260,6 @@ function About({ onBackClick, onRequestClick, onListClick }) {
           ))}
         </section>
 
-        <SectionHeader
-          eyebrow="FIELD"
-          title="지원 가능한 통역 현장"
-          description="ON-LI는 다양한 한일 비즈니스 상황에 맞는 통역 인재를 연결합니다."
-        />
-        <section className="about-field-grid" aria-label="지원 산업 분야">
-          {fieldCards.map((field) => (
-            <article className="about-field-card" key={field.label}>
-              <span aria-hidden="true">{field.icon}</span>
-              <strong>{field.label}</strong>
-            </article>
-          ))}
-        </section>
-
         <section className="about-process-section">
           <SectionHeader
             eyebrow="PROCESS"
@@ -308,45 +275,6 @@ function About({ onBackClick, onRequestClick, onListClick }) {
                   <small>{step.text}</small>
                 </div>
               </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="about-trust-section">
-          <div className="about-trust-copy">
-            <SectionHeader eyebrow="TRUST" title="ON-LI는 어떻게 통역사를 연결하나요?" />
-            <p>
-              통역 경험과 현장 조건을 함께 확인해 기업의 목적에 맞는 통역 환경을 지원합니다.
-            </p>
-          </div>
-          <div className="about-trust-list" aria-label="신뢰 지원 항목">
-            {matchingMethodCards.map((item) => (
-              <div className="about-trust-item" key={item.title}>
-                <span>{item.number}</span>
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>{item.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="about-interpreter-guide">
-          <div className="about-interpreter-guide-copy">
-            <p className="about-section-eyebrow">FOR INTERPRETERS</p>
-            <h2>통역 경험을 ON-LI와 연결하세요</h2>
-            <p>
-              한국어와 일본어 능력을 가진 분이라면 일본 거주자와 한국 거주자 모두 등록 가능합니다.
-              전문 분야, 통역 경험, 가능 일정을 등록하고 조건에 맞는 프로젝트와 연결될 수 있습니다.
-            </p>
-          </div>
-          <div className="about-interpreter-point-list">
-            {interpreterPoints.map((point, index) => (
-              <div className="about-interpreter-point" key={point}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <strong>{point}</strong>
-              </div>
             ))}
           </div>
         </section>
