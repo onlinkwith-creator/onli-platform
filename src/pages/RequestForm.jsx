@@ -556,23 +556,25 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
           </SectionBlock>
 
           <SectionBlock meta={sectionMeta.event}>
-            <div className="request-grid request-grid-2">
-              <DateRangeInput
-                required
-                showQuickButtons
-                label="행사 날짜"
-                startDate={form.startDate}
-                endDate={form.endDate}
-                onChange={({ startDate, endDate }) =>
-                  setForm((current) => ({
-                    ...current,
-                    startDate,
-                    endDate,
-                  }))
-                }
-              />
-              <Field label="장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
+            <div className="request-grid request-grid-2 request-event-grid">
+              <div className="request-event-date">
+                <DateRangeInput
+                  required
+                  showQuickButtons
+                  label="행사 날짜"
+                  startDate={form.startDate}
+                  endDate={form.endDate}
+                  onChange={({ startDate, endDate }) =>
+                    setForm((current) => ({
+                      ...current,
+                      startDate,
+                      endDate,
+                    }))
+                  }
+                />
+              </div>
               <Field label="행사명 또는 프로젝트명" name="eventName" value={form.eventName} onChange={handleChange} placeholder="선택 입력" />
+              <Field label="장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
             </div>
           </SectionBlock>
 
