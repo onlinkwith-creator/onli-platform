@@ -151,26 +151,10 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
 
   // Client-side sorting logic
   const sortedJobs = useMemo(() => {
-    let result = [...filteredJobs];
-    if (sortBy === "pay") {
-      result.sort((a, b) => {
-        const statusDiff = getJobDisplayStatusOrder(a) - getJobDisplayStatusOrder(b);
-        if (statusDiff !== 0) return statusDiff;
-
-        const parsePay = (jb) => {
-          const val = jb.pay || jb.dailyPay || jb.daily_pay || jb.wage || jb.price || "";
-          const num = Number(String(val).replace(/[^0-9]/g, ""));
-          return isNaN(num) ? 0 : num;
-        };
-        const payDiff = parsePay(b) - parsePay(a);
-        if (payDiff !== 0) return payDiff;
-        return compareJobsByDisplayPriority(a, b);
-      });
-    } else {
-      result.sort(compareJobsByDisplayPriority);
-    }
+    const result = [...filteredJobs];
+    result.sort(compareJobsByDisplayPriority);
     return result;
-  }, [filteredJobs, sortBy]);
+  }, [filteredJobs]);
 
   // Client-side pagination (9 cards per page)
   const paginatedJobs = useMemo(() => {
@@ -267,7 +251,6 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
                   className="jobs-sort-select"
                 >
                   <option value="latest">최신 등록순</option>
-                  <option value="pay">일급 높은순</option>
                 </select>
               </div>
             </div>
@@ -345,7 +328,6 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
                 className="jobs-sort-select"
               >
                 <option value="latest">최신 등록순</option>
-                <option value="pay">일급 높은순</option>
               </select>
             </div>
 
@@ -475,7 +457,7 @@ function JobListCard({ job, onApplyClick, onDetailClick }) {
       <div className="job-divider job-card-divider" />
 
       <div className="home-job-card-action job-card-footer">
-        <p className="home-job-level-note">Lv 기준 통역 단가 적용</p>
+        <p className="home-job-level-note">레벨 기준 통역 단가 적용</p>
 
         <button
           type="button"

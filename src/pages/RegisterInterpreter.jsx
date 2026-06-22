@@ -71,6 +71,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
     gender: "",
     age: "",
     region: "",
+    phone: "",
     email: "",
     school: "",
     kakaoOrLine: "",
@@ -198,6 +199,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       gender: form.gender,
       age: form.age,
       region: form.region,
+      phone: form.phone,
       email: userEmail,
       school: form.school,
       kakao_or_line: form.kakaoOrLine.trim(),
@@ -335,7 +337,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
         interpreterId: data?.id || "",
         name: form.name,
         email: interpreterEmail,
-        phone: "",
+        phone: form.phone,
         kakaoOrLine: form.kakaoOrLine.trim(),
       });
 
@@ -417,6 +419,15 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
                 value={authEmail || form.email}
                 readOnly
                 placeholder="로그인 계정 이메일"
+                required
+              />
+              <Field
+                label="전화번호"
+                name="phone"
+                type="tel"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="전화번호를 입력해주세요"
                 required
               />
               <Field

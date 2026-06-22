@@ -34,14 +34,12 @@ import {
   FileText,
   X,
 } from "lucide-react";
-import TakeHomeCalculator from "../components/TakeHomeCalculator";
 
 const TABS = [
   { id: "profile", label: "프로필 정보", icon: "👤" },
   { id: "applications", label: "지원 내역", icon: "📄" },
   { id: "assignments", label: "배정 내역", icon: "💼" },
   { id: "schedule", label: "일정 및 캘린더", icon: "📅" },
-  { id: "takeHome", label: "예상 실수령액 계산", icon: "🧮" },
 ];
 
 const SETTLEMENT_DOCUMENT_BUCKET = "resume-files";
@@ -2319,10 +2317,6 @@ function InterpreterMypage({
                     )}
                   </article>
                 )}
-
-                {activeTab === "takeHome" && (
-                  <TakeHomeCalculator className="animate-fade-in" />
-                )}
               </div>
             </section>
           </>
@@ -2526,7 +2520,7 @@ function ApplicationDetailPanel({
             label="성별 조건"
             value={job.preferred_gender || "성별 무관"}
           />
-          <ApplicationInfo label="지급/단가 기준" value={getJobPayDisplay(job)} />
+          <ApplicationInfo label="일급" value={getJobPayDisplay(job)} />
           <ApplicationInfo
             label="현재 공고 상태"
             value={getJobStatusLabel(job.status)}
@@ -2623,7 +2617,7 @@ function JobInformationSection({
           label="성별 조건"
           value={job.preferred_gender || "성별 무관"}
         />
-        <ApplicationInfo label="지급/단가 기준" value={getJobPayDisplay(job)} />
+        <ApplicationInfo label="일급" value={getJobPayDisplay(job)} />
         <ApplicationInfo
           label="현재 공고 상태"
           value={getJobStatusLabel(job.status)}
@@ -2663,7 +2657,7 @@ function JobInformationSection({
           <div className="application-detail-block">
             <strong>추가 안내사항</strong>
             <ul>
-              <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
+              <li>레벨 기준 통역 단가가 적용됩니다.</li>
               <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
               <li>운영팀 확인 후 최종 연락드립니다.</li>
             </ul>
@@ -2713,7 +2707,7 @@ function AssignmentDetailPanel({
             label="성별 조건"
             value={job.preferred_gender || "성별 무관"}
           />
-          <ApplicationInfo label="지급/단가 기준" value={getJobPayDisplay(job)} />
+          <ApplicationInfo label="일급" value={getJobPayDisplay(job)} />
           <ApplicationInfo
             label="현재 공고 상태"
             value={getJobStatusLabel(job.status)}
@@ -2743,7 +2737,7 @@ function AssignmentDetailPanel({
           <div className="application-detail-block">
             <strong>추가 안내사항</strong>
             <ul>
-              <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
+              <li>레벨 기준 통역 단가가 적용됩니다.</li>
               <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
               <li>운영팀 확인 후 최종 연락드립니다.</li>
             </ul>

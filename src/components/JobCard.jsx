@@ -68,7 +68,7 @@ function JobCard({ job, onApplyClick, onDetailClick, className = "" }) {
       <div className="job-divider job-card-divider" />
 
       <div className="home-job-card-action job-card-footer">
-        <p className="home-job-level-note">Lv 기준 통역 단가 적용</p>
+        <p className="home-job-level-note">레벨 기준 통역 단가 적용</p>
 
         <button
           type="button"

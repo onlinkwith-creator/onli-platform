@@ -67,7 +67,7 @@ const interpretationTypeOptions = [
 ];
 
 const requestSteps = [
-  "견적 요청",
+  "의뢰 접수",
   "운영팀 검토",
   "조건 확인",
   "통역사 추천",
@@ -83,7 +83,7 @@ const sectionMeta = {
   event: {
     icon: "02",
     title: "행사 정보",
-    description: "견적 산정에 필요한 일정과 장소를 입력해주세요.",
+    description: "의뢰 검토에 필요한 일정과 장소를 입력해주세요.",
   },
   request: {
     icon: "03",
@@ -578,13 +578,13 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         <header className="request-hero">
           <div>
             <p className="request-eyebrow">ON-LI REQUEST</p>
-            <h1>무료 견적 요청</h1>
+            <h1>통역 의뢰</h1>
             <p className="request-description">
               {isGeneralRequest
                 ? "전시회·상담회·기업 미팅 등 통역이 필요한 일정 정보를 입력해주세요."
-                : `${interpreter?.name || "선택한 통역사"}님과의 매칭 검토에 필요한 견적 정보를 입력해주세요.`}
+                : `${interpreter?.name || "선택한 통역사"}님과의 매칭 검토에 필요한 의뢰 정보를 입력해주세요.`}
               <br />
-              접수 후 ON-LI 담당자가 조건을 확인하고 빠르게 견적을 안내드립니다.
+              접수 후 ON-LI 담당자가 조건을 확인하고 빠르게 연락드립니다.
             </p>
           </div>
           <div className="request-hero-mark" aria-hidden="true">
@@ -761,8 +761,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
           <div className="request-submit-card">
             <div>
-              <strong>무료 견적 요청 후 영업일 기준 3시간 이내 연락드립니다.</strong>
-              <p>일정, 장소, 분야를 확인한 뒤 적합한 통역 조건과 예상 금액을 안내합니다.</p>
+              <strong>의뢰 접수 후 영업일 기준 3시간 이내 담당자가 연락드립니다.</strong>
+              <p>일정, 장소, 분야를 확인한 뒤 적합한 통역 조건을 안내합니다.</p>
               <span className="request-security-note">
                 입력하신 정보는 안전하게 보호되며, 통역 매칭 용도로만 사용됩니다.
               </span>
@@ -772,7 +772,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
               disabled={isSubmitDisabled}
               className="request-submit-button"
             >
-              {isSubmitting ? "접수 중..." : "무료 견적 요청하기"}
+              {isSubmitting ? "접수 중..." : "통역 의뢰하기"}
             </button>
           </div>
         </form>

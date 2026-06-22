@@ -5609,6 +5609,13 @@ function InterpreterModal({
                   placeholder="이메일을 입력해주세요"
                 />
               </FieldControl>
+              <FieldControl label="전화번호">
+                <input
+                  value={draft?.phone || ""}
+                  onChange={(event) => onChangeDraft("phone", event.target.value)}
+                  placeholder="전화번호를 입력해주세요"
+                />
+              </FieldControl>
               <FieldControl label="카카오톡 ID">
                 <input
                   value={draft?.kakao_or_line || ""}
