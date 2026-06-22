@@ -449,16 +449,10 @@ function InterpreterMypage({
         throw error;
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage
-        .from("resume-files")
-        .getPublicUrl(filePath);
-
       return {
         fileName: file.name,
         filePath,
-        fileUrl: publicUrl,
+        fileUrl: filePath,
       };
     } catch (uploadError) {
       console.error("Resume upload error:", uploadError);
@@ -634,16 +628,10 @@ function InterpreterMypage({
         throw error;
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage
-        .from(SETTLEMENT_DOCUMENT_BUCKET)
-        .getPublicUrl(filePath);
-
       return {
         fileName: file.name,
         filePath,
-        fileUrl: publicUrl,
+        fileUrl: filePath,
       };
     } catch (error) {
       console.error("Storage upload error:", error);

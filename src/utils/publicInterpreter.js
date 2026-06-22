@@ -1,22 +1,14 @@
 export const PUBLIC_INTERPRETER_SELECT = [
   "id",
   "name",
-  "gender",
-  "age",
   "region",
-  "school",
-  "jlpt",
-  "stay_period",
-  "has_experience",
+  "level",
+  "short_intro",
   "specialties",
   "available_regions",
-  "available_tasks",
-  "level",
-  "approved",
+  "experience_count",
   "is_public",
   "status",
-  "withdrawn_at",
-  "activity_status",
 ].join(", ");
 
 const FALLBACK_TEXT = "정보 확인 중";

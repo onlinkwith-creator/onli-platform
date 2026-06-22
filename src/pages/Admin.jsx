@@ -312,6 +312,7 @@ function Admin({ onBackClick }) {
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminAccountDraft, setAdminAccountDraft] = useState({
     email: "",
+    auth_user_id: "",
     role: "staff",
   });
   const [isAdminAccountSaving, setIsAdminAccountSaving] = useState(false);
@@ -444,6 +445,7 @@ function Admin({ onBackClick }) {
     setIsAdminAccountModalOpen(false);
     setAdminAccountDraft({
       email: "",
+      auth_user_id: "",
       role: "staff",
     });
   }, []);
@@ -457,7 +459,7 @@ function Admin({ onBackClick }) {
 
     const { data, error } = await supabase
       .from("admin_users")
-      .select("id, email, role, status, created_at, updated_at")
+      .select("id, email, auth_user_id, role, status, created_at, updated_at")
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -883,6 +885,7 @@ function Admin({ onBackClick }) {
 
   const createAdminUser = async () => {
     const email = adminAccountDraft.email.trim().toLowerCase();
+    const authUserId = adminAccountDraft.auth_user_id.trim();
     const currentEmail = user?.email?.trim().toLowerCase() || "";
     const currentAdminRole =
       currentEmail === "onlinkwith@gmail.com" ? "owner" : adminProfile?.role || "staff";
@@ -894,6 +897,11 @@ function Admin({ onBackClick }) {
 
     if (!email || !email.includes("@")) {
       alert("관리자 이메일을 입력해주세요.");
+      return;
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authUserId)) {
+      alert("Supabase Auth user id(UUID)를 입력해주세요.");
       return;
     }
 
@@ -910,6 +918,7 @@ function Admin({ onBackClick }) {
       .upsert(
         {
           email,
+          auth_user_id: authUserId,
           role: adminAccountDraft.role,
           status: "active",
           updated_at: new Date().toISOString(),
@@ -924,7 +933,7 @@ function Admin({ onBackClick }) {
       return;
     }
 
-    setAdminAccountDraft({ email: "", role: "staff" });
+    setAdminAccountDraft({ email: "", auth_user_id: "", role: "staff" });
     await fetchAdminUsers();
     alert(`${email} 을(를) 관리자로 저장했습니다.\n해당 이메일로 직접 회원가입 후 로그인하면 관리자 권한이 적용됩니다.`);
   };
@@ -3577,8 +3586,8 @@ function AdminAccountModal({
             관리자 추가
           </h3>
           <p style={{ margin: "0 0 12px", fontSize: "12px", color: "#6b7280" }}>
-            이메일을 등록하면 해당 계정이 로그인 시 관리자 권한을 갖습니다.
-            (상대방이 직접 회원가입 후 로그인 필요)
+            Supabase Auth user id와 이메일을 함께 등록해야 DB 관리자 권한이 적용됩니다.
+            MFA/2FA는 Supabase Auth 설정에서 활성화해 주세요.
           </p>
           <FieldControl label="관리자 이메일">
             <input
@@ -3588,6 +3597,15 @@ function AdminAccountModal({
               disabled={!canManageAdmins || saving}
               onChange={(event) => onChangeDraft("email", event.target.value)}
               placeholder="admin@example.com"
+            />
+          </FieldControl>
+          <FieldControl label="Auth user id">
+            <input
+              value={draft.auth_user_id}
+              autoComplete="off"
+              disabled={!canManageAdmins || saving}
+              onChange={(event) => onChangeDraft("auth_user_id", event.target.value)}
+              placeholder="00000000-0000-0000-0000-000000000000"
             />
           </FieldControl>
           <FieldControl label="권한">
@@ -3619,7 +3637,9 @@ function AdminAccountModal({
             adminUsers.map((adminUser) => {
               const isSelf = adminUser.email?.trim().toLowerCase() === currentEmail;
               const isDbRegistered = !adminUser.isFallback;
-              const loginStatus = isSelf ? "현재 로그인 중" : "가입 후 로그인 필요";
+              const loginStatus = adminUser.auth_user_id
+                ? (isSelf ? "현재 로그인 중" : "권한 연동됨")
+                : "권한 미연동";
               const targetRole = adminUser.role || "staff";
               const canEditAdmin = canManageAdmins;
               const editTitle = canEditAdmin ? undefined : "현재 권한으로는 수정할 수 없습니다";
@@ -3644,6 +3664,7 @@ function AdminAccountModal({
                   <div className="admin-account-row-main">
                     <span>권한: {adminUser.role || "staff"}</span>
                     <span>상태: {adminUser.status || "active"}</span>
+                    <span>Auth ID: {adminUser.auth_user_id || "권한 미연동"}</span>
                     <span>로그인 상태: {loginStatus}</span>
                     <span>등록일: {adminUser.created_at ? formatDate(adminUser.created_at) : "-"}</span>
                   </div>

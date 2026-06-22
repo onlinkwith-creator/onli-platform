@@ -7,6 +7,7 @@ import {
 } from "../utils/status";
 import { Briefcase, Languages, MapPin, Star } from "lucide-react";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
+import { PUBLIC_INTERPRETER_SELECT } from "../utils/publicInterpreter";
 import "./InterpreterList.css";
 
 const initialFilters = {
@@ -80,10 +81,8 @@ function InterpreterList({ onBackClick, onDetailClick }) {
       }
 
       const { data, error } = await supabase
-        .from("interpreters")
-        .select("*")
-        .neq("status", "withdrawn")
-        .eq("is_public", true);
+        .from("public_interpreters")
+        .select(PUBLIC_INTERPRETER_SELECT);
 
       if (error) {
         console.error("Interpreters fetch error:", {

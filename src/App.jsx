@@ -198,13 +198,9 @@ function App() {
       }
 
       const { data, error } = await supabase
-        .from("interpreters")
+        .from("public_interpreters")
         .select(PUBLIC_INTERPRETER_SELECT)
         .eq("id", selectedInterpreterId)
-        .eq("approved", true)
-        .neq("status", "withdrawn")
-        .eq("is_public", true)
-        .in("status", ["active", "warning"])
         .single();
 
       if (error) {

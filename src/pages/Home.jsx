@@ -9,6 +9,7 @@ import {
 import { getLevelBadgeClass, getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import {
   getPrimaryPublicInterpreterInfo,
+  PUBLIC_INTERPRETER_SELECT,
 } from "../utils/publicInterpreter";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import { sortJobsByDisplayPriority } from "../utils/jobStatus";
@@ -80,10 +81,8 @@ function Home({
       if (!supabase) throw supabaseConfigError;
 
       const { data, error } = await supabase
-        .from("interpreters")
-        .select("*")
-        .neq("status", "withdrawn")
-        .eq("is_public", true);
+        .from("public_interpreters")
+        .select(PUBLIC_INTERPRETER_SELECT);
 
       if (error) {
         console.error("Interpreters fetch error:", {
