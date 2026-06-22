@@ -23,7 +23,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  @media (max-width: 1024px) {
+  @media (max-width: 768px) {
     font-size: 16px;
   }
 }
@@ -94,6 +94,27 @@ body,
     max-width: none;
     min-width: 0;
     box-sizing: border-box;
+  }
+
+  img,
+  video,
+  canvas,
+  iframe,
+  table {
+    max-width: 100%;
+  }
+
+  [class*="modal"],
+  [class*="dialog"] {
+    max-width: calc(100vw - 32px);
+  }
+
+  [class*="grid"],
+  [class*="card"],
+  [class*="section"],
+  [class*="shell"],
+  [class*="container"] {
+    min-width: 0;
   }
 }
 
@@ -231,7 +252,7 @@ h1 {
   font-size: 56px;
   letter-spacing: -1.68px;
   margin: 32px 0;
-  @media (max-width: 1024px) {
+  @media (max-width: 768px) {
     font-size: 36px;
     margin: 20px 0;
   }
@@ -241,7 +262,7 @@ h2 {
   line-height: 118%;
   letter-spacing: -0.24px;
   margin: 0 0 8px;
-  @media (max-width: 1024px) {
+  @media (max-width: 768px) {
     font-size: 20px;
   }
 }

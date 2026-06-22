@@ -349,7 +349,7 @@
   background: #f5f3ff;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .take-home-calculator {
     padding: 20px 16px;
     border-radius: 16px;
@@ -368,11 +368,11 @@
   }
 
   .take-home-level-options {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .take-home-workday-options {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .take-home-result-row {

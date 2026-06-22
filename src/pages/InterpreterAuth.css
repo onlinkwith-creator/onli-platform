@@ -1267,9 +1267,9 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .interpreter-mypage-stats {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
   
   .interpreter-mypage-grid {
@@ -1296,7 +1296,7 @@
 
   .mobile-stat-grid {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
     gap: 10px;
     margin-top: 20px;
   }
@@ -1425,7 +1425,7 @@
 
   .interpreter-mypage-head .interpreter-mypage-actions {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: 1fr !important;
     width: 100% !important;
     margin-top: 18px !important;
     gap: 8px !important;
@@ -1463,7 +1463,7 @@
 
   .mobile-profile-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
     gap: 10px;
     width: 100%;
   }
@@ -1577,7 +1577,7 @@
   }
 }
 
-@media (max-width: 580px) {
+@media (max-width: 768px) {
   .interpreter-mypage-stats {
     grid-template-columns: 1fr;
   }

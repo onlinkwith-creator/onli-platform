@@ -101,7 +101,7 @@
   color: #3730a3;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .terms-agreement {
     padding: 12px;
     gap: 10px;

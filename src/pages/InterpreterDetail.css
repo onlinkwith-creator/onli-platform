@@ -569,7 +569,7 @@
   text-align: center;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .profile-hero-card {
     grid-template-columns: 1fr;
     padding: 36px;
@@ -590,7 +590,7 @@
   }
 
   .profile-metric-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .interpreter-detail-content-grid,
@@ -891,7 +891,7 @@
   }
 }
 
-@media (max-width: 430px) {
+@media (max-width: 480px) {
   .interpreter-detail-page {
     padding: 22px 12px 44px;
   }

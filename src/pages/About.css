@@ -681,9 +681,9 @@
   word-break: keep-all;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .about-field-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .about-challenge-grid {
@@ -692,7 +692,7 @@
 
   .about-feature-grid,
   .about-process-timeline {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .about-process-step:not(:last-child)::before,
@@ -844,7 +844,7 @@
   }
 
   .about-field-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 10px;
   }
 

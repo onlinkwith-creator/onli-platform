@@ -480,7 +480,7 @@
 }
 
 /* 반응형 모바일 뷰 */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .policy-layout {
     grid-template-columns: 1fr;
     gap: 24px;
