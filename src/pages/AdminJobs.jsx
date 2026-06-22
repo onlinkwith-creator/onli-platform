@@ -1157,7 +1157,8 @@ function ManagementNumberBlock({ label = "관리번호", value }) {
 }
 
 function formatManagementNumber(value) {
-  return value || "번호 미생성";
+  const normalized = String(value || "").trim();
+  return normalized && normalized !== "번호 미생성" ? normalized : "번호 생성 필요";
 }
 
 function hasJobApplicationScheduleConflict(application = {}, job = {}, getInterpreterScheduleConflicts) {

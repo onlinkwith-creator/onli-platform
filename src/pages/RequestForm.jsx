@@ -237,6 +237,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     return {
       fileName: file.name,
       filePath,
+      fileUrl: filePath,
     };
   };
 
@@ -319,6 +320,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       }`,
       referenceFileUpload?.fileName ? `참고 자료 파일명: ${referenceFileUpload.fileName}` : "",
       referenceFileUpload?.filePath ? `참고 자료 파일 경로: ${referenceFileUpload.filePath}` : "",
+      referenceFileUpload?.fileUrl ? `참고 자료 파일 URL: ${referenceFileUpload.fileUrl}` : "",
       form.requestDetails ? `추가 요청사항: ${form.requestDetails}` : "",
     ]
       .filter(Boolean)
@@ -357,6 +359,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       interpreter_pay: interpreterPay,
       request_details: requestDetails,
       request_detail: requestDetails,
+      reference_file_name: referenceFileUpload?.fileName || null,
+      reference_file_path: referenceFileUpload?.filePath || null,
+      reference_file_url: referenceFileUpload?.fileUrl || null,
       request_type: normalizeRequestType(requestType),
       admin_checked: false,
       checked_at: null,
@@ -426,6 +431,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       delete legacyRequestPayload.admin_checked;
       delete legacyRequestPayload.checked_at;
       delete legacyRequestPayload.request_no;
+      delete legacyRequestPayload.reference_file_name;
+      delete legacyRequestPayload.reference_file_path;
+      delete legacyRequestPayload.reference_file_url;
       const fallbackResult = await supabase
         .from("requests")
         .insert([legacyRequestPayload])

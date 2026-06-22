@@ -1508,6 +1508,20 @@ function InterpreterMypage({
                             {isUpdatingProfile ? "저장 중..." : "변경사항 저장"}
                           </button>
                         </div>
+                        <section className="profile-edit-account-management">
+                          <h3>계정 관리</h3>
+                          <p>
+                            회원 탈퇴 시 프로필은 공개 목록에서 표시되지 않으며, 진행 중인 의뢰,
+                            지원, 정산 기록은 운영 및 법적 보관 목적에 따라 보관될 수 있습니다.
+                          </p>
+                          <button
+                            type="button"
+                            className="interpreter-danger-outline-button"
+                            onClick={() => setIsAccountWithdrawalOpen(true)}
+                          >
+                            회원 탈퇴
+                          </button>
+                        </section>
                       </form>
                     ) : (
                       <>
@@ -2309,22 +2323,6 @@ function InterpreterMypage({
                   <TakeHomeCalculator className="animate-fade-in" />
                 )}
               </div>
-            </section>
-            <section className="interpreter-account-management">
-              <article className="interpreter-mypage-card">
-                <h2>계정 관리</h2>
-                <p>
-                  회원 탈퇴 시 프로필은 공개 목록에서 표시되지 않으며, 진행 중인 의뢰,
-                  지원, 정산 기록은 운영 및 법적 보관 목적에 따라 보관될 수 있습니다.
-                </p>
-                <button
-                  type="button"
-                  className="interpreter-danger-outline-button"
-                  onClick={() => setIsAccountWithdrawalOpen(true)}
-                >
-                  회원 탈퇴
-                </button>
-              </article>
             </section>
           </>
         )}

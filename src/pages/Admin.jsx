@@ -319,6 +319,7 @@ function Admin({ onBackClick }) {
   const [interpreterModalType, setInterpreterModalType] = useState(null);
   const [interpreterEditDraft, setInterpreterEditDraft] = useState(null);
   const [assignmentDrafts, setAssignmentDrafts] = useState({});
+  const [settlementTouchedByRequest, setSettlementTouchedByRequest] = useState({});
   const [interpreterFilters, setInterpreterFilters] = useState({
     search: "",
     level: "all",
@@ -1191,8 +1192,18 @@ function Admin({ onBackClick }) {
   };
 
   const openRequestModal = (type, request) => {
-    setActiveRequestModal({ type, requestId: request.id, request });
-    setSelectedRequest(type === "detail" ? request : null);
+    const touched = settlementTouchedByRequest[request.id] || {};
+    const requestWithDefaults =
+      type === "detail" ? applySettlementDefaults(request, touched) : request;
+    if (type === "detail" && requestWithDefaults !== request) {
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, ...requestWithDefaults } : item
+        )
+      );
+    }
+    setActiveRequestModal({ type, requestId: request.id, request: requestWithDefaults });
+    setSelectedRequest(type === "detail" ? requestWithDefaults : null);
     const requestJob = request.job_id
       ? jobsById.get(String(request.job_id)) || jobsById.get(request.job_id) || null
       : null;
@@ -1768,7 +1779,17 @@ function Admin({ onBackClick }) {
     return { data: fallbackData, error: fallbackError };
   };
 
-  const handlePriceDraft = (requestId, field, value) => {
+  const handlePriceDraft = (requestId, field, value, options = {}) => {
+    if (!options.auto) {
+      setSettlementTouchedByRequest((current) => ({
+        ...current,
+        [requestId]: {
+          ...(current[requestId] || {}),
+          [field]: true,
+        },
+      }));
+    }
+
     const updatePrice = (request) => {
       const numericValue = normalizeMoneyInput(value);
       const mirrorField =
@@ -3031,6 +3052,7 @@ function Admin({ onBackClick }) {
                 assignInterpreter={assignInterpreter}
                 deleteRequest={deleteRequest}
                 handlePriceDraft={handlePriceDraft}
+                settlementTouched={settlementTouchedByRequest[activeRequest.id] || {}}
                 onChangeDraft={updateRequestEditDraft}
                 onClose={closeRequestModal}
                 onRemoveAssignment={removeAssignment}
@@ -3065,6 +3087,7 @@ function RequestActionModal({
   assignInterpreter,
   deleteRequest,
   handlePriceDraft,
+  settlementTouched,
   onChangeDraft,
   onClose,
   onRemoveAssignment,
@@ -3104,6 +3127,7 @@ function RequestActionModal({
           setAssignmentDrafts={setAssignmentDrafts}
           assignInterpreter={assignInterpreter}
           handlePriceDraft={handlePriceDraft}
+          settlementTouched={settlementTouched}
           saveSettlement={saveSettlement}
           removeAssignment={onRemoveAssignment}
           updateRequest={updateRequest}
@@ -4194,6 +4218,7 @@ function RequestDetailPanel({
   setAssignmentDrafts,
   assignInterpreter,
   handlePriceDraft,
+  settlementTouched = {},
   saveSettlement,
   removeAssignment,
   updateRequest,
@@ -4219,27 +4244,80 @@ function RequestDetailPanel({
   );
   const scheduleRange = getAssignmentScheduleRange(request, job);
   const requestDescription = getRequestDescription(request);
-  const referenceFile = getRequestReferenceFile(requestDescription);
+  const referenceFile = getRequestReferenceFile(request, requestDescription);
   const visibleRequestDescription = removeRequestReferenceFileMeta(requestDescription);
 
-  const handleOpenReferenceFile = async () => {
+  useEffect(() => {
+    const requestWithDefaults = applySettlementDefaults(request, settlementTouched);
+    if (requestWithDefaults === request) return;
+
+    if (getCompanyAmount(requestWithDefaults) !== getCompanyAmount(request)) {
+      handlePriceDraft(request.id, "company_amount", getCompanyAmount(requestWithDefaults), {
+        auto: true,
+      });
+    }
+    if (getInterpreterPayment(requestWithDefaults) !== getInterpreterPayment(request)) {
+      handlePriceDraft(
+        request.id,
+        "interpreter_payment",
+        getInterpreterPayment(requestWithDefaults),
+        { auto: true }
+      );
+    }
+  }, [
+    handlePriceDraft,
+    request,
+    request.id,
+    request.requested_level,
+    request.required_level,
+    settlementTouched,
+  ]);
+
+  const createReferenceFileUrl = async ({ download = false } = {}) => {
     if (!referenceFile?.path) return;
 
     if (referenceFile.path.startsWith("http://") || referenceFile.path.startsWith("https://")) {
-      window.open(referenceFile.path, "_blank", "noopener,noreferrer");
-      return;
+      return referenceFile.path;
     }
 
-    try {
-      const { data, error } = await supabase.storage
-        .from(REQUEST_REFERENCE_BUCKET)
-        .createSignedUrl(referenceFile.path, 60);
+    const { data, error } = await supabase.storage
+      .from(REQUEST_REFERENCE_BUCKET)
+      .createSignedUrl(
+        referenceFile.path,
+        60 * 10,
+        download ? { download: referenceFile.name || true } : undefined
+      );
 
-      if (error) throw error;
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    if (error) throw error;
+    return data.signedUrl;
+  };
+
+  const handleOpenReferenceFile = async () => {
+    try {
+      const fileUrl = await createReferenceFileUrl();
+      if (!fileUrl) return;
+      window.open(fileUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
       console.error("Failed to open request reference file:", error);
       alert("참고 자료 파일을 열 수 없습니다. 권한 또는 파일 경로를 확인해주세요.");
+    }
+  };
+
+  const handleDownloadReferenceFile = async () => {
+    try {
+      const fileUrl = await createReferenceFileUrl({ download: true });
+      if (!fileUrl) return;
+      const link = document.createElement("a");
+      link.href = fileUrl;
+      link.download = referenceFile.name || "reference-file";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Failed to download request reference file:", error);
+      alert("참고 자료 파일을 다운로드할 수 없습니다. 권한 또는 파일 경로를 확인해주세요.");
     }
   };
 
@@ -4299,6 +4377,7 @@ function RequestDetailPanel({
         <RequestReferenceFileBlock
           file={referenceFile}
           onOpen={handleOpenReferenceFile}
+          onDownload={handleDownloadReferenceFile}
         />
         <h3>복장/주의사항</h3>
         <p>{request.dress_code || "추후 안내"}</p>
@@ -4330,6 +4409,9 @@ function RequestDetailPanel({
       <div>
         <h3>정산 관리</h3>
         <div className="admin-settlement">
+          <p className="admin-settlement-note">
+            희망 통역 레벨 기준 금액이 자동 입력됩니다. 필요 시 직접 수정할 수 있습니다.
+          </p>
           <NumberControl
             label="기업 금액"
             value={getCompanyAmount(request)}
@@ -4344,7 +4426,9 @@ function RequestDetailPanel({
           />
           <div className="admin-profit">
             <span>플랫폼 수익</span>
-            <strong>{formatJPY(getPlatformProfit(request))}</strong>
+            <strong className={getPlatformProfit(request) < 0 ? "is-negative" : ""}>
+              {formatJPY(getPlatformProfit(request))}
+            </strong>
           </div>
           <button
             type="button"
@@ -6418,7 +6502,8 @@ function ManagementNumberBlock({ label = "관리번호", value }) {
 }
 
 function formatManagementNumber(value) {
-  return value || "번호 미생성";
+  const normalized = String(value || "").trim();
+  return normalized && normalized !== "번호 미생성" ? normalized : "번호 생성 필요";
 }
 
 function formatRequestListNumber(request = {}) {
@@ -6455,7 +6540,7 @@ function FieldControl({ label, children }) {
   );
 }
 
-function RequestReferenceFileBlock({ file, onOpen }) {
+function RequestReferenceFileBlock({ file, onOpen, onDownload }) {
   if (!file) return null;
 
   return (
@@ -6464,11 +6549,18 @@ function RequestReferenceFileBlock({ file, onOpen }) {
       <div className="admin-reference-file-row">
         <span className="admin-reference-file-name">📎 {file.name || "첨부 파일"}</span>
         {file.path ? (
-          <button type="button" onClick={onOpen}>
-            보기 / 다운로드
-          </button>
+          <div className="admin-reference-file-actions">
+            <button type="button" onClick={onOpen}>
+              보기
+            </button>
+            <button type="button" onClick={onDownload}>
+              다운로드
+            </button>
+          </div>
         ) : (
-          <span className="admin-reference-file-empty">파일 링크 없음</span>
+          <span className="admin-reference-file-empty">
+            기존 업로드 파일 경로가 저장되지 않아 열람할 수 없습니다. 다시 업로드가 필요합니다.
+          </span>
         )}
       </div>
     </div>
@@ -7252,6 +7344,58 @@ function normalizeMoneyInput(value) {
   return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
+const SETTLEMENT_LEVEL_DEFAULTS = {
+  LV1: { company_amount: 180000, interpreter_payment: 180000 },
+  LV2: { company_amount: 200000, interpreter_payment: 200000 },
+  LV3: { company_amount: 230000, interpreter_payment: 230000 },
+  LV4: { company_amount: 245000, interpreter_payment: 245000 },
+};
+
+function getSettlementLevel(request = {}) {
+  const level = String(request.requested_level || request.required_level || "")
+    .trim()
+    .toUpperCase()
+    .replace(/^LV\s*/, "LV");
+  return Object.prototype.hasOwnProperty.call(SETTLEMENT_LEVEL_DEFAULTS, level)
+    ? level
+    : "";
+}
+
+function applySettlementDefaults(request = {}, touched = {}) {
+  const level = getSettlementLevel(request);
+  if (!level) return request;
+
+  const defaults = SETTLEMENT_LEVEL_DEFAULTS[level];
+  const currentCompanyAmount = getCompanyAmount(request);
+  const currentInterpreterPayment = getInterpreterPayment(request);
+  const nextCompanyAmount =
+    !touched.company_amount && currentCompanyAmount === 0
+      ? defaults.company_amount
+      : currentCompanyAmount;
+  const nextInterpreterPayment =
+    !touched.interpreter_payment && currentInterpreterPayment === 0
+      ? defaults.interpreter_payment
+      : currentInterpreterPayment;
+
+  if (
+    nextCompanyAmount === currentCompanyAmount &&
+    nextInterpreterPayment === currentInterpreterPayment
+  ) {
+    return request;
+  }
+
+  const platformProfit = nextCompanyAmount - nextInterpreterPayment;
+  return {
+    ...request,
+    company_amount: nextCompanyAmount,
+    client_price: nextCompanyAmount,
+    interpreter_payment: nextInterpreterPayment,
+    interpreter_price: nextInterpreterPayment,
+    platform_profit: platformProfit,
+    profit: platformProfit,
+  };
+}
+
 function normalizePaymentStatus(status) {
   const value = String(status || "").trim().toLowerCase();
   if (["paid", "결제완료", "결제 완료"].includes(value)) return "paid";
@@ -7991,12 +8135,19 @@ function getRequestDescription(request = {}) {
   );
 }
 
-function getRequestReferenceFile(description = "") {
+function getRequestReferenceFile(requestOrDescription = {}, maybeDescription = "") {
+  const request =
+    typeof requestOrDescription === "string" ? {} : requestOrDescription || {};
+  const description =
+    typeof requestOrDescription === "string" ? requestOrDescription : maybeDescription;
   const fileName =
+    request.reference_file_name ||
     description.match(/^참고 자료 파일명:\s*(.+)$/m)?.[1]?.trim() ||
     description.match(/^참고 자료:\s*있음\s*\((.+)\)$/m)?.[1]?.trim() ||
     "";
   const filePath =
+    request.reference_file_path ||
+    request.reference_file_url ||
     description.match(/^참고 자료 파일 경로:\s*(.+)$/m)?.[1]?.trim() ||
     description.match(/^참고 자료 파일 URL:\s*(.+)$/m)?.[1]?.trim() ||
     "";

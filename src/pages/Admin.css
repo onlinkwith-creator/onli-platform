@@ -1005,6 +1005,18 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.admin-settlement-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-profit strong.is-negative {
+  color: #dc2626;
+}
+
 .admin-subpanel {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2250,6 +2262,12 @@
   font-size: 13px;
   font-weight: 850;
   overflow-wrap: anywhere;
+}
+
+.admin-reference-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .admin-reference-file-row button {
