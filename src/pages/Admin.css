@@ -4645,55 +4645,46 @@
   }
 }
 
-/* --- Admin mobile horizontal card rails --- */
+/* --- Admin mobile single-column cards --- */
 @media (max-width: 768px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   .admin-request-card-grid,
   .admin-request-card-grid.is-list-view,
   .admin-management-card-grid,
   .admin-interpreter-grid,
   .admin-card-grid,
   .admin-application-list {
-    display: flex;
-    grid-template-columns: none;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
     align-items: stretch;
     gap: 12px;
     width: 100%;
     max-width: 100%;
-    overflow-x: auto;
+    overflow-x: visible;
     overflow-y: visible;
-    padding: 0 2px 8px;
-    scroll-padding-inline: 2px;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
+    padding: 0;
+    scroll-snap-type: none;
     -webkit-overflow-scrolling: touch;
-  }
-
-  .admin-request-card-grid::-webkit-scrollbar,
-  .admin-management-card-grid::-webkit-scrollbar,
-  .admin-interpreter-grid::-webkit-scrollbar,
-  .admin-card-grid::-webkit-scrollbar,
-  .admin-application-list::-webkit-scrollbar {
-    display: none;
   }
 
   .admin-request-card-grid > .admin-request-card,
   .admin-management-card-grid > .admin-list-card,
   .admin-management-card-grid > .admin-card,
   .admin-card-grid > .admin-card,
-  .admin-application-list > .admin-application-card {
-    flex: 0 0 78%;
-    width: 78%;
-    max-width: 78%;
+  .admin-application-list > .admin-application-card,
+  .admin-request-card-grid.is-list-view > .admin-request-card {
+    flex: none;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     align-self: stretch;
-    scroll-snap-align: start;
-  }
-
-  .admin-request-card-grid.is-list-view > .admin-request-card {
-    flex-basis: 78%;
-    width: 78%;
-    max-width: 78%;
+    scroll-snap-align: none;
   }
 
   .admin-metrics {
@@ -4702,31 +4693,5 @@
     overflow: visible;
     padding: 0;
     scroll-snap-type: none;
-  }
-}
-
-@media (min-width: 600px) and (max-width: 768px) {
-  .admin-request-card-grid > .admin-request-card,
-  .admin-management-card-grid > .admin-list-card,
-  .admin-management-card-grid > .admin-card,
-  .admin-card-grid > .admin-card,
-  .admin-application-list > .admin-application-card,
-  .admin-request-card-grid.is-list-view > .admin-request-card {
-    flex-basis: 48%;
-    width: 48%;
-    max-width: 48%;
-  }
-}
-
-@media (max-width: 480px) {
-  .admin-request-card-grid > .admin-request-card,
-  .admin-management-card-grid > .admin-list-card,
-  .admin-management-card-grid > .admin-card,
-  .admin-card-grid > .admin-card,
-  .admin-application-list > .admin-application-card,
-  .admin-request-card-grid.is-list-view > .admin-request-card {
-    flex-basis: 78%;
-    width: 78%;
-    max-width: 78%;
   }
 }
