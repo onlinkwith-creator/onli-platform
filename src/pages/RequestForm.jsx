@@ -308,12 +308,13 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     const contact = `${form.contactPhone} / ${form.contactEmail}`;
     const eventName =
       form.eventName.trim() ||
-      `${form.companyName} ${form.interpretationTypes[0] || "통역"} 견적 요청`;
+      `${form.companyName} ${form.interpretationTypes[0] || "통역"} 의뢰`;
     const requestType = interpreter
       ? "designated"
       : urgency === "NORMAL"
         ? "general"
         : "urgent";
+    const isDesignatedRequest = Boolean(interpreter?.id);
 
     const requestPayload = {
       interpreter_id: interpreter?.id || null,
@@ -344,7 +345,10 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       admin_checked: false,
       checked_at: null,
       status: MATCHING_STATUS.DRAFT,
-      assignment_status: ASSIGNMENT_STATUS.WAITING,
+      matching_status: MATCHING_STATUS.DRAFT,
+      assignment_status: isDesignatedRequest
+        ? ASSIGNMENT_STATUS.ASSIGNING
+        : ASSIGNMENT_STATUS.WAITING,
       operation_status: OPERATION_STATUS.BEFORE_OPERATION,
       settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
       is_public: false,
@@ -404,6 +408,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       delete legacyRequestPayload.assignment_status;
       delete legacyRequestPayload.operation_status;
       delete legacyRequestPayload.settlement_status;
+      delete legacyRequestPayload.matching_status;
       delete legacyRequestPayload.request_type;
       delete legacyRequestPayload.admin_checked;
       delete legacyRequestPayload.checked_at;
@@ -464,6 +469,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       requestedLevel: requestPayload.requested_level,
       requestedPeopleCount: requestPayload.requested_people_count,
       interpretationField: requestPayload.interpretation_field,
+      interpretationTypes: form.interpretationTypes.join(", "),
+      requestDetails: form.requestDetails || "-",
+      designatedInterpreterName: interpreter?.name || "",
     };
 
     console.log("COMPANY REQUEST SUCCESS - START EMAILS", companyEmail);
@@ -497,31 +505,36 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     if (interpreter?.id) {
       try {
         console.log("DESIGNATED INTERPRETER EMAIL START");
+        let interpreterEmail = "";
         const { data: interpreterData, error: interpreterError } = await supabase
           .from("interpreters")
-          .select("email")
+          .select("email, name")
           .eq("id", interpreter.id)
           .single();
 
         if (interpreterError) {
-          console.error("Failed to query interpreter email:", interpreterError);
-        } else if (interpreterData?.email) {
-          const interpreterEmail = interpreterData.email;
-          const result = await sendAutoEmail(
-            "designated_request_received_interpreter",
-            interpreterEmail,
-            {
-              ...emailPayload,
-              interpreterName: interpreter.name || "",
-            }
-          );
-          if (!result.ok) {
-            console.error("Designated interpreter email failed", result.error || result);
-          } else {
-            console.log("Designated interpreter email sent successfully to:", interpreterEmail);
-          }
+          console.warn("Failed to query interpreter email in browser. Edge function will resolve it:", interpreterError);
         } else {
-          console.warn("Designated interpreter email is empty for interpreter:", interpreter.id);
+          interpreterEmail = interpreterData?.email || "";
+        }
+
+        const result = await sendAutoEmail(
+          "designated_request_received_interpreter",
+          interpreterEmail,
+          {
+            ...emailPayload,
+            interpreterId: interpreter.id,
+            interpreter_id: interpreter.id,
+            interpreterName: interpreterData?.name || interpreter.name || "",
+          }
+        );
+        if (!result.ok) {
+          console.error("Designated interpreter email failed", result.error || result);
+        } else {
+          console.log("Designated interpreter email sent successfully", {
+            interpreterId: interpreter.id,
+            resolvedInBrowser: Boolean(interpreterEmail),
+          });
         }
       } catch (error) {
         console.error("DESIGNATED INTERPRETER EMAIL FAILED", error);
@@ -546,7 +559,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     }
 
     alert(
-      "통역 의뢰가 접수되었습니다.\n\nON-LI 담당자가 내용을 확인 후\n영업일 기준 3시간 이내 연락드립니다."
+      isDesignatedRequest
+        ? "통역 의뢰가 접수되었습니다.\n\n선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.\n일정이 맞지 않는 경우 ON-LI에서 조건에 맞는 다른 통역사를 안내해드립니다."
+        : "통역 의뢰가 접수되었습니다.\n\nON-LI 담당자가 내용을 확인 후\n영업일 기준 3시간 이내 연락드립니다."
     );
     setForm(initialForm);
     if (referenceFileInputRef.current) {
@@ -763,6 +778,12 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
             <div>
               <strong>의뢰 접수 후 영업일 기준 3시간 이내 담당자가 연락드립니다.</strong>
               <p>일정, 장소, 분야를 확인한 뒤 적합한 통역 조건을 안내합니다.</p>
+              {!isGeneralRequest && (
+                <p className="request-designated-note">
+                  선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.
+                  일정이 맞지 않는 경우 ON-LI에서 조건에 맞는 다른 통역사를 안내해드립니다.
+                </p>
+              )}
               <span className="request-security-note">
                 입력하신 정보는 안전하게 보호되며, 통역 매칭 용도로만 사용됩니다.
               </span>

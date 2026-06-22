@@ -72,6 +72,33 @@
 
 .about-back-button {
   margin: 0 0 28px;
+  min-height: 52px;
+  padding: 14px 24px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800 !important;
+  line-height: 1.2;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  transition:
+    filter 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+.about-back-button:hover,
+.about-back-button:active,
+.about-back-button:focus-visible {
+  border-color: #e5e7eb !important;
+  background: #f9fafb !important;
+  color: #111827 !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  -webkit-text-fill-color: #111827 !important;
 }
 
 .about-hero {

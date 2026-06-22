@@ -39,7 +39,7 @@ export function normalizeAssignmentStatus(item = {}) {
   if (["assigned", "confirmed", "배정완료", "배정", "매칭완료"].includes(value)) {
     return ASSIGNMENT_STATUS.ASSIGNED;
   }
-  if (["assigning", "in_progress", "matching", "배정중", "매칭중", "진행중"].includes(value)) {
+  if (["assigning", "in_progress", "matching", "배정중", "매칭중", "진행중", "통역사 확인중", "확인중", "지정 요청중"].includes(value)) {
     return ASSIGNMENT_STATUS.ASSIGNING;
   }
   return ASSIGNMENT_STATUS.WAITING;

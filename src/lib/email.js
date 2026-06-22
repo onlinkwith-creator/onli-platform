@@ -48,7 +48,14 @@ export async function sendAutoEmail(type, to, payload = {}) {
     return { ok: false, error };
   }
 
-  if (recipients.length === 0) {
+  const canResolveDesignatedInterpreter =
+    type === "designated_request_received_interpreter" &&
+    (payload.interpreterId ||
+      payload.interpreter_id ||
+      payload.selected_interpreter_id ||
+      payload.designated_interpreter_id);
+
+  if (recipients.length === 0 && !canResolveDesignatedInterpreter) {
     console.warn("EMAIL SKIPPED: NO TARGET");
     console.warn("EMAIL SKIP", { type, to, reason: "No valid email recipient." });
     return { ok: false, skipped: true };
@@ -61,7 +68,7 @@ export async function sendAutoEmail(type, to, payload = {}) {
     const { data, error } = await supabase.functions.invoke("send-email", {
       body: {
         type,
-        to: Array.isArray(to) ? recipients : recipients[0],
+        to: Array.isArray(to) ? recipients : recipients[0] || "",
         payload,
       },
     });

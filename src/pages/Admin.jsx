@@ -4129,7 +4129,8 @@ function AdminRequestCard({
           <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
           <Info label="날짜" value={requestDate} />
           <Info label="장소" value={request.event_location || "-"} />
-          <Info label="배정 통역사" value={assignedInterpreterName || designatedInterpreterName || "-"} />
+          <Info label="지정 요청" value={designatedInterpreterName} />
+          <Info label="배정 통역사" value={assignedInterpreterName || "-"} />
         </dl>
 
         <OperationFlowStatusControls
@@ -4228,6 +4229,7 @@ function RequestDetailPanel({
   const flowSource = getRequestFlowSource(request, job);
   const requestType = getDesignatedRequestType(request);
   const designatedInterpreterName = getDesignatedInterpreterName([request], interpreters);
+  const designatedRequestCheckStatus = getDesignatedRequestCheckStatus(request, assignments);
   const assignedInterpreterName = getAssignedInterpreterName(
     request,
     assignments,
@@ -4356,7 +4358,8 @@ function RequestDetailPanel({
           <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
           <Info label="담당자" value={request.manager_name} />
           <Info label="의뢰 유형" value={requestType.label} />
-          <Info label="지정 통역사" value={designatedInterpreterName} />
+          <Info label="지정 요청 통역사" value={designatedInterpreterName} />
+          <Info label="지정 요청 상태" value={designatedRequestCheckStatus} />
           <Info label="배정 통역사" value={assignedInterpreterName} />
           <Info label="약관 동의" value={getAgreementStatusLabel(request)} />
           <Info label="동의 시간" value={formatDateTime(request.agreed_at)} />
@@ -7498,7 +7501,11 @@ function getRequestHeadlineStatus(item = {}) {
     return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
   }
   if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNING) {
-    return { type: "assignment", value: statuses.assignment_status, label: "배정중" };
+    return {
+      type: "assignment",
+      value: statuses.assignment_status,
+      label: isDesignatedRequest(item) ? "통역사 확인중" : "배정중",
+    };
   }
   return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
 }
@@ -7513,6 +7520,17 @@ function getRequestFlowSource(request = {}, job = null) {
     settlement_status: job.settlement_status,
     status: job.status || request.status,
   };
+}
+
+function getDesignatedRequestCheckStatus(request = {}, assignments = []) {
+  if (!isDesignatedRequest(request)) return "-";
+  if (assignments.length > 0 || normalizeAssignmentStatus(request) === ASSIGNMENT_STATUS.ASSIGNED) {
+    return "가능";
+  }
+  if (normalizeMatchingStatus(request.status || request.matching_status) === MATCHING_STATUS.CANCELLED) {
+    return "불가";
+  }
+  return "확인중";
 }
 
 function getAssignmentStatusChanges(item = {}) {

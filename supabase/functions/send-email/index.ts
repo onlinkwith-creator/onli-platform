@@ -367,18 +367,18 @@ function buildHtml(type: EmailType, payload: Payload) {
       return layout(
         "지정 통역 의뢰가 도착했습니다",
         `
-          <p>${field(payload, "interpreterName", "통역사")}님,</p>
-          <p>새로운 지정 통역 의뢰가 도착했습니다.<br/>
-          의뢰 내용을 확인하신 후, 일정 가능 여부를 회신해 주세요.</p>
-          <p>만약 일정이 어렵거나 조건상 진행이 어려운 경우, ON-LI 운영팀이 다른 통역사로 재배정할 수 있으니 부담 없이 알려주시기 바랍니다.</p>
+          <p>안녕하세요, ${field(payload, "interpreterName", "통역사")}님.</p>
+          <p>기업에서 회원님의 프로필을 확인 후 지정 통역 의뢰를 요청했습니다.</p>
+          <p>아래 일정을 확인 후 가능 여부를 알려주세요.</p>
           ${infoTable([
-            ["회사명", field(payload, "companyName")],
             ["행사명", field(payload, "eventName")],
             ["일정", field(payload, "date")],
             ["장소", field(payload, "location")],
-            ["요청 인원", field(payload, "requestedPeopleCount")],
-            ["통역 분야", field(payload, "interpretationField")],
+            ["통역 유형", field(payload, "interpretationTypes")],
+            ["요청 내용", field(payload, "requestDetails")],
           ])}
+          <p>가능 여부 확인 후 ON-LI 담당자가 최종 매칭을 진행합니다.</p>
+          <p>감사합니다.<br/>ON-LI</p>
         `
       );
   }
@@ -398,7 +398,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({}));
     const type = body?.type as EmailType;
-    const to =
+    let to =
       typeof body?.to === "string"
         ? body.to.trim()
         : Array.isArray(body?.to)
@@ -449,6 +449,38 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: `Unknown email type: ${type}` }, 400);
     }
 
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    if ((!to || (Array.isArray(to) && to.length === 0)) && type === "designated_request_received_interpreter") {
+      const interpreterId =
+        payload.interpreterId ||
+        payload.interpreter_id ||
+        payload.selected_interpreter_id ||
+        payload.designated_interpreter_id;
+
+      if (interpreterId) {
+        const { data: interpreter, error: interpreterError } = await supabase
+          .from("interpreters")
+          .select("email, name")
+          .eq("id", interpreterId)
+          .single();
+
+        if (interpreterError) {
+          console.error("DESIGNATED_INTERPRETER_EMAIL_LOOKUP_FAILED", interpreterError);
+        } else if (interpreter?.email) {
+          to = String(interpreter.email).trim();
+          if (!payload.interpreterName && interpreter.name) {
+            payload.interpreterName = interpreter.name;
+          }
+        }
+      }
+    }
+
     if (!to || (Array.isArray(to) && to.length === 0)) {
       console.warn("EMAIL SKIP", { type, reason: "Recipient email is empty." });
       return jsonResponse({ error: "Missing to" }, 400);
@@ -464,12 +496,6 @@ Deno.serve(async (request) => {
     const relatedId = requestId || String(payload.dedupeKey || "");
     const smtpUser = gmailUser.trim();
     const smtpPassword = gmailAppPassword.replace(/\s+/g, "");
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {

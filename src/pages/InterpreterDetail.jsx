@@ -120,6 +120,10 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
           이 통역사 지정해서 의뢰하기
           <ArrowRight size={18} aria-hidden="true" />
         </button>
+        <p className="profile-designated-note">
+          선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.
+          일정이 맞지 않는 경우 ON-LI에서 조건에 맞는 다른 통역사를 안내해드립니다.
+        </p>
       </aside>
     </section>
   );
@@ -235,6 +239,10 @@ function ProfileCTA({ interpreter, name, onBackClick, onRequestClick }) {
       <div>
         <span>{interpreter.approved ? "ON-LI Verified Interpreter" : "ON-LI Interpreter"}</span>
         <strong>{name} 통역사와 의뢰를 시작해보세요.</strong>
+        <p className="profile-designated-note">
+          선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.
+          일정이 맞지 않는 경우 ON-LI에서 조건에 맞는 다른 통역사를 안내해드립니다.
+        </p>
       </div>
       <div className="profile-bottom-actions">
         <button

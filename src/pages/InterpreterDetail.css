@@ -552,6 +552,14 @@
   line-height: 1.5;
 }
 
+.profile-designated-note {
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 .profile-bottom-actions {
   display: flex;
   align-items: center;
