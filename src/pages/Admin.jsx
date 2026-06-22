@@ -7361,10 +7361,10 @@ function normalizeMoneyInput(value) {
 }
 
 const SETTLEMENT_LEVEL_DEFAULTS = {
-  LV1: { company_amount: 180000, interpreter_payment: 180000 },
-  LV2: { company_amount: 200000, interpreter_payment: 200000 },
-  LV3: { company_amount: 230000, interpreter_payment: 230000 },
-  LV4: { company_amount: 245000, interpreter_payment: 245000 },
+  LV1: { company_amount: 220000, interpreter_payment: 180000 },
+  LV2: { company_amount: 245000, interpreter_payment: 200000 },
+  LV3: { company_amount: 280000, interpreter_payment: 230000 },
+  LV4: { company_amount: 300000, interpreter_payment: 245000 },
 };
 
 function getSettlementLevel(request = {}) {

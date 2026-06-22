@@ -4038,3 +4038,695 @@
     min-height: auto;
   }
 }
+
+/* --- Admin mobile compact layout --- */
+@media (max-width: 768px) {
+  .admin-page {
+    padding: 12px;
+  }
+
+  .admin-shell,
+  .admin-section,
+  .admin-subsection,
+  .admin-filter-bar,
+  .admin-filters,
+  .admin-request-card-grid,
+  .admin-management-card-grid,
+  .admin-interpreter-grid,
+  .admin-detail-panel,
+  .admin-modal-form {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .admin-section,
+  .admin-subsection {
+    margin-bottom: 18px;
+  }
+
+  .admin-header {
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 0;
+  }
+
+  .admin-header h1 {
+    font-size: 22px;
+    line-height: 1.25;
+  }
+
+  .admin-header p,
+  .admin-kicker {
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .admin-header-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .admin-header-actions .admin-account-button {
+    grid-column: 1 / -1;
+  }
+
+  .admin-refresh,
+  .admin-home-button,
+  .admin-account-button,
+  .admin-save,
+  .admin-link-button,
+  .admin-small-button,
+  .admin-toggle,
+  .admin-assign-row button,
+  .admin-modal-actions button {
+    min-height: 36px;
+    height: auto;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .admin-tabs {
+    gap: 4px;
+    margin-bottom: 8px;
+    padding: 4px;
+  }
+
+  .admin-tabs button {
+    min-height: 34px;
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .admin-section-title {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .admin-section-title h2 {
+    font-size: 17px;
+    line-height: 1.3;
+  }
+
+  .admin-count {
+    width: fit-content;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .admin-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .admin-metrics > * {
+    min-width: 0;
+  }
+
+  .admin-metric-card {
+    min-height: auto;
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .admin-metric-icon {
+    width: 26px;
+    height: 26px;
+    margin-bottom: 7px;
+  }
+
+  .admin-metric-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .admin-metric-card span {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .admin-metric-card strong {
+    margin-top: 4px;
+    font-size: 20px;
+    line-height: 1.15;
+  }
+
+  .admin-metric-card small {
+    margin-top: 2px;
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .admin-filter-bar,
+  .admin-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+    margin-bottom: 12px;
+  }
+
+  .admin-filter-search,
+  .admin-search-control,
+  .admin-filters > input,
+  .admin-filters > label,
+  .admin-request-filters .admin-search-control {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .admin-filter-bar input,
+  .admin-filter-bar select,
+  .admin-filters input,
+  .admin-filters select,
+  .admin-filter-select,
+  .admin-inline-select,
+  .month-filter-input input {
+    min-width: 0;
+    min-height: 36px;
+    height: 36px;
+    padding: 7px 9px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  .admin-view-toggle {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  .admin-view-toggle button {
+    min-height: 34px;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .admin-request-card-grid,
+  .admin-request-card-grid.is-list-view,
+  .admin-management-card-grid,
+  .admin-interpreter-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .admin-request-card-grid > .admin-request-card,
+  .admin-management-card-grid > .admin-list-card,
+  .admin-management-card-grid > .admin-card {
+    max-width: none;
+  }
+
+  .admin-request-card,
+  .admin-list-card,
+  .admin-card,
+  .admin-interpreter-card,
+  .admin-operation-panel,
+  .admin-detail-panel > div,
+  .admin-interpreter-summary-card,
+  .admin-interpreter-detail-section,
+  .admin-interpreter-memo-card,
+  .admin-account-row {
+    gap: 8px;
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .admin-request-card:hover,
+  .admin-list-card:hover,
+  .admin-card:hover {
+    transform: none;
+  }
+
+  .admin-request-card-head,
+  .admin-list-card-head {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .admin-request-card-head h3,
+  .admin-list-card-head h3 {
+    font-size: 15px;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+
+  .admin-request-card-head p,
+  .admin-list-card-head p,
+  .admin-card-description,
+  .admin-card-meta,
+  .admin-request-id {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .admin-card-chip-row,
+  .admin-status-badge-row {
+    gap: 4px;
+  }
+
+  .status-badge,
+  .admin-flow-status-badge,
+  .admin-empty-chip,
+  .admin-account-badge {
+    padding: 4px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .admin-request-card .admin-status-badge-row,
+  .admin-request-card .admin-request-summary-clean div:first-child,
+  .admin-request-card .admin-request-summary-clean div:nth-child(4),
+  .admin-request-card .admin-control-grid,
+  .admin-request-card .operation-flow-controls,
+  .admin-request-card .admin-card-controls-grid {
+    display: none;
+  }
+
+  .admin-request-summary,
+  .admin-card-summary {
+    gap: 0;
+    padding: 0;
+  }
+
+  .admin-request-summary div,
+  .admin-card-summary div,
+  .admin-card-summary.compact div,
+  .admin-detail-list div,
+  .admin-info-section div {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 6px;
+    padding: 4px 0;
+  }
+
+  .admin-request-summary dt,
+  .admin-card-summary dt,
+  .admin-detail-list dt,
+  .admin-info-section dt {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .admin-request-summary dd,
+  .admin-card-summary dd,
+  .admin-detail-list dd,
+  .admin-info-section dd,
+  .admin-detail-panel p {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .admin-card-summary dd,
+  .admin-detail-list dd {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .admin-request-actions,
+  .admin-card-actions,
+  .admin-request-actions.request-card-actions,
+  .admin-interpreter-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+    width: 100%;
+  }
+
+  .admin-request-actions.request-card-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px;
+  }
+
+  .admin-card-actions > *,
+  .admin-request-actions > *,
+  .admin-interpreter-actions > * {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .request-more-wrapper .request-more-trigger {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .request-more-wrapper .request-more-menu {
+    bottom: 40px;
+    min-width: 128px;
+  }
+
+  .request-more-wrapper .request-more-item {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  .admin-interpreter-card .admin-card-summary div:nth-child(1),
+  .admin-interpreter-card .admin-card-summary div:nth-child(3),
+  .admin-interpreter-card .admin-card-summary div:nth-child(5),
+  .admin-interpreter-card .admin-card-summary div:nth-child(8),
+  .admin-interpreter-card .admin-card-summary div:nth-child(9),
+  .admin-interpreter-card .admin-card-summary div:nth-child(11),
+  .admin-interpreter-card .admin-card-summary div:nth-child(12),
+  .admin-interpreter-card .admin-card-summary div:nth-child(13) {
+    display: none;
+  }
+
+  .admin-interpreter-card .admin-card-summary div:nth-child(2) dd,
+  .admin-list-card .admin-card-summary dd {
+    white-space: nowrap;
+  }
+
+  .admin-interpreter-card .admin-card-chip-row .status-badge:nth-child(n + 4) {
+    display: none;
+  }
+
+  .admin-interpreter-card .admin-card-controls-grid {
+    display: none;
+  }
+
+  .admin-interpreter-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-interpreter-actions .admin-delete-action,
+  .admin-interpreter-actions .admin-reject-action {
+    display: none;
+  }
+
+  .admin-section .admin-management-card-grid:not(.admin-interpreter-grid) .admin-list-card .admin-card-summary div:nth-child(1),
+  .admin-section .admin-management-card-grid:not(.admin-interpreter-grid) .admin-list-card .admin-card-summary div:nth-child(4),
+  .admin-section .admin-management-card-grid:not(.admin-interpreter-grid) .admin-list-card .admin-card-summary div:nth-child(5),
+  .admin-section .admin-management-card-grid:not(.admin-interpreter-grid) .admin-list-card .admin-card-summary div:nth-child(8),
+  .admin-section .admin-management-card-grid:not(.admin-interpreter-grid) .admin-list-card .admin-card-summary div:nth-child(9),
+  .admin-section .admin-management-card-grid:not(.admin-interpreter-grid) .admin-list-card .admin-card-summary div:nth-child(10) {
+    display: none;
+  }
+
+  .admin-card-controls-grid,
+  .admin-request-controls {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .admin-modal-overlay {
+    align-items: flex-start;
+    place-items: start center;
+    padding: 12px;
+    overflow: hidden auto;
+  }
+
+  .admin-modal-card,
+  .admin-account-modal,
+  .admin-interpreter-detail-modal,
+  .settlement-pending-modal {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    padding: 14px;
+    border-radius: 16px;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+
+  .admin-modal-head {
+    position: sticky;
+    top: -14px;
+    z-index: 5;
+    margin: -14px -14px 10px;
+    padding: 12px 14px;
+    background: #ffffff;
+    border-bottom: 1px solid #eef2f7;
+  }
+
+  .admin-modal-head h2,
+  .admin-interpreter-modal-head h2 {
+    font-size: 18px;
+    line-height: 1.3;
+  }
+
+  .admin-modal-close,
+  .admin-modal-icon-close {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+
+  .admin-detail-panel,
+  .admin-detail-panel.interpreter-detail,
+  .admin-modal-edit-grid,
+  .admin-modal-actions,
+  .admin-interpreter-summary-card,
+  .admin-interpreter-contact-grid,
+  .admin-interpreter-detail-grid,
+  .admin-info-section.two-column {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .admin-detail-panel {
+    padding: 0;
+    gap: 10px;
+  }
+
+  .admin-detail-panel h3,
+  .admin-flow-status-panel h3,
+  .admin-interpreter-section-title h3 {
+    margin-bottom: 6px;
+    font-size: 14px;
+    line-height: 1.3;
+  }
+
+  .admin-date-range-panel {
+    padding: 10px;
+  }
+
+  .admin-settlement {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .admin-settlement-note {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .admin-settlement .admin-field-control {
+    gap: 4px;
+  }
+
+  .admin-settlement input {
+    min-height: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .admin-profit {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 10px;
+  }
+
+  .admin-profit span {
+    font-size: 12px;
+  }
+
+  .admin-profit strong {
+    font-size: 15px;
+  }
+
+  .admin-settlement .admin-save,
+  .admin-modal-actions .admin-save,
+  .admin-modal-actions .admin-link-button {
+    width: 100%;
+  }
+
+  .admin-applicant-accordion-list,
+  .admin-applicant-detail,
+  .admin-applicant-detail-grid {
+    gap: 8px;
+  }
+
+  .admin-applicant-summary {
+    min-height: 36px;
+    padding: 9px 10px;
+  }
+
+  .admin-applicant-summary-text {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .admin-applicant-detail {
+    padding: 10px;
+  }
+
+  .admin-applicant-detail-item {
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 6px;
+    padding: 4px 0;
+  }
+
+  .admin-applicant-detail-item dt,
+  .admin-applicant-detail-item dd {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-page {
+    padding: 10px;
+  }
+
+  .admin-metrics {
+    gap: 7px;
+  }
+
+  .admin-metric-card {
+    padding: 10px;
+  }
+
+  .admin-metric-card strong {
+    font-size: 19px;
+  }
+
+  .admin-filter-bar,
+  .admin-filters {
+    gap: 7px;
+    padding: 7px;
+  }
+
+  .admin-request-card,
+  .admin-list-card,
+  .admin-card,
+  .admin-interpreter-card,
+  .admin-operation-panel,
+  .admin-detail-panel > div {
+    padding: 10px;
+  }
+
+  .admin-request-card-head h3,
+  .admin-list-card-head h3 {
+    font-size: 14px;
+  }
+
+  .admin-modal-overlay {
+    padding: 8px;
+  }
+
+  .admin-modal-card,
+  .admin-account-modal,
+  .admin-interpreter-detail-modal,
+  .settlement-pending-modal {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    padding: 12px;
+  }
+
+  .admin-modal-head {
+    top: -12px;
+    margin: -12px -12px 8px;
+    padding: 10px 12px;
+  }
+}
+
+/* --- Admin mobile horizontal card rails --- */
+@media (max-width: 768px) {
+  .admin-request-card-grid,
+  .admin-request-card-grid.is-list-view,
+  .admin-management-card-grid,
+  .admin-interpreter-grid,
+  .admin-card-grid,
+  .admin-application-list {
+    display: flex;
+    grid-template-columns: none;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 0 2px 8px;
+    scroll-padding-inline: 2px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-request-card-grid::-webkit-scrollbar,
+  .admin-management-card-grid::-webkit-scrollbar,
+  .admin-interpreter-grid::-webkit-scrollbar,
+  .admin-card-grid::-webkit-scrollbar,
+  .admin-application-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-request-card-grid > .admin-request-card,
+  .admin-management-card-grid > .admin-list-card,
+  .admin-management-card-grid > .admin-card,
+  .admin-card-grid > .admin-card,
+  .admin-application-list > .admin-application-card {
+    flex: 0 0 78%;
+    width: 78%;
+    max-width: 78%;
+    min-width: 0;
+    align-self: stretch;
+    scroll-snap-align: start;
+  }
+
+  .admin-request-card-grid.is-list-view > .admin-request-card {
+    flex-basis: 78%;
+    width: 78%;
+    max-width: 78%;
+  }
+
+  .admin-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    padding: 0;
+    scroll-snap-type: none;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 768px) {
+  .admin-request-card-grid > .admin-request-card,
+  .admin-management-card-grid > .admin-list-card,
+  .admin-management-card-grid > .admin-card,
+  .admin-card-grid > .admin-card,
+  .admin-application-list > .admin-application-card,
+  .admin-request-card-grid.is-list-view > .admin-request-card {
+    flex-basis: 48%;
+    width: 48%;
+    max-width: 48%;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-request-card-grid > .admin-request-card,
+  .admin-management-card-grid > .admin-list-card,
+  .admin-management-card-grid > .admin-card,
+  .admin-card-grid > .admin-card,
+  .admin-application-list > .admin-application-card,
+  .admin-request-card-grid.is-list-view > .admin-request-card {
+    flex-basis: 78%;
+    width: 78%;
+    max-width: 78%;
+  }
+}

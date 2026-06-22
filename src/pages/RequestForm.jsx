@@ -6,11 +6,7 @@ import TermsAgreement, {
 import DateRangeInput from "../components/DateRangeInput";
 import { supabase, supabaseConfigError } from "../supabase";
 import { ADMIN_EMAILS, getEmailRecipient, sendAutoEmail } from "../lib/email";
-import {
-  calculateEstimatedPrice,
-  calculateInterpreterPay,
-  getUrgency,
-} from "../utils/pricing";
+import { getUrgency } from "../utils/pricing";
 import { MATCHING_STATUS } from "../utils/status";
 import {
   ASSIGNMENT_STATUS,
@@ -47,25 +43,6 @@ const initialForm = {
 };
 
 const levelOptions = ["운영팀 추천받기", "LV1", "LV2", "LV3", "LV4"];
-const companyDailyRates = {
-  LV1: 220000,
-  LV2: 245000,
-  LV3: 280000,
-  LV4: 300000,
-};
-
-const formatWon = (amount) => `₩${Number(amount).toLocaleString("ko-KR")}`;
-
-const getInclusiveDateCount = (startDate, endDate) => {
-  if (!startDate || !endDate) {
-    return null;
-  }
-
-  const diffTime = new Date(endDate) - new Date(startDate);
-  const days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-  return days > 0 ? days : null;
-};
 
 const fieldOptions = [
   "화장품",
@@ -126,22 +103,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const requestedLevel = isGeneralRequest
     ? form.requestedLevel
     : interpreter?.level || null;
-  const isRecommendedLevel = requestedLevel === "운영팀 추천받기";
-  const estimateLevel = isRecommendedLevel ? null : requestedLevel;
-  const estimateDays = getInclusiveDateCount(form.startDate, form.endDate);
-  const estimatePeopleCount = Number(form.requestedPeopleCount);
-  const estimateDailyRate = companyDailyRates[estimateLevel];
-  const canShowEstimate =
-    Boolean(form.startDate) &&
-    Boolean(form.endDate) &&
-    Boolean(estimateLevel) &&
-    Boolean(estimateDailyRate) &&
-    Number.isFinite(estimatePeopleCount) &&
-    estimatePeopleCount > 0 &&
-    Boolean(estimateDays);
-  const estimatedUsageAmount = canShowEstimate
-    ? estimateDailyRate * estimateDays * estimatePeopleCount
-    : null;
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -325,13 +286,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     }
 
     const urgency = getUrgency(form.startDate);
-    const estimatedPrice = calculateEstimatedPrice({
-      level: interpreter?.level,
-      experienceCount: interpreter?.experience_count,
-      urgency,
-      workHours: 0,
-    });
-    const interpreterPay = calculateInterpreterPay(estimatedPrice);
     const industryField =
       form.industryField === "기타"
         ? form.customIndustryField.trim() || "기타"
@@ -381,8 +335,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       preferred_gender: form.preferredGender,
       interpretation_field: industryField,
       urgency,
-      estimated_price: estimatedPrice,
-      interpreter_pay: interpreterPay,
       request_details: requestDetails,
       request_detail: requestDetails,
       reference_file_name: referenceFileUpload?.fileName || null,
@@ -401,7 +353,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       required_level:
         requestedLevel === "운영팀 추천받기" ? null : requestedLevel,
       required_count: Number(form.requestedPeopleCount || 1),
-      interpreter_fee: interpreterPay,
       agreed_terms: true,
       agreed_policy: true,
       agreed_at: new Date().toISOString(),
@@ -757,10 +708,6 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                   </div>
                 </div>
               )}
-              <EstimatedPriceCard
-                amount={estimatedUsageAmount}
-                isRecommendedLevel={isRecommendedLevel}
-              />
             </div>
           </SectionBlock>
 
@@ -963,62 +910,6 @@ function CheckboxGroup({ label, options, values, onChange, className }) {
         ))}
       </div>
     </fieldset>
-  );
-}
-
-function EstimatedPriceCard({
-  amount,
-  isRecommendedLevel,
-}) {
-  const hasAmount = amount !== null;
-  const platformFee = hasAmount ? Math.round(amount * 0.03) : null;
-  const totalAmount = hasAmount ? amount + platformFee : null;
-
-  return (
-    <aside className="request-estimate-card" aria-live="polite">
-      <div>
-        <span className="request-estimate-label">예상 이용 금액</span>
-      </div>
-
-      {hasAmount ? (
-        <>
-          <div className="request-estimate-total">
-            <span>총 이용 예정 금액</span>
-            <strong className="request-estimate-amount">{formatWon(totalAmount)}</strong>
-          </div>
-          <div className="request-estimate-divider" aria-hidden="true" />
-          <span className="request-estimate-detail-label">상세 내역</span>
-          <div className="request-estimate-breakdown">
-            <div className="request-estimate-row">
-              <span>통역 활동 비용</span>
-              <strong>{formatWon(amount)}</strong>
-            </div>
-            <div className="request-estimate-row">
-              <span>ON-LI 플랫폼 이용 수수료</span>
-              <strong>{formatWon(platformFee)}</strong>
-            </div>
-          </div>
-        </>
-      ) : isRecommendedLevel ? (
-        <p className="request-estimate-empty">
-          ON-LI 운영팀이 행사 조건 확인 후
-          <br />
-          최적의 통역 인력을 추천하고 최종 금액을 안내드립니다.
-        </p>
-      ) : (
-        <p className="request-estimate-empty">
-          행사 날짜, 인원 수, 희망 레벨을 선택하면 예상 금액이 표시됩니다.
-        </p>
-      )}
-
-      <p className="request-estimate-note">
-        ※ 표시 금액은 ON-LI 플랫폼 이용 수수료가 포함된 최종 예상 금액입니다.
-        <br />
-        ※ 현금영수증 발행이 가능합니다.
-        <br />
-        ※ 최종 금액은 일정, 업무 범위, 매칭 조건에 따라 변경될 수 있습니다.
-      </p>
-    </aside>
   );
 }
 
