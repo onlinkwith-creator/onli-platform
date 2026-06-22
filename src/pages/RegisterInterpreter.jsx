@@ -72,7 +72,6 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
     age: "",
     region: "",
     email: "",
-    phone: "",
     school: "",
     kakaoOrLine: "",
     jlpt: "N1 보유",
@@ -156,6 +155,13 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       return;
     }
 
+    if (!form.kakaoOrLine.trim()) {
+      const message = "카카오톡 ID를 입력해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
+
     if (form.has_experience && String(form.experience_count).trim() === "") {
       setErrorMessage("통역 경험 횟수를 입력해주세요.");
       return;
@@ -193,9 +199,8 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       age: form.age,
       region: form.region,
       email: userEmail,
-      phone: form.phone,
       school: form.school,
-      kakao_or_line: form.kakaoOrLine,
+      kakao_or_line: form.kakaoOrLine.trim(),
       jlpt: form.jlpt,
       stay_period: form.stayPeriod,
       has_experience: form.has_experience,
@@ -330,7 +335,8 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
         interpreterId: data?.id || "",
         name: form.name,
         email: interpreterEmail,
-        phone: form.phone,
+        phone: "",
+        kakaoOrLine: form.kakaoOrLine.trim(),
       });
 
       if (!result.ok) {
@@ -405,16 +411,22 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
               description="운영팀 안내와 매칭 연락에 사용할 정보를 입력해주세요."
             >
               <Field
-                label="이메일"
+                label="로그인 이메일"
                 name="email"
                 type="email"
                 value={authEmail || form.email}
-                onChange={handleChange}
-                readOnly={Boolean(authEmail)}
+                readOnly
+                placeholder="로그인 계정 이메일"
                 required
               />
-              <Field label="전화번호" name="phone" value={form.phone} onChange={handleChange} required />
-              <Field label="카카오/라인 ID" name="kakaoOrLine" value={form.kakaoOrLine} onChange={handleChange} />
+              <Field
+                label="카카오톡 ID"
+                name="kakaoOrLine"
+                value={form.kakaoOrLine}
+                onChange={handleChange}
+                placeholder="카카오톡 ID를 입력해주세요"
+                required
+              />
             </FormSectionCard>
 
             <FormSectionCard

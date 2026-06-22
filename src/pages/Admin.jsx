@@ -4899,7 +4899,7 @@ function InterpreterCard({
       <dl className="admin-card-summary">
         <Info label="통역사번호" value={formatManagementNumber(interpreter.interpreter_no)} />
         <Info label="이메일" value={interpreter.email} />
-        <Info label="연락처" value={interpreter.phone} />
+        <Info label="카카오톡 ID" value={interpreter.kakao_or_line} />
         <Info label="레벨" value={normalizeLevel(interpreter.level)} />
         <Info label="승인 상태" value={approvalLabel} />
         <Info label="활동 상태" value={activityLabel} />
@@ -5169,8 +5169,11 @@ function InterpreterModal({
                 </div>
               </div>
               <div className="admin-interpreter-contact-grid">
-                <InterpreterQuickInfo icon={Phone} label="전화번호" value={interpreter.phone} />
                 <InterpreterQuickInfo icon={Mail} label="이메일" value={interpreter.email} />
+                <InterpreterQuickInfo icon={Phone} label="카카오톡 ID" value={interpreter.kakao_or_line} />
+                {interpreter.phone && (
+                  <InterpreterQuickInfo icon={Phone} label="기존 전화번호" value={interpreter.phone} />
+                )}
                 <InterpreterQuickInfo
                   icon={MapPin}
                   label="활동 지역"
@@ -5301,7 +5304,10 @@ function InterpreterModal({
                 />
                 <InterpreterDetailItem label="일본 체류 기간" value={interpreter.stay_period} />
                 <InterpreterDetailItem label="학교/전공" value={interpreter.school} />
-                <InterpreterDetailItem label="Kakao/LINE" value={interpreter.kakao_or_line} />
+                <InterpreterDetailItem label="카카오톡 ID" value={interpreter.kakao_or_line} />
+                {interpreter.phone && (
+                  <InterpreterDetailItem label="기존 전화번호" value={interpreter.phone} />
+                )}
                 <InterpreterDetailItem label="약관 동의" value={getAgreementStatusLabel(interpreter)} />
                 <InterpreterDetailItem label="동의 시간" value={formatDateTime(interpreter.agreed_at)} />
               </InterpreterDetailSection>
@@ -5603,18 +5609,11 @@ function InterpreterModal({
                   placeholder="이메일을 입력해주세요"
                 />
               </FieldControl>
-              <FieldControl label="전화번호">
-                <input
-                  value={draft?.phone || ""}
-                  onChange={(event) => onChangeDraft("phone", event.target.value)}
-                  placeholder="전화번호를 입력해주세요"
-                />
-              </FieldControl>
-              <FieldControl label="카카오/라인 ID">
+              <FieldControl label="카카오톡 ID">
                 <input
                   value={draft?.kakao_or_line || ""}
                   onChange={(event) => onChangeDraft("kakao_or_line", event.target.value)}
-                  placeholder="카카오톡 또는 라인 ID를 입력해주세요"
+                  placeholder="카카오톡 ID를 입력해주세요"
                 />
               </FieldControl>
 
@@ -7971,7 +7970,6 @@ function getInterpreterChangesFromDraft(draft = {}) {
   return {
     name: draft.name,
     email: draft.email,
-    phone: draft.phone,
     kakao_or_line: draft.kakao_or_line,
     gender: draft.gender,
     age: draft.age,

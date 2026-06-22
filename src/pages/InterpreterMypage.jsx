@@ -143,7 +143,7 @@ function InterpreterMypage({
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
-    phone: "",
+    kakao_or_line: "",
     gender: "",
     level: "Lv1",
     intro: "",
@@ -289,7 +289,7 @@ function InterpreterMypage({
     if (!interpreter) return;
     setEditForm({
       name: interpreter.name || "",
-      phone: interpreter.phone || "",
+      kakao_or_line: interpreter.kakao_or_line || "",
       gender: interpreter.gender || "",
       level: interpreter.level || "Lv1",
       intro: interpreter.short_intro || interpreter.intro || interpreter.self_intro || interpreter.introduction || "",
@@ -337,7 +337,7 @@ function InterpreterMypage({
 
     const payload = {
       name: editForm.name,
-      phone: editForm.phone,
+      kakao_or_line: editForm.kakao_or_line,
       gender: editForm.gender,
       specialties,
       available_regions,
@@ -1378,13 +1378,14 @@ function InterpreterMypage({
                             />
                           </label>
                           <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
-                            <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>연락처</span>
+                            <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>카카오톡 ID</span>
                             <input
                                type="text"
-                               name="phone"
-                               value={editForm.phone}
+                               name="kakao_or_line"
+                               value={editForm.kakao_or_line}
                                onChange={handleEditFormChange}
                                required
+                               placeholder="카카오톡 ID를 입력해주세요"
                                style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
                             />
                           </label>
@@ -1530,7 +1531,7 @@ function InterpreterMypage({
                           <dl className="interpreter-profile-list">
                             <ProfileRow label="이름" value={interpreter.name || "미입력"} />
                             <ProfileRow label="이메일" value={interpreter.email || user.email} />
-                            <ProfileRow label="연락처" value={interpreter.phone || "미입력"} />
+                            <ProfileRow label="카카오톡 ID" value={interpreter.kakao_or_line || "미입력"} />
                             <ProfileRow label="성별" value={interpreter.gender || "미입력"} />
                             <ProfileRow
                               label="승인 상태"
@@ -1673,8 +1674,8 @@ function InterpreterMypage({
                               <strong className="profile-value">{interpreter.gender || "미입력"}</strong>
                             </div>
                             <div className="profile-grid-item">
-                              <span className="profile-label">연락처</span>
-                              <strong className="profile-value">{interpreter.phone || "미입력"}</strong>
+                              <span className="profile-label">카카오톡 ID</span>
+                              <strong className="profile-value">{interpreter.kakao_or_line || "미입력"}</strong>
                             </div>
                             <div className="profile-grid-item">
                               <span className="profile-label">레벨</span>
