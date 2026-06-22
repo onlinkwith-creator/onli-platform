@@ -90,7 +90,7 @@ function JobApply({
       if (!publicSupabase) throw supabaseConfigError;
 
       const { data, error } = await publicSupabase
-        .from("jobs")
+        .from("public_jobs")
         .select("*")
         .eq("id", jobId)
         .single();

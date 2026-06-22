@@ -51,8 +51,8 @@ function SupabaseDebugBox({ label = "" }) {
       ] = await Promise.all([
         publicSupabase.from("public_interpreters").select("*"),
         publicSupabase.from("public_interpreters").select("*").eq("status", "active"),
-        publicSupabase.from("jobs").select("*"),
-        publicSupabase.from("jobs").select("*").eq("status", "active"),
+        publicSupabase.from("public_jobs").select("*"),
+        publicSupabase.from("public_jobs").select("*").eq("public_status", "open"),
         publicSupabase.from("applications").select("*"),
         publicSupabase.from("job_applications").select("*"),
       ]);

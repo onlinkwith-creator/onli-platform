@@ -118,9 +118,8 @@ function Home({
       if (!supabase) throw supabaseConfigError;
 
       const { data, error } = await supabase
-        .from("jobs")
-        .select("*")
-        .eq("visibility", "public");
+        .from("public_jobs")
+        .select("*");
 
       if (error) {
         console.error("Jobs fetch error:", {

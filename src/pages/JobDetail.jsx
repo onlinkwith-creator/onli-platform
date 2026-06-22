@@ -98,7 +98,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     }
 
     const { data, error } = await publicSupabase
-      .from("jobs")
+      .from("public_jobs")
       .select("*")
       .eq("id", jobId)
       .single();
@@ -533,7 +533,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                   </h1>
                   
                   <div className="job-detail-hero-meta">
-                    <MetaItem icon={Building2} text={job.company_name || "기업명 확인 중"} />
+                    <MetaItem icon={Building2} text="ON-LI 공개 공고" />
                     <MetaItem icon={Languages} text={job.language || "한국어/일본어"} />
                     <MetaItem icon={BadgeCheck} text={getJobLevelSummary(job)} />
                     <MetaItem icon={Briefcase} text={getJobSpecialty(job)} />
@@ -600,11 +600,11 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                       <h3>지원 정보</h3>
                       <MobileInfo label="지원 마감" value={job.deadline || "상시"} />
                       <MobileInfo label="상태" value={getJobStatusLabel(job)} />
-                      <MobileInfo label="기업명" value={job.company_name} />
+                      <MobileInfo label="공고 구분" value="ON-LI 공개 공고" />
                     </section>
                   </div>
                   <div className="job-info-grid">
-                    <Info icon={Building2} label="기업명" value={job.company_name} />
+                    <Info icon={Building2} label="공고 구분" value="ON-LI 공개 공고" />
                     <Info
                       icon={Calendar}
                       label="날짜"

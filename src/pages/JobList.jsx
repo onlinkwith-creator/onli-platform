@@ -64,9 +64,8 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
 
     try {
       const { data, error } = await supabase
-        .from("jobs")
-        .select("*")
-        .eq("visibility", "public");
+        .from("public_jobs")
+        .select("*");
 
       if (error) {
         console.error("Jobs fetch error:", {
@@ -137,7 +136,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
       })();
 
       // Keyword Text Match
-      const searchStr = `${job.event_name || job.title || ""} ${job.company_name || ""} ${job.location || ""} ${job.requirements || ""}`.toLowerCase();
+      const searchStr = `${job.event_name || job.title || ""} ${job.location || ""} ${job.public_description || job.preference || ""}`.toLowerCase();
       const keywordMatches = !keyword || searchStr.includes(keyword);
 
       return statusMatches && regionMatches && fieldMatches && levelMatches && dateMatches && keywordMatches;
@@ -425,7 +424,7 @@ function JobListCard({ job, onApplyClick, onDetailClick }) {
           <div className="home-job-card-top">
             <div className={`home-job-status ${status}`}>{badge}</div>
           </div>
-          <p className="home-job-company truncate">{job.company_name || "기업명 확인 중"}</p>
+          <p className="home-job-company truncate">ON-LI 공개 공고</p>
           <h3 className="truncate">{job.event_name || job.title || "공고 제목 미입력"}</h3>
         </div>
 
