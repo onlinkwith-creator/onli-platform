@@ -77,7 +77,9 @@ const fieldOptions = [
 ];
 
 const defaultInterpretationLanguage = "한일 통역";
-const requestReferenceBucket = "request-reference-files";
+const requestReferenceBucket = "request-files";
+const referenceFileMaxSize = 10 * 1024 * 1024;
+const allowedReferenceFileExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
 const interpretationTypeOptions = [
   "전시회 통역",
   "바이어 상담회 통역",
@@ -199,9 +201,9 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       return;
     }
 
-    const maxSize = 20 * 1024 * 1024;
-    if (file.size > maxSize) {
-      alert("참고 자료 파일은 최대 20MB까지 업로드할 수 있습니다.");
+    const validationMessage = getReferenceFileValidationMessage(file);
+    if (validationMessage) {
+      alert(validationMessage);
       if (referenceFileInputRef.current) referenceFileInputRef.current.value = "";
       return;
     }
@@ -216,18 +218,42 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const uploadReferenceFile = async (file) => {
     if (!file) return null;
 
-    const safeFileName = getSafeStorageFileName(file.name);
-    const filePath = `requests/${Date.now()}_${getStorageId()}_${safeFileName}`;
+    const validationMessage = getReferenceFileValidationMessage(file);
+    if (validationMessage) {
+      const error = new Error(validationMessage);
+      console.error("Reference file validation failed:", {
+        fileName: file.name,
+        fileSize: file.size,
+        message: validationMessage,
+      });
+      setErrorMessage(validationMessage);
+      alert(validationMessage);
+      throw error;
+    }
+
+    const filePath = getReferenceStoragePath(file);
 
     const { error } = await supabase.storage
       .from(requestReferenceBucket)
       .upload(filePath, file, {
+        cacheControl: "3600",
         contentType: file.type || "application/octet-stream",
         upsert: false,
       });
 
     if (error) {
-      console.error("Reference file upload failed:", error);
+      console.error("Reference file upload failed:", {
+        error,
+        message: error?.message,
+        details: error?.details,
+        statusCode: error?.statusCode,
+        status: error?.status,
+        name: error?.name,
+        bucket: requestReferenceBucket,
+        filePath,
+        originalFileName: file.name,
+        fileSize: file.size,
+      });
       const message = "참고 자료 파일 업로드에 실패했습니다. 다시 시도해주세요.";
       setErrorMessage(message);
       alert(message);
@@ -751,13 +777,14 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                 <input
                   ref={referenceFileInputRef}
                   type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                   className="request-input request-file-input"
                   onChange={(event) =>
                     handleReferenceFileChange(event.target.files?.[0] || null)
                   }
                 />
                 <span className="request-help-text">
-                  파일명은 요청 내용에 함께 기록됩니다. 대용량 자료는 접수 후 담당자에게 공유해주세요.
+                  PDF, JPG, PNG 파일만 업로드할 수 있습니다. 원본 파일명은 요청 내용에 함께 기록됩니다.
                 </span>
               </label>
             )}
@@ -833,13 +860,52 @@ function isAgreementColumnError(error) {
   );
 }
 
-function getSafeStorageFileName(fileName) {
-  const normalized = String(fileName || "reference-file")
-    .normalize("NFKD")
-    .replace(/\s+/g, "_")
-    .replace(/[^\w.-]/g, "");
+function getReferenceFileValidationMessage(file) {
+  if (!file) return "";
 
-  return normalized || "reference-file";
+  const extension = getFileExtension(file.name);
+  if (!allowedReferenceFileExtensions.has(extension)) {
+    return "참고 자료는 PDF, JPG, JPEG, PNG 파일만 업로드할 수 있습니다.";
+  }
+
+  const allowedMimeTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
+  if (file.type && !allowedMimeTypes.has(file.type)) {
+    return "참고 자료는 PDF, JPG, JPEG, PNG 파일만 업로드할 수 있습니다.";
+  }
+
+  if (file.size > referenceFileMaxSize) {
+    return "참고 자료 파일은 최대 10MB까지 업로드할 수 있습니다.";
+  }
+
+  return "";
+}
+
+function getReferenceStoragePath(file) {
+  const extension = getFileExtension(file.name) || "bin";
+  const timestamp = getStorageTimestamp();
+  const storageId = getStorageId().replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+
+  return `requests/reference_files/request_${timestamp}_${storageId}.${extension}`;
+}
+
+function getFileExtension(fileName) {
+  const extension = String(fileName || "").split(".").pop();
+  return String(extension || "").trim().toLowerCase();
+}
+
+function getStorageTimestamp() {
+  const date = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    "_",
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+  ].join("");
 }
 
 function getStorageId() {

@@ -3269,12 +3269,41 @@
   }
 
   .admin-metrics {
-    grid-template-columns: 1fr;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    box-sizing: border-box;
   }
 
   .admin-metric-card {
-    min-height: 118px;
-    padding: 16px;
+    min-width: 0;
+    min-height: auto;
+    padding: 14px;
+    border-radius: 14px;
+    box-sizing: border-box;
+  }
+
+  .admin-metric-icon {
+    width: 28px;
+    height: 28px;
+    margin-bottom: 10px;
+  }
+
+  .admin-metric-card span {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .admin-metric-card strong {
+    margin-top: 6px;
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  .admin-metric-card small {
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.35;
   }
 
   .admin-header-actions,
@@ -3459,10 +3488,18 @@
   }
 
   .admin-metrics {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
-  .admin-metric-card,
+  .admin-metric-card {
+    padding: 12px;
+  }
+
+  .admin-metric-card strong {
+    font-size: 20px;
+  }
+
   .admin-operation-panel,
   .admin-request-card,
   .admin-list-card,

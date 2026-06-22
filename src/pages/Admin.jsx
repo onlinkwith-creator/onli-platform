@@ -116,7 +116,7 @@ const SUB_TAB_TO_MAIN_TAB = Object.fromEntries(
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended", "withdrawn"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const INTERPRETER_DOCUMENT_BUCKET = "resume-files";
-const REQUEST_REFERENCE_BUCKET = "request-reference-files";
+const REQUEST_REFERENCE_BUCKET = "request-files";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -4298,7 +4298,15 @@ function RequestDetailPanel({
       if (!fileUrl) return;
       window.open(fileUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
-      console.error("Failed to open request reference file:", error);
+      console.error("Failed to open request reference file:", {
+        error,
+        message: error?.message,
+        details: error?.details,
+        statusCode: error?.statusCode,
+        status: error?.status,
+        bucket: REQUEST_REFERENCE_BUCKET,
+        filePath: referenceFile?.path,
+      });
       alert("참고 자료 파일을 열 수 없습니다. 권한 또는 파일 경로를 확인해주세요.");
     }
   };
@@ -4316,7 +4324,15 @@ function RequestDetailPanel({
       link.click();
       link.remove();
     } catch (error) {
-      console.error("Failed to download request reference file:", error);
+      console.error("Failed to download request reference file:", {
+        error,
+        message: error?.message,
+        details: error?.details,
+        statusCode: error?.statusCode,
+        status: error?.status,
+        bucket: REQUEST_REFERENCE_BUCKET,
+        filePath: referenceFile?.path,
+      });
       alert("참고 자료 파일을 다운로드할 수 없습니다. 권한 또는 파일 경로를 확인해주세요.");
     }
   };
