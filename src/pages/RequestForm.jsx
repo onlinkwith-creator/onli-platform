@@ -242,7 +242,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       });
 
     if (error) {
-      console.error("Reference file upload failed:", {
+      console.error("REFERENCE_UPLOAD_FAILED", {
         error,
         message: error?.message,
         details: error?.details,
@@ -254,7 +254,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         originalFileName: file.name,
         fileSize: file.size,
       });
-      const message = "참고 자료 파일 업로드에 실패했습니다. 다시 시도해주세요.";
+      const message = `참고자료 업로드 실패: ${error?.message || "참고 자료 파일 업로드에 실패했습니다. 다시 시도해주세요."}`;
       setErrorMessage(message);
       alert(message);
       throw error;

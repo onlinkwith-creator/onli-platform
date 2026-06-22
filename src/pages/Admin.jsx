@@ -4298,7 +4298,7 @@ function RequestDetailPanel({
       if (!fileUrl) return;
       window.open(fileUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
-      console.error("Failed to open request reference file:", {
+      console.error("SIGNED_URL_FAILED", {
         error,
         message: error?.message,
         details: error?.details,
@@ -4324,7 +4324,7 @@ function RequestDetailPanel({
       link.click();
       link.remove();
     } catch (error) {
-      console.error("Failed to download request reference file:", {
+      console.error("SIGNED_URL_FAILED", {
         error,
         message: error?.message,
         details: error?.details,
