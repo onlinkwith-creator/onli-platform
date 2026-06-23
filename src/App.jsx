@@ -29,8 +29,19 @@ function getInitialPage() {
   if (POLICY_PATH_TO_KEY[path]) return "policy";
   if (path === "/about") return "about";
   if (path === "/register") return "register";
-  if (path === "/admin/jobs") return "admin";
-  if (path === "/admin") return "admin";
+  if (
+    path === "/admin" ||
+    path === "/admin/jobs" ||
+    path === "/admin/applications" ||
+    path === "/admin/settings" ||
+    path === "/admin/new" ||
+    path === "/admin/requests" ||
+    path === "/admin/interpreters" ||
+    path === "/admin/settlements" ||
+    path === "/admin/internal"
+  ) {
+    return "admin";
+  }
   if (path === "/request") return "jobCreate";
   if (path === "/jobs") return "jobs";
   if (path === "/jobs/create") return "jobCreate";

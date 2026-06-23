@@ -35,6 +35,7 @@ import {
   getMatchingStatusLabel,
   getStatusBadgeClass as getStandardStatusBadgeClass,
   normalizeApplicationStatus,
+  normalizeJobStatus,
   normalizeMatchingStatus,
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
@@ -87,26 +88,37 @@ import "./Admin.css";
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
 
 const MAIN_TABS = [
-  { id: "new", label: "신규", defaultSubTab: "new_requests" },
-  { id: "requests", label: "의뢰 관리", defaultSubTab: "requests" },
-  { id: "interpreters", label: "통역사 관리", defaultSubTab: "interpreters" },
-  { id: "settlement", label: "정산 관리", defaultSubTab: "settlement" },
+  { id: "new", label: "신규 관리", defaultSubTab: "new_requests" },
+  { id: "requests", label: "의뢰 관리", defaultSubTab: "all_requests" },
+  { id: "interpreters", label: "통역사 관리", defaultSubTab: "registered_interpreters" },
+  { id: "settlements", label: "정산 관리", defaultSubTab: "settlement_pending" },
+  { id: "internal", label: "내부 관리", defaultSubTab: "admin_memos" },
 ];
 const SUB_TABS = {
   new: [
     { id: "new_requests", label: "신규 의뢰" },
-    { id: "new_applications", label: "신규 지원" },
+    { id: "new_interpreters", label: "신규 통역사" },
   ],
   requests: [
-    { id: "requests", label: "의뢰 관리" },
-    { id: "completed_requests", label: "완료 의뢰" },
-    { id: "jobs", label: "통역 공고 관리" },
+    { id: "all_requests", label: "전체 의뢰" },
+    { id: "jobs", label: "공고 관리" },
+    { id: "applications", label: "지원자 관리" },
+    { id: "assignments", label: "배정 관리" },
   ],
   interpreters: [
-    { id: "interpreters", label: "통역사 관리" },
-    { id: "interpreter_applications", label: "통역 지원 관리" },
+    { id: "registered_interpreters", label: "등록 통역사" },
+    { id: "verification_pending", label: "검증 대기" },
+    { id: "interpreter_activity", label: "활동 상태 관리" },
   ],
-  settlement: [{ id: "settlement", label: "정산 관리" }],
+  settlements: [
+    { id: "settlement_pending", label: "정산 대기" },
+    { id: "settlement_completed", label: "정산 완료" },
+    { id: "payment_history", label: "지급 기록" },
+  ],
+  internal: [
+    { id: "admin_memos", label: "관리자 메모" },
+    { id: "admin_accounts", label: "관리자 계정 관리" },
+  ],
 };
 const SUB_TAB_TO_MAIN_TAB = Object.fromEntries(
   Object.entries(SUB_TABS).flatMap(([mainTabId, subTabs]) =>
@@ -176,6 +188,14 @@ const NEW_APPLICATION_STATUSES = [
   "승인대기",
   "승인 대기",
 ];
+const ADMIN_TAB_ALIASES = {
+  requests: "all_requests",
+  interpreters: "registered_interpreters",
+  settlement: "settlement_pending",
+  interpreter_applications: "applications",
+  new_applications: "new_interpreters",
+  completed_requests: "all_requests",
+};
 const EMPTY_REQUEST_EDIT_DRAFT = {
   id: "",
   title: "",
@@ -289,10 +309,54 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
   };
 }
 
+function normalizeAdminSubTabId(subTabId) {
+  return ADMIN_TAB_ALIASES[subTabId] || subTabId;
+}
+
+function getInitialAdminSubTab() {
+  if (typeof window === "undefined") return "new_requests";
+
+  const path = window.location.pathname;
+  const params = new URLSearchParams(window.location.search);
+  const tabParam = params.get("tab") || params.get("subTab");
+  const sectionParam = params.get("section");
+
+  if (tabParam) return normalizeAdminSubTabId(tabParam);
+  if (path === "/admin/jobs") return "jobs";
+  if (path === "/admin/applications") return "applications";
+  if (path === "/admin/interpreters") return "registered_interpreters";
+  if (path === "/admin/settings") return "admin_accounts";
+  if (path === "/admin/new" || sectionParam === "new") return "new_requests";
+  if (path === "/admin/requests" || sectionParam === "requests") return "all_requests";
+  if (path === "/admin/settlements" || sectionParam === "settlements") {
+    return "settlement_pending";
+  }
+  if (path === "/admin/internal" || sectionParam === "internal") return "admin_memos";
+  if (sectionParam === "interpreters") return "registered_interpreters";
+
+  return "new_requests";
+}
+
+function getAdminPathForSubTab(subTabId) {
+  const mainTabId = SUB_TAB_TO_MAIN_TAB[subTabId] || "new";
+  const sectionPathMap = {
+    new: "/admin/new",
+    requests: "/admin/requests",
+    interpreters: "/admin/interpreters",
+    settlements: "/admin/settlements",
+    internal: "/admin/internal",
+  };
+  const path = sectionPathMap[mainTabId] || "/admin";
+  return `${path}?tab=${encodeURIComponent(subTabId)}`;
+}
+
 function Admin({ onBackClick }) {
   const { user, signOut, adminProfile } = useAuth();
-  const [activeMainTab, setActiveMainTab] = useState("new");
-  const [activeSubTab, setActiveSubTab] = useState("new_requests");
+  const initialSubTab = getInitialAdminSubTab();
+  const [activeMainTab, setActiveMainTab] = useState(
+    SUB_TAB_TO_MAIN_TAB[initialSubTab] || "new"
+  );
+  const [activeSubTab, setActiveSubTab] = useState(initialSubTab);
   const [requests, setRequests] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
@@ -478,6 +542,11 @@ function Admin({ onBackClick }) {
   };
 
   useEffect(() => {
+    if (activeSubTab !== "admin_accounts") return;
+    queueMicrotask(fetchAdminUsers);
+  }, [activeSubTab, fetchAdminUsers]);
+
+  useEffect(() => {
     if (!interpreterModalType) return undefined;
 
     const handleKeyDown = (event) => {
@@ -555,9 +624,22 @@ function Admin({ onBackClick }) {
     () => requests.filter((request) => isSettlementPendingRequest(request)),
     [requests]
   );
+  const settlementCompletedRequests = useMemo(
+    () => requests.filter((request) => isSettlementCompletedRequest(request)),
+    [requests]
+  );
   const newRequests = useMemo(
     () => requests.filter((request) => isNewRequest(request)),
     [requests]
+  );
+  const recruitingJobs = useMemo(
+    () =>
+      jobs.filter(
+        (job) =>
+          normalizeJobStatus(job.status) === JOB_STATUS.RECRUITING &&
+          normalizeJobVisibility(job) === "public"
+      ),
+    [jobs]
   );
   const pendingInterpreters = useMemo(
     () => interpreters.filter((interpreter) => isPendingInterpreter(interpreter)),
@@ -571,11 +653,31 @@ function Admin({ onBackClick }) {
     () => jobApplications.filter((application) => isNewJobApplication(application)),
     [jobApplications]
   );
+  const assignmentRows = useMemo(
+    () => buildAssignmentManagementRows({ assignments, jobApplications, matchings, requests, interpreters }),
+    [assignments, jobApplications, matchings, requests, interpreters]
+  );
+  const pendingAssignmentRequests = useMemo(
+    () =>
+      requests.filter((request) => {
+        const requestAssignments = assignmentsByRequest.get(request.id) || [];
+        return (
+          !isCompletedRequest(request) &&
+          (normalizeAssignmentStatus(request) !== ASSIGNMENT_STATUS.ASSIGNED ||
+            requestAssignments.length === 0)
+        );
+      }),
+    [assignmentsByRequest, requests]
+  );
+  const adminMemoItems = useMemo(
+    () => buildAdminMemoItems({ requests, interpreters, assignmentRows }),
+    [assignmentRows, interpreters, requests]
+  );
 
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
 
-    const result = activeRequests.filter((request) => {
+    const result = requests.filter((request) => {
       const searchableText = [
         request.company_name,
         request.event_name,
@@ -612,7 +714,7 @@ function Admin({ onBackClick }) {
 
       return String(b.created_at || "").localeCompare(String(a.created_at || ""));
     });
-  }, [activeRequests, jobsById, requestFilters]);
+  }, [jobsById, requestFilters, requests]);
 
   const filteredCompletedRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
@@ -718,11 +820,13 @@ function Admin({ onBackClick }) {
         totalInterpreters: interpreters.length,
         pendingInterpreters: pendingInterpreters.length,
         newRequests: newRequests.length,
+        recruitingJobs: recruitingJobs.length,
         uncheckedApplications: jobApplications.filter((application) =>
           [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
             normalizeApplicationStatus(application.status)
           )
         ).length,
+        pendingAssignments: pendingAssignmentRequests.length,
         settlementPending: settlementPendingRequests.length,
       };
     },
@@ -730,6 +834,8 @@ function Admin({ onBackClick }) {
       jobApplications,
       newRequests.length,
       pendingInterpreters.length,
+      pendingAssignmentRequests.length,
+      recruitingJobs.length,
       requests.length,
       interpreters.length,
       settlementPendingRequests.length,
@@ -758,66 +864,80 @@ function Admin({ onBackClick }) {
     const mainTab = MAIN_TABS.find((tab) => tab.id === mainTabId);
     if (!mainTab) return;
     setActiveMainTab(mainTab.id);
-    setActiveSubTab(mainTab.defaultSubTab);
+    switchSubTab(mainTab.defaultSubTab);
   };
 
   const switchSubTab = (subTabId) => {
-    setActiveMainTab(SUB_TAB_TO_MAIN_TAB[subTabId] || "new");
-    setActiveSubTab(subTabId);
+    const normalizedSubTabId = normalizeAdminSubTabId(subTabId);
+    setActiveMainTab(SUB_TAB_TO_MAIN_TAB[normalizedSubTabId] || "new");
+    setActiveSubTab(normalizedSubTabId);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(
+        { page: "admin", subTab: normalizedSubTabId },
+        "",
+        getAdminPathForSubTab(normalizedSubTabId)
+      );
+    }
   };
 
   const getSubTabCount = (subTabId) => {
     if (subTabId === "new_requests") return newRequests.length;
-    if (subTabId === "new_applications") {
-      return pendingInterpreters.length + newJobApplications.length;
-    }
-    if (subTabId === "requests") return activeRequests.length;
-    if (subTabId === "completed_requests") return completedRequests.length;
-    if (subTabId === "interpreter_applications") return jobApplications.length;
-    if (subTabId === "settlement") return settlementPendingRequests.length;
+    if (subTabId === "new_interpreters") return pendingInterpreters.length;
+    if (subTabId === "all_requests") return requests.length;
+    if (subTabId === "jobs") return jobs.length;
+    if (subTabId === "applications") return jobApplications.length;
+    if (subTabId === "assignments") return assignmentRows.length;
+    if (subTabId === "registered_interpreters") return interpreters.length;
+    if (subTabId === "verification_pending") return pendingResumeReviewInterpreters.length;
+    if (subTabId === "interpreter_activity") return interpreters.length;
+    if (subTabId === "settlement_pending") return settlementPendingRequests.length;
+    if (subTabId === "settlement_completed") return settlementCompletedRequests.length;
+    if (subTabId === "payment_history") return settlementCompletedRequests.length;
+    if (subTabId === "admin_memos") return adminMemoItems.length;
+    if (subTabId === "admin_accounts") return adminUsers.length;
     return null;
   };
 
   const metricCards = [
     {
-      label: "전체 의뢰",
-      value: `${dashboard.totalRequests}건`,
-      description: "누적 운영 건수",
-      tone: "purple",
-      icon: Briefcase,
-      targetTab: "requests",
-    },
-    {
-      label: "전체 통역사",
-      value: `${dashboard.totalInterpreters}명`,
-      description: "등록된 전체 통역사",
-      tone: "green",
-      icon: User,
-      targetTab: "interpreters",
-    },
-    {
-      label: "신규 통역사 지원",
-      value: `${dashboard.pendingInterpreters}명`,
-      description: "승인 검토 필요",
-      tone: "purple",
-      icon: Star,
-      targetTab: "interpreters",
-    },
-    {
       label: "신규 의뢰",
       value: `${dashboard.newRequests}건`,
       description: "새 의뢰 확인 필요",
-      tone: "blue",
-      icon: Mail,
-      targetTab: "requests",
+      tone: "purple",
+      icon: Briefcase,
+      targetTab: "new_requests",
     },
     {
-      label: "미확인 지원",
+      label: "신규 통역사",
+      value: `${dashboard.pendingInterpreters}명`,
+      description: "검증 처리 필요",
+      tone: "green",
+      icon: User,
+      targetTab: "new_interpreters",
+    },
+    {
+      label: "모집중 공고",
+      value: `${dashboard.recruitingJobs}건`,
+      description: "공개 모집 상태",
+      tone: "blue",
+      icon: Star,
+      targetTab: "jobs",
+    },
+    {
+      label: "신규 지원",
       value: `${dashboard.uncheckedApplications}건`,
       description: "검토가 필요한 지원",
       tone: "orange",
+      icon: Mail,
+      targetTab: "applications",
+    },
+    {
+      label: "배정 대기",
+      value: `${dashboard.pendingAssignments}건`,
+      description: "배정 확인 필요",
+      tone: "red",
       icon: Eye,
-      targetTab: "interpreter_applications",
+      targetTab: "assignments",
     },
     {
       label: "정산 대기",
@@ -825,7 +945,7 @@ function Admin({ onBackClick }) {
       description: "정산 처리 필요",
       tone: "indigo",
       icon: CheckCircle2,
-      targetTab: "settlement",
+      targetTab: "settlement_pending",
     },
   ];
 
@@ -834,7 +954,7 @@ function Admin({ onBackClick }) {
   };
 
   const handleMetricCardClick = (card) => {
-    if (card.label === "전체 의뢰") {
+    if (card.targetTab === "all_requests") {
       setRequestFilters((prev) => ({
         ...prev,
         search: "",
@@ -842,8 +962,12 @@ function Admin({ onBackClick }) {
         status: "all",
         public: "all",
       }));
-      switchSubTab("requests");
-    } else if (card.label === "전체 통역사") {
+      switchSubTab("all_requests");
+    } else if (
+      ["registered_interpreters", "new_interpreters", "verification_pending"].includes(
+        card.targetTab
+      )
+    ) {
       setInterpreterFilters({
         search: "",
         level: "all",
@@ -853,24 +977,20 @@ function Admin({ onBackClick }) {
         resumeReview: "all",
         duplicate: "all",
       });
-      switchSubTab("interpreters");
-    } else if (card.label === "신규 통역사 지원") {
-      switchSubTab("new_applications");
-    } else if (card.label === "신규 의뢰") {
-      switchSubTab("new_requests");
-    } else if (card.label === "미확인 지원") {
+      switchSubTab(card.targetTab);
+    } else if (card.targetTab === "applications") {
       setApplicationFilters({
         status: "unchecked",
         duplicate: "all",
       });
-      switchSubTab("new_applications");
-    } else if (card.label === "정산 대기") {
+      switchSubTab("applications");
+    } else if (card.targetTab === "settlement_pending") {
       setMatchingFilters((prev) => ({
         ...prev,
         month: "",
         status: "settlement_pending",
       }));
-      switchSubTab("settlement");
+      switchSubTab("settlement_pending");
     } else {
       switchSubTab(card.targetTab);
     }
@@ -2809,7 +2929,7 @@ function Admin({ onBackClick }) {
               })}
             </nav>
 
-            {activeSubTab === "requests" && (
+            {activeSubTab === "all_requests" && (
               <RequestManagement
                 applicationsRequestId={applicationsRequestId}
                 assignmentDrafts={assignmentDrafts}
@@ -2819,7 +2939,8 @@ function Admin({ onBackClick }) {
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 interpreters={interpreters}
                 requests={filteredRequests}
-                sectionCount={activeRequests.length}
+                sectionCount={requests.length}
+                sectionTitle="전체 의뢰"
                 savingKey={savingKey}
                 jobsById={jobsById}
                 requestsByJobId={requestsByJobId}
@@ -2861,11 +2982,12 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeSubTab === "new_applications" && (
+            {activeSubTab === "new_interpreters" && (
               <NewApplicationManagement
-                applications={newJobApplications}
+                applications={[]}
                 duplicateResult={duplicateApplicationResult}
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
+                hideJobApplications
                 interpreters={pendingInterpreters}
                 jobsById={jobsById}
                 pendingResumeReviewCount={pendingResumeReviewInterpreters.length}
@@ -2876,7 +2998,7 @@ function Admin({ onBackClick }) {
                     status: "all",
                     duplicate: "all",
                   });
-                  switchSubTab("interpreter_applications");
+                  switchSubTab("applications");
                 }}
                 onOpenInterpreterModal={openInterpreterModal}
                 onOpenResumeReview={() => {
@@ -2889,7 +3011,7 @@ function Admin({ onBackClick }) {
                     resumeReview: "resume_review_pending",
                     duplicate: "all",
                   });
-                  switchSubTab("interpreters");
+                  switchSubTab("verification_pending");
                 }}
                 updateInterpreter={updateInterpreter}
                 deleteInterpreter={deleteInterpreter}
@@ -2930,7 +3052,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeSubTab === "interpreters" && (
+            {activeSubTab === "registered_interpreters" && (
               <InterpreterManagement
                 filters={interpreterFilters}
                 interpreters={filteredInterpreters}
@@ -2963,7 +3085,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeSubTab === "interpreter_applications" && (
+            {activeSubTab === "applications" && (
               <ApplicationManagement
                 applications={jobApplications}
                 duplicateResult={duplicateApplicationResult}
@@ -2977,15 +3099,85 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeSubTab === "settlement" && (
+            {activeSubTab === "assignments" && (
+              <AssignmentManagement
+                rows={assignmentRows}
+                pendingRequests={pendingAssignmentRequests}
+                onOpenRequest={(request) => openRequestModal("detail", request)}
+              />
+            )}
+
+            {activeSubTab === "verification_pending" && (
+              <InterpreterManagement
+                filters={interpreterFilters}
+                interpreters={pendingResumeReviewInterpreters}
+                duplicateResult={duplicateInterpreterResult}
+                emptyText="현재 검증 대기 중인 통역사가 없습니다."
+                savingKey={savingKey}
+                setFilters={setInterpreterFilters}
+                onOpenModal={openInterpreterModal}
+                updateInterpreter={updateInterpreter}
+                deleteInterpreter={deleteInterpreter}
+              />
+            )}
+
+            {activeSubTab === "interpreter_activity" && (
+              <InterpreterManagement
+                filters={interpreterFilters}
+                interpreters={filteredInterpreters}
+                duplicateResult={duplicateInterpreterResult}
+                savingKey={savingKey}
+                setFilters={setInterpreterFilters}
+                onOpenModal={openInterpreterModal}
+                updateInterpreter={updateInterpreter}
+                deleteInterpreter={deleteInterpreter}
+              />
+            )}
+
+            {activeSubTab === "settlement_pending" && (
               <SettlementManagement
                 filters={matchingFilters}
-                requests={requests}
+                requests={settlementPendingRequests}
+                sectionTitle="정산 대기"
                 assignmentsByRequest={assignmentsByRequest}
                 interpreters={interpreters}
                 savingKey={savingKey}
                 setFilters={setMatchingFilters}
                 updateSettlementStatus={updateSettlementManagementStatus}
+              />
+            )}
+
+            {activeSubTab === "settlement_completed" && (
+              <SettlementManagement
+                filters={matchingFilters}
+                requests={settlementCompletedRequests}
+                sectionTitle="정산 완료"
+                assignmentsByRequest={assignmentsByRequest}
+                interpreters={interpreters}
+                savingKey={savingKey}
+                setFilters={setMatchingFilters}
+                updateSettlementStatus={updateSettlementManagementStatus}
+              />
+            )}
+
+            {activeSubTab === "payment_history" && (
+              <PaymentHistoryManagement
+                requests={settlementCompletedRequests}
+                assignmentsByRequest={assignmentsByRequest}
+                interpreters={interpreters}
+              />
+            )}
+
+            {activeSubTab === "admin_memos" && (
+              <AdminMemoManagement items={adminMemoItems} />
+            )}
+
+            {activeSubTab === "admin_accounts" && (
+              <AdminAccountsManagement
+                adminProfile={adminProfile}
+                adminUsers={adminUsers}
+                currentUser={user}
+                onOpenAdminAccountModal={openAdminAccountModal}
               />
             )}
 
@@ -3289,6 +3481,7 @@ function NewApplicationManagement({
   applications,
   duplicateResult,
   getInterpreterScheduleConflicts,
+  hideJobApplications = false,
   interpreters,
   jobsById,
   pendingResumeReviewCount,
@@ -3304,7 +3497,7 @@ function NewApplicationManagement({
     <section className="admin-section">
       <SectionTitle
         count={`${interpreters.length + applications.length}건`}
-        title="신규 지원 관리"
+        title={hideJobApplications ? "신규 통역사 관리" : "신규 지원 관리"}
       />
 
       <div className="admin-subsection">
@@ -3361,6 +3554,7 @@ function NewApplicationManagement({
         )}
       </div>
 
+      {!hideJobApplications && (
       <div className="admin-subsection">
         <SectionTitle count={`${applications.length}건`} title="공고 신규 지원" />
         {applications.length === 0 ? (
@@ -3392,6 +3586,7 @@ function NewApplicationManagement({
           </div>
         )}
       </div>
+      )}
     </section>
   );
 }
@@ -6022,6 +6217,234 @@ function ApplicationCard({
   );
 }
 
+function AssignmentManagement({ rows, pendingRequests, onOpenRequest }) {
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${rows.length}건`} title="배정 관리" />
+      {pendingRequests.length > 0 && (
+        <div className="admin-subsection">
+          <SectionTitle count={`${pendingRequests.length}건`} title="배정 대기 의뢰" />
+          <div className="admin-management-card-grid">
+            {pendingRequests.map((request) => (
+              <article className="admin-list-card" key={`pending-assignment-${request.id}`}>
+                <div className="admin-list-card-head">
+                  <div>
+                    <span className="admin-card-meta">배정 대기</span>
+                    <ManagementNumberBadge value={request.request_no} />
+                    <h3>{request.event_name || request.title || "-"}</h3>
+                  </div>
+                  <StatusBadge status={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
+                </div>
+                <dl className="admin-card-summary">
+                  <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+                  <Info label="기업명" value={request.company_name || "-"} />
+                  <Info
+                    label="일정"
+                    value={formatDateRange(
+                      request.start_date,
+                      request.end_date,
+                      request.event_date || request.date
+                    )}
+                  />
+                  <Info label="장소" value={request.event_location || request.location || "-"} />
+                  <Info label="배정 상태" value={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
+                </dl>
+                <div className="admin-card-actions">
+                  <button
+                    type="button"
+                    className="admin-link-button primary"
+                    onClick={() => onOpenRequest(request)}
+                  >
+                    상세보기
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="admin-subsection">
+        <SectionTitle count={`${rows.length}건`} title="전체 배정" />
+        {rows.length === 0 ? (
+          <MessageBox text="아직 배정된 건이 없습니다." />
+        ) : (
+          <div className="admin-management-card-grid">
+            {rows.map((row) => (
+              <article className="admin-list-card" key={row.rowId}>
+                <div className="admin-list-card-head">
+                  <div>
+                    <span className="admin-card-meta">배정</span>
+                    <ManagementNumberBadge value={row.assignmentNo} />
+                    <h3>{row.interpreterName || "-"}</h3>
+                  </div>
+                  <StatusBadge status={row.assignmentStatusLabel} />
+                </div>
+                <dl className="admin-card-summary">
+                  <Info label="배정번호" value={formatManagementNumber(row.assignmentNo)} />
+                  <Info label="의뢰번호" value={formatManagementNumber(row.requestNo)} />
+                  <Info label="지원번호" value={formatManagementNumber(row.applicationNo)} />
+                  <Info label="통역사명" value={row.interpreterName || "-"} />
+                  <Info label="행사명" value={row.eventName || "-"} />
+                  <Info label="일정" value={row.dateLabel || "-"} />
+                  <Info label="장소" value={row.location || "-"} />
+                  <Info label="배정 상태" value={row.assignmentStatusLabel} />
+                  <Info label="정산 상태" value={row.settlementStatusLabel} />
+                </dl>
+                {row.request && (
+                  <div className="admin-card-actions">
+                    <button
+                      type="button"
+                      className="admin-link-button primary"
+                      onClick={() => onOpenRequest(row.request)}
+                    >
+                      상세보기
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PaymentHistoryManagement({ assignmentsByRequest, interpreters, requests }) {
+  const rows = requests.flatMap((request) => {
+    const assignments = assignmentsByRequest.get(request.id) || [];
+    if (assignments.length === 0) {
+      return [
+        {
+          id: `request-${request.id}`,
+          request,
+          interpreterName: getAssignedInterpreterName(request, [], interpreters) || "-",
+        },
+      ];
+    }
+    return assignments.map((assignment) => ({
+      id: `assignment-${assignment.id}`,
+      request,
+      interpreterName:
+        assignment.interpreter?.name ||
+        getAssignedInterpreterName(request, [assignment], interpreters) ||
+        "-",
+    }));
+  });
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${rows.length}건`} title="지급 기록" />
+      {rows.length === 0 ? (
+        <MessageBox text="현재 DB에 별도 지급 기록 테이블이 없어 정산 완료 건 기준으로 표시합니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {rows.map((row) => (
+            <article className="admin-list-card" key={row.id}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">지급 기록</span>
+                  <ManagementNumberBadge value={row.request.request_no} />
+                  <h3>{row.interpreterName}</h3>
+                </div>
+                <StatusBadge status={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(row.request))} />
+              </div>
+              <dl className="admin-card-summary">
+                <Info label="통역사" value={row.interpreterName} />
+                <Info label="행사명" value={row.request.event_name || row.request.title || "-"} />
+                <Info label="지급일" value={formatDate(row.request.updated_at || row.request.created_at)} />
+                <Info label="지급 금액" value={formatJPY(getInterpreterPayment(row.request))} />
+                <Info label="지급 상태" value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(row.request))} />
+                <Info label="메모" value={row.request.admin_memo || row.request.memo || "-"} />
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AdminMemoManagement({ items }) {
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${items.length}건`} title="관리자 메모" />
+      {items.length === 0 ? (
+        <MessageBox text="현재 admin_memo 컬럼에 저장된 메모가 없습니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {items.map((item) => (
+            <article className="admin-list-card" key={item.id}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">{item.typeLabel}</span>
+                  <ManagementNumberBadge value={item.number} />
+                  <h3>{item.title}</h3>
+                </div>
+              </div>
+              <dl className="admin-card-summary">
+                <Info label="구분" value={item.typeLabel} />
+                <Info label="관리번호" value={formatManagementNumber(item.number)} />
+                <Info label="대상" value={item.title} />
+                <Info label="메모" value={item.memo} />
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AdminAccountsManagement({
+  adminProfile,
+  adminUsers,
+  currentUser,
+  onOpenAdminAccountModal,
+}) {
+  const currentEmail = currentUser?.email?.trim().toLowerCase() || "";
+  const currentRole =
+    currentEmail === "onlinkwith@gmail.com" ? "owner" : adminProfile?.role || "staff";
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${adminUsers.length}명`} title="관리자 계정 관리" />
+      <div className="admin-section-toolbar">
+        <button type="button" className="admin-save" onClick={onOpenAdminAccountModal}>
+          관리자 추가/수정
+        </button>
+      </div>
+      {adminUsers.length === 0 ? (
+        <MessageBox text="관리자 계정 목록을 불러오는 중이거나 등록된 관리자가 없습니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {adminUsers.map((adminUser) => (
+            <article className="admin-list-card" key={adminUser.id || adminUser.email}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">관리자</span>
+                  <h3>{adminUser.email || "-"}</h3>
+                </div>
+                <StatusBadge status={adminUser.status || "active"} />
+              </div>
+              <dl className="admin-card-summary">
+                <Info label="권한" value={adminUser.role || "-"} />
+                <Info
+                  label="Auth 매핑"
+                  value={adminUser.auth_user_id ? "연동됨" : "권한 미연동"}
+                />
+                <Info label="Auth user id" value={adminUser.auth_user_id || "-"} />
+                <Info label="현재 계정 권한" value={currentRole} />
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function SettlementManagement({
   requests,
   filters,
@@ -6029,6 +6452,7 @@ function SettlementManagement({
   assignmentsByRequest,
   interpreters,
   savingKey,
+  sectionTitle = "정산 관리",
   updateSettlementStatus,
 }) {
   const filteredRequests = requests.filter((request) => {
@@ -6048,7 +6472,7 @@ function SettlementManagement({
 
   return (
     <section className="admin-section">
-      <SectionTitle count={`${filteredRequests.length}건`} title="정산 관리" />
+      <SectionTitle count={`${filteredRequests.length}건`} title={sectionTitle} />
       <div className="admin-filter-bar admin-filters admin-matching-filters">
         <MonthFilterInput
           value={filters.month}
@@ -6861,6 +7285,115 @@ function isSettlementPendingRequest(request = {}) {
     ["settlement_pending", "pending"].includes(normalizedStatus) ||
     normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.PENDING
   );
+}
+
+function isSettlementCompletedRequest(request = {}) {
+  const status = String(request.settlement_status || request.payment_status || "")
+    .trim()
+    .toLowerCase();
+  return (
+    ["정산완료", "settlement_completed", "completed", "paid", "settled"].includes(status) ||
+    normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.COMPLETED
+  );
+}
+
+function buildAssignmentManagementRows({
+  assignments = [],
+  jobApplications = [],
+  matchings = [],
+  requests = [],
+  interpreters = [],
+}) {
+  const requestsById = new Map(requests.map((request) => [String(request.id), request]));
+  const applicationsByInterpreterAndJob = jobApplications.reduce((map, application) => {
+    const key = `${application.interpreter_id || ""}:${application.job_id || ""}`;
+    if (!map.has(key)) map.set(key, application);
+    return map;
+  }, new Map());
+  const matchingsByRequestInterpreter = matchings.reduce((map, matching) => {
+    const key = `${matching.request_id || ""}:${matching.interpreter_id || ""}`;
+    if (!map.has(key)) map.set(key, matching);
+    return map;
+  }, new Map());
+  const interpretersById = new Map(
+    interpreters.map((interpreter) => [String(interpreter.id), interpreter])
+  );
+
+  return assignments.map((assignment) => {
+    const request = requestsById.get(String(assignment.request_id)) || null;
+    const matching =
+      matchingsByRequestInterpreter.get(
+        `${assignment.request_id || ""}:${assignment.interpreter_id || ""}`
+      ) || {};
+    const application =
+      request?.job_id
+        ? applicationsByInterpreterAndJob.get(
+            `${assignment.interpreter_id || ""}:${request.job_id || ""}`
+          )
+        : null;
+    const interpreter =
+      assignment.interpreter || interpretersById.get(String(assignment.interpreter_id)) || {};
+    const flowSource = getRequestFlowSource(request || {}, {});
+    const assignmentStatus = normalizeAssignmentStatus(flowSource);
+    const settlementStatus = normalizeSettlementFlowStatus(flowSource);
+
+    return {
+      rowId: `assignment-${assignment.id}`,
+      assignment,
+      request,
+      assignmentNo: matching.matching_no || `ONLI-MAT-${String(assignment.id).padStart(4, "0")}`,
+      requestNo: request?.request_no || request?.request_number || "",
+      applicationNo: application?.application_no || "",
+      interpreterName: interpreter.name || "",
+      eventName: request?.event_name || request?.title || "",
+      dateLabel: request
+        ? formatDateRange(request.start_date, request.end_date, request.event_date || request.date)
+        : "-",
+      location: request?.event_location || request?.location || "",
+      assignmentStatusLabel: getAssignmentStatusLabel(assignmentStatus),
+      settlementStatusLabel: getSettlementFlowStatusLabel(settlementStatus),
+    };
+  });
+}
+
+function buildAdminMemoItems({ requests = [], interpreters = [], assignmentRows = [] }) {
+  const requestMemos = requests
+    .filter((request) => hasAdminMemo(request))
+    .map((request) => ({
+      id: `request-${request.id}`,
+      typeLabel: "의뢰 메모",
+      number: request.request_no || request.request_number || request.id,
+      title: request.event_name || request.title || request.company_name || "-",
+      memo: getAdminMemo(request),
+    }));
+  const interpreterMemos = interpreters
+    .filter((interpreter) => hasAdminMemo(interpreter))
+    .map((interpreter) => ({
+      id: `interpreter-${interpreter.id}`,
+      typeLabel: "통역사 메모",
+      number: interpreter.interpreter_no || interpreter.id,
+      title: interpreter.name || "-",
+      memo: getAdminMemo(interpreter),
+    }));
+  const assignmentMemos = assignmentRows
+    .filter((row) => hasAdminMemo(row.assignment))
+    .map((row) => ({
+      id: `assignment-${row.assignment.id}`,
+      typeLabel: "배정 메모",
+      number: row.assignmentNo,
+      title: row.interpreterName || row.eventName || "-",
+      memo: getAdminMemo(row.assignment),
+    }));
+
+  return [...requestMemos, ...interpreterMemos, ...assignmentMemos];
+}
+
+function hasAdminMemo(item = {}) {
+  return Boolean(getAdminMemo(item));
+}
+
+function getAdminMemo(item = {}) {
+  return String(item.admin_memo || "").trim();
 }
 
 function parseRequestDateOnly(value) {

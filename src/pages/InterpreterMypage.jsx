@@ -11,7 +11,6 @@ import {
 import { normalizeLevel } from "../utils/levelBadge";
 import {
   getJobLevelSummary,
-  getJobPayDisplay,
   getJobSpecialty,
 } from "../utils/jobDisplay";
 import { formatDateRange } from "../utils/dateRange";
@@ -822,120 +821,28 @@ function InterpreterMypage({
 
   const fetchApplicationsData = async (interpreterId) => {
     if (!supabase) return [];
-    
-    // Attempt joined query
-    const { data, error } = await supabase
-      .from("job_applications")
-      .select(`
-        id,
-        application_no,
-        job_id,
-        applicant_name,
-        phone,
-        email,
-        message,
-        status,
-        created_at,
-        jobs (*)
-      `)
-      .eq("interpreter_id", interpreterId);
+
+    const { data, error } = await supabase.rpc("get_my_job_applications");
 
     if (error) {
-      console.warn("Direct job_applications join failed, attempting fallback", error);
-      // Fallback: fetch job_applications then fetch jobs separately
-      const { data: apps, error: appsErr } = await supabase
-        .from("job_applications")
-        .select("*")
-        .eq("interpreter_id", interpreterId);
-
-      if (appsErr) {
-        console.error("Fallback job_applications fetch failed", appsErr);
-        return [];
-      }
-
-      if (!apps || apps.length === 0) return [];
-
-      const jobIds = [...new Set(apps.map((a) => a.job_id).filter(Boolean))];
-      if (jobIds.length === 0) {
-        return apps.map((a) => ({ ...a, jobs: null }));
-      }
-
-      const { data: jobsList, error: jobsErr } = await supabase
-        .from("jobs")
-        .select("*")
-        .in("id", jobIds);
-
-      if (jobsErr) {
-        console.error("Fallback jobs fetch failed", jobsErr);
-        return apps.map((a) => ({ ...a, jobs: null }));
-      }
-
-      const jobsMap = new Map(jobsList.map((j) => [String(j.id), j]));
-      return apps.map((a) => ({
-        ...a,
-        jobs: jobsMap.get(String(a.job_id)) || null,
-      }));
+      console.error("get_my_job_applications RPC failed", error);
+      return [];
     }
 
-    return data || [];
+    return (data || []).map(mapMyApplicationRow);
   };
 
   const fetchMatchingsData = async (interpreterId) => {
     if (!supabase) return [];
 
-    // Attempt joined query
-    const { data, error } = await supabase
-      .from("matchings")
-      .select(`
-        id,
-        matching_no,
-        job_id,
-        start_date,
-        end_date,
-        status,
-        created_at,
-        jobs (*)
-      `)
-      .eq("interpreter_id", interpreterId);
+    const { data, error } = await supabase.rpc("get_my_assignments");
 
     if (error) {
-      console.warn("Direct matchings join failed, attempting fallback", error);
-      // Fallback
-      const { data: mats, error: matsErr } = await supabase
-        .from("matchings")
-        .select("*")
-        .eq("interpreter_id", interpreterId);
-
-      if (matsErr) {
-        console.error("Fallback matchings fetch failed", matsErr);
-        return [];
-      }
-
-      if (!mats || mats.length === 0) return [];
-
-      const jobIds = [...new Set(mats.map((m) => m.job_id).filter(Boolean))];
-      if (jobIds.length === 0) {
-        return mats.map((m) => ({ ...m, jobs: null }));
-      }
-
-      const { data: jobsList, error: jobsErr } = await supabase
-        .from("jobs")
-        .select("*")
-        .in("id", jobIds);
-
-      if (jobsErr) {
-        console.error("Fallback jobs fetch failed for matchings", jobsErr);
-        return mats.map((m) => ({ ...m, jobs: null }));
-      }
-
-      const jobsMap = new Map(jobsList.map((j) => [String(j.id), j]));
-      return mats.map((m) => ({
-        ...m,
-        jobs: jobsMap.get(String(m.job_id)) || null,
-      }));
+      console.error("get_my_assignments RPC failed", error);
+      return [];
     }
 
-    return data || [];
+    return (data || []).map(mapMyAssignmentRow);
   };
 
   const handleConfirmWithdrawal = async () => {
@@ -2080,7 +1987,7 @@ function InterpreterMypage({
                               >
                                 <h3>{jobTitle}</h3>
                                 <p className="application-company">
-                                  {job?.company_name || "기업명 미등록"}
+                                  {job?.job_no || "공고번호 미등록"}
                                 </p>
                                 <p className="application-primary-meta">
                                   {scheduleText} / {locationText}
@@ -2188,7 +2095,7 @@ function InterpreterMypage({
                               >
                                 <h3>{jobTitle}</h3>
                                 <p className="assignment-company">
-                                  {job?.company_name || "기업명 미등록"}
+                                  {job?.job_no || "공고번호 미등록"}
                                 </p>
                                 <p className="assignment-primary-meta">
                                   {scheduleText} / {locationText}
@@ -2487,7 +2394,7 @@ function ApplicationDetailPanel({
       <section className="application-info-section">
         <h4>공고 정보</h4>
         <div className="application-info-grid">
-          <ApplicationInfo label="기업명" value={job.company_name || "미등록"} />
+          <ApplicationInfo label="공고번호" value={job.job_no || "미등록"} />
           <ApplicationInfo label="통역 언어" value={job.language || "별도 안내"} />
           <ApplicationInfo label="통역 레벨" value={getJobLevelSummary(job)} />
           <ApplicationInfo label="전문 분야" value={getJobSpecialty(job)} />
@@ -2508,7 +2415,6 @@ function ApplicationDetailPanel({
             label="성별 조건"
             value={job.preferred_gender || "성별 무관"}
           />
-          <ApplicationInfo label="일급" value={getJobPayDisplay(job)} />
           <ApplicationInfo
             label="현재 공고 상태"
             value={getJobStatusLabel(job.status)}
@@ -2580,7 +2486,7 @@ function JobInformationSection({
     <section className="application-info-section">
       <h4>공고 정보</h4>
       <div className="application-info-grid">
-        <ApplicationInfo label="기업명" value={job.company_name || "미등록"} />
+        <ApplicationInfo label="공고번호" value={job.job_no || "미등록"} />
         <ApplicationInfo label="통역 언어" value={job.language || "별도 안내"} />
         <ApplicationInfo label="통역 레벨" value={getJobLevelSummary(job)} />
         <ApplicationInfo label="전문 분야" value={getJobSpecialty(job)} />
@@ -2605,7 +2511,6 @@ function JobInformationSection({
           label="성별 조건"
           value={job.preferred_gender || "성별 무관"}
         />
-        <ApplicationInfo label="일급" value={getJobPayDisplay(job)} />
         <ApplicationInfo
           label="현재 공고 상태"
           value={getJobStatusLabel(job.status)}
@@ -2670,7 +2575,7 @@ function AssignmentDetailPanel({
       <section className="application-info-section">
         <h4>공고 정보</h4>
         <div className="application-info-grid">
-          <ApplicationInfo label="기업명" value={job.company_name || "미등록"} />
+          <ApplicationInfo label="공고번호" value={job.job_no || "미등록"} />
           <ApplicationInfo label="통역 언어" value={job.language || "별도 안내"} />
           <ApplicationInfo label="통역 레벨" value={getJobLevelSummary(job)} />
           <ApplicationInfo label="전문 분야" value={getJobSpecialty(job)} />
@@ -2695,7 +2600,6 @@ function AssignmentDetailPanel({
             label="성별 조건"
             value={job.preferred_gender || "성별 무관"}
           />
-          <ApplicationInfo label="일급" value={getJobPayDisplay(job)} />
           <ApplicationInfo
             label="현재 공고 상태"
             value={getJobStatusLabel(job.status)}
@@ -2746,7 +2650,7 @@ function AssignmentDetailPanel({
               job.event_date || job.date
             )}
           />
-          <ApplicationInfo label="담당 기업" value={job.company_name || "미등록"} />
+          <ApplicationInfo label="공고번호" value={job.job_no || "미등록"} />
           <ApplicationInfo label="현재 진행 상태" value={statusLabel} />
         </div>
       </section>
@@ -2947,6 +2851,54 @@ function getActivityStatus(interpreter) {
   const status = String(interpreter?.activity_status || "").trim().toLowerCase();
   if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(status)) return status;
   return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
+}
+
+function mapPublicJobFromMypageRow(row = {}) {
+  return {
+    id: row.job_id,
+    job_no: row.public_job_code,
+    title: row.title,
+    event_name: row.event_name,
+    date: row.work_date,
+    event_date: row.start_date || row.work_date,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    location: row.location,
+    event_location: row.location,
+    language: row.language_pair,
+    requested_level: row.level_required,
+    level: row.level_required,
+    field: row.field,
+    people_count: row.number_of_interpreters,
+    people: row.number_of_interpreters ? `${row.number_of_interpreters}명` : "",
+    status: "recruiting",
+  };
+}
+
+function mapMyApplicationRow(row = {}) {
+  return {
+    id: row.application_id,
+    application_no: row.application_code,
+    job_id: row.job_id,
+    request_id: row.request_id,
+    status: row.application_status,
+    created_at: row.applied_at,
+    jobs: mapPublicJobFromMypageRow(row),
+  };
+}
+
+function mapMyAssignmentRow(row = {}) {
+  return {
+    id: row.assignment_id,
+    matching_no: row.assignment_code,
+    job_id: row.job_id,
+    request_id: row.request_id,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    status: row.public_status,
+    created_at: row.assigned_at,
+    jobs: mapPublicJobFromMypageRow(row),
+  };
 }
 
 export default InterpreterMypage;
