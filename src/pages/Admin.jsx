@@ -364,6 +364,10 @@ function Admin({ onBackClick }) {
   const [assignments, setAssignments] = useState([]);
   const [matchings, setMatchings] = useState([]);
   const [jobApplications, setJobApplications] = useState([]);
+  const [adminNotes, setAdminNotes] = useState([]);
+  const [adminActivityLogs, setAdminActivityLogs] = useState([]);
+  const [notificationEvents, setNotificationEvents] = useState([]);
+  const [adminNoteDrafts, setAdminNoteDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [savingKey, setSavingKey] = useState("");
@@ -487,6 +491,43 @@ function Admin({ onBackClick }) {
     setAssignments(assignmentResult.data || []);
     setMatchings(matchingResult.error ? [] : matchingResult.data || []);
     setJobApplications(jobApplicationResult.data || []);
+    if (supabase) {
+      const [notesResult, logsResult, notificationsResult] = await Promise.all([
+        supabase
+          .from("admin_notes")
+          .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+          .order("created_at", { ascending: false })
+          .limit(300),
+        supabase
+          .from("admin_activity_logs")
+          .select("id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(300),
+        supabase
+          .from("notification_events")
+          .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, created_at, sent_at")
+          .order("created_at", { ascending: false })
+          .limit(300),
+      ]);
+
+      if (notesResult.error) {
+        console.warn("admin notes fetch skipped:", notesResult.error);
+      } else {
+        setAdminNotes(notesResult.data || []);
+      }
+
+      if (logsResult.error) {
+        console.warn("admin activity logs fetch skipped:", logsResult.error);
+      } else {
+        setAdminActivityLogs(logsResult.data || []);
+      }
+
+      if (notificationsResult.error) {
+        console.warn("notification events fetch skipped:", notificationsResult.error);
+      } else {
+        setNotificationEvents(notificationsResult.data || []);
+      }
+    }
     setLoading(false);
   }, []);
 
@@ -847,6 +888,27 @@ function Admin({ onBackClick }) {
     () => buildOperationDashboard(requests, assignmentsByRequest, interpreters),
     [assignmentsByRequest, interpreters, requests]
   );
+  const processingQueueItems = useMemo(
+    () =>
+      buildProcessingQueueItems({
+        newRequests,
+        pendingResumeReviewInterpreters,
+        uncheckedApplications: jobApplications.filter((application) =>
+          [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
+            normalizeApplicationStatus(application.status)
+          )
+        ),
+        pendingAssignmentRequests,
+        settlementPendingRequests,
+      }),
+    [
+      jobApplications,
+      newRequests,
+      pendingAssignmentRequests,
+      pendingResumeReviewInterpreters,
+      settlementPendingRequests,
+    ]
+  );
   const getInterpreterScheduleConflicts = useCallback(
     (interpreterId, range, excludeMatchingId) =>
       findLocalScheduleConflicts({
@@ -1122,6 +1184,118 @@ function Admin({ onBackClick }) {
     window.location.href = "/login";
   };
 
+  const getAdminNoteDraftKey = (targetType, targetId) =>
+    `${targetType}:${String(targetId || "")}`;
+
+  const updateAdminNoteDraft = (targetType, targetId, value) => {
+    const key = getAdminNoteDraftKey(targetType, targetId);
+    setAdminNoteDrafts((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const createAdminNote = async (targetType, targetId) => {
+    const key = getAdminNoteDraftKey(targetType, targetId);
+    const note = String(adminNoteDrafts[key] || "").trim();
+
+    if (!note) {
+      alert("내부 메모를 입력해주세요.");
+      return false;
+    }
+
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return false;
+    }
+
+    setSavingKey(`admin-note-${key}`);
+    const { data, error } = await supabase
+      .from("admin_notes")
+      .insert([
+        {
+          target_type: targetType,
+          target_id: String(targetId),
+          note,
+          created_by: user?.id || null,
+        },
+      ])
+      .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+      .single();
+
+    if (error) {
+      setSavingKey("");
+      console.error("admin note create failed:", error);
+      alert(`내부 메모 저장 실패: ${error.message}`);
+      return false;
+    }
+
+    const activityPayload = {
+      target_type: targetType,
+      target_id: String(targetId),
+      action_type: "memo_created",
+      before_value: null,
+      after_value: { note },
+      actor_user_id: user?.id || null,
+    };
+    const notificationPayload = {
+      event_type: "memo_created",
+      target_type: targetType,
+      target_id: String(targetId),
+      recipient_type: "admin",
+      payload: { note },
+      status: "pending",
+    };
+
+    const [activityResult, notificationResult] = await Promise.all([
+      supabase.from("admin_activity_logs").insert([activityPayload]).select("*").single(),
+      supabase.from("notification_events").insert([notificationPayload]).select("*").single(),
+    ]);
+
+    if (activityResult.error) {
+      console.warn("admin note activity log skipped:", activityResult.error);
+    } else if (activityResult.data) {
+      setAdminActivityLogs((current) => [activityResult.data, ...current]);
+    }
+
+    if (notificationResult.error) {
+      console.warn("admin note notification event skipped:", notificationResult.error);
+    } else if (notificationResult.data) {
+      setNotificationEvents((current) => [notificationResult.data, ...current]);
+    }
+
+    setAdminNotes((current) => (data ? [data, ...current] : current));
+    setAdminNoteDrafts((current) => ({ ...current, [key]: "" }));
+    setSavingKey("");
+    return true;
+  };
+
+  const refreshAdminOperationsData = async () => {
+    if (!supabase) return;
+
+    const [notesResult, logsResult, notificationsResult] = await Promise.all([
+      supabase
+        .from("admin_notes")
+        .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+        .order("created_at", { ascending: false })
+        .limit(300),
+      supabase
+        .from("admin_activity_logs")
+        .select("id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(300),
+      supabase
+        .from("notification_events")
+        .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, created_at, sent_at")
+        .order("created_at", { ascending: false })
+        .limit(300),
+    ]);
+
+    if (!notesResult.error) setAdminNotes(notesResult.data || []);
+    if (!logsResult.error) setAdminActivityLogs(logsResult.data || []);
+    if (!notificationsResult.error) setNotificationEvents(notificationsResult.data || []);
+  };
+
   const updateInterpreter = async (id, changes, options = {}) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
@@ -1273,6 +1447,7 @@ function Admin({ onBackClick }) {
     }
 
     await fetchAdminData();
+    await refreshAdminOperationsData();
 
     if (options.showSuccess) {
       alert(resumeVerifiedFeedback || "수정 완료");
@@ -1520,6 +1695,7 @@ function Admin({ onBackClick }) {
     );
     alert("확인 처리되었습니다. 의뢰 관리에서 확인할 수 있습니다.");
     await fetchAdminData();
+    await refreshAdminOperationsData();
     return true;
   };
 
@@ -1582,6 +1758,7 @@ function Admin({ onBackClick }) {
           ? { ...current, ...requestChanges, ...(updatedRequest || {}) }
           : current
       );
+      await refreshAdminOperationsData();
     } catch (error) {
       console.error("operation flow status update error:", error);
       alert("운영 단계 상태 변경에 실패했습니다.");
@@ -1786,6 +1963,7 @@ function Admin({ onBackClick }) {
           : current
       );
       await fetchAdminData();
+      await refreshAdminOperationsData();
       closeRequestModal();
       alert("공고 정보가 저장되었습니다.");
     } catch (error) {
@@ -2022,6 +2200,7 @@ function Admin({ onBackClick }) {
     }
 
     await fetchAdminData();
+    await refreshAdminOperationsData();
   };
 
   const openRequestDetailFromSettlementPending = (request) => {
@@ -2678,6 +2857,7 @@ function Admin({ onBackClick }) {
       }
 
       await fetchAdminData();
+      await refreshAdminOperationsData();
       return true;
     } finally {
       setSavingKey("");
@@ -2725,6 +2905,7 @@ function Admin({ onBackClick }) {
     }
 
     await fetchAdminData();
+    await refreshAdminOperationsData();
     return true;
   };
 
@@ -2899,6 +3080,13 @@ function Admin({ onBackClick }) {
                 openRequestModal("detail", request);
               }}
             />
+
+            <ProcessingQueue
+              items={processingQueueItems}
+              onOpenItem={(item) => switchSubTab(item.targetSubTab)}
+            />
+
+            <NotificationEventSummary events={notificationEvents} />
 
             <nav className="admin-tabs admin-main-tabs" aria-label="관리자 상위 메뉴">
               {MAIN_TABS.map((tab) => (
@@ -3097,6 +3285,11 @@ function Admin({ onBackClick }) {
                 deleteApplication={deleteJobApplication}
                 filters={applicationFilters}
                 setFilters={setApplicationFilters}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
               />
             )}
 
@@ -3105,6 +3298,11 @@ function Admin({ onBackClick }) {
                 rows={assignmentRows}
                 pendingRequests={pendingAssignmentRequests}
                 onOpenRequest={(request) => openRequestModal("detail", request)}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
               />
             )}
 
@@ -3145,6 +3343,11 @@ function Admin({ onBackClick }) {
                 savingKey={savingKey}
                 setFilters={setMatchingFilters}
                 updateSettlementStatus={updateSettlementManagementStatus}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
               />
             )}
 
@@ -3158,6 +3361,11 @@ function Admin({ onBackClick }) {
                 savingKey={savingKey}
                 setFilters={setMatchingFilters}
                 updateSettlementStatus={updateSettlementManagementStatus}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
               />
             )}
 
@@ -3170,7 +3378,7 @@ function Admin({ onBackClick }) {
             )}
 
             {activeSubTab === "admin_memos" && (
-              <AdminMemoManagement items={adminMemoItems} />
+              <AdminMemoManagement items={adminMemoItems} notes={adminNotes} />
             )}
 
             {activeSubTab === "admin_accounts" && (
@@ -3207,6 +3415,11 @@ function Admin({ onBackClick }) {
               onClose={closeInterpreterModal}
               onSave={saveInterpreterEditDraft}
               updateInterpreter={updateInterpreter}
+              adminNotes={adminNotes}
+              adminActivityLogs={adminActivityLogs}
+              noteDrafts={adminNoteDrafts}
+              onChangeNoteDraft={updateAdminNoteDraft}
+              onCreateNote={createAdminNote}
             />
             {isAdminAccountModalOpen && (
               <AdminAccountModal
@@ -3264,6 +3477,11 @@ function Admin({ onBackClick }) {
                 updateApplicationStatus={updateJobApplicationStatus}
                 updateRequest={updateRequest}
                 updateRequestFlowStatus={updateRequestFlowStatus}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
               />
             )}
           
@@ -3276,6 +3494,8 @@ function Admin({ onBackClick }) {
 
 function RequestActionModal({
   activeModal,
+  adminActivityLogs = [],
+  adminNotes = [],
   applications,
   assignments,
   assignmentDrafts,
@@ -3299,6 +3519,9 @@ function RequestActionModal({
   updateApplicationStatus,
   updateRequest,
   updateRequestFlowStatus,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
 }) {
   if (!activeModal || !request) return null;
 
@@ -3335,6 +3558,11 @@ function RequestActionModal({
           updateRequest={updateRequest}
           updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
+          adminNotes={adminNotes}
+          adminActivityLogs={adminActivityLogs}
+          noteDrafts={noteDrafts}
+          onChangeNoteDraft={onChangeNoteDraft}
+          onCreateNote={onCreateNote}
         />
       )}
 
@@ -4425,6 +4653,8 @@ function AdminRequestCard({
 }
 
 function RequestDetailPanel({
+  adminActivityLogs = [],
+  adminNotes = [],
   applications,
   assignmentDrafts,
   assignments,
@@ -4442,6 +4672,9 @@ function RequestDetailPanel({
   updateRequest,
   updateApplicationStatus,
   updateRequestFlowStatus,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
 }) {
   const flowSource = getRequestFlowSource(request, job);
   const requestType = getDesignatedRequestType(request);
@@ -4732,6 +4965,17 @@ function RequestDetailPanel({
           onStatusChange={updateApplicationStatus}
         />
       </div>
+
+      <AdminOperationsPanel
+        activityLogs={adminActivityLogs}
+        notes={adminNotes}
+        noteDrafts={noteDrafts}
+        saving={savingKey === `admin-note-request:${request.id}`}
+        targetId={request.id}
+        targetType="request"
+        onChangeNoteDraft={onChangeNoteDraft}
+        onCreateNote={onCreateNote}
+      />
     </div>
   );
 }
@@ -5247,6 +5491,8 @@ function InterpreterCard({
 }
 
 function InterpreterModal({
+  adminActivityLogs = [],
+  adminNotes = [],
   applications = [],
   draft,
   duplicateReasons = [],
@@ -5255,8 +5501,11 @@ function InterpreterModal({
   matchings = [],
   modalType,
   saving,
+  noteDrafts = {},
   onChangeDraft,
+  onChangeNoteDraft,
   onClose,
+  onCreateNote,
   onSave,
   updateInterpreter,
 }) {
@@ -5754,6 +6003,17 @@ function InterpreterModal({
                 </button>
               </div>
             </section>
+
+            <AdminOperationsPanel
+              activityLogs={adminActivityLogs}
+              notes={adminNotes}
+              noteDrafts={noteDrafts}
+              saving={false}
+              targetId={interpreter.id}
+              targetType="interpreter"
+              onChangeNoteDraft={onChangeNoteDraft}
+              onCreateNote={onCreateNote}
+            />
           </>
         ) : (
           <>
@@ -6036,7 +6296,94 @@ function ModalInfoSection({ children, title, twoColumn = false }) {
   );
 }
 
+function AdminOperationsPanel({
+  activityLogs = [],
+  notes = [],
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  saving = false,
+  targetId,
+  targetType,
+}) {
+  if (!targetId || !targetType) return null;
+
+  const targetKey = `${targetType}:${String(targetId)}`;
+  const targetNotes = notes
+    .filter(
+      (note) =>
+        note.target_type === targetType &&
+        String(note.target_id) === String(targetId)
+    )
+    .slice(0, 3);
+  const targetLogs = activityLogs
+    .filter(
+      (log) =>
+        log.target_type === targetType &&
+        String(log.target_id) === String(targetId)
+    )
+    .slice(0, 5);
+
+  return (
+    <section className="admin-operations-panel">
+      <div className="admin-operations-column">
+        <h3>내부 메모</h3>
+        {targetNotes.length === 0 ? (
+          <p className="admin-empty-text">아직 등록된 내부 메모가 없습니다.</p>
+        ) : (
+          <div className="admin-operations-list">
+            {targetNotes.map((note) => (
+              <article className="admin-operation-log-item" key={note.id}>
+                <p>{note.note}</p>
+                <span>{formatDateTime(note.created_at)}</span>
+              </article>
+            ))}
+          </div>
+        )}
+        <label className="admin-field-control admin-note-input">
+          <span>새 메모</span>
+          <textarea
+            rows={3}
+            value={noteDrafts[targetKey] || ""}
+            onChange={(event) =>
+              onChangeNoteDraft?.(targetType, targetId, event.target.value)
+            }
+            placeholder="운영팀 내부 확인 내용을 남겨주세요."
+          />
+        </label>
+        <button
+          type="button"
+          className="admin-save"
+          disabled={saving}
+          onClick={() => onCreateNote?.(targetType, targetId)}
+        >
+          {saving ? "저장 중..." : "메모 저장"}
+        </button>
+      </div>
+
+      <div className="admin-operations-column">
+        <h3>처리 이력</h3>
+        {targetLogs.length === 0 ? (
+          <p className="admin-empty-text">아직 처리 이력이 없습니다.</p>
+        ) : (
+          <div className="admin-operations-list">
+            {targetLogs.map((log) => (
+              <article className="admin-operation-log-item" key={log.id}>
+                <strong>{getAdminActionTypeLabel(log.action_type)}</strong>
+                <p>{formatAdminActivityLog(log)}</p>
+                <span>{formatDateTime(log.created_at)}</span>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function ApplicationManagement({
+  adminActivityLogs = [],
+  adminNotes = [],
   applications,
   duplicateResult,
   getInterpreterScheduleConflicts,
@@ -6046,6 +6393,9 @@ function ApplicationManagement({
   deleteApplication,
   filters,
   setFilters,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
 }) {
   const duplicateData = useMemo(
     () => duplicateResult || getDuplicateApplicationIdSet(applications),
@@ -6123,6 +6473,11 @@ function ApplicationManagement({
                 deleteApplication={deleteApplication}
                 duplicateReasons={duplicateReasons}
                 duplicateSuspected={duplicateData.duplicateIds.has(application.id)}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={noteDrafts}
+                onChangeNoteDraft={onChangeNoteDraft}
+                onCreateNote={onCreateNote}
               />
             );
           })}
@@ -6133,6 +6488,8 @@ function ApplicationManagement({
 }
 
 function ApplicationCard({
+  adminActivityLogs = [],
+  adminNotes = [],
   application,
   job,
   scheduleConflict,
@@ -6141,6 +6498,9 @@ function ApplicationCard({
   deleteApplication,
   duplicateReasons,
   duplicateSuspected,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
 }) {
   const duplicateTitle = duplicateReasons.join(", ");
 
@@ -6214,11 +6574,31 @@ function ApplicationCard({
           삭제
         </button>
       </div>
+
+      <AdminOperationsPanel
+        activityLogs={adminActivityLogs}
+        notes={adminNotes}
+        noteDrafts={noteDrafts}
+        saving={savingKey === `admin-note-application:${application.id}`}
+        targetId={application.id}
+        targetType="application"
+        onChangeNoteDraft={onChangeNoteDraft}
+        onCreateNote={onCreateNote}
+      />
     </article>
   );
 }
 
-function AssignmentManagement({ rows, pendingRequests, onOpenRequest }) {
+function AssignmentManagement({
+  adminActivityLogs = [],
+  adminNotes = [],
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  rows,
+  pendingRequests,
+  onOpenRequest,
+}) {
   return (
     <section className="admin-section">
       <SectionTitle count={`${rows.length}건`} title="배정 관리" />
@@ -6303,6 +6683,15 @@ function AssignmentManagement({ rows, pendingRequests, onOpenRequest }) {
                     </button>
                   </div>
                 )}
+                <AdminOperationsPanel
+                  activityLogs={adminActivityLogs}
+                  notes={adminNotes}
+                  noteDrafts={noteDrafts}
+                  targetId={row.assignment?.id || row.rowId}
+                  targetType="assignment"
+                  onChangeNoteDraft={onChangeNoteDraft}
+                  onCreateNote={onCreateNote}
+                />
               </article>
             ))}
           </div>
@@ -6367,15 +6756,25 @@ function PaymentHistoryManagement({ assignmentsByRequest, interpreters, requests
   );
 }
 
-function AdminMemoManagement({ items }) {
+function AdminMemoManagement({ items, notes = [] }) {
+  const noteItems = notes.map((note) => ({
+    id: `note-${note.id}`,
+    typeLabel: getAdminTargetTypeLabel(note.target_type),
+    number: note.target_id,
+    title: getAdminTargetTypeLabel(note.target_type),
+    memo: note.note,
+    createdAt: note.created_at,
+  }));
+  const combinedItems = [...noteItems, ...items];
+
   return (
     <section className="admin-section">
-      <SectionTitle count={`${items.length}건`} title="관리자 메모" />
-      {items.length === 0 ? (
-        <MessageBox text="현재 admin_memo 컬럼에 저장된 메모가 없습니다." />
+      <SectionTitle count={`${combinedItems.length}건`} title="관리자 메모" />
+      {combinedItems.length === 0 ? (
+        <MessageBox text="현재 저장된 관리자 메모가 없습니다." />
       ) : (
         <div className="admin-management-card-grid">
-          {items.map((item) => (
+          {combinedItems.map((item) => (
             <article className="admin-list-card" key={item.id}>
               <div className="admin-list-card-head">
                 <div>
@@ -6389,6 +6788,7 @@ function AdminMemoManagement({ items }) {
                 <Info label="관리번호" value={formatManagementNumber(item.number)} />
                 <Info label="대상" value={item.title} />
                 <Info label="메모" value={item.memo} />
+                {item.createdAt && <Info label="작성일" value={formatDateTime(item.createdAt)} />}
               </dl>
             </article>
           ))}
@@ -6446,7 +6846,68 @@ function AdminAccountsManagement({
   );
 }
 
+function ProcessingQueue({ items = [], onOpenItem }) {
+  return (
+    <section className="admin-processing-queue" aria-label="오늘 처리할 일">
+      <div className="admin-panel-head">
+        <div>
+          <p className="admin-kicker">QUEUE</p>
+          <h2>오늘 처리할 일</h2>
+        </div>
+        <span>{items.reduce((sum, item) => sum + item.count, 0)}건</span>
+      </div>
+      <div className="admin-processing-queue-grid">
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`admin-processing-queue-item priority-${item.priority}`}
+            onClick={() => onOpenItem(item)}
+          >
+            <span className="admin-processing-queue-label">{item.label}</span>
+            <strong>{item.count}</strong>
+            <span>{item.description}</span>
+            <em>{getQueuePriorityLabel(item.priority)}</em>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NotificationEventSummary({ events = [] }) {
+  const pendingCount = events.filter((event) => event.status === "pending").length;
+  const failedCount = events.filter((event) => event.status === "failed").length;
+  const recentEvents = events.slice(0, 3);
+
+  return (
+    <section className="admin-notification-summary" aria-label="알림 이벤트 대기 현황">
+      <div>
+        <p className="admin-kicker">NOTIFICATION READY</p>
+        <h2>알림 이벤트</h2>
+      </div>
+      <div className="admin-notification-summary-counts">
+        <span>대기 {pendingCount}건</span>
+        <span>실패 {failedCount}건</span>
+      </div>
+      <div className="admin-notification-summary-list">
+        {recentEvents.length === 0 ? (
+          <span>최근 알림 이벤트가 없습니다.</span>
+        ) : (
+          recentEvents.map((event) => (
+            <span key={event.id}>
+              {event.event_type} · {getAdminTargetTypeLabel(event.target_type)} · {event.status}
+            </span>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 function SettlementManagement({
+  adminActivityLogs = [],
+  adminNotes = [],
   requests,
   filters,
   setFilters,
@@ -6455,6 +6916,9 @@ function SettlementManagement({
   savingKey,
   sectionTitle = "정산 관리",
   updateSettlementStatus,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
 }) {
   const filteredRequests = requests.filter((request) => {
     const matchesMonth =
@@ -6505,6 +6969,11 @@ function SettlementManagement({
               interpreters={interpreters}
               savingKey={savingKey}
               updateSettlementStatus={updateSettlementStatus}
+              adminNotes={adminNotes}
+              adminActivityLogs={adminActivityLogs}
+              noteDrafts={noteDrafts}
+              onChangeNoteDraft={onChangeNoteDraft}
+              onCreateNote={onCreateNote}
             />
           ))}
         </div>
@@ -6514,11 +6983,16 @@ function SettlementManagement({
 }
 
 function SettlementRequestCard({
+  adminActivityLogs = [],
+  adminNotes = [],
   request,
   assignments,
   interpreters,
   savingKey,
   updateSettlementStatus,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
 }) {
   const assignedInterpreterNames = getAssignedInterpreterName(
     request,
@@ -6593,6 +7067,17 @@ function SettlementRequestCard({
           />
         </FieldControl>
       </div>
+
+      <AdminOperationsPanel
+        activityLogs={adminActivityLogs}
+        notes={adminNotes}
+        noteDrafts={noteDrafts}
+        saving={savingKey === `admin-note-settlement:${request.id}`}
+        targetId={request.id}
+        targetType="settlement"
+        onChangeNoteDraft={onChangeNoteDraft}
+        onCreateNote={onCreateNote}
+      />
     </article>
   );
 }
@@ -6975,6 +7460,56 @@ function ManagementNumberBlock({ label = "관리번호", value }) {
 function formatManagementNumber(value) {
   const normalized = String(value || "").trim();
   return normalized && normalized !== "번호 미생성" ? normalized : "번호 생성 필요";
+}
+
+function getAdminActionTypeLabel(actionType) {
+  const labels = {
+    status_changed: "상태 변경",
+    memo_created: "내부 메모 추가",
+    assignment_created: "배정 생성",
+    settlement_updated: "정산 수정",
+    schedule_conflict_override: "일정 충돌 강제 배정",
+  };
+  return labels[actionType] || actionType || "처리 이력";
+}
+
+function formatAdminActivityLog(log = {}) {
+  if (log.action_type === "memo_created") return "관리자가 내부 메모를 추가했습니다.";
+
+  const beforeValue = summarizeAdminLogValue(log.before_value);
+  const afterValue = summarizeAdminLogValue(log.after_value);
+
+  if (beforeValue || afterValue) {
+    return `${beforeValue || "이전 값 없음"} → ${afterValue || "변경 값 없음"}`;
+  }
+
+  return "운영 정보가 변경되었습니다.";
+}
+
+function summarizeAdminLogValue(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value !== "object") return String(value);
+
+  return Object.entries(value)
+    .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined && entryValue !== "")
+    .map(([key, entryValue]) => `${getAdminLogFieldLabel(key)}: ${entryValue}`)
+    .join(", ");
+}
+
+function getAdminLogFieldLabel(key) {
+  const labels = {
+    status: "상태",
+    assignment_status: "배정",
+    operation_status: "운영",
+    settlement_status: "정산",
+    payment_status: "결제",
+    activity_status: "활동",
+    approved: "검증",
+    note: "메모",
+  };
+  return labels[key] || key;
 }
 
 function formatRequestListNumber(request = {}) {
@@ -7395,6 +7930,91 @@ function hasAdminMemo(item = {}) {
 
 function getAdminMemo(item = {}) {
   return String(item.admin_memo || "").trim();
+}
+
+function getAdminTargetTypeLabel(targetType) {
+  const labels = {
+    request: "의뢰",
+    interpreter: "통역사",
+    application: "지원",
+    assignment: "배정",
+    settlement: "정산",
+  };
+  return labels[String(targetType || "").trim()] || "운영";
+}
+
+function buildProcessingQueueItems({
+  newRequests = [],
+  pendingResumeReviewInterpreters = [],
+  uncheckedApplications = [],
+  pendingAssignmentRequests = [],
+  settlementPendingRequests = [],
+}) {
+  return [
+    {
+      id: "new-requests",
+      label: "신규 의뢰",
+      count: newRequests.length,
+      description: "접수 확인 및 공고 전환",
+      priority: getQueuePriority(newRequests, "new_request"),
+      targetSubTab: "new_requests",
+    },
+    {
+      id: "pending-interpreters",
+      label: "검증 대기 통역사",
+      count: pendingResumeReviewInterpreters.length,
+      description: "이력서 검토 및 활동 승인",
+      priority: pendingResumeReviewInterpreters.length > 0 ? "today" : "general",
+      targetSubTab: "verification_pending",
+    },
+    {
+      id: "unchecked-applications",
+      label: "신규 지원자",
+      count: uncheckedApplications.length,
+      description: "검토중/합격/불합격 처리",
+      priority: uncheckedApplications.length > 0 ? "urgent" : "general",
+      targetSubTab: "applications",
+    },
+    {
+      id: "pending-assignments",
+      label: "배정 대기 의뢰",
+      count: pendingAssignmentRequests.length,
+      description: "행사일 임박 건 우선 배정",
+      priority: getQueuePriority(pendingAssignmentRequests, "assignment"),
+      targetSubTab: "assignments",
+    },
+    {
+      id: "pending-settlements",
+      label: "정산 대기",
+      count: settlementPendingRequests.length,
+      description: "진행 완료 후 지급 확인",
+      priority: settlementPendingRequests.length > 0 ? "urgent" : "general",
+      targetSubTab: "settlement_pending",
+    },
+  ];
+}
+
+function getQueuePriority(items = [], type) {
+  if (items.length === 0) return "general";
+  if (type === "new_request") {
+    return items.some((item) => isOlderThanHours(item.created_at, 24)) ? "urgent" : "today";
+  }
+  if (type === "assignment") {
+    return items.some((item) => isRequestWithinDays(item, 3)) ? "urgent" : "today";
+  }
+  return "today";
+}
+
+function getQueuePriorityLabel(priority) {
+  if (priority === "urgent") return "긴급";
+  if (priority === "today") return "오늘 처리";
+  return "일반";
+}
+
+function isOlderThanHours(value, hours) {
+  const createdAt = value ? new Date(value) : null;
+  if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+  return Date.now() - createdAt.getTime() >= hours * 60 * 60 * 1000;
 }
 
 function parseRequestDateOnly(value) {
