@@ -447,6 +447,16 @@
   font-weight: 900;
 }
 
+.admin-notification-toolbar {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-notification-history-list {
+  display: grid;
+  gap: 12px;
+}
+
 .admin-urgent-list {
   overflow: hidden;
   border: 1px solid #fee2e2;

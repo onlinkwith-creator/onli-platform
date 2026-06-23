@@ -118,6 +118,7 @@ const SUB_TABS = {
   ],
   internal: [
     { id: "admin_memos", label: "관리자 메모" },
+    { id: "notification_history", label: "알림 이력" },
     { id: "admin_accounts", label: "관리자 계정 관리" },
   ],
 };
@@ -368,6 +369,7 @@ function Admin({ onBackClick }) {
   const [adminActivityLogs, setAdminActivityLogs] = useState([]);
   const [notificationEvents, setNotificationEvents] = useState([]);
   const [adminNoteDrafts, setAdminNoteDrafts] = useState({});
+  const [notificationProcessing, setNotificationProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [savingKey, setSavingKey] = useState("");
@@ -505,7 +507,7 @@ function Admin({ onBackClick }) {
           .limit(300),
         supabase
           .from("notification_events")
-          .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, created_at, sent_at")
+          .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
           .order("created_at", { ascending: false })
           .limit(300),
       ]);
@@ -957,6 +959,7 @@ function Admin({ onBackClick }) {
     if (subTabId === "settlement_completed") return settlementCompletedRequests.length;
     if (subTabId === "payment_history") return settlementCompletedRequests.length;
     if (subTabId === "admin_memos") return adminMemoItems.length;
+    if (subTabId === "notification_history") return notificationEvents.length;
     if (subTabId === "admin_accounts") return adminUsers.length;
     return null;
   };
@@ -1286,7 +1289,7 @@ function Admin({ onBackClick }) {
         .limit(300),
       supabase
         .from("notification_events")
-        .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, created_at, sent_at")
+        .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
         .order("created_at", { ascending: false })
         .limit(300),
     ]);
@@ -1294,6 +1297,38 @@ function Admin({ onBackClick }) {
     if (!notesResult.error) setAdminNotes(notesResult.data || []);
     if (!logsResult.error) setAdminActivityLogs(logsResult.data || []);
     if (!notificationsResult.error) setNotificationEvents(notificationsResult.data || []);
+  };
+
+  const processNotificationEvents = async ({ eventIds = [], retryFailed = false } = {}) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return false;
+    }
+
+    setNotificationProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-email", {
+        body: {
+          action: "process_notification_events",
+          eventIds,
+          retryFailed,
+          limit: eventIds.length > 0 ? eventIds.length : 20,
+        },
+      });
+
+      if (error) throw error;
+      await refreshAdminOperationsData();
+      alert(
+        `알림 처리 완료: 발송 ${data?.sentCount || 0}건, 실패 ${data?.failedCount || 0}건, 건너뜀 ${data?.skippedCount || 0}건`
+      );
+      return true;
+    } catch (error) {
+      console.error("notification processing failed:", error);
+      alert(`알림 처리 실패: ${error.message || "알 수 없는 오류"}`);
+      return false;
+    } finally {
+      setNotificationProcessing(false);
+    }
   };
 
   const updateInterpreter = async (id, changes, options = {}) => {
@@ -3379,6 +3414,17 @@ function Admin({ onBackClick }) {
 
             {activeSubTab === "admin_memos" && (
               <AdminMemoManagement items={adminMemoItems} notes={adminNotes} />
+            )}
+
+            {activeSubTab === "notification_history" && (
+              <NotificationHistoryManagement
+                events={notificationEvents}
+                processing={notificationProcessing}
+                onProcessPending={() => processNotificationEvents()}
+                onRetryEvent={(event) =>
+                  processNotificationEvents({ eventIds: [event.id], retryFailed: true })
+                }
+              />
             )}
 
             {activeSubTab === "admin_accounts" && (
@@ -6901,6 +6947,92 @@ function NotificationEventSummary({ events = [] }) {
           ))
         )}
       </div>
+    </section>
+  );
+}
+
+function NotificationHistoryManagement({
+  events = [],
+  processing = false,
+  onProcessPending,
+  onRetryEvent,
+}) {
+  const [statusFilter, setStatusFilter] = useState("all");
+  const visibleEvents =
+    statusFilter === "all"
+      ? events
+      : events.filter((event) => event.status === statusFilter);
+  const pendingCount = events.filter((event) => event.status === "pending").length;
+  const failedCount = events.filter((event) => event.status === "failed").length;
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${visibleEvents.length}건`} title="알림 이력" />
+      <div className="admin-section-toolbar admin-notification-toolbar">
+        <div className="admin-filter-bar admin-filters">
+          <select
+            className="admin-filter-select"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="all">전체</option>
+            <option value="pending">pending</option>
+            <option value="processing">processing</option>
+            <option value="sent">sent</option>
+            <option value="failed">failed</option>
+            <option value="skipped">skipped</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          className="admin-save"
+          disabled={processing || pendingCount === 0}
+          onClick={onProcessPending}
+        >
+          {processing ? "처리 중..." : `대기 알림 처리 (${pendingCount})`}
+        </button>
+      </div>
+      {visibleEvents.length === 0 ? (
+        <MessageBox text="조건에 맞는 알림 이벤트가 없습니다." />
+      ) : (
+        <div className="admin-notification-history-list">
+          {visibleEvents.map((event) => (
+            <article className="admin-list-card" key={event.id}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">{event.recipient_type || "recipient"}</span>
+                  <h3>{event.event_type}</h3>
+                </div>
+                <StatusBadge status={event.status} />
+              </div>
+              <dl className="admin-card-summary">
+                <Info label="대상" value={`${getAdminTargetTypeLabel(event.target_type)} #${event.target_id}`} />
+                <Info label="수신 이메일" value={event.recipient_email || "-"} />
+                <Info label="생성일" value={formatDateTime(event.created_at)} />
+                <Info label="처리일" value={formatDateTime(event.processed_at)} />
+                <Info label="발송일" value={formatDateTime(event.sent_at)} />
+                <Info label="재시도" value={`${event.retry_count || 0}회`} />
+                <Info label="실패 사유" value={event.error_message || "-"} />
+              </dl>
+              {event.status === "failed" && (
+                <div className="admin-button-row">
+                  <button
+                    type="button"
+                    className="admin-save"
+                    disabled={processing}
+                    onClick={() => onRetryEvent(event)}
+                  >
+                    재발송
+                  </button>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+      {failedCount > 0 && (
+        <p className="admin-empty-text">실패 {failedCount}건은 개별 재발송 버튼으로 다시 처리할 수 있습니다.</p>
+      )}
     </section>
   );
 }

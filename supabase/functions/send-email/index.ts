@@ -40,6 +40,18 @@ type MailTransporter = {
   sendMail: (mailOptions: MailOptions) => Promise<unknown>;
 };
 
+type NotificationEvent = {
+  id: string;
+  event_type: string;
+  target_type: string;
+  target_id: string;
+  recipient_type: string;
+  recipient_email?: string | null;
+  payload?: Payload | null;
+  status: string;
+  retry_count?: number | null;
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -168,6 +180,22 @@ function infoTable(rows: Array<[string, string]>) {
           .join("")}
       </tbody>
     </table>
+  `;
+}
+
+function appUrl(path = "/") {
+  const baseUrl =
+    Deno.env.get("APP_URL") ||
+    Deno.env.get("PUBLIC_APP_URL") ||
+    "https://onli-platform.vercel.app";
+  return `${baseUrl.replace(/\/$/, "")}${path}`;
+}
+
+function linkButton(label: string, href: string) {
+  return `
+    <p style="margin:24px 0 0;">
+      <a href="${escapeHtml(href)}" style="display:inline-block; padding:12px 18px; background:#4f46e5; color:#ffffff; text-decoration:none; border-radius:8px; font-weight:700;">${escapeHtml(label)}</a>
+    </p>
   `;
 }
 
@@ -384,6 +412,507 @@ function buildHtml(type: EmailType, payload: Payload) {
   }
 }
 
+function notificationSubject(eventType: string) {
+  const subjectsByEvent: Record<string, string> = {
+    new_request: "[ON-LI] 신규 통역 의뢰가 접수되었습니다",
+    new_interpreter: "[ON-LI] 신규 통역사가 등록되었습니다",
+    application_created: "[ON-LI] 신규 지원자가 발생했습니다",
+    assignment_created: "[ON-LI] 통역 일정이 배정되었습니다",
+    application_status_changed: "[ON-LI] 지원 상태가 변경되었습니다",
+    settlement_status_changed: "[ON-LI] 정산 상태가 변경되었습니다",
+    request_created_client: "[ON-LI] 통역 의뢰가 접수되었습니다",
+    assignment_confirmed_client: "[ON-LI] 통역사 배정이 완료되었습니다",
+    status_changed: "[ON-LI] 운영 상태가 변경되었습니다",
+    settlement_ready: "[ON-LI] 정산 확인이 필요합니다",
+    memo_created: "[ON-LI] 관리자 메모가 추가되었습니다",
+  };
+  return subjectsByEvent[eventType] || "[ON-LI] 알림이 도착했습니다";
+}
+
+function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
+  switch (event.event_type) {
+    case "new_request":
+      return layout(
+        "신규 통역 의뢰가 접수되었습니다",
+        `
+          <p>관리자 확인이 필요한 신규 의뢰가 접수되었습니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["기업명", fieldFrom(payload, ["company_name", "companyName"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["장소", fieldFrom(payload, ["location", "event_location"])],
+            ["필요 언어", fieldFrom(payload, ["language", "language_pair"])],
+            ["필요 인원", fieldFrom(payload, ["number_of_interpreters", "people_count", "requestedPeopleCount"])],
+          ])}
+          ${linkButton("관리자 페이지 열기", appUrl("/admin/new"))}
+        `
+      );
+    case "new_interpreter":
+      return layout(
+        "신규 통역사가 등록되었습니다",
+        `
+          <p>신규 통역사 등록 건을 검토해주세요.</p>
+          ${infoTable([
+            ["이름", field(payload, "name")],
+            ["언어", fieldFrom(payload, ["language", "language_pair", "language_level"])],
+            ["지역", fieldFrom(payload, ["region", "available_regions", "availableRegions"])],
+            ["레벨", fieldFrom(payload, ["level", "requested_level"])],
+            ["이력서 제출 여부", fieldFrom(payload, ["resume_submitted", "resumeSubmitted"])],
+          ])}
+          ${linkButton("통역사 검증 화면 열기", appUrl("/admin/interpreters"))}
+        `
+      );
+    case "application_created":
+      return layout(
+        "신규 지원자가 발생했습니다",
+        `
+          <p>공고에 신규 지원자가 접수되었습니다.</p>
+          ${infoTable([
+            ["지원번호", fieldFrom(payload, ["application_code", "application_no", "application_id"])],
+            ["의뢰/공고번호", fieldFrom(payload, ["request_code", "job_id"])],
+            ["통역사 이름", fieldFrom(payload, ["interpreter_name", "applicant_name", "name"])],
+            ["행사명", fieldFrom(payload, ["event_name", "jobTitle", "title"])],
+            ["일정", fieldFrom(payload, ["date", "work_date", "start_date"])],
+          ])}
+          ${linkButton("지원자 관리 열기", appUrl("/admin/applications"))}
+        `
+      );
+    case "assignment_created":
+      return layout(
+        "통역 일정이 배정되었습니다",
+        `
+          <p>${fieldFrom(payload, ["interpreter_name", "name"], "통역사")}님, 통역 일정이 배정되었습니다.</p>
+          ${infoTable([
+            ["배정번호", fieldFrom(payload, ["assignment_code", "matching_no", "assignment_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "jobTitle", "title"])],
+            ["일정", fieldFrom(payload, ["date", "work_date", "start_date"])],
+            ["장소", fieldFrom(payload, ["location", "event_location"])],
+            ["통역 언어", fieldFrom(payload, ["language", "language_pair"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
+        `
+      );
+    case "application_status_changed":
+      return layout(
+        "지원 상태가 변경되었습니다",
+        `
+          <p>지원하신 공고의 상태가 변경되었습니다.</p>
+          ${infoTable([
+            ["지원번호", fieldFrom(payload, ["application_code", "application_no", "application_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "jobTitle", "title"])],
+            ["변경된 상태", field(payload, "status")],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
+        `
+      );
+    case "settlement_status_changed":
+      return layout(
+        "정산 상태가 변경되었습니다",
+        `
+          <p>배정 건의 정산 상태가 변경되었습니다.</p>
+          ${infoTable([
+            ["배정번호", fieldFrom(payload, ["assignment_code", "matching_no", "assignment_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "jobTitle", "title"])],
+            ["정산 상태", field(payload, "status")],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
+        `
+      );
+    case "request_created_client":
+      return layout(
+        "통역 의뢰가 접수되었습니다",
+        `
+          <p>ON-LI 통역 의뢰가 정상 접수되었습니다. 담당자가 확인 후 연락드릴 예정입니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["접수 상태", fieldFrom(payload, ["status"], "접수 완료")],
+          ])}
+        `
+      );
+    case "assignment_confirmed_client":
+      return layout(
+        "통역사 배정이 완료되었습니다",
+        `
+          <p>요청하신 통역 의뢰의 배정이 완료되었습니다. 세부 사항은 ON-LI 담당자가 안내드립니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["배정 상태", fieldFrom(payload, ["status"], "배정 완료")],
+          ])}
+        `
+      );
+    default:
+      return layout(
+        "ON-LI 알림",
+        `
+          <p>ON-LI 운영 알림이 도착했습니다.</p>
+          ${infoTable([
+            ["이벤트", escapeHtml(event.event_type)],
+            ["대상", `${escapeHtml(event.target_type)} #${escapeHtml(event.target_id)}`],
+            ["상태", fieldFrom(payload, ["status", "after_status"])],
+          ])}
+          ${event.recipient_type === "admin" ? linkButton("관리자 페이지 열기", appUrl("/admin/internal")) : ""}
+        `
+      );
+  }
+}
+
+function pickPublicPayload(row: Record<string, unknown> | null | undefined, keys: string[]) {
+  const result: Payload = {};
+  if (!row) return result;
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null && value !== "") {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+async function enrichNotificationPayload(
+  supabase: SupabaseClient,
+  event: NotificationEvent
+) {
+  const payload: Payload = { ...(event.payload || {}) };
+
+  try {
+    if (event.target_type === "request" || event.event_type === "new_request") {
+      const { data } = await supabase
+        .from("requests")
+        .select("*")
+        .eq("id", event.target_id)
+        .maybeSingle();
+      Object.assign(payload, pickPublicPayload(data, [
+        "request_no",
+        "company_name",
+        "event_name",
+        "event_date",
+        "start_date",
+        "end_date",
+        "event_location",
+        "location",
+        "language",
+        "people_count",
+        "requested_people_count",
+        "status",
+        "settlement_status",
+      ]));
+    }
+
+    if (event.target_type === "interpreter" || event.event_type === "new_interpreter") {
+      const { data } = await supabase
+        .from("interpreters")
+        .select("*")
+        .eq("id", event.target_id)
+        .maybeSingle();
+      Object.assign(payload, pickPublicPayload(data, [
+        "name",
+        "email",
+        "region",
+        "level",
+        "language_level",
+        "available_regions",
+        "resume_url",
+        "resume_file_url",
+        "status",
+      ]));
+      payload.resume_submitted = Boolean(payload.resume_url || payload.resume_file_url) ? "제출" : "미제출";
+    }
+
+    if (event.target_type === "application" || event.event_type.includes("application")) {
+      const { data: application } = await supabase
+        .from("job_applications")
+        .select("*")
+        .eq("id", event.target_id)
+        .maybeSingle();
+      Object.assign(payload, pickPublicPayload(application, [
+        "application_no",
+        "applicant_name",
+        "name",
+        "email",
+        "status",
+        "job_id",
+      ]));
+
+      const jobId = application?.job_id || payload.job_id;
+      if (jobId) {
+        const { data: job } = await supabase
+          .from("jobs")
+          .select("*")
+          .eq("id", jobId)
+          .maybeSingle();
+        Object.assign(payload, pickPublicPayload(job, [
+          "title",
+          "event_name",
+          "date",
+          "start_date",
+          "end_date",
+          "location",
+          "language",
+        ]));
+      }
+    }
+
+    if (event.target_type === "assignment" || event.event_type === "assignment_created") {
+      const { data: assignment } = await supabase
+        .from("request_interpreters")
+        .select("*")
+        .eq("id", event.target_id)
+        .maybeSingle();
+      Object.assign(payload, pickPublicPayload(assignment, [
+        "matching_no",
+        "request_id",
+        "interpreter_id",
+        "assigned_at",
+      ]));
+
+      if (assignment?.request_id || payload.request_id) {
+        const { data: request } = await supabase
+          .from("requests")
+          .select("*")
+          .eq("id", assignment?.request_id || payload.request_id)
+          .maybeSingle();
+        Object.assign(payload, pickPublicPayload(request, [
+          "request_no",
+          "event_name",
+          "event_date",
+          "start_date",
+          "end_date",
+          "event_location",
+          "location",
+          "language",
+        ]));
+      }
+
+      if (assignment?.interpreter_id || payload.interpreter_id) {
+        const { data: interpreter } = await supabase
+          .from("interpreters")
+          .select("name,email")
+          .eq("id", assignment?.interpreter_id || payload.interpreter_id)
+          .maybeSingle();
+        if (!event.recipient_email && interpreter?.email) payload.recipient_email = interpreter.email;
+        if (interpreter?.name) payload.interpreter_name = interpreter.name;
+      }
+    }
+  } catch (error) {
+    console.error("NOTIFICATION_PAYLOAD_ENRICH_FAILED", event.id, error);
+  }
+
+  return payload;
+}
+
+function createGmailTransporter(gmailUser: string, gmailAppPassword: string) {
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: gmailUser.trim(),
+      pass: gmailAppPassword.replace(/\s+/g, ""),
+    },
+  });
+}
+
+async function assertAdminCaller(
+  request: Request,
+  supabaseUrl: string,
+  anonKey: string,
+  serviceRoleKey: string
+) {
+  const authHeader = request.headers.get("Authorization") || "";
+  const callerClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const {
+    data: { user },
+    error: userError,
+  } = await callerClient.auth.getUser();
+
+  if (userError || !user?.email) {
+    return { ok: false as const, status: 401, error: "Unauthorized" };
+  }
+
+  const { data: adminUser, error: adminError } = await adminClient
+    .from("admin_users")
+    .select("id, role, status")
+    .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
+    .eq("status", "active")
+    .single();
+
+  if (adminError || !adminUser || !["owner", "admin", "staff"].includes(adminUser.role)) {
+    return { ok: false as const, status: 403, error: "Forbidden" };
+  }
+
+  return { ok: true as const, user, adminUser };
+}
+
+async function updateNotificationStatus(
+  supabase: SupabaseClient,
+  id: string,
+  changes: Record<string, unknown>
+) {
+  const { error } = await supabase
+    .from("notification_events")
+    .update({
+      ...changes,
+      processed_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("NOTIFICATION_STATUS_UPDATE_FAILED", id, error);
+  }
+}
+
+async function processNotificationEvents({
+  request,
+  limit,
+  eventIds,
+  retryFailed,
+  supabaseUrl,
+  serviceRoleKey,
+  anonKey,
+  gmailUser,
+  gmailAppPassword,
+}: {
+  request: Request;
+  limit: number;
+  eventIds: string[];
+  retryFailed: boolean;
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  anonKey: string;
+  gmailUser: string;
+  gmailAppPassword: string;
+}) {
+  const adminCheck = await assertAdminCaller(request, supabaseUrl, anonKey, serviceRoleKey);
+  if (!adminCheck.ok) {
+    return jsonResponse({ ok: false, error: adminCheck.error }, adminCheck.status);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const transporter = createGmailTransporter(gmailUser, gmailAppPassword);
+  const emailFrom = Deno.env.get("EMAIL_FROM") || `"ON-LI" <${gmailUser.trim()}>`;
+  const adminEmail = Deno.env.get("ADMIN_NOTIFICATION_EMAIL") || gmailUser.trim();
+  const selectableStatuses = retryFailed ? ["pending", "failed"] : ["pending"];
+
+  let query = supabase
+    .from("notification_events")
+    .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count,created_at")
+    .in("status", selectableStatuses)
+    .order("created_at", { ascending: true })
+    .limit(Math.max(1, Math.min(limit || 10, 50)));
+
+  if (eventIds.length > 0) {
+    query = query.in("id", eventIds);
+  }
+
+  const { data: events, error } = await query;
+  if (error) {
+    return jsonResponse({ ok: false, error: error.message }, 500);
+  }
+
+  const results = [];
+
+  for (const event of (events || []) as NotificationEvent[]) {
+    const { data: lockedEvent, error: lockError } = await supabase
+      .from("notification_events")
+      .update({
+        status: "processing",
+        retry_count: Number(event.retry_count || 0) + 1,
+        error_message: null,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", event.id)
+      .in("status", selectableStatuses)
+      .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count")
+      .single();
+
+    if (lockError || !lockedEvent) {
+      results.push({
+        id: event.id,
+        ok: false,
+        skipped: true,
+        error: lockError?.message || "Event is already being processed.",
+      });
+      continue;
+    }
+
+    const currentEvent = lockedEvent as NotificationEvent;
+    const payload = await enrichNotificationPayload(supabase, currentEvent);
+    const recipientEmail =
+      String(currentEvent.recipient_email || payload.recipient_email || "").trim() ||
+      (currentEvent.recipient_type === "admin" ? adminEmail : "");
+
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      await updateNotificationStatus(supabase, currentEvent.id, {
+        status: "skipped",
+        error_message: "Recipient email is empty.",
+      });
+      results.push({
+        id: currentEvent.id,
+        ok: false,
+        skipped: true,
+        error: "Recipient email is empty.",
+      });
+      continue;
+    }
+
+    try {
+      const subject = notificationSubject(currentEvent.event_type);
+      const html = buildNotificationHtml(currentEvent, payload);
+      const sendResult = await transporter.sendMail({
+        from: emailFrom,
+        to: recipientEmail,
+        subject,
+        html,
+      });
+
+      await updateNotificationStatus(supabase, currentEvent.id, {
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        error_message: null,
+      });
+      results.push({
+        id: currentEvent.id,
+        ok: true,
+        recipient: recipientEmail,
+        result: sendResult,
+      });
+    } catch (sendError) {
+      const message = sendError instanceof Error ? sendError.message : String(sendError);
+      await updateNotificationStatus(supabase, currentEvent.id, {
+        status: "failed",
+        error_message: message,
+      });
+      results.push({
+        id: currentEvent.id,
+        ok: false,
+        recipient: recipientEmail,
+        error: message,
+      });
+    }
+  }
+
+  return jsonResponse({
+    ok: true,
+    processedCount: results.length,
+    sentCount: results.filter((result) => result.ok).length,
+    failedCount: results.filter((result) => !result.ok && !result.skipped).length,
+    skippedCount: results.filter((result) => result.skipped).length,
+    results,
+  });
+}
+
 Deno.serve(async (request) => {
   console.log("FUNCTION START");
 
@@ -397,6 +926,7 @@ Deno.serve(async (request) => {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const action = String(body?.action || "");
     const type = body?.type as EmailType;
     let to =
       typeof body?.to === "string"
@@ -410,10 +940,12 @@ Deno.serve(async (request) => {
     const payload = body?.payload && typeof body.payload === "object"
       ? (body.payload as Payload)
       : {};
-    const gmailUser = Deno.env.get("GMAIL_USER");
-    const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    const emailProvider = (Deno.env.get("EMAIL_PROVIDER") || "gmail").toLowerCase();
+    const gmailUser = Deno.env.get("GMAIL_USER") || Deno.env.get("EMAIL_USER");
+    const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD") || Deno.env.get("EMAIL_API_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
     console.log("REQUEST BODY", {
       type,
@@ -425,6 +957,13 @@ Deno.serve(async (request) => {
     console.log("HAS GMAIL APP PASSWORD", !!gmailAppPassword);
     console.log("HAS SUPABASE URL", !!supabaseUrl);
     console.log("HAS SUPABASE SERVICE ROLE KEY", !!serviceRoleKey);
+
+    if (!["gmail", "smtp"].includes(emailProvider)) {
+      return jsonResponse({
+        ok: false,
+        error: `Unsupported EMAIL_PROVIDER: ${emailProvider}`,
+      }, 500);
+    }
 
     if (!gmailUser || !gmailAppPassword || !supabaseUrl || !serviceRoleKey) {
       console.error("SEND EMAIL FUNCTION ERROR", "Missing required email secrets");
@@ -439,6 +978,26 @@ Deno.serve(async (request) => {
           SUPABASE_SERVICE_ROLE_KEY: !serviceRoleKey,
         },
       }, 500);
+    }
+
+    if (action === "process_notification_events") {
+      if (!anonKey) {
+        return jsonResponse({ ok: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
+      }
+
+      return await processNotificationEvents({
+        request,
+        limit: Number(body?.limit || 10),
+        eventIds: Array.isArray(body?.eventIds)
+          ? body.eventIds.map((id: unknown) => String(id)).filter(Boolean)
+          : [],
+        retryFailed: Boolean(body?.retryFailed),
+        supabaseUrl,
+        serviceRoleKey,
+        anonKey,
+        gmailUser,
+        gmailAppPassword,
+      });
     }
 
     if (!type) {
@@ -496,13 +1055,7 @@ Deno.serve(async (request) => {
     const relatedId = requestId || String(payload.dedupeKey || "");
     const smtpUser = gmailUser.trim();
     const smtpPassword = gmailAppPassword.replace(/\s+/g, "");
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: smtpUser,
-        pass: smtpPassword,
-      },
-    });
+    const transporter = createGmailTransporter(smtpUser, smtpPassword);
 
     console.log("[EDGE_FUNCTION_START]", relatedId);
 
