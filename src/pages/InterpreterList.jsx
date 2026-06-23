@@ -341,6 +341,7 @@ function InterpreterList({
                       ? person.specialties.split(",").map(s => s.trim())
                       : [];
                     const tagBadges = specialties.length > 0 ? specialties.slice(0, 3) : ["일반 비즈니스", "전시회", "B2B"];
+                    const visibleTagBadges = isAuthenticated ? tagBadges : ["로그인 후 확인"];
                     const languageLabel = getInterpreterLanguageDisplay(person);
                     const summaryParts = isAuthenticated
                       ? [
@@ -348,9 +349,9 @@ function InterpreterList({
                           tagBadges[0],
                           languageLabel,
                         ].filter((value) => value && value !== "-")
-                      : [tagBadges[0], languageLabel].filter((value) => value && value !== "-");
+                      : [languageLabel].filter((value) => value && value !== "-");
                     const experienceCount = person.experience_count ? Number(person.experience_count) : 0;
-                    const displayName = isAuthenticated ? person.name || "이름 미입력" : "로그인 후 확인 가능";
+                    const displayName = isAuthenticated ? person.name || "이름 미입력" : "로그인 후 확인";
                     const openDetail = () => {
                       if (!isAuthenticated) {
                         onLoginClick?.();
@@ -427,7 +428,7 @@ function InterpreterList({
                           <MobileInfoRow
                             icon={Briefcase}
                             label="전문분야"
-                            value={formatList(person.specialties)}
+                            value={isAuthenticated ? formatList(person.specialties) : "로그인 후 확인"}
                           />
                           <MobileInfoRow
                             icon={Languages}
@@ -458,7 +459,11 @@ function InterpreterList({
                             value={isAuthenticated ? formatList(person.available_regions) : "로그인 후 확인"}
                             masked={!isAuthenticated}
                           />
-                          <Info label="전문 분야" value={formatList(person.specialties)} />
+                          <Info
+                            label="전문 분야"
+                            value={isAuthenticated ? formatList(person.specialties) : "로그인 후 확인"}
+                            masked={!isAuthenticated}
+                          />
                           <Info label="언어 수준" value={languageLabel} />
                           <Info
                             label="통역 경험"
@@ -477,8 +482,11 @@ function InterpreterList({
 
                         {/* Skill tag lists */}
                         <div className="interpreter-list-tags">
-                          {tagBadges.map((badge, idx) => (
-                            <span key={idx} className="interpreter-list-tag">
+                          {visibleTagBadges.map((badge, idx) => (
+                            <span
+                              key={idx}
+                              className={`interpreter-list-tag${isAuthenticated ? "" : " interpreter-masked-value"}`}
+                            >
                               #{badge}
                             </span>
                           ))}

@@ -9,6 +9,7 @@ import {
 import { formatCompactJobDateRange } from "../utils/dateRange";
 import { getJobSpecialty } from "../utils/jobDisplay";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
+import { fetchPublicJobs } from "../utils/jobsApi";
 import { Calendar, MapPin, Users, Award, Briefcase } from "lucide-react";
 import "./Jobs.css";
 
@@ -69,9 +70,7 @@ function JobList({
     setErrorMessage("");
 
     try {
-      const { data, error } = await supabase
-        .from("public_jobs")
-        .select("*");
+      const { data, error } = await fetchPublicJobs(supabase);
 
       if (error) {
         console.error("Jobs fetch error:", {
@@ -417,23 +416,19 @@ function JobListCard({
   const status = normalizeJobStatus(job);
   const badge = getJobStatusLabel(job);
   const canApply = canApplyToJob(job);
-  const dateLabel = isAuthenticated
-    ? formatCompactJobDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-"
-    : "로그인 후 상세 일정 확인";
-  const locationLabel = isAuthenticated
-    ? job.location || job.event_location || "-"
-    : getCityLevelLocation(job);
+  const dateLabel =
+    formatCompactJobDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-";
+  const locationLabel = job.location || job.event_location || "-";
   const languageLabel = getJobLanguageDisplay(job);
-  const recruitmentLabel = isAuthenticated
-    ? getRecruitmentCountDisplay(job) || "-"
-    : languageLabel;
+  const recruitmentLabel = getRecruitmentCountDisplay(job) || languageLabel;
   const levelLabel = getRequiredLevelDisplay(job) || "-";
   const specialtyLabel = getJobSpecialty(job) || "-";
   const mobileSpecialtyLabel = getJobSpecialtyWithGender(job);
-  const titleLabel = isAuthenticated
-    ? job.event_name || job.title || "공고 제목 미입력"
-    : "로그인 후 상세 공고 확인";
-  const companyLabel = isAuthenticated ? "ON-LI 공개 공고" : "공개 범위 제한 공고";
+  const titleLabel = job.event_name || job.title || "공고 제목 미입력";
+  const companyLabel = "ON-LI 공개 공고";
+  const protectedInfoClass = isAuthenticated
+    ? "home-job-info-list job-info-list jobs-mobile-info-list"
+    : "home-job-info-list job-info-list jobs-mobile-info-list job-protected-info";
   const openDetail = () => {
     if (!isAuthenticated) {
       onLoginClick?.();
@@ -455,7 +450,7 @@ function JobListCard({
       tabIndex={onDetailClick ? 0 : undefined}
       onClick={openDetail}
       onKeyDown={onDetailClick ? handleKeyDown : undefined}
-      aria-label={isAuthenticated ? `${titleLabel} 상세 보기` : "로그인 후 상세 공고 확인"}
+      aria-label={isAuthenticated ? `${titleLabel} 상세 보기` : `${titleLabel} 상세 내용은 로그인 후 확인`}
     >
       <div className="home-job-card-body job-card-body">
         <div>
@@ -463,15 +458,13 @@ function JobListCard({
             <div className={`home-job-status ${status}`}>{badge}</div>
           </div>
           <p className="home-job-company truncate">{companyLabel}</p>
-          <h3 className={isAuthenticated ? "truncate" : "truncate job-masked-value"}>
-            {titleLabel}
-          </h3>
+          <h3 className="truncate">{titleLabel}</h3>
           {!isAuthenticated && (
-            <p className="job-login-guide">로그인 후 상세 공고를 확인할 수 있습니다.</p>
+            <p className="job-login-guide">로그인 후 상세 내용을 확인할 수 있습니다</p>
           )}
         </div>
 
-        <div className="home-job-info-list job-info-list jobs-mobile-info-list">
+        <div className={protectedInfoClass}>
           <div className="home-job-info-item min-w-0 jobs-mobile-info-row">
             <Calendar size={15} aria-hidden="true" />
             <span className="truncate jobs-mobile-info-value">{dateLabel}</span>
@@ -499,7 +492,9 @@ function JobListCard({
       <div className="job-divider job-card-divider" />
 
       <div className="home-job-card-action job-card-footer">
-        <p className="home-job-level-note">레벨 기준 통역 단가 적용</p>
+        <p className={isAuthenticated ? "home-job-level-note" : "home-job-level-note job-protected-text"}>
+          레벨 기준 통역 단가 적용
+        </p>
 
         <button
           type="button"

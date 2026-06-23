@@ -6336,6 +6336,7 @@ function InterpreterDocumentLink({ fallbackLabel, fileName, onClick }) {
 
 function AdminOperationsPanel({
   activityLogs = [],
+  compactModal = false,
   notes = [],
   noteDrafts = {},
   onChangeNoteDraft,
@@ -6344,26 +6345,25 @@ function AdminOperationsPanel({
   targetId,
   targetType,
 }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   if (!targetId || !targetType) return null;
 
   const targetKey = `${targetType}:${String(targetId)}`;
-  const targetNotes = notes
-    .filter(
-      (note) =>
-        note.target_type === targetType &&
-        String(note.target_id) === String(targetId)
-    )
-    .slice(0, 3);
-  const targetLogs = activityLogs
-    .filter(
-      (log) =>
-        log.target_type === targetType &&
-        String(log.target_id) === String(targetId)
-    )
-    .slice(0, 5);
-
-  return (
-    <section className="admin-operations-panel">
+  const allTargetNotes = notes.filter(
+    (note) =>
+      note.target_type === targetType &&
+      String(note.target_id) === String(targetId)
+  );
+  const allTargetLogs = activityLogs.filter(
+    (log) =>
+      log.target_type === targetType &&
+      String(log.target_id) === String(targetId)
+  );
+  const targetNotes = compactModal ? allTargetNotes : allTargetNotes.slice(0, 3);
+  const targetLogs = compactModal ? allTargetLogs : allTargetLogs.slice(0, 5);
+  const content = (
+    <>
       <div className="admin-operations-column">
         <h3>내부 메모</h3>
         {targetNotes.length === 0 ? (
@@ -6415,6 +6415,67 @@ function AdminOperationsPanel({
           </div>
         )}
       </div>
+    </>
+  );
+
+  if (compactModal) {
+    return (
+      <>
+        <div className="admin-operations-card-actions">
+          <button
+            type="button"
+            className="admin-link-button"
+            onClick={() => setIsModalOpen(true)}
+          >
+            메모/이력 보기
+            <span>
+              메모 {allTargetNotes.length} · 이력 {allTargetLogs.length}
+            </span>
+          </button>
+        </div>
+
+        {isModalOpen && (
+          <div
+            className="admin-modal-overlay"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setIsModalOpen(false);
+            }}
+          >
+            <section
+              className="admin-modal-card admin-operations-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`admin-operations-modal-${targetType}-${targetId}`}
+            >
+              <div className="admin-modal-head">
+                <div>
+                  <p className="admin-card-meta">운영 관리</p>
+                  <h2 id={`admin-operations-modal-${targetType}-${targetId}`}>
+                    내부 메모 및 처리 이력
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  className="admin-modal-close"
+                  onClick={() => setIsModalOpen(false)}
+                >
+                  닫기
+                </button>
+              </div>
+              <div className="admin-operations-modal-grid">
+                {content}
+              </div>
+            </section>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <section className="admin-operations-panel">
+      {content}
     </section>
   );
 }
@@ -6615,6 +6676,7 @@ function ApplicationCard({
 
       <AdminOperationsPanel
         activityLogs={adminActivityLogs}
+        compactModal
         notes={adminNotes}
         noteDrafts={noteDrafts}
         saving={savingKey === `admin-note-application:${application.id}`}
@@ -6723,6 +6785,7 @@ function AssignmentManagement({
                 )}
                 <AdminOperationsPanel
                   activityLogs={adminActivityLogs}
+                  compactModal
                   notes={adminNotes}
                   noteDrafts={noteDrafts}
                   targetId={row.assignment?.id || row.rowId}
@@ -7245,6 +7308,7 @@ function SettlementRequestCard({
 
       <AdminOperationsPanel
         activityLogs={adminActivityLogs}
+        compactModal
         notes={adminNotes}
         noteDrafts={noteDrafts}
         saving={savingKey === `admin-note-settlement:${request.id}`}

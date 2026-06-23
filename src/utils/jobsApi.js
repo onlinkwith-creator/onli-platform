@@ -17,11 +17,13 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
   const result = await query;
 
   if (!result.error) {
-    const jobs = sortJobsByDisplayPriority((result.data || []).filter(isPublicJob))
-      .slice(0, limit || undefined);
+    const jobs = sortJobsByDisplayPriority((result.data || []).filter(isPublicJob));
+    const visibleJobs = limit
+      ? jobs.filter((_, index) => index < limit)
+      : jobs;
 
     return {
-      data: await attachPublicJobCounts(supabase, jobs),
+      data: await attachPublicJobCounts(supabase, visibleJobs),
       error: null,
     };
   }

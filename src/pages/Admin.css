@@ -411,6 +411,55 @@
   resize: vertical;
 }
 
+.admin-operations-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.admin-operations-card-actions .admin-link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  min-height: 34px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.admin-operations-card-actions .admin-link-button span {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.admin-operations-modal-card {
+  width: min(100%, 980px);
+  max-width: 980px;
+}
+
+.admin-operations-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-operations-modal-grid .admin-operations-column {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f9fafb;
+}
+
+.admin-operations-modal-grid .admin-operations-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 .admin-notification-summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(220px, 1fr);
@@ -3287,8 +3336,18 @@
 
   .admin-processing-queue-grid,
   .admin-operations-panel,
+  .admin-operations-modal-grid,
   .admin-notification-summary {
     grid-template-columns: 1fr;
+  }
+
+  .admin-operations-card-actions {
+    justify-content: stretch;
+  }
+
+  .admin-operations-card-actions .admin-link-button {
+    width: 100%;
+    justify-content: center;
   }
 
   .admin-job-date-range,

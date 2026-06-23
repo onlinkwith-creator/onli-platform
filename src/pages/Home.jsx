@@ -13,6 +13,7 @@ import {
 } from "../utils/publicInterpreter";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import { sortJobsByDisplayPriority } from "../utils/jobStatus";
+import { fetchPublicJobs } from "../utils/jobsApi";
 import "./Home.css";
 import {
   Building2,
@@ -56,8 +57,9 @@ function Home({
   onMypageClick,
   onAdminClick,
 }) {
+  const HOME_JOB_PREVIEW_LIMIT = 4;
   const [featuredInterpreters, setFeaturedInterpreters] = useState([]);
-  const [featuredJobs, setFeaturedJobs] = useState([]);
+  const [previewJobs, setPreviewJobs] = useState([]);
   const [interpreterLoading, setInterpreterLoading] = useState(true);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [interpreterErrorMessage, setInterpreterErrorMessage] = useState("");
@@ -117,9 +119,9 @@ function Home({
     try {
       if (!supabase) throw supabaseConfigError;
 
-      const { data, error } = await supabase
-        .from("public_jobs")
-        .select("*");
+      const { data, error } = await fetchPublicJobs(supabase, {
+        limit: HOME_JOB_PREVIEW_LIMIT,
+      });
 
       if (error) {
         console.error("Jobs fetch error:", {
@@ -131,14 +133,14 @@ function Home({
         setJobsErrorMessage(
           getSupabaseErrorMessage(error, "데이터를 불러오지 못했습니다.")
         );
-        setFeaturedJobs([]);
+        setPreviewJobs([]);
         return;
       }
 
-      setFeaturedJobs(sortJobsByDisplayPriority(data || []).slice(0, 7));
+      setPreviewJobs(sortJobsByDisplayPriority(data || []));
     } catch (error) {
       console.error("jobs fetch error:", error);
-      setFeaturedJobs([]);
+      setPreviewJobs([]);
       setJobsErrorMessage(
         getSupabaseErrorMessage(error, "데이터를 불러오지 못했습니다.")
       );
@@ -394,7 +396,7 @@ function Home({
           <div className="home-empty">통역 공고를 불러오는 중입니다...</div>
         ) : jobsErrorMessage ? (
           <div className="home-empty">{jobsErrorMessage}</div>
-        ) : featuredJobs.length === 0 ? (
+        ) : previewJobs.length === 0 ? (
           <div className="home-empty">현재 표시할 공고가 없습니다.</div>
         ) : (
           <>
@@ -404,7 +406,7 @@ function Home({
               previousLabel="이전 공고 보기"
               nextLabel="다음 공고 보기"
             >
-                {featuredJobs.slice(0, 7).map((job) => (
+                {previewJobs.map((job) => (
                   <JobCard
                     key={job.id}
                     job={job}
