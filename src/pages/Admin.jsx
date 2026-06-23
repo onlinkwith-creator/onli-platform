@@ -515,7 +515,7 @@ function Admin({ onBackClick }) {
       if (notesResult.error) {
         console.warn("admin notes fetch skipped:", notesResult.error);
       } else {
-        setAdminNotes(notesResult.data || []);
+        setAdminNotes(uniqueById(notesResult.data || []));
       }
 
       if (logsResult.error) {
@@ -527,7 +527,7 @@ function Admin({ onBackClick }) {
       if (notificationsResult.error) {
         console.warn("notification events fetch skipped:", notificationsResult.error);
       } else {
-        setNotificationEvents(notificationsResult.data || []);
+        setNotificationEvents(uniqueById(notificationsResult.data || []));
       }
     }
     setLoading(false);
@@ -714,8 +714,8 @@ function Admin({ onBackClick }) {
     [assignmentsByRequest, requests]
   );
   const adminMemoItems = useMemo(
-    () => buildAdminMemoItems({ requests, interpreters, assignmentRows }),
-    [assignmentRows, interpreters, requests]
+    () => buildAdminMemoItems({ requests, interpreters, assignmentRows, jobApplications }),
+    [assignmentRows, interpreters, jobApplications, requests]
   );
 
   const filteredRequests = useMemo(() => {
@@ -1264,10 +1264,10 @@ function Admin({ onBackClick }) {
     if (notificationResult.error) {
       console.warn("admin note notification event skipped:", notificationResult.error);
     } else if (notificationResult.data) {
-      setNotificationEvents((current) => [notificationResult.data, ...current]);
+      setNotificationEvents((current) => uniqueById([notificationResult.data, ...current]));
     }
 
-    setAdminNotes((current) => (data ? [data, ...current] : current));
+    setAdminNotes((current) => (data ? uniqueById([data, ...current]) : current));
     setAdminNoteDrafts((current) => ({ ...current, [key]: "" }));
     setSavingKey("");
     return true;
@@ -1294,9 +1294,9 @@ function Admin({ onBackClick }) {
         .limit(300),
     ]);
 
-    if (!notesResult.error) setAdminNotes(notesResult.data || []);
+    if (!notesResult.error) setAdminNotes(uniqueById(notesResult.data || []));
     if (!logsResult.error) setAdminActivityLogs(logsResult.data || []);
-    if (!notificationsResult.error) setNotificationEvents(notificationsResult.data || []);
+    if (!notificationsResult.error) setNotificationEvents(uniqueById(notificationsResult.data || []));
   };
 
   const processNotificationEvents = async ({ eventIds = [], retryFailed = false } = {}) => {
@@ -3121,7 +3121,13 @@ function Admin({ onBackClick }) {
               onOpenItem={(item) => switchSubTab(item.targetSubTab)}
             />
 
-            <NotificationEventSummary events={notificationEvents} />
+            <NotificationEventSummary
+              events={notificationEvents}
+              requests={requests}
+              interpreters={interpreters}
+              assignmentRows={assignmentRows}
+              jobApplications={jobApplications}
+            />
 
             <nav className="admin-tabs admin-main-tabs" aria-label="관리자 상위 메뉴">
               {MAIN_TABS.map((tab) => (
@@ -3413,14 +3419,28 @@ function Admin({ onBackClick }) {
             )}
 
             {activeSubTab === "admin_memos" && (
-              <AdminMemoManagement items={adminMemoItems} notes={adminNotes} />
+              <AdminMemoManagement
+                items={adminMemoItems}
+                notes={adminNotes}
+                requests={requests}
+                interpreters={interpreters}
+                assignmentRows={assignmentRows}
+                jobApplications={jobApplications}
+              />
             )}
 
             {activeSubTab === "notification_history" && (
               <NotificationHistoryManagement
                 events={notificationEvents}
+                requests={requests}
+                interpreters={interpreters}
+                assignmentRows={assignmentRows}
+                jobApplications={jobApplications}
                 processing={notificationProcessing}
                 onProcessPending={() => processNotificationEvents()}
+                onProcessEvent={(event) =>
+                  processNotificationEvents({ eventIds: [event.id] })
+                }
                 onRetryEvent={(event) =>
                   processNotificationEvents({ eventIds: [event.id], retryFailed: true })
                 }
@@ -6802,16 +6822,22 @@ function PaymentHistoryManagement({ assignmentsByRequest, interpreters, requests
   );
 }
 
-function AdminMemoManagement({ items, notes = [] }) {
-  const noteItems = notes.map((note) => ({
-    id: `note-${note.id}`,
-    typeLabel: getAdminTargetTypeLabel(note.target_type),
-    number: note.target_id,
-    title: getAdminTargetTypeLabel(note.target_type),
-    memo: note.note,
-    createdAt: note.created_at,
-  }));
-  const combinedItems = [...noteItems, ...items];
+function AdminMemoManagement({
+  items,
+  notes = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
+  const noteItems = buildAdminNoteDisplayItems({
+    notes,
+    requests,
+    interpreters,
+    assignmentRows,
+    jobApplications,
+  });
+  const combinedItems = uniqueById([...noteItems, ...items]);
 
   return (
     <section className="admin-section">
@@ -6830,9 +6856,9 @@ function AdminMemoManagement({ items, notes = [] }) {
                 </div>
               </div>
               <dl className="admin-card-summary">
-                <Info label="구분" value={item.typeLabel} />
-                <Info label="관리번호" value={formatManagementNumber(item.number)} />
-                <Info label="대상" value={item.title} />
+                {item.details.map((detail) => (
+                  <Info key={detail.label} label={detail.label} value={detail.value} />
+                ))}
                 <Info label="메모" value={item.memo} />
                 {item.createdAt && <Info label="작성일" value={formatDateTime(item.createdAt)} />}
               </dl>
@@ -6921,10 +6947,22 @@ function ProcessingQueue({ items = [], onOpenItem }) {
   );
 }
 
-function NotificationEventSummary({ events = [] }) {
+function NotificationEventSummary({
+  events = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
   const pendingCount = events.filter((event) => event.status === "pending").length;
   const failedCount = events.filter((event) => event.status === "failed").length;
-  const recentEvents = events.slice(0, 3);
+  const recentEvents = buildNotificationDisplayItems({
+    events,
+    requests,
+    interpreters,
+    assignmentRows,
+    jobApplications,
+  }).slice(0, 3);
 
   return (
     <section className="admin-notification-summary" aria-label="알림 이벤트 대기 현황">
@@ -6942,7 +6980,7 @@ function NotificationEventSummary({ events = [] }) {
         ) : (
           recentEvents.map((event) => (
             <span key={event.id}>
-              {event.event_type} · {getAdminTargetTypeLabel(event.target_type)} · {event.status}
+              {event.eventLabel} · {event.targetLabel} · {event.statusLabel}
             </span>
           ))
         )}
@@ -6953,15 +6991,27 @@ function NotificationEventSummary({ events = [] }) {
 
 function NotificationHistoryManagement({
   events = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
   processing = false,
   onProcessPending,
+  onProcessEvent,
   onRetryEvent,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
+  const notificationItems = buildNotificationDisplayItems({
+    events,
+    requests,
+    interpreters,
+    assignmentRows,
+    jobApplications,
+  });
   const visibleEvents =
     statusFilter === "all"
-      ? events
-      : events.filter((event) => event.status === statusFilter);
+      ? notificationItems
+      : notificationItems.filter((event) => event.status === statusFilter);
   const pendingCount = events.filter((event) => event.status === "pending").length;
   const failedCount = events.filter((event) => event.status === "failed").length;
 
@@ -6976,11 +7026,11 @@ function NotificationHistoryManagement({
             onChange={(event) => setStatusFilter(event.target.value)}
           >
             <option value="all">전체</option>
-            <option value="pending">pending</option>
-            <option value="processing">processing</option>
-            <option value="sent">sent</option>
-            <option value="failed">failed</option>
-            <option value="skipped">skipped</option>
+            <option value="pending">발송 대기</option>
+            <option value="processing">발송 처리 중</option>
+            <option value="sent">발송 완료</option>
+            <option value="failed">발송 실패</option>
+            <option value="skipped">발송 제외</option>
           </select>
         </div>
         <button
@@ -7000,13 +7050,17 @@ function NotificationHistoryManagement({
             <article className="admin-list-card" key={event.id}>
               <div className="admin-list-card-head">
                 <div>
-                  <span className="admin-card-meta">{event.recipient_type || "recipient"}</span>
-                  <h3>{event.event_type}</h3>
+                  <span className="admin-card-meta">알림</span>
+                  <h3>{event.eventLabel}</h3>
                 </div>
-                <StatusBadge status={event.status} />
+                <span className={`status-badge ${getStatusBadgeClass(event.status)}`}>
+                  {event.statusLabel}
+                </span>
               </div>
               <dl className="admin-card-summary">
-                <Info label="대상" value={`${getAdminTargetTypeLabel(event.target_type)} #${event.target_id}`} />
+                <Info label="대상" value={event.targetLabel} />
+                <Info label="관련" value={event.relatedLabel} />
+                <Info label="상태" value={event.statusLabel} />
                 <Info label="수신 이메일" value={event.recipient_email || "-"} />
                 <Info label="생성일" value={formatDateTime(event.created_at)} />
                 <Info label="처리일" value={formatDateTime(event.processed_at)} />
@@ -7014,8 +7068,25 @@ function NotificationHistoryManagement({
                 <Info label="재시도" value={`${event.retry_count || 0}회`} />
                 <Info label="실패 사유" value={event.error_message || "-"} />
               </dl>
-              {event.status === "failed" && (
-                <div className="admin-button-row">
+              <div className="admin-button-row">
+                <button
+                  type="button"
+                  className="admin-secondary"
+                  onClick={() => showNotificationEventDetail(event)}
+                >
+                  상세보기
+                </button>
+                {event.status === "pending" && (
+                  <button
+                    type="button"
+                    className="admin-save"
+                    disabled={processing}
+                    onClick={() => onProcessEvent?.(event)}
+                  >
+                    발송 처리
+                  </button>
+                )}
+                {event.status === "failed" && (
                   <button
                     type="button"
                     className="admin-save"
@@ -7024,8 +7095,8 @@ function NotificationHistoryManagement({
                   >
                     재발송
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </article>
           ))}
         </div>
@@ -8030,18 +8101,27 @@ function buildAdminMemoItems({ requests = [], interpreters = [], assignmentRows 
     .map((request) => ({
       id: `request-${request.id}`,
       typeLabel: "의뢰 메모",
-      number: request.request_no || request.request_number || request.id,
+      number: request.request_no || request.request_number || "",
       title: request.event_name || request.title || request.company_name || "-",
       memo: getAdminMemo(request),
+      details: [
+        { label: "의뢰번호", value: formatManagementNumber(request.request_no || request.request_number) },
+        { label: "기업명", value: request.company_name || "-" },
+        { label: "행사명", value: request.event_name || request.title || "-" },
+      ],
     }));
   const interpreterMemos = interpreters
     .filter((interpreter) => hasAdminMemo(interpreter))
     .map((interpreter) => ({
       id: `interpreter-${interpreter.id}`,
       typeLabel: "통역사 메모",
-      number: interpreter.interpreter_no || interpreter.id,
+      number: interpreter.interpreter_no || "",
       title: interpreter.name || "-",
       memo: getAdminMemo(interpreter),
+      details: [
+        { label: "통역사 번호", value: formatManagementNumber(interpreter.interpreter_no) },
+        { label: "이름", value: interpreter.name || "-" },
+      ],
     }));
   const assignmentMemos = assignmentRows
     .filter((row) => hasAdminMemo(row.assignment))
@@ -8051,9 +8131,130 @@ function buildAdminMemoItems({ requests = [], interpreters = [], assignmentRows 
       number: row.assignmentNo,
       title: row.interpreterName || row.eventName || "-",
       memo: getAdminMemo(row.assignment),
+      details: [
+        { label: "배정번호", value: formatManagementNumber(row.assignmentNo) },
+        { label: "통역사명", value: row.interpreterName || "-" },
+        { label: "행사명", value: row.eventName || "-" },
+      ],
     }));
 
   return [...requestMemos, ...interpreterMemos, ...assignmentMemos];
+}
+
+function buildAdminNoteDisplayItems({
+  notes = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
+  const requestsById = new Map(requests.map((request) => [String(request.id), request]));
+  const requestsByJobId = new Map(
+    requests
+      .filter((request) => request.job_id)
+      .map((request) => [String(request.job_id), request])
+  );
+  const interpretersById = new Map(
+    interpreters.map((interpreter) => [String(interpreter.id), interpreter])
+  );
+  const applicationsById = new Map(
+    jobApplications.map((application) => [String(application.id), application])
+  );
+  const assignmentRowsById = new Map(
+    assignmentRows.map((row) => [String(row.assignment?.id), row])
+  );
+
+  return uniqueById(notes).map((note) => {
+    const targetType = normalizeAdminTargetType(note.target_type);
+    const targetId = String(note.target_id || "");
+    const application = targetType === "application" ? applicationsById.get(targetId) : null;
+    const applicationRequest = application?.job_id
+      ? requestsByJobId.get(String(application.job_id))
+      : null;
+    const request = targetType === "request" ? requestsById.get(targetId) : applicationRequest;
+    const interpreter =
+      targetType === "interpreter"
+        ? interpretersById.get(targetId)
+        : application?.interpreter_id
+          ? interpretersById.get(String(application.interpreter_id))
+          : null;
+    const assignmentRow = targetType === "assignment" ? assignmentRowsById.get(targetId) : null;
+
+    return {
+      id: `note-${note.id}`,
+      typeLabel: getAdminNoteTypeLabel(targetType),
+      number: getAdminNoteNumber({ targetType, request, interpreter, application, assignmentRow }),
+      title: getAdminNoteTitle({ targetType, request, interpreter, application, assignmentRow }),
+      memo: note.note,
+      createdAt: note.created_at,
+      details: getAdminNoteDetails({ targetType, request, interpreter, application, assignmentRow }),
+    };
+  });
+}
+
+function getAdminNoteTypeLabel(targetType) {
+  const labels = {
+    application: "지원 메모",
+    request: "의뢰 메모",
+    interpreter: "통역사 메모",
+    assignment: "배정 메모",
+  };
+  return labels[targetType] || "운영 메모";
+}
+
+function getAdminNoteNumber({ targetType, request, interpreter, application, assignmentRow }) {
+  if (targetType === "application") return application?.application_no || "";
+  if (targetType === "request") return request?.request_no || request?.request_number || "";
+  if (targetType === "interpreter") return interpreter?.interpreter_no || "";
+  if (targetType === "assignment") return assignmentRow?.assignmentNo || "";
+  return "";
+}
+
+function getAdminNoteTitle({ targetType, request, interpreter, application, assignmentRow }) {
+  if (targetType === "application") return application?.applicant_name || interpreter?.name || "-";
+  if (targetType === "request") return request?.event_name || request?.title || request?.company_name || "-";
+  if (targetType === "interpreter") return interpreter?.name || "-";
+  if (targetType === "assignment") return assignmentRow?.interpreterName || assignmentRow?.eventName || "-";
+  return "-";
+}
+
+function getAdminNoteDetails({ targetType, request, interpreter, application, assignmentRow }) {
+  if (targetType === "application") {
+    return [
+      { label: "지원번호", value: formatManagementNumber(application?.application_no) },
+      { label: "지원자 이름", value: application?.applicant_name || interpreter?.name || "-" },
+      {
+        label: "연결 의뢰번호",
+        value: formatManagementNumber(request?.request_no || request?.request_number),
+      },
+      { label: "행사명", value: request?.event_name || application?.jobs?.event_name || application?.jobs?.title || "-" },
+    ];
+  }
+
+  if (targetType === "request") {
+    return [
+      { label: "의뢰번호", value: formatManagementNumber(request?.request_no || request?.request_number) },
+      { label: "기업명", value: request?.company_name || "-" },
+      { label: "행사명", value: request?.event_name || request?.title || "-" },
+    ];
+  }
+
+  if (targetType === "interpreter") {
+    return [
+      { label: "통역사 번호", value: formatManagementNumber(interpreter?.interpreter_no) },
+      { label: "이름", value: interpreter?.name || "-" },
+    ];
+  }
+
+  if (targetType === "assignment") {
+    return [
+      { label: "배정번호", value: formatManagementNumber(assignmentRow?.assignmentNo) },
+      { label: "통역사명", value: assignmentRow?.interpreterName || "-" },
+      { label: "행사명", value: assignmentRow?.eventName || "-" },
+    ];
+  }
+
+  return [{ label: "대상", value: "운영 관리 항목" }];
 }
 
 function hasAdminMemo(item = {}) {
@@ -8064,15 +8265,180 @@ function getAdminMemo(item = {}) {
   return String(item.admin_memo || "").trim();
 }
 
-function getAdminTargetTypeLabel(targetType) {
+function normalizeAdminTargetType(targetType) {
+  const normalized = String(targetType || "").trim().toLowerCase();
+  if (["job_application", "job_applications", "application", "applications"].includes(normalized)) {
+    return "application";
+  }
+  if (["request", "requests"].includes(normalized)) return "request";
+  if (["interpreter", "interpreters"].includes(normalized)) return "interpreter";
+  if (["assignment", "assignments", "matching", "matchings", "request_interpreter"].includes(normalized)) {
+    return "assignment";
+  }
+  return normalized || "operation";
+}
+
+function uniqueById(items = []) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const id = String(item?.id || "");
+    if (!id) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+function buildNotificationDisplayItems({
+  events = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
+  const requestsById = new Map(requests.map((request) => [String(request.id), request]));
+  const requestsByJobId = new Map(
+    requests
+      .filter((request) => request.job_id)
+      .map((request) => [String(request.job_id), request])
+  );
+  const interpretersById = new Map(
+    interpreters.map((interpreter) => [String(interpreter.id), interpreter])
+  );
+  const applicationsById = new Map(
+    jobApplications.map((application) => [String(application.id), application])
+  );
+  const assignmentRowsById = new Map(
+    assignmentRows.map((row) => [String(row.assignment?.id), row])
+  );
+
+  return uniqueById(events).map((event) => {
+    const payload = getNotificationPayload(event);
+    const targetType = normalizeAdminTargetType(event.target_type);
+    const targetId = String(event.target_id || "");
+    const application =
+      targetType === "application"
+        ? applicationsById.get(targetId) || applicationsById.get(String(payload.application_id || ""))
+        : null;
+    const assignmentRow =
+      targetType === "assignment"
+        ? assignmentRowsById.get(targetId) || assignmentRowsById.get(String(payload.assignment_id || ""))
+        : null;
+    const request =
+      (targetType === "request" ? requestsById.get(targetId) : null) ||
+      (payload.request_id ? requestsById.get(String(payload.request_id)) : null) ||
+      (application?.job_id ? requestsByJobId.get(String(application.job_id)) : null) ||
+      assignmentRow?.request ||
+      null;
+    const interpreter =
+      (targetType === "interpreter" ? interpretersById.get(targetId) : null) ||
+      (payload.interpreter_id ? interpretersById.get(String(payload.interpreter_id)) : null) ||
+      (application?.interpreter_id ? interpretersById.get(String(application.interpreter_id)) : null) ||
+      null;
+
+    return {
+      ...event,
+      eventLabel: getNotificationEventTypeLabel(event.event_type),
+      statusLabel: getNotificationStatusLabel(event.status),
+      targetLabel: getNotificationTargetLabel({
+        targetType,
+        payload,
+        request,
+        interpreter,
+        application,
+        assignmentRow,
+      }),
+      relatedLabel: getNotificationRelatedLabel({
+        targetType,
+        request,
+        interpreter,
+        application,
+        assignmentRow,
+      }),
+    };
+  });
+}
+
+function getNotificationPayload(event = {}) {
+  if (!event.payload || typeof event.payload !== "string") return event.payload || {};
+  try {
+    return JSON.parse(event.payload);
+  } catch {
+    return {};
+  }
+}
+
+function getNotificationEventTypeLabel(eventType) {
   const labels = {
-    request: "의뢰",
-    interpreter: "통역사",
-    application: "지원",
-    assignment: "배정",
-    settlement: "정산",
+    assignment_created: "배정 완료 알림",
+    application_created: "신규 지원 알림",
+    new_request: "신규 의뢰 알림",
+    status_changed: "상태 변경 알림",
+    settlement_ready: "정산 대기 알림",
+    application_status_changed: "지원 상태 변경 알림",
+    settlement_status_changed: "정산 상태 변경 알림",
+    memo_created: "내부 메모 알림",
+    new_interpreter: "신규 통역사 알림",
   };
-  return labels[String(targetType || "").trim()] || "운영";
+  return labels[String(eventType || "").trim()] || "운영 알림";
+}
+
+function getNotificationStatusLabel(status) {
+  const labels = {
+    pending: "발송 대기",
+    processing: "발송 처리 중",
+    sent: "발송 완료",
+    failed: "발송 실패",
+    skipped: "발송 제외",
+  };
+  return labels[String(status || "").trim().toLowerCase()] || "상태 확인 필요";
+}
+
+function getNotificationTargetLabel({
+  targetType,
+  payload = {},
+  request,
+  interpreter,
+  application,
+  assignmentRow,
+}) {
+  if (targetType === "assignment") {
+    return assignmentRow?.interpreterName || interpreter?.name || "배정 대상 통역사";
+  }
+  if (targetType === "application") {
+    return application?.applicant_name || payload.applicant_name || "지원자";
+  }
+  if (targetType === "request") {
+    return request?.company_name || payload.company_name || "의뢰 기업";
+  }
+  if (targetType === "interpreter") {
+    return interpreter?.name || payload.name || "통역사";
+  }
+  return "운영 담당자 확인";
+}
+
+function getNotificationRelatedLabel({ targetType, request, interpreter, application, assignmentRow }) {
+  if (targetType === "assignment") return formatManagementNumber(assignmentRow?.assignmentNo);
+  if (targetType === "application") return formatManagementNumber(application?.application_no);
+  if (targetType === "request") return formatManagementNumber(request?.request_no || request?.request_number);
+  if (targetType === "interpreter") return formatManagementNumber(interpreter?.interpreter_no);
+  return "-";
+}
+
+function showNotificationEventDetail(event = {}) {
+  alert(
+    [
+      event.eventLabel || "운영 알림",
+      `대상: ${event.targetLabel || "-"}`,
+      `관련: ${event.relatedLabel || "-"}`,
+      `상태: ${event.statusLabel || "-"}`,
+      `생성: ${formatDateTime(event.created_at)}`,
+      event.sent_at ? `발송: ${formatDateTime(event.sent_at)}` : "",
+      event.error_message ? `실패 사유: ${event.error_message}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
 }
 
 function buildProcessingQueueItems({
