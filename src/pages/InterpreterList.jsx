@@ -60,7 +60,12 @@ const ageOptions = [
   { value: "50plus", label: "50대 이상" },
 ];
 
-function InterpreterList({ onBackClick, onDetailClick }) {
+function InterpreterList({
+  isAuthenticated = false,
+  onBackClick,
+  onDetailClick,
+  onLoginClick,
+}) {
   const [interpreters, setInterpreters] = useState([]);
   const [filters, setFilters] = useState(initialFilters);
   const [loading, setLoading] = useState(true);
@@ -118,7 +123,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
         const levelMatches = getLevelMatches(person, filters.level);
         const ageMatches = getAgeMatches(person, filters.ageGroup);
         const keywordMatches =
-          !keyword || getSearchText(person).toLowerCase().includes(keyword);
+          !keyword || getSearchText(person, isAuthenticated).toLowerCase().includes(keyword);
 
         return (
           genderMatches &&
@@ -129,7 +134,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
           keywordMatches
         );
       }),
-    [filters, interpreters]
+    [filters, interpreters, isAuthenticated]
   );
 
   const sortedInterpreters = useMemo(() => {
@@ -163,11 +168,6 @@ function InterpreterList({ onBackClick, onDetailClick }) {
     return result;
   }, [filteredInterpreters, sortBy]);
 
-  // Reset pagination on filter or sort change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters, sortBy]);
-
   // Paginate items (9 items per page)
   const paginatedInterpreters = useMemo(() => {
     const start = (currentPage - 1) * 9;
@@ -177,10 +177,21 @@ function InterpreterList({ onBackClick, onDetailClick }) {
   const totalPages = Math.ceil(sortedInterpreters.length / 9);
 
   const updateFilter = (name, value) => {
+    setCurrentPage(1);
     setFilters((current) => ({
       ...current,
       [name]: value,
     }));
+  };
+
+  const resetFilters = () => {
+    setCurrentPage(1);
+    setFilters(initialFilters);
+  };
+
+  const updateSort = (value) => {
+    setCurrentPage(1);
+    setSortBy(value);
   };
 
   return (
@@ -237,7 +248,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                 <h2 className="interpreter-list-filter-title">통역사 검색 필터</h2>
                 <button
                   type="button"
-                  onClick={() => setFilters(initialFilters)}
+                  onClick={resetFilters}
                   className="interpreter-list-reset-button"
                 >
                   필터 초기화
@@ -305,7 +316,7 @@ function InterpreterList({ onBackClick, onDetailClick }) {
 
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => updateSort(e.target.value)}
                   className="interpreter-list-sort-select"
                 >
                   <option value="latest">최신 등록순</option>
@@ -330,13 +341,22 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                       ? person.specialties.split(",").map(s => s.trim())
                       : [];
                     const tagBadges = specialties.length > 0 ? specialties.slice(0, 3) : ["일반 비즈니스", "전시회", "B2B"];
-                    const summaryParts = [
-                      formatList(person.available_regions),
-                      tagBadges[0],
-                      person.language_level || person.jlpt || "한국어 · 일본어",
-                    ].filter((value) => value && value !== "-");
+                    const languageLabel = getInterpreterLanguageDisplay(person);
+                    const summaryParts = isAuthenticated
+                      ? [
+                          formatList(person.available_regions),
+                          tagBadges[0],
+                          languageLabel,
+                        ].filter((value) => value && value !== "-")
+                      : [tagBadges[0], languageLabel].filter((value) => value && value !== "-");
                     const experienceCount = person.experience_count ? Number(person.experience_count) : 0;
+                    const displayName = isAuthenticated ? person.name || "이름 미입력" : "로그인 후 확인 가능";
                     const openDetail = () => {
+                      if (!isAuthenticated) {
+                        onLoginClick?.();
+                        return;
+                      }
+
                       if (onDetailClick) {
                         onDetailClick(person);
                         return;
@@ -362,11 +382,17 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                         tabIndex={0}
                         onClick={openDetail}
                         onKeyDown={handleCardKeyDown}
-                        aria-label={`${person.name || "통역사"} 상세 보기`}
+                        aria-label={
+                          isAuthenticated
+                            ? `${displayName} 상세 보기`
+                            : "로그인 후 통역사 상세 프로필 확인"
+                        }
                       >
                         <div className="interpreter-list-card-head">
                           <div className="interpreter-list-card-meta-left">
-                            <h2>{person.name || "이름 미입력"}</h2>
+                            <h2 className={isAuthenticated ? undefined : "interpreter-masked-value"}>
+                              {displayName}
+                            </h2>
                             <div className="interpreter-list-compact-badges">
                               <span className="interpreter-list-activity-badge">
                                 <span className="dot" />
@@ -386,12 +412,17 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                         <p className="interpreter-list-mobile-summary">
                           {summaryParts.join(" · ")}
                         </p>
+                        {!isAuthenticated && (
+                          <p className="interpreter-login-guide">
+                            로그인 후 통역사 상세 프로필을 확인할 수 있습니다.
+                          </p>
+                        )}
 
                         <div className="interpreter-list-mobile-details">
                           <MobileInfoRow
                             icon={MapPin}
                             label="활동지역"
-                            value={formatList(person.available_regions)}
+                            value={isAuthenticated ? formatList(person.available_regions) : "로그인 후 확인"}
                           />
                           <MobileInfoRow
                             icon={Briefcase}
@@ -401,9 +432,9 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                           <MobileInfoRow
                             icon={Languages}
                             label="언어수준"
-                            value={person.language_level || person.jlpt || "한국어 · 일본어"}
+                            value={languageLabel}
                           />
-                          {experienceCount > 0 && (
+                          {isAuthenticated && experienceCount > 0 && (
                             <div className="interpreter-list-mobile-experience">
                               <Star size={15} aria-hidden="true" />
                               <span>통역 경험 {experienceCount}회</span>
@@ -422,12 +453,25 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                               )
                             }
                           />
-                          <Info label="활동 가능 지역" value={formatList(person.available_regions)} />
+                          <Info
+                            label="활동 가능 지역"
+                            value={isAuthenticated ? formatList(person.available_regions) : "로그인 후 확인"}
+                            masked={!isAuthenticated}
+                          />
                           <Info label="전문 분야" value={formatList(person.specialties)} />
-                          <Info label="언어 수준" value={person.language_level || person.jlpt || "한국어 · 일본어"} />
+                          <Info label="언어 수준" value={languageLabel} />
                           <Info
                             label="통역 경험"
-                            value={person.experience_count ? `${person.experience_count}회` : person.has_experience ? "경험 있음" : "경험 없음"}
+                            value={
+                              isAuthenticated
+                                ? person.experience_count
+                                  ? `${person.experience_count}회`
+                                  : person.has_experience
+                                    ? "경험 있음"
+                                    : "경험 없음"
+                                : "로그인 후 확인"
+                            }
+                            masked={!isAuthenticated}
                           />
                         </div>
 
@@ -448,8 +492,12 @@ function InterpreterList({ onBackClick, onDetailClick }) {
                           }}
                           className="interpreter-list-card-button"
                         >
-                          <span className="interpreter-list-button-label-desktop">상세 보기</span>
-                          <span className="interpreter-list-button-label-mobile">프로필 보기</span>
+                          <span className="interpreter-list-button-label-desktop">
+                            {isAuthenticated ? "상세 보기" : "로그인 후 확인하기"}
+                          </span>
+                          <span className="interpreter-list-button-label-mobile">
+                            {isAuthenticated ? "프로필 보기" : "로그인 후 확인"}
+                          </span>
                         </button>
                       </div>
                     );
@@ -526,11 +574,11 @@ function FilterSelect({ label, value, onChange, options, hint }) {
   );
 }
 
-function Info({ label, value }) {
+function Info({ label, value, masked = false }) {
   return (
     <div className="interpreter-list-info-row">
       <span>{label}</span>
-      <span>{value || "-"}</span>
+      <span className={masked ? "interpreter-masked-value" : undefined}>{value || "-"}</span>
     </div>
   );
 }
@@ -675,25 +723,32 @@ function getAgeNumber(value) {
   return Number.isFinite(age) ? age : null;
 }
 
-function getSearchText(person) {
-  return [
+function getSearchText(person, includeSensitive = true) {
+  const publicFields = [
+    person.level,
+    person.specialty,
+    person.specialties,
+    person.category,
+    person.interpretation_field,
+    getInterpreterStatusLabel(person),
+    getInterpreterLanguageDisplay(person),
+  ];
+
+  const sensitiveFields = [
     person.name,
     person.major,
     person.region,
     person.available_region,
     person.available_regions,
-    person.specialty,
-    person.specialties,
-    person.category,
-    person.interpretation_field,
     person.experience,
     person.experience_count,
     getExperienceLabel(person),
     person.career,
     person.intro,
     person.available_tasks,
-    person.specialties,
-  ]
+  ];
+
+  return (includeSensitive ? [...publicFields, ...sensitiveFields] : publicFields)
     .map(normalizeText)
     .join(" ");
 }
@@ -712,6 +767,10 @@ function getInterpreterStatusLabel(person) {
 
 function getLevelClass(level) {
   return getLevelBadgeClass(level);
+}
+
+function getInterpreterLanguageDisplay(person = {}) {
+  return person.language_level || person.jlpt || "한국어 · 일본어";
 }
 
 export default InterpreterList;

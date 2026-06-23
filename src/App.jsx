@@ -401,8 +401,10 @@ function App() {
 
       {page === "jobs" && (
         <JobList
+          isAuthenticated={Boolean(user)}
           onBackClick={() => navigate("home", null, null)}
           onCreateJobClick={navigateAdminJobs}
+          onLoginClick={() => navigate("login", null, null)}
           onDetailClick={(job) => navigate("jobDetail", null, job.id)}
           onApplyClick={(job) => {
             navigate("jobDetail", null, job.id);
@@ -438,8 +440,10 @@ function App() {
 
       {page === "list" && (
         <InterpreterList
+          isAuthenticated={Boolean(user)}
           onBackClick={() => navigate("home", null)}
           onRegisterClick={openInterpreterRegister}
+          onLoginClick={() => navigate("login", null, null)}
           onDetailClick={(person) => {
             navigate("detail", person);
           }}

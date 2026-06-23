@@ -3,7 +3,6 @@ import { supabase } from "../supabase";
 import {
   canApplyToJob,
   compareJobsByDisplayPriority,
-  getJobDisplayStatusOrder,
   getJobStatusLabel,
   normalizeJobStatus,
 } from "../utils/jobStatus";
@@ -49,7 +48,14 @@ function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
 
-function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick }) {
+function JobList({
+  isAuthenticated = false,
+  onBackClick,
+  onApplyClick,
+  onCreateJobClick,
+  onDetailClick,
+  onLoginClick,
+}) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -136,17 +142,14 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
       })();
 
       // Keyword Text Match
-      const searchStr = `${job.event_name || job.title || ""} ${job.location || ""} ${job.public_description || job.preference || ""}`.toLowerCase();
+      const searchStr = isAuthenticated
+        ? `${job.event_name || job.title || ""} ${job.location || ""} ${job.public_description || job.preference || ""}`.toLowerCase()
+        : `${getCityLevelLocation(job)} ${job.language || job.language_pair || ""} ${getJobSpecialty(job) || ""} ${getRequiredLevelDisplay(job)} ${getJobStatusLabel(job)}`.toLowerCase();
       const keywordMatches = !keyword || searchStr.includes(keyword);
 
       return statusMatches && regionMatches && fieldMatches && levelMatches && dateMatches && keywordMatches;
     });
-  }, [jobs, filters]);
-
-  // Reset page when filter or sort shifts
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters, sortBy]);
+  }, [jobs, filters, isAuthenticated]);
 
   // Client-side sorting logic
   const sortedJobs = useMemo(() => {
@@ -164,10 +167,21 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
   const totalPages = Math.ceil(sortedJobs.length / 9);
 
   const updateFilter = (name, value) => {
+    setCurrentPage(1);
     setFilters((current) => ({
       ...current,
       [name]: value,
     }));
+  };
+
+  const resetFilters = () => {
+    setCurrentPage(1);
+    setFilters(initialFilters);
+  };
+
+  const updateSort = (value) => {
+    setCurrentPage(1);
+    setSortBy(value);
   };
 
   return (
@@ -246,7 +260,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
 
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => updateSort(e.target.value)}
                   className="jobs-sort-select"
                 >
                   <option value="latest">최신 등록순</option>
@@ -263,7 +277,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
                 <h2 className="jobs-filter-title">통역 공고 검색 필터</h2>
                 <button
                   type="button"
-                  onClick={() => setFilters(initialFilters)}
+                  onClick={resetFilters}
                   className="jobs-reset-button"
                 >
                   필터 초기화
@@ -323,7 +337,7 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
               
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => updateSort(e.target.value)}
                 className="jobs-sort-select"
               >
                 <option value="latest">최신 등록순</option>
@@ -342,8 +356,10 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
                     <JobListCard
                       key={job.id}
                       job={job}
+                      isAuthenticated={isAuthenticated}
                       onDetailClick={() => onDetailClick(job)}
                       onApplyClick={() => onApplyClick(job)}
+                      onLoginClick={onLoginClick}
                     />
                   ))}
                 </div>
@@ -391,18 +407,40 @@ function JobList({ onBackClick, onApplyClick, onCreateJobClick, onDetailClick })
   );
 }
 
-function JobListCard({ job, onApplyClick, onDetailClick }) {
+function JobListCard({
+  job,
+  isAuthenticated = false,
+  onApplyClick,
+  onDetailClick,
+  onLoginClick,
+}) {
   const status = normalizeJobStatus(job);
   const badge = getJobStatusLabel(job);
   const canApply = canApplyToJob(job);
-  const dateLabel =
-    formatCompactJobDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-";
-  const locationLabel = job.location || job.event_location || "-";
-  const recruitmentLabel = getRecruitmentCountDisplay(job) || "-";
+  const dateLabel = isAuthenticated
+    ? formatCompactJobDateRange(job.start_date, job.end_date, job.event_date || job.date) || "-"
+    : "로그인 후 상세 일정 확인";
+  const locationLabel = isAuthenticated
+    ? job.location || job.event_location || "-"
+    : getCityLevelLocation(job);
+  const languageLabel = getJobLanguageDisplay(job);
+  const recruitmentLabel = isAuthenticated
+    ? getRecruitmentCountDisplay(job) || "-"
+    : languageLabel;
   const levelLabel = getRequiredLevelDisplay(job) || "-";
   const specialtyLabel = getJobSpecialty(job) || "-";
   const mobileSpecialtyLabel = getJobSpecialtyWithGender(job);
-  const openDetail = () => onDetailClick?.(job);
+  const titleLabel = isAuthenticated
+    ? job.event_name || job.title || "공고 제목 미입력"
+    : "로그인 후 상세 공고 확인";
+  const companyLabel = isAuthenticated ? "ON-LI 공개 공고" : "공개 범위 제한 공고";
+  const openDetail = () => {
+    if (!isAuthenticated) {
+      onLoginClick?.();
+      return;
+    }
+    onDetailClick?.(job);
+  };
   const handleKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -417,15 +455,20 @@ function JobListCard({ job, onApplyClick, onDetailClick }) {
       tabIndex={onDetailClick ? 0 : undefined}
       onClick={openDetail}
       onKeyDown={onDetailClick ? handleKeyDown : undefined}
-      aria-label={`${job.event_name || job.title || "통역 공고"} 상세 보기`}
+      aria-label={isAuthenticated ? `${titleLabel} 상세 보기` : "로그인 후 상세 공고 확인"}
     >
       <div className="home-job-card-body job-card-body">
         <div>
           <div className="home-job-card-top">
             <div className={`home-job-status ${status}`}>{badge}</div>
           </div>
-          <p className="home-job-company truncate">ON-LI 공개 공고</p>
-          <h3 className="truncate">{job.event_name || job.title || "공고 제목 미입력"}</h3>
+          <p className="home-job-company truncate">{companyLabel}</p>
+          <h3 className={isAuthenticated ? "truncate" : "truncate job-masked-value"}>
+            {titleLabel}
+          </h3>
+          {!isAuthenticated && (
+            <p className="job-login-guide">로그인 후 상세 공고를 확인할 수 있습니다.</p>
+          )}
         </div>
 
         <div className="home-job-info-list job-info-list jobs-mobile-info-list">
@@ -462,12 +505,20 @@ function JobListCard({ job, onApplyClick, onDetailClick }) {
           type="button"
           onClick={(event) => {
             event.stopPropagation();
+            if (!isAuthenticated) {
+              onLoginClick?.();
+              return;
+            }
             onApplyClick?.(job);
           }}
-          disabled={!canApply}
-          className={canApply ? "apply-btn-active job-card-actions" : "apply-btn-disabled job-card-actions"}
+          disabled={isAuthenticated && !canApply}
+          className={
+            !isAuthenticated || canApply
+              ? "apply-btn-active job-card-actions"
+              : "apply-btn-disabled job-card-actions"
+          }
         >
-          {canApply ? "지원하기" : badge}
+          {!isAuthenticated ? "로그인 후 지원하기" : canApply ? "지원하기" : badge}
         </button>
       </div>
     </article>
@@ -537,6 +588,25 @@ function getJobSpecialtyWithGender(job = {}) {
 
   if (!preferredGender || specialty.includes(preferredGender)) return specialty;
   return `${specialty} · ${preferredGender}`;
+}
+
+function getJobLanguageDisplay(job = {}) {
+  return job.language || job.language_pair || "언어 협의";
+}
+
+function getCityLevelLocation(job = {}) {
+  const source = String(job.region || job.location || job.event_location || "").trim();
+  if (!source) return "지역 확인 가능";
+
+  const matchedRegion = regionOptions
+    .filter((region) => region !== "전체" && region !== "기타")
+    .find((region) => source.toLowerCase().includes(region.toLowerCase()));
+
+  if (matchedRegion) return matchedRegion;
+
+  return source
+    .split(/[,\s·/|]+/)
+    .find(Boolean) || "지역 확인 가능";
 }
 
 export default JobList;

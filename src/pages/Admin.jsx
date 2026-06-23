@@ -181,15 +181,6 @@ const NEW_REQUEST_STATUSES = [
   "미확인",
   MATCHING_STATUS.DRAFT,
 ];
-const NEW_APPLICATION_STATUSES = [
-  "new",
-  "pending",
-  "지원접수",
-  "지원완료",
-  "미확인",
-  "승인대기",
-  "승인 대기",
-];
 const ADMIN_TAB_ALIASES = {
   requests: "all_requests",
   interpreters: "registered_interpreters",
@@ -375,7 +366,7 @@ function Admin({ onBackClick }) {
   const [savingKey, setSavingKey] = useState("");
   const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [applicationsRequestId, setApplicationsRequestId] = useState(null);
-  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [, setSelectedRequest] = useState(null);
   const [activeRequestModal, setActiveRequestModal] = useState(null);
   const [requestEditDraft, setRequestEditDraft] = useState(null);
   const [isAdminAccountModalOpen, setIsAdminAccountModalOpen] = useState(false);
@@ -656,10 +647,6 @@ function Admin({ onBackClick }) {
     ? jobsById.get(String(activeRequest.job_id)) || jobsById.get(activeRequest.job_id)
     : null;
 
-  const activeRequests = useMemo(
-    () => requests.filter((request) => !isCompletedRequest(request)),
-    [requests]
-  );
   const completedRequests = useMemo(
     () => requests.filter((request) => isCompletedRequest(request)),
     [requests]
@@ -692,10 +679,6 @@ function Admin({ onBackClick }) {
   const pendingResumeReviewInterpreters = useMemo(
     () => interpreters.filter((interpreter) => isResumeReviewPending(interpreter)),
     [interpreters]
-  );
-  const newJobApplications = useMemo(
-    () => jobApplications.filter((application) => isNewJobApplication(application)),
-    [jobApplications]
   );
   const assignmentRows = useMemo(
     () => buildAssignmentManagementRows({ assignments, jobApplications, matchings, requests, interpreters }),
@@ -5375,7 +5358,7 @@ function InterpreterCard({
   const duplicateTitle = duplicateReasons.join(", ");
   const isWithdrawn = isWithdrawnInterpreter(interpreter);
 
-  const handleDownloadFile = async (filePath, fileName) => {
+  const handleDownloadFile = async (filePath) => {
     if (!supabase || !filePath) return;
     try {
       let resolvedPath = filePath;
@@ -5577,7 +5560,7 @@ function InterpreterModal({
 }) {
   if (!interpreter || !modalType) return null;
 
-  const handleDownloadFile = async (filePath, fileName) => {
+  const handleDownloadFile = async (filePath) => {
     if (!supabase || !filePath) return;
     try {
       let resolvedPath = filePath;
@@ -6348,17 +6331,6 @@ function InterpreterDocumentLink({ fallbackLabel, fileName, onClick }) {
         보기
       </button>
     </div>
-  );
-}
-
-function ModalInfoSection({ children, title, twoColumn = false }) {
-  return (
-    <section className="admin-info-block">
-      <h3>{title}</h3>
-      <dl className={`admin-info-section${twoColumn ? " two-column" : ""}`}>
-        {children}
-      </dl>
-    </section>
   );
 }
 
@@ -8747,62 +8719,6 @@ function buildOperationDashboard(
   return { todayItems, urgentItems };
 }
 
-function getScheduleConflictRequestIds(requests = [], assignmentsByRequest = new Map()) {
-  const conflictIds = new Set();
-
-  requests.forEach((request, index) => {
-    const requestInterpreterIds = getRequestAssignedInterpreterIds(
-      request,
-      assignmentsByRequest.get(request.id) || []
-    );
-    if (requestInterpreterIds.length === 0) return;
-
-    requests.slice(index + 1).forEach((otherRequest) => {
-      if (!doRequestDatesOverlap(request, otherRequest)) return;
-
-      const otherInterpreterIds = getRequestAssignedInterpreterIds(
-        otherRequest,
-        assignmentsByRequest.get(otherRequest.id) || []
-      );
-      const hasSharedInterpreter = requestInterpreterIds.some((id) =>
-        otherInterpreterIds.includes(id)
-      );
-      if (!hasSharedInterpreter) return;
-
-      conflictIds.add(String(request.id));
-      conflictIds.add(String(otherRequest.id));
-    });
-  });
-
-  return conflictIds;
-}
-
-function getRequestAssignedInterpreterIds(request = {}, assignments = []) {
-  const ids = assignments
-    .map((assignment) => assignment.interpreter_id)
-    .filter(Boolean)
-    .map(String);
-
-  [
-    request.assigned_interpreter_id,
-    request.matched_interpreter_id,
-    request.interpreter_id,
-  ].forEach((id) => {
-    if (id) ids.push(String(id));
-  });
-
-  return [...new Set(ids)];
-}
-
-function doRequestDatesOverlap(a = {}, b = {}) {
-  const aStart = a.start_date || a.event_date;
-  const aEnd = a.end_date || a.event_date || aStart;
-  const bStart = b.start_date || b.event_date;
-  const bEnd = b.end_date || b.event_date || bStart;
-  if (!aStart || !aEnd || !bStart || !bEnd) return false;
-  return aStart <= bEnd && bStart <= aEnd;
-}
-
 function getAssignedInterpreterName(request = {}, assignments = [], interpreters = []) {
   if (assignments.length > 0) {
     return assignments
@@ -9588,10 +9504,6 @@ function upsertById(items, nextItem) {
   return [nextItem, ...items];
 }
 
-function formatKRW(value) {
-  return `₩${Number(value || 0).toLocaleString()}`;
-}
-
 function formatJPY(value) {
   return `¥${Number(value || 0).toLocaleString()}`;
 }
@@ -9762,18 +9674,6 @@ function isNewRequest(request = {}) {
   ].map((status) => String(status || "").trim().toLowerCase());
 
   return statusValues.some((status) => NEW_REQUEST_STATUSES.includes(status));
-}
-
-function isNewJobApplication(application = {}) {
-  const hasAdminChecked = Object.prototype.hasOwnProperty.call(application, "admin_checked");
-  const hasCheckedAt = Object.prototype.hasOwnProperty.call(application, "checked_at");
-
-  if (hasAdminChecked || hasCheckedAt) {
-    return application.admin_checked === false || (hasCheckedAt && !application.checked_at);
-  }
-
-  const status = String(application.status || "").trim().toLowerCase();
-  return NEW_APPLICATION_STATUSES.includes(status);
 }
 
 function doesRequestMatchManagementStatusFilter(request = {}, filter = "all") {
