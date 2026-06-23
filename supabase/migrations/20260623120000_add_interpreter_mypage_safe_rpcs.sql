@@ -36,7 +36,7 @@ as $$
     coalesce(j.job_no, r.request_no) as public_job_code,
     coalesce(j.title, r.event_name, '통역 공고') as title,
     coalesce(j.event_name, r.event_name, j.title) as event_name,
-    coalesce(j.date, r.date) as work_date,
+    coalesce(j.date, r.event_date::text) as work_date,
     coalesce(
       j.start_date,
       r.start_date,
@@ -50,7 +50,7 @@ as $$
       case when r.event_date::text ~ '^\d{4}-\d{2}-\d{2}' then left(r.event_date::text, 10)::date end
     ) as end_date,
     coalesce(j.event_location, j.location, r.event_location) as location,
-    coalesce(j.language, r.language) as language_pair,
+    j.language as language_pair,
     coalesce(j.requested_level, j.level, r.requested_level) as level_required,
     coalesce(j.field, r.interpretation_field) as field,
     coalesce(j.people_count, r.requested_people_count, r.required_count) as number_of_interpreters
@@ -105,7 +105,7 @@ as $$
     coalesce(j.job_no, r.request_no) as public_job_code,
     coalesce(j.title, r.event_name, '배정된 통역') as title,
     coalesce(j.event_name, r.event_name, j.title) as event_name,
-    coalesce(j.date, r.date) as work_date,
+    coalesce(j.date, r.event_date::text) as work_date,
     coalesce(
       m.start_date,
       j.start_date,
@@ -121,7 +121,7 @@ as $$
       case when r.event_date::text ~ '^\d{4}-\d{2}-\d{2}' then left(r.event_date::text, 10)::date end
     ) as end_date,
     coalesce(j.event_location, j.location, r.event_location) as location,
-    coalesce(j.language, r.language) as language_pair,
+    j.language as language_pair,
     coalesce(j.requested_level, j.level, r.requested_level) as level_required,
     coalesce(j.field, r.interpretation_field) as field,
     coalesce(j.people_count, r.requested_people_count, r.required_count) as number_of_interpreters
@@ -151,7 +151,7 @@ as $$
     coalesce(j.job_no, r.request_no) as public_job_code,
     coalesce(j.title, r.event_name, '배정된 통역') as title,
     coalesce(j.event_name, r.event_name, j.title) as event_name,
-    coalesce(j.date, r.date) as work_date,
+    coalesce(j.date, r.event_date::text) as work_date,
     coalesce(
       j.start_date,
       r.start_date,
@@ -165,7 +165,7 @@ as $$
       case when r.event_date::text ~ '^\d{4}-\d{2}-\d{2}' then left(r.event_date::text, 10)::date end
     ) as end_date,
     coalesce(j.event_location, j.location, r.event_location) as location,
-    coalesce(j.language, r.language) as language_pair,
+    j.language as language_pair,
     coalesce(j.requested_level, j.level, r.requested_level) as level_required,
     coalesce(j.field, r.interpretation_field) as field,
     coalesce(j.people_count, r.requested_people_count, r.required_count) as number_of_interpreters
@@ -189,3 +189,5 @@ revoke all on function public.get_my_job_applications() from public;
 revoke all on function public.get_my_assignments() from public;
 grant execute on function public.get_my_job_applications() to authenticated;
 grant execute on function public.get_my_assignments() to authenticated;
+
+notify pgrst, 'reload schema';

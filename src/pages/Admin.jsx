@@ -61,6 +61,7 @@ import {
   OPERATION_STATUS_OPTIONS,
   SETTLEMENT_FLOW_STATUS,
   SETTLEMENT_FLOW_STATUS_OPTIONS,
+  getAssignmentStatusLabel,
   getAssignmentStatusBadgeClass,
   getOperationStatusBadgeClass,
   getSettlementFlowStatusBadgeClass,
