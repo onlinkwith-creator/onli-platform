@@ -138,7 +138,7 @@ function InfoMetricGrid({ profile }) {
     },
     {
       icon: Languages,
-      label: "언어 수준",
+      label: "가능 언어",
       value: profile.languageLevel,
     },
     {

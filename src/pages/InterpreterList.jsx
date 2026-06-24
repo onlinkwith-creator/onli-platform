@@ -400,7 +400,7 @@ function InterpreterList({
                                 {getInterpreterStatusLabel(person)}
                               </span>
                               <span className={`interpreter-list-mobile-verification ${person.approved ? "verified" : "regular"}`}>
-                                {person.approved ? "검증됨" : "일반 등록"}
+                                {person.approved ? "ON-LI 인증 통역사" : "일반 등록"}
                               </span>
                             </div>
                           </div>
@@ -432,7 +432,7 @@ function InterpreterList({
                           />
                           <MobileInfoRow
                             icon={Languages}
-                            label="언어수준"
+                            label="가능 언어"
                             value={languageLabel}
                           />
                           {isAuthenticated && experienceCount > 0 && (
@@ -445,10 +445,10 @@ function InterpreterList({
 
                         <div className="interpreter-list-info-section">
                           <Info
-                            label="검증 상태"
+                            label="인증 상태"
                             value={
                               person.approved ? (
-                                <span className="interpreter-verification-badge verified">✔ 검증 완료</span>
+                                <span className="interpreter-verification-badge verified">⭐ ON-LI 인증 통역사</span>
                               ) : (
                                 <span className="interpreter-verification-badge regular">○ 일반 등록</span>
                               )
@@ -464,7 +464,7 @@ function InterpreterList({
                             value={isAuthenticated ? formatList(person.specialties) : "로그인 후 확인"}
                             masked={!isAuthenticated}
                           />
-                          <Info label="언어 수준" value={languageLabel} />
+                          <Info label="가능 언어" value={languageLabel} />
                           <Info
                             label="통역 경험"
                             value={

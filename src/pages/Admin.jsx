@@ -5852,7 +5852,7 @@ function InterpreterModal({
               </InterpreterDetailSection>
 
               <InterpreterDetailSection icon={Languages} title="활동 정보">
-                <InterpreterDetailItem label="언어 수준" value={interpreter.language_level || interpreter.level} />
+                <InterpreterDetailItem label="가능 언어" value={interpreter.language_level || interpreter.level} />
                 <InterpreterDetailItem label="JLPT 여부" value={interpreter.jlpt} />
                 <InterpreterDetailItem label="통역 경험" value={getExperienceLabel(interpreter)} />
                 <InterpreterDetailItem
@@ -6762,6 +6762,10 @@ function AssignmentManagement({
     search: "",
     status: "all",
   });
+  const [collapsedSections, setCollapsedSections] = useState({
+    allAssignments: false,
+    pendingRequests: false,
+  });
   const filteredRows = useMemo(
     () =>
       rows.filter((row) =>
@@ -6778,6 +6782,12 @@ function AssignmentManagement({
   );
   const updateFilter = (name, value) => {
     setFilters((current) => ({ ...current, [name]: value }));
+  };
+  const toggleSection = (sectionId) => {
+    setCollapsedSections((current) => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
   };
   const totalCount = rows.length + pendingRequests.length;
 
@@ -6807,99 +6817,114 @@ function AssignmentManagement({
       </div>
 
       <div className="admin-subsection">
-        <SectionTitle count={`${filteredRows.length}건`} title="전체 배정" />
-        {filteredRows.length === 0 ? (
-          <MessageBox text="검색 조건에 맞는 배정 의뢰가 없습니다." />
-        ) : (
-          <div className="admin-management-card-grid">
-            {filteredRows.map((row) => (
-              <article className="admin-list-card" key={row.rowId}>
-                <div className="admin-list-card-head">
-                  <div>
-                    <span className="admin-card-meta">배정</span>
-                    <ManagementNumberBadge value={row.assignmentNo} />
-                    <h3>{row.interpreterName || "-"}</h3>
+        <SectionTitle
+          collapsible
+          collapsed={collapsedSections.allAssignments}
+          count={`${filteredRows.length}건`}
+          title="전체 배정"
+          onToggle={() => toggleSection("allAssignments")}
+        />
+        {!collapsedSections.allAssignments &&
+          (filteredRows.length === 0 ? (
+            <MessageBox text="검색 조건에 맞는 배정 의뢰가 없습니다." />
+          ) : (
+            <div className="admin-management-card-grid">
+              {filteredRows.map((row) => (
+                <article className="admin-list-card" key={row.rowId}>
+                  <div className="admin-list-card-head">
+                    <div>
+                      <span className="admin-card-meta">배정</span>
+                      <ManagementNumberBadge value={row.assignmentNo} />
+                      <h3>{row.interpreterName || "-"}</h3>
+                    </div>
+                    <StatusBadge status={row.assignmentStatusLabel} />
                   </div>
-                  <StatusBadge status={row.assignmentStatusLabel} />
-                </div>
-                <dl className="admin-card-summary">
-                  <Info label="배정번호" value={formatManagementNumber(row.assignmentNo)} />
-                  <Info label="의뢰번호" value={formatManagementNumber(row.requestNo)} />
-                  <Info label="지원번호" value={formatManagementNumber(row.applicationNo)} />
-                  <Info label="통역사명" value={row.interpreterName || "-"} />
-                  <Info label="행사명" value={row.eventName || "-"} />
-                  <Info label="일정" value={row.dateLabel || "-"} />
-                  <Info label="장소" value={row.location || "-"} />
-                  <Info label="배정 상태" value={row.assignmentStatusLabel} />
-                  <Info label="정산 상태" value={row.settlementStatusLabel} />
-                </dl>
-                {row.request && (
-                  <div className="admin-card-actions">
-                    <button
-                      type="button"
-                      className="admin-link-button primary"
-                      onClick={() => onOpenRequest(row.request)}
-                    >
-                      상세보기
-                    </button>
-                  </div>
-                )}
-                <AdminOperationsPanel
-                  activityLogs={adminActivityLogs}
-                  compactModal
-                  notes={adminNotes}
-                  noteDrafts={noteDrafts}
-                  targetId={row.assignment?.id || row.rowId}
-                  targetType="assignment"
-                  onChangeNoteDraft={onChangeNoteDraft}
-                  onCreateNote={onCreateNote}
-                />
-              </article>
-            ))}
-          </div>
-        )}
+                  <dl className="admin-card-summary">
+                    <Info label="배정번호" value={formatManagementNumber(row.assignmentNo)} />
+                    <Info label="의뢰번호" value={formatManagementNumber(row.requestNo)} />
+                    <Info label="지원번호" value={formatManagementNumber(row.applicationNo)} />
+                    <Info label="통역사명" value={row.interpreterName || "-"} />
+                    <Info label="행사명" value={row.eventName || "-"} />
+                    <Info label="일정" value={row.dateLabel || "-"} />
+                    <Info label="장소" value={row.location || "-"} />
+                    <Info label="배정 상태" value={row.assignmentStatusLabel} />
+                    <Info label="정산 상태" value={row.settlementStatusLabel} />
+                  </dl>
+                  {row.request && (
+                    <div className="admin-card-actions">
+                      <button
+                        type="button"
+                        className="admin-link-button primary"
+                        onClick={() => onOpenRequest(row.request)}
+                      >
+                        상세보기
+                      </button>
+                    </div>
+                  )}
+                  <AdminOperationsPanel
+                    activityLogs={adminActivityLogs}
+                    compactModal
+                    notes={adminNotes}
+                    noteDrafts={noteDrafts}
+                    targetId={row.assignment?.id || row.rowId}
+                    targetType="assignment"
+                    onChangeNoteDraft={onChangeNoteDraft}
+                    onCreateNote={onCreateNote}
+                  />
+                </article>
+              ))}
+            </div>
+          ))}
       </div>
 
       {filteredPendingRequests.length > 0 && (
         <div className="admin-subsection">
-          <SectionTitle count={`${filteredPendingRequests.length}건`} title="배정 대기 상태 의뢰" />
-          <div className="admin-management-card-grid">
-            {filteredPendingRequests.map((request) => (
-              <article className="admin-list-card" key={`pending-assignment-${request.id}`}>
-                <div className="admin-list-card-head">
-                  <div>
-                    <span className="admin-card-meta">배정 대기</span>
-                    <ManagementNumberBadge value={request.request_no} />
-                    <h3>{request.event_name || request.title || "-"}</h3>
+          <SectionTitle
+            collapsible
+            collapsed={collapsedSections.pendingRequests}
+            count={`${filteredPendingRequests.length}건`}
+            title="배정 대기 상태 의뢰"
+            onToggle={() => toggleSection("pendingRequests")}
+          />
+          {!collapsedSections.pendingRequests && (
+            <div className="admin-management-card-grid">
+              {filteredPendingRequests.map((request) => (
+                <article className="admin-list-card" key={`pending-assignment-${request.id}`}>
+                  <div className="admin-list-card-head">
+                    <div>
+                      <span className="admin-card-meta">배정 대기</span>
+                      <ManagementNumberBadge value={request.request_no} />
+                      <h3>{request.event_name || request.title || "-"}</h3>
+                    </div>
+                    <StatusBadge status={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
                   </div>
-                  <StatusBadge status={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
-                </div>
-                <dl className="admin-card-summary">
-                  <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
-                  <Info label="기업명" value={request.company_name || "-"} />
-                  <Info
-                    label="일정"
-                    value={formatDateRange(
-                      request.start_date,
-                      request.end_date,
-                      request.event_date || request.date
-                    )}
-                  />
-                  <Info label="장소" value={request.event_location || request.location || "-"} />
-                  <Info label="배정 상태" value={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
-                </dl>
-                <div className="admin-card-actions">
-                  <button
-                    type="button"
-                    className="admin-link-button primary"
-                    onClick={() => onOpenRequest(request)}
-                  >
-                    상세보기
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
+                  <dl className="admin-card-summary">
+                    <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+                    <Info label="기업명" value={request.company_name || "-"} />
+                    <Info
+                      label="일정"
+                      value={formatDateRange(
+                        request.start_date,
+                        request.end_date,
+                        request.event_date || request.date
+                      )}
+                    />
+                    <Info label="장소" value={request.event_location || request.location || "-"} />
+                    <Info label="배정 상태" value={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
+                  </dl>
+                  <div className="admin-card-actions">
+                    <button
+                      type="button"
+                      className="admin-link-button primary"
+                      onClick={() => onOpenRequest(request)}
+                    >
+                      상세보기
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -7723,16 +7748,38 @@ function MetricCard({ label, value, description, icon: Icon, tone = "purple", on
   );
 }
 
-function SectionTitle({ count, title }) {
-  return (
-    <div className="admin-section-title">
+function SectionTitle({ collapsible = false, collapsed = false, count, title, onToggle }) {
+  const content = (
+    <>
       <div>
         <p className="admin-kicker">MANAGE</p>
         <h2>{title}</h2>
       </div>
-      <span className="admin-count">{count}</span>
-    </div>
+      <span className="admin-count">
+        {count}
+        {collapsible && (
+          <span className="admin-section-toggle-icon" aria-hidden="true">
+            {collapsed ? "▼" : "▲"}
+          </span>
+        )}
+      </span>
+    </>
   );
+
+  if (collapsible) {
+    return (
+      <button
+        type="button"
+        className="admin-section-title admin-section-title-button"
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className="admin-section-title">{content}</div>;
 }
 
 function InlineSelect({ options, value, onChange, disabled = false }) {

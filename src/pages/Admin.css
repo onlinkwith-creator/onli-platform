@@ -726,6 +726,17 @@
   margin-bottom: 10px;
 }
 
+.admin-section-title-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .admin-section-title h2 {
   margin: 0;
   color: #111827;
@@ -734,6 +745,9 @@
 }
 
 .admin-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 10px;
   border-radius: 999px;
   background: #ffffff;
@@ -741,6 +755,11 @@
   font-size: 13px;
   font-weight: 900;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.admin-section-toggle-icon {
+  font-size: 11px;
+  line-height: 1;
 }
 
 .admin-request-list {
