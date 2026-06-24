@@ -4,6 +4,7 @@ import { supabase, supabaseConfigError } from "../supabase";
 // 관리자 이메일 하드코딩 (DB 장애/누락 시 최종 백업)
 export const ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
+  "onlinkcp@gmail.com",
 ];
 
 export function normalizeEmail(value) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState } from "react";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import InterpreterList from "./pages/InterpreterList";
@@ -22,6 +22,37 @@ import { isPublicInterpreterVisible } from "./utils/accountStatus";
 const POLICY_PATH_TO_KEY = Object.fromEntries(
   Object.entries(POLICY_PAGES).map(([key, policy]) => [policy.path, key])
 );
+
+class AdminErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Admin render failed:", error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <RouteMessage
+          title="관리자 화면을 불러오지 못했습니다."
+          description="일시적인 화면 오류가 발생했습니다. 새로고침 후에도 반복되면 브라우저 콘솔 오류를 확인해주세요."
+          primaryText="새로고침"
+          onPrimaryClick={() => window.location.reload()}
+          onHomeClick={this.props.onHomeClick}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function getInitialPage() {
   const path = window.location.pathname;
@@ -389,7 +420,9 @@ function App() {
       )}
 
       {page === "admin" && !authLoading && user && isAdmin && (
-        <Admin onBackClick={() => navigate("home", null)} />
+        <AdminErrorBoundary onHomeClick={() => navigate("home", null, null)}>
+          <Admin onBackClick={() => navigate("home", null)} />
+        </AdminErrorBoundary>
       )}
 
       {page === "policy" && selectedPolicyKey && (
