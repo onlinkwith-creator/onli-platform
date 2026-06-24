@@ -5351,9 +5351,9 @@ function InterpreterManagement({
             setFilters((current) => ({ ...current, approved: event.target.value }))
           }
         >
-          <option value="all">전체 뱃지</option>
-          <option value="false">뱃지 미노출</option>
-          <option value="true">검증 완료</option>
+          <option value="all">전체 인증</option>
+          <option value="false">일반 등록</option>
+          <option value="true">ON-LI 인증 완료</option>
         </select>
         <select
           value={filters.resumeReview}
@@ -5446,7 +5446,7 @@ function InterpreterCard({
         <div className="admin-card-chip-row">
           {interpreter.approved && (
             <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              ✨ 검증 완료
+              ⭐ ON-LI 인증 완료
             </span>
           )}
           {isResumeReviewPending(interpreter) && (
@@ -5478,7 +5478,7 @@ function InterpreterCard({
           label="이력서 제출"
           value={
             interpreter.approved ? (
-              <span style={{ color: "#15803d", fontWeight: "bold" }}>✨ 검증 완료</span>
+              <span style={{ color: "#15803d", fontWeight: "bold" }}>⭐ ON-LI 인증 완료</span>
             ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 <span style={{ color: "#a16207", fontWeight: "bold" }}>
@@ -5847,7 +5847,7 @@ function InterpreterModal({
                     )
                   }
                 />
-                <InterpreterDetailItem label="검증된 통역사 뱃지" value={interpreter.approved ? "검증 완료" : "미검증"} />
+                <InterpreterDetailItem label="ON-LI 인증 상태" value={interpreter.approved ? "ON-LI 인증 완료" : "일반 등록"} />
                 <InterpreterDetailItem label="공개 활동 상태" value={activityLabel} />
               </InterpreterDetailSection>
 
@@ -5952,7 +5952,7 @@ function InterpreterModal({
                 paddingBottom: "12px"
               }}>
                 <CheckCircle2 size={20} color="#aa3bff" aria-hidden="true" />
-                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "600", color: "var(--text-h)" }}>검증 통역사 뱃지 및 이력서 관리</h3>
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "600", color: "var(--text-h)" }}>ON-LI 인증 통역사 관리</h3>
               </div>
               
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -6007,15 +6007,11 @@ function InterpreterModal({
                       <span style={{ fontSize: "0.85rem", color: "var(--text)", display: "block", marginBottom: "4px" }}>현재 상태</span>
                       {interpreter.approved ? (
                         <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
-                          ✨ 검증 완료
-                        </span>
-                      ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
-                        <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
-                          ⏳ 심사 대기중
+                          ⭐ ON-LI 인증 완료
                         </span>
                       ) : (
                         <span className="status-badge unsubmitted" style={{ background: '#f3f4f6', color: '#6b7280', border: '1px solid #e5e7eb', padding: "6px 12px", borderRadius: "20px", display: "inline-block" }}>
-                          미제출
+                          ○ 일반 등록
                         </span>
                       )}
                     </div>
@@ -6033,17 +6029,23 @@ function InterpreterModal({
                   marginTop: "8px"
                 }}>
                   <div style={{ flex: 1, paddingRight: "16px" }}>
-                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-h)", fontWeight: "600" }}>검증 통역사 권한 제어</p>
+                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-h)", fontWeight: "600" }}>ON-LI 인증 권한 제어</p>
                     <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: "var(--text)" }}>
-                      승인 시 해당 통역사의 프로필에 <strong>✨ ON-LI 검증 통역사</strong> 뱃지가 노출되며 신뢰도를 높여줍니다.
+                      ON-LI에서 5회 이상 통역 업무를 수행하고 운영자가 신뢰도를 확인한 통역사에게 인증 뱃지를 부여합니다.
                     </p>
+                    <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
+                      <strong style={{ color: "var(--text-h)" }}>인증 기준:</strong>
+                      <div>✓ ON-LI 업무 수행 5회 이상</div>
+                      <div>✓ 관리자 활동 이력 확인 완료</div>
+                      <div>✓ 신뢰도 확인 완료</div>
+                    </div>
                   </div>
                   <div>
                     {interpreter.approved ? (
                       <button
                         type="button"
                         onClick={async () => {
-                          if (window.confirm("이 통역사의 검증 완료 뱃지를 취소하시겠습니까?")) {
+                          if (window.confirm("이 통역사의 ON-LI 인증을 해제하시겠습니까?")) {
                             await updateInterpreter(interpreter.id, { approved: false }, { showSuccess: true });
                           }
                         }}
@@ -6059,13 +6061,13 @@ function InterpreterModal({
                           transition: "all 0.2s"
                         }}
                       >
-                        검증 배지 회수하기
+                        ON-LI 인증 해제하기
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={async () => {
-                          if (window.confirm("이 통역사의 이력서를 승인하고 검증 완료 뱃지를 부여하시겠습니까?")) {
+                          if (window.confirm("이 통역사에게 ON-LI 인증을 부여하시겠습니까?")) {
                             await updateInterpreter(interpreter.id, { approved: true }, { showSuccess: true });
                           }
                         }}
@@ -6081,7 +6083,7 @@ function InterpreterModal({
                           transition: "all 0.2s"
                         }}
                       >
-                        검증 배지 승인하기
+                        ON-LI 인증 부여하기
                       </button>
                     )}
                   </div>
@@ -6290,11 +6292,11 @@ function InterpreterModal({
                   onChange={(value) => onChangeDraft("status", value)}
                 />
               </FieldControl>
-              <FieldControl label="검증된 통역사 뱃지">
+              <FieldControl label="ON-LI 인증 통역사">
                 <InlineSelect
                   options={[
-                    { label: "일반 통역사 (뱃지 미노출)", value: "false" },
-                    { label: "검증 완료 (뱃지 노출)", value: "true" },
+                    { label: "일반 등록", value: "false" },
+                    { label: "ON-LI 인증 완료", value: "true" },
                   ]}
                   value={draft?.approved || "false"}
                   onChange={(value) => onChangeDraft("approved", value)}

@@ -89,7 +89,7 @@ const processSteps = [
 const matchingMethodCards = [
   {
     number: "01",
-    title: "검증된 통역사",
+    title: "ON-LI 인증 통역사",
     text: "이력서와 통역 경험 정보를 기반으로 통역사를 검토합니다.",
   },
   {

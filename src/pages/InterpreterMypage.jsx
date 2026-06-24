@@ -1723,7 +1723,7 @@ function InterpreterMypage({
                   <article className="mypage-verification-card animate-fade-in">
                     <h3>통역사 검증 & 배지 신청</h3>
                     <p className="verification-status-desc resume-required-note">
-                      통역 공고 지원을 위해 이력서 등록은 필수입니다. ON-LI 운영팀 검토 후 검증 완료 배지가 표시될 수 있습니다.
+                      통역 공고 지원을 위해 이력서 등록은 필수입니다. ON-LI 운영팀 검토 후 ON-LI 인증 배지가 표시될 수 있습니다.
                     </p>
                     <input
                       ref={resumeActionInputRef}
@@ -1735,12 +1735,12 @@ function InterpreterMypage({
                     
                     {isVerifiedWithResume ? (
                       <div className="verification-status-box verified">
-                        <span className="verification-status-badge verified">✨ 검증 완료</span>
+                        <span className="verification-status-badge verified">⭐ ON-LI 인증 완료</span>
                         <div className="verification-status-details">
-                          <h4 className="verification-status-title">ON-LI 공식 검증 통역사</h4>
+                          <h4 className="verification-status-title">ON-LI 인증 통역사</h4>
                           <p className="verification-status-desc">
                             귀하는 ON-LI 공식 인증을 받은 신뢰할 수 있는 통역사입니다. 
-                            프로필에 검증 완료 배지가 표시되며 공고 추천 및 매칭에서 우선 순위를 얻게 됩니다.
+                            프로필에 ON-LI 인증 배지가 표시되며 공고 추천 및 매칭에서 우선 순위를 얻게 됩니다.
                           </p>
                           <ResumeFileActions
                             fileName={resumeFileName}
@@ -1756,7 +1756,7 @@ function InterpreterMypage({
                       </div>
                     ) : hasResume ? (
                       <div className="verification-status-box pending">
-                        <span className="verification-status-badge pending">⏳ 검증 대기</span>
+                        <span className="verification-status-badge pending">○ 일반 등록</span>
                         <div className="verification-status-details">
                           <h4 className="verification-status-title">이력서 검토 중</h4>
                           <p className="verification-status-desc">

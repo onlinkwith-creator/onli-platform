@@ -9,6 +9,7 @@ export const PUBLIC_INTERPRETER_SELECT = [
   "experience_count",
   "is_public",
   "status",
+  "approved",
 ].join(", ");
 
 const FALLBACK_TEXT = "정보 확인 중";

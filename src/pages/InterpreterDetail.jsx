@@ -74,8 +74,8 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
         {interpreter.approved && (
           <div className="profile-verified-kicker">
             <BadgeCheck size={17} aria-hidden="true" />
-            <span>검증된 통역사</span>
-            <em>VERIFIED INTERPRETER</em>
+            <span>⭐ ON-LI 인증 통역사</span>
+            <em>ON-LI CERTIFIED</em>
           </div>
         )}
 
@@ -98,7 +98,7 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
           {interpreter.approved ? (
             <>
               <ShieldCheck size={30} aria-hidden="true" />
-              <span>VERIFIED</span>
+              <span>ON-LI 인증</span>
             </>
           ) : (
             <>
@@ -237,7 +237,7 @@ function ProfileCTA({ interpreter, name, onBackClick, onRequestClick }) {
   return (
     <section className="profile-bottom-cta" aria-label="프로필 하단 액션">
       <div>
-        <span>{interpreter.approved ? "ON-LI Verified Interpreter" : "ON-LI Interpreter"}</span>
+        <span>{interpreter.approved ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}</span>
         <strong>{name} 통역사와 의뢰를 시작해보세요.</strong>
         <p className="profile-designated-note">
           선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.

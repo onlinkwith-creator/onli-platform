@@ -663,7 +663,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
                 {statusLabel}
               </span>
               <span className={`registration-badge ${isApprovedInterpreter(interpreter) ? "verified verified-badge" : "regular"} home-interpreter-registration-badge`}>
-                {isApprovedInterpreter(interpreter) ? "ON-LI 인증 통역사" : "일반 등록"}
+                {isApprovedInterpreter(interpreter) ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
               </span>
             </div>
           </div>

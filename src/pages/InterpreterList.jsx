@@ -207,11 +207,11 @@ function InterpreterList({
             <span className="interpreter-list-hero-label">검증된 전문가와 함께하세요</span>
             <h1 className="interpreter-list-hero-title">등록 통역사</h1>
             <p className="interpreter-list-hero-subtitle">
-              전문성과 경험을 갖춘 검증된 통역사들을 확인하고,<br />
+              전문성과 경험을 갖춘 ON-LI 인증 통역사를 확인하고,<br />
               귀사의 비즈니스에 최적의 파트너를 찾아보세요.
             </p>
             <p className="interpreter-list-hero-mobile-subtitle">
-              검증된 통역사를 조건에 맞게 찾아보세요.
+              인증 여부와 조건에 맞는 통역사를 찾아보세요.
             </p>
           </div>
           <div className="interpreter-list-hero-illustration interpreter-hero-visual">
@@ -400,7 +400,7 @@ function InterpreterList({
                                 {getInterpreterStatusLabel(person)}
                               </span>
                               <span className={`interpreter-list-mobile-verification ${person.approved ? "verified" : "regular"}`}>
-                                {person.approved ? "ON-LI 인증 통역사" : "일반 등록"}
+                                {person.approved ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
                               </span>
                             </div>
                           </div>
@@ -450,7 +450,7 @@ function InterpreterList({
                               person.approved ? (
                                 <span className="interpreter-verification-badge verified">⭐ ON-LI 인증 통역사</span>
                               ) : (
-                                <span className="interpreter-verification-badge regular">○ 일반 등록</span>
+                                <span className="interpreter-verification-badge regular">○ 등록 통역사</span>
                               )
                             }
                           />
