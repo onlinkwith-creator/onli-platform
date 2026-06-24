@@ -14,7 +14,7 @@ select
   experience_count,
   is_public,
   status,
-  approved
+  approved as verified
 from public.interpreters
 where coalesce(is_public, false) = true
   and withdrawn_at is null

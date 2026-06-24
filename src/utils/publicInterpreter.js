@@ -9,8 +9,29 @@ export const PUBLIC_INTERPRETER_SELECT = [
   "experience_count",
   "is_public",
   "status",
-  "approved",
+  "verified",
 ].join(", ");
+
+export const PUBLIC_INTERPRETER_SELECT_FALLBACK = [
+  "id",
+  "name",
+  "region",
+  "level",
+  "short_intro",
+  "specialties",
+  "available_regions",
+  "experience_count",
+  "is_public",
+  "status",
+].join(", ");
+
+export function isMissingColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column|schema cache/i.test(error?.message || "")
+  );
+}
 
 const FALLBACK_TEXT = "정보 확인 중";
 

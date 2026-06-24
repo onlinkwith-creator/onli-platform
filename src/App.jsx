@@ -16,7 +16,11 @@ import ResetPassword from "./pages/ResetPassword";
 import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
 import { useAuth } from "./hooks/useAuth";
 import { supabase } from "./supabase";
-import { PUBLIC_INTERPRETER_SELECT } from "./utils/publicInterpreter";
+import {
+  PUBLIC_INTERPRETER_SELECT,
+  PUBLIC_INTERPRETER_SELECT_FALLBACK,
+  isMissingColumnError,
+} from "./utils/publicInterpreter";
 import { isPublicInterpreterVisible } from "./utils/accountStatus";
 
 const POLICY_PATH_TO_KEY = Object.fromEntries(
@@ -239,11 +243,24 @@ function App() {
         return;
       }
 
-      const { data, error } = await supabase
+      let selectString = PUBLIC_INTERPRETER_SELECT;
+      let { data, error } = await supabase
         .from("public_interpreters")
-        .select(PUBLIC_INTERPRETER_SELECT)
+        .select(selectString)
         .eq("id", selectedInterpreterId)
         .single();
+
+      if (error && isMissingColumnError(error)) {
+        console.warn("Retrying public_interpreters query without verified column...");
+        selectString = PUBLIC_INTERPRETER_SELECT_FALLBACK;
+        const fallbackResult = await supabase
+          .from("public_interpreters")
+          .select(selectString)
+          .eq("id", selectedInterpreterId)
+          .single();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) {
         console.error(error);

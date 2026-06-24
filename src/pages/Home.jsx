@@ -10,6 +10,8 @@ import { getLevelBadgeClass, getLevelBadgeStyle, normalizeLevel } from "../utils
 import {
   getPrimaryPublicInterpreterInfo,
   PUBLIC_INTERPRETER_SELECT,
+  PUBLIC_INTERPRETER_SELECT_FALLBACK,
+  isMissingColumnError,
 } from "../utils/publicInterpreter";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import { sortJobsByDisplayPriority } from "../utils/jobStatus";
@@ -37,8 +39,8 @@ function getSupabaseErrorMessage(error, fallback) {
 }
 
 function isApprovedInterpreter(interpreter = {}) {
-  const approved = interpreter.approved;
-  return approved === true || approved === 1 || String(approved).toLowerCase() === "true";
+  const verified = interpreter.verified ?? interpreter.approved;
+  return verified === true || verified === 1 || String(verified).toLowerCase() === "true";
 }
 
 function Home({
@@ -82,9 +84,20 @@ function Home({
     try {
       if (!supabase) throw supabaseConfigError;
 
-      const { data, error } = await supabase
+      let selectString = PUBLIC_INTERPRETER_SELECT;
+      let { data, error } = await supabase
         .from("public_interpreters")
-        .select(PUBLIC_INTERPRETER_SELECT);
+        .select(selectString);
+
+      if (error && isMissingColumnError(error)) {
+        console.warn("Retrying public_interpreters query without verified column...");
+        selectString = PUBLIC_INTERPRETER_SELECT_FALLBACK;
+        const fallbackResult = await supabase
+          .from("public_interpreters")
+          .select(selectString);
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) {
         console.error("Interpreters fetch error:", {

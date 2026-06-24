@@ -7,7 +7,11 @@ import {
 } from "../utils/status";
 import { Briefcase, Languages, MapPin, Star } from "lucide-react";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
-import { PUBLIC_INTERPRETER_SELECT } from "../utils/publicInterpreter";
+import {
+  PUBLIC_INTERPRETER_SELECT,
+  PUBLIC_INTERPRETER_SELECT_FALLBACK,
+  isMissingColumnError,
+} from "../utils/publicInterpreter";
 import "./InterpreterList.css";
 
 const initialFilters = {
@@ -85,9 +89,20 @@ function InterpreterList({
         return;
       }
 
-      const { data, error } = await supabase
+      let selectString = PUBLIC_INTERPRETER_SELECT;
+      let { data, error } = await supabase
         .from("public_interpreters")
-        .select(PUBLIC_INTERPRETER_SELECT);
+        .select(selectString);
+
+      if (error && isMissingColumnError(error)) {
+        console.warn("Retrying public_interpreters query without verified column...");
+        selectString = PUBLIC_INTERPRETER_SELECT_FALLBACK;
+        const fallbackResult = await supabase
+          .from("public_interpreters")
+          .select(selectString);
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) {
         console.error("Interpreters fetch error:", {
@@ -399,8 +414,8 @@ function InterpreterList({
                                 <span className="dot" />
                                 {getInterpreterStatusLabel(person)}
                               </span>
-                              <span className={`interpreter-list-mobile-verification ${person.approved ? "verified" : "regular"}`}>
-                                {person.approved ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
+                              <span className={`interpreter-list-mobile-verification ${person.verified || person.approved ? "verified" : "regular"}`}>
+                                {person.verified || person.approved ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
                               </span>
                             </div>
                           </div>
@@ -447,7 +462,7 @@ function InterpreterList({
                           <Info
                             label="인증 상태"
                             value={
-                              person.approved ? (
+                              person.verified || person.approved ? (
                                 <span className="interpreter-verification-badge verified">⭐ ON-LI 인증 통역사</span>
                               ) : (
                                 <span className="interpreter-verification-badge regular">○ 등록 통역사</span>
