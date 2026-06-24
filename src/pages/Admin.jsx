@@ -316,9 +316,9 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
 
   const fallbackData = await fetchBaseJobApplications(publicSupabase);
 
-  const jobsById = new Map(jobs.map((job) => [job.id, job]));
+  const jobsById = new Map(compactAdminRows(jobs).map((job) => [job.id, job]));
   return {
-    data: fallbackData.map((application) => ({
+    data: compactAdminRows(fallbackData).map((application) => ({
       ...application,
       jobs: jobsById.get(application.job_id) || null,
     })),
@@ -480,7 +480,7 @@ function Admin({ onBackClick }) {
           console.error(`${label} fetch failed:`, result.error);
           return [];
         }
-        return result.data || [];
+        return compactAdminRows(result.data);
       };
 
       const requestData = getAdminData("requests", requestResult);
@@ -501,7 +501,7 @@ function Admin({ onBackClick }) {
       const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData);
       const jobApplicationData = jobApplicationResult.error
         ? []
-        : jobApplicationResult.data || [];
+        : compactAdminRows(jobApplicationResult.data);
       if (jobApplicationResult.error) {
         console.error("job_applications fetch failed:", jobApplicationResult.error);
       }
@@ -560,7 +560,7 @@ function Admin({ onBackClick }) {
         if (logsResult.error) {
           console.warn("admin activity logs fetch skipped:", logsResult.error);
         } else {
-          setAdminActivityLogs(logsResult.data || []);
+          setAdminActivityLogs(compactAdminRows(logsResult.data));
         }
 
         if (notificationsResult.error) {
@@ -5664,16 +5664,16 @@ function InterpreterModal({
   const duplicateTitle = duplicateReasons.join(", ");
   const adminMemo =
     draft?.admin_memo ??
-    interpreter.admin_memo ??
-    interpreter.management_memo ??
-    interpreter.memo ??
-    interpreter.note ??
+    interpreter?.admin_memo ??
+    interpreter?.management_memo ??
+    interpreter?.memo ??
+    interpreter?.note ??
     "";
   const managementMemo =
-    interpreter.admin_memo ||
-    interpreter.management_memo ||
-    interpreter.memo ||
-    interpreter.note ||
+    interpreter?.admin_memo ||
+    interpreter?.management_memo ||
+    interpreter?.memo ||
+    interpreter?.note ||
     "";
   const relatedApplications = applications.filter((application) => {
     return (
@@ -6951,7 +6951,7 @@ function PaymentHistoryManagement({ assignmentsByRequest, interpreters, requests
                 <Info label="지급일" value={formatDate(row.request.updated_at || row.request.created_at)} />
                 <Info label="지급 금액" value={formatJPY(getInterpreterPayment(row.request))} />
                 <Info label="지급 상태" value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(row.request))} />
-                <Info label="메모" value={row.request.admin_memo || row.request.memo || "-"} />
+                <Info label="메모" value={row.request?.admin_memo || row.request?.memo || "-"} />
               </dl>
             </article>
           ))}
@@ -8284,27 +8284,32 @@ function buildAssignmentManagementRows({
   requests = [],
   interpreters = [],
 }) {
-  const requestsById = new Map(requests.map((request) => [String(request.id), request]));
-  const requestsByJobId = requests.reduce((map, request) => {
+  const safeAssignments = compactAdminRows(assignments);
+  const safeJobApplications = compactAdminRows(jobApplications);
+  const safeMatchings = compactAdminRows(matchings);
+  const safeRequests = compactAdminRows(requests);
+  const safeInterpreters = compactAdminRows(interpreters);
+  const requestsById = new Map(safeRequests.map((request) => [String(request.id), request]));
+  const requestsByJobId = safeRequests.reduce((map, request) => {
     if (request.job_id) map.set(String(request.job_id), request);
     return map;
   }, new Map());
   const usedApplicationIds = new Set();
-  const applicationsByInterpreterAndJob = jobApplications.reduce((map, application) => {
+  const applicationsByInterpreterAndJob = safeJobApplications.reduce((map, application) => {
     const key = `${application.interpreter_id || ""}:${application.job_id || ""}`;
     if (!map.has(key)) map.set(key, application);
     return map;
   }, new Map());
-  const matchingsByRequestInterpreter = matchings.reduce((map, matching) => {
+  const matchingsByRequestInterpreter = safeMatchings.reduce((map, matching) => {
     const key = `${matching.request_id || ""}:${matching.interpreter_id || ""}`;
     if (!map.has(key)) map.set(key, matching);
     return map;
   }, new Map());
   const interpretersById = new Map(
-    interpreters.map((interpreter) => [String(interpreter.id), interpreter])
+    safeInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
   );
 
-  const assignmentRows = assignments.map((assignment) => {
+  const assignmentRows = safeAssignments.map((assignment) => {
     const request = requestsById.get(String(assignment.request_id)) || null;
     const matching =
       matchingsByRequestInterpreter.get(
@@ -8342,7 +8347,7 @@ function buildAssignmentManagementRows({
     };
   });
 
-  const acceptedApplicationRows = jobApplications
+  const acceptedApplicationRows = safeJobApplications
     .filter(
       (application) =>
         !usedApplicationIds.has(application.id) &&
@@ -8456,7 +8461,7 @@ function doesAssignmentManagementItemMatchFilters(item = {}, filters = {}) {
 }
 
 function buildAdminMemoItems({ requests = [], interpreters = [], assignmentRows = [] }) {
-  const requestMemos = requests
+  const requestMemos = compactAdminRows(requests)
     .filter((request) => hasAdminMemo(request))
     .map((request) => ({
       id: `request-${request.id}`,
@@ -8470,7 +8475,7 @@ function buildAdminMemoItems({ requests = [], interpreters = [], assignmentRows 
         { label: "행사명", value: request.event_name || request.title || "-" },
       ],
     }));
-  const interpreterMemos = interpreters
+  const interpreterMemos = compactAdminRows(interpreters)
     .filter((interpreter) => hasAdminMemo(interpreter))
     .map((interpreter) => ({
       id: `interpreter-${interpreter.id}`,
@@ -8483,8 +8488,8 @@ function buildAdminMemoItems({ requests = [], interpreters = [], assignmentRows 
         { label: "이름", value: interpreter.name || "-" },
       ],
     }));
-  const assignmentMemos = assignmentRows
-    .filter((row) => hasAdminMemo(row.assignment))
+  const assignmentMemos = compactAdminRows(assignmentRows)
+    .filter((row) => row?.assignment && hasAdminMemo(row.assignment))
     .map((row) => ({
       id: `assignment-${row.assignment.id}`,
       typeLabel: "배정 메모",
@@ -8508,20 +8513,26 @@ function buildAdminNoteDisplayItems({
   assignmentRows = [],
   jobApplications = [],
 }) {
-  const requestsById = new Map(requests.map((request) => [String(request.id), request]));
+  const safeRequests = compactAdminRows(requests);
+  const safeInterpreters = compactAdminRows(interpreters);
+  const safeAssignmentRows = compactAdminRows(assignmentRows);
+  const safeJobApplications = compactAdminRows(jobApplications);
+  const requestsById = new Map(safeRequests.map((request) => [String(request.id), request]));
   const requestsByJobId = new Map(
-    requests
+    safeRequests
       .filter((request) => request.job_id)
       .map((request) => [String(request.job_id), request])
   );
   const interpretersById = new Map(
-    interpreters.map((interpreter) => [String(interpreter.id), interpreter])
+    safeInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
   );
   const applicationsById = new Map(
-    jobApplications.map((application) => [String(application.id), application])
+    safeJobApplications.map((application) => [String(application.id), application])
   );
   const assignmentRowsById = new Map(
-    assignmentRows.map((row) => [String(row.assignment?.id), row])
+    safeAssignmentRows
+      .filter((row) => row?.assignment?.id)
+      .map((row) => [String(row.assignment.id), row])
   );
 
   return uniqueById(notes).map((note) => {
@@ -8622,7 +8633,7 @@ function hasAdminMemo(item = {}) {
 }
 
 function getAdminMemo(item = {}) {
-  return String(item.admin_memo || "").trim();
+  return String(item?.admin_memo ?? "").trim();
 }
 
 function normalizeAdminTargetType(targetType) {
@@ -8638,9 +8649,13 @@ function normalizeAdminTargetType(targetType) {
   return normalized || "operation";
 }
 
+function compactAdminRows(items = []) {
+  return Array.isArray(items) ? items.filter(Boolean) : [];
+}
+
 function uniqueById(items = []) {
   const seen = new Set();
-  return items.filter((item) => {
+  return compactAdminRows(items).filter((item) => {
     const id = String(item?.id || "");
     if (!id) return true;
     if (seen.has(id)) return false;
@@ -8656,20 +8671,26 @@ function buildNotificationDisplayItems({
   assignmentRows = [],
   jobApplications = [],
 }) {
-  const requestsById = new Map(requests.map((request) => [String(request.id), request]));
+  const safeRequests = compactAdminRows(requests);
+  const safeInterpreters = compactAdminRows(interpreters);
+  const safeAssignmentRows = compactAdminRows(assignmentRows);
+  const safeJobApplications = compactAdminRows(jobApplications);
+  const requestsById = new Map(safeRequests.map((request) => [String(request.id), request]));
   const requestsByJobId = new Map(
-    requests
+    safeRequests
       .filter((request) => request.job_id)
       .map((request) => [String(request.job_id), request])
   );
   const interpretersById = new Map(
-    interpreters.map((interpreter) => [String(interpreter.id), interpreter])
+    safeInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
   );
   const applicationsById = new Map(
-    jobApplications.map((application) => [String(application.id), application])
+    safeJobApplications.map((application) => [String(application.id), application])
   );
   const assignmentRowsById = new Map(
-    assignmentRows.map((row) => [String(row.assignment?.id), row])
+    safeAssignmentRows
+      .filter((row) => row?.assignment?.id)
+      .map((row) => [String(row.assignment.id), row])
   );
 
   return uniqueById(events).map((event) => {
@@ -9144,13 +9165,16 @@ function getAssignedInterpreterName(request = {}, assignments = [], interpreters
 }
 
 function buildApplicationAssignmentRows(applications = [], assignments = [], interpreters = []) {
+  const safeApplications = compactAdminRows(applications);
+  const safeAssignments = compactAdminRows(assignments);
+  const safeInterpreters = compactAdminRows(interpreters);
   const usedApplicationIds = new Set();
   const assignmentRows = [];
 
-  assignments.forEach((assignment) => {
-    const interpreter = getAssignmentInterpreter(assignment, interpreters);
+  safeAssignments.forEach((assignment) => {
+    const interpreter = getAssignmentInterpreter(assignment, safeInterpreters);
     const matchedApplication = interpreter
-      ? applications.find(
+      ? safeApplications.find(
           (application) =>
             !usedApplicationIds.has(application.id) &&
             applicationMatchesInterpreter(application, interpreter)
@@ -9188,7 +9212,7 @@ function buildApplicationAssignmentRows(applications = [], assignments = [], int
     });
   });
 
-  const applicationRows = applications
+  const applicationRows = safeApplications
     .filter((application) => !usedApplicationIds.has(application.id))
     .map((application) => ({
       ...application,
@@ -9968,10 +9992,10 @@ function createInterpreterEditDraft(interpreter = {}) {
     specialties: listToDraftText(interpreter.specialties),
     available_regions: listToDraftText(interpreter.available_regions),
     admin_memo:
-      interpreter.admin_memo ||
-      interpreter.management_memo ||
-      interpreter.memo ||
-      interpreter.note ||
+      interpreter?.admin_memo ||
+      interpreter?.management_memo ||
+      interpreter?.memo ||
+      interpreter?.note ||
       "",
   };
 }
