@@ -443,71 +443,82 @@ function Admin({ onBackClick }) {
       return;
     }
 
-    const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult] =
-      await Promise.all([
-        publicSupabase.from("requests").select("*").order("created_at", {
-          ascending: false,
-          nullsFirst: false,
-        }),
-        publicSupabase.from("jobs").select("*").order("created_at", {
-          ascending: false,
-          nullsFirst: false,
-        }),
-        publicSupabase.from("interpreters").select("*").order("id", {
-          ascending: false,
-        }),
-        publicSupabase
-          .from("request_interpreters")
-          .select(
-            "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
-          )
-          .order("id", { ascending: false }),
-        publicSupabase
-          .from("matchings")
-          .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
-          .order("created_at", { ascending: false }),
-      ]);
+    try {
+      const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult] =
+        await Promise.all([
+          publicSupabase.from("requests").select("*").order("created_at", {
+            ascending: false,
+            nullsFirst: false,
+          }),
+          publicSupabase.from("jobs").select("*").order("created_at", {
+            ascending: false,
+            nullsFirst: false,
+          }),
+          publicSupabase.from("interpreters").select("*").order("id", {
+            ascending: false,
+          }),
+          publicSupabase
+            .from("request_interpreters")
+            .select(
+              "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
+            )
+            .order("id", { ascending: false }),
+          publicSupabase
+            .from("matchings")
+            .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
+            .order("created_at", { ascending: false }),
+        ]);
 
-    if (
-      requestResult.error ||
-      jobResult.error ||
-      interpreterResult.error ||
-      assignmentResult.error
-    ) {
-      const error =
+      const getAdminData = (label, result) => {
+        if (result.error) {
+          console.error(`${label} fetch failed:`, result.error);
+          return [];
+        }
+        return result.data || [];
+      };
+
+      const requestData = getAdminData("requests", requestResult);
+      const jobData = getAdminData("jobs", jobResult);
+      const interpreterData = getAdminData("interpreters", interpreterResult);
+      const assignmentData = getAdminData("request_interpreters", assignmentResult);
+      const matchingData = getAdminData("matchings", matchingResult);
+
+      const hasRequiredFetchError =
         requestResult.error ||
         jobResult.error ||
         interpreterResult.error ||
         assignmentResult.error;
-      console.error("Supabase select error:", error);
-      alert(error.message);
-      setErrorMessage("관리자 데이터를 불러오지 못했습니다.");
-      setLoading(false);
-      return;
-    }
+      if (hasRequiredFetchError) {
+        setErrorMessage("일부 관리자 데이터를 불러오지 못했습니다. 권한 또는 RLS 정책을 확인해주세요.");
+      }
 
-    if (matchingResult.error) {
-      console.warn("matchings fetch skipped:", matchingResult.error);
-    }
+      const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData);
+      const jobApplicationData = jobApplicationResult.error
+        ? []
+        : jobApplicationResult.data || [];
+      if (jobApplicationResult.error) {
+        console.error("job_applications fetch failed:", jobApplicationResult.error);
+      }
 
-    const jobApplicationResult = await fetchJobApplicationsWithJobs(jobResult.data || []);
-    if (jobApplicationResult.error) {
-      console.error("Supabase select error:", jobApplicationResult.error);
-      alert(jobApplicationResult.error.message);
-      setErrorMessage("관리자 데이터를 불러오지 못했습니다.");
-      setLoading(false);
-      return;
+      console.log("loaded jobs:", jobData);
+      console.log("loaded interpreters:", interpreterData);
+      console.log("loaded applications:", jobApplicationData);
+      setRequests(requestData);
+      setJobs(jobData);
+      setInterpreters(interpreterData);
+      setAssignments(assignmentData);
+      setMatchings(matchingData);
+      setJobApplications(jobApplicationData);
+    } catch (error) {
+      console.error("admin data fetch failed:", error);
+      setErrorMessage("관리자 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setRequests([]);
+      setJobs([]);
+      setInterpreters([]);
+      setAssignments([]);
+      setMatchings([]);
+      setJobApplications([]);
     }
-
-    console.log("loaded jobs:", jobResult.data || []);
-    console.log("loaded interpreters:", interpreterResult.data || []);
-    console.log("loaded applications:", jobApplicationResult.data || []);
-    setRequests(requestResult.data || []);
-    setJobs(jobResult.data || []);
-    setInterpreters(interpreterResult.data || []);
-    setAssignments(assignmentResult.data || []);
-    setMatchings(matchingResult.error ? [] : matchingResult.data || []);
-    setJobApplications(jobApplicationResult.data || []);
     if (supabase) {
       const [notesResult, logsResult, notificationsResult] = await Promise.all([
         supabase
