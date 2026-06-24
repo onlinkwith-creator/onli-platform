@@ -503,7 +503,26 @@
 
 .admin-notification-history-list {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-notification-detail-modal {
+  max-width: 760px;
+}
+
+.admin-notification-detail-list {
+  gap: 10px;
+}
+
+.admin-notification-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.admin-notification-modal-actions button {
+  min-width: 120px;
 }
 
 .admin-urgent-list {
@@ -3312,6 +3331,12 @@
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
 }
 
+@media (max-width: 1024px) {
+  .admin-notification-history-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .admin-metrics,
   .admin-request-card-grid,
@@ -3337,6 +3362,7 @@
   .admin-processing-queue-grid,
   .admin-operations-panel,
   .admin-operations-modal-grid,
+  .admin-notification-history-list,
   .admin-notification-summary {
     grid-template-columns: 1fr;
   }
@@ -3366,6 +3392,10 @@
   .admin-filters > select,
   .admin-filters > .month-filter-input {
     flex: 1 1 calc(50% - 10px);
+  }
+
+  .admin-assignment-filters > select {
+    flex-basis: 100%;
   }
 
   .admin-request-filters .admin-view-toggle {
@@ -3456,6 +3486,11 @@
   .admin-modal-edit-grid,
   .admin-modal-actions {
     grid-template-columns: 1fr;
+  }
+
+  .admin-notification-modal-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .admin-interpreter-detail-modal {

@@ -214,6 +214,30 @@ const EMPTY_REQUEST_EDIT_DRAFT = {
   payment_status: "unpaid",
 };
 const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
+const APPLICANT_MANAGEMENT_STATUSES = new Set([
+  APPLICATION_STATUS.PENDING,
+  APPLICATION_STATUS.REVIEWING,
+  APPLICATION_STATUS.REJECTED,
+]);
+const POST_ACCEPTANCE_STATUS_VALUES = new Set([
+  "accepted",
+  "approved",
+  "합격",
+  "승인",
+  "matched",
+  "matching",
+  "매칭됨",
+  "매칭완료",
+  "waiting",
+  "배정대기",
+  "assigning",
+  "배정중",
+  "assigned",
+  "배정",
+  "배정완료",
+  "confirmed",
+  "확정",
+]);
 const SETTLEMENT_MANAGEMENT_FILTERS = [
   { value: "all", label: "전체" },
   { value: "unpaid", label: "미결제" },
@@ -933,8 +957,12 @@ function Admin({ onBackClick }) {
     if (subTabId === "new_interpreters") return pendingInterpreters.length;
     if (subTabId === "all_requests") return requests.length;
     if (subTabId === "jobs") return jobs.length;
-    if (subTabId === "applications") return jobApplications.length;
-    if (subTabId === "assignments") return assignmentRows.length;
+    if (subTabId === "applications") {
+      return jobApplications.filter(isApplicantManagementApplication).length;
+    }
+    if (subTabId === "assignments") {
+      return assignmentRows.length + pendingAssignmentRequests.length;
+    }
     if (subTabId === "registered_interpreters") return interpreters.length;
     if (subTabId === "verification_pending") return pendingResumeReviewInterpreters.length;
     if (subTabId === "interpreter_activity") return interpreters.length;
@@ -5043,7 +5071,9 @@ function JobApplicationsPanel({
     () => getDuplicateApplicationIdSet(applications),
     [applications]
   );
-  const rows = buildApplicationAssignmentRows(applications, assignments, interpreters);
+  const rows = buildApplicationAssignmentRows(applications, assignments, interpreters).filter(
+    isApplicantManagementApplication
+  );
   const toggleRow = (rowId) => {
     setOpenApplicantId((current) => (current === rowId ? null : rowId));
   };
@@ -6500,9 +6530,13 @@ function ApplicationManagement({
     () => duplicateResult || getDuplicateApplicationIdSet(applications),
     [applications, duplicateResult]
   );
+  const managementApplications = useMemo(
+    () => applications.filter(isApplicantManagementApplication),
+    [applications]
+  );
   const visibleApplications = useMemo(
     () =>
-      applications.filter((application) => {
+      managementApplications.filter((application) => {
         const matchesDuplicate =
           filters.duplicate === "all" ||
           (filters.duplicate === "suspected" && duplicateData.duplicateIds.has(application.id));
@@ -6515,7 +6549,7 @@ function ApplicationManagement({
 
         return matchesDuplicate && matchesStatus;
       }),
-    [applications, duplicateData, filters.duplicate, filters.status]
+    [duplicateData, filters.duplicate, filters.status, managementApplications]
   );
 
   return (
@@ -6695,63 +6729,65 @@ function AssignmentManagement({
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
-  rows,
-  pendingRequests,
+  rows = [],
+  pendingRequests = [],
   onOpenRequest,
 }) {
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "all",
+  });
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((row) =>
+        doesAssignmentManagementItemMatchFilters(row, filters)
+      ),
+    [filters, rows]
+  );
+  const filteredPendingRequests = useMemo(
+    () =>
+      pendingRequests.filter((request) =>
+        doesAssignmentManagementItemMatchFilters(request, filters)
+      ),
+    [filters, pendingRequests]
+  );
+  const updateFilter = (name, value) => {
+    setFilters((current) => ({ ...current, [name]: value }));
+  };
+  const totalCount = rows.length + pendingRequests.length;
+
   return (
     <section className="admin-section">
-      <SectionTitle count={`${rows.length}건`} title="배정 관리" />
-      {pendingRequests.length > 0 && (
-        <div className="admin-subsection">
-          <SectionTitle count={`${pendingRequests.length}건`} title="배정 대기 의뢰" />
-          <div className="admin-management-card-grid">
-            {pendingRequests.map((request) => (
-              <article className="admin-list-card" key={`pending-assignment-${request.id}`}>
-                <div className="admin-list-card-head">
-                  <div>
-                    <span className="admin-card-meta">배정 대기</span>
-                    <ManagementNumberBadge value={request.request_no} />
-                    <h3>{request.event_name || request.title || "-"}</h3>
-                  </div>
-                  <StatusBadge status={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
-                </div>
-                <dl className="admin-card-summary">
-                  <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
-                  <Info label="기업명" value={request.company_name || "-"} />
-                  <Info
-                    label="일정"
-                    value={formatDateRange(
-                      request.start_date,
-                      request.end_date,
-                      request.event_date || request.date
-                    )}
-                  />
-                  <Info label="장소" value={request.event_location || request.location || "-"} />
-                  <Info label="배정 상태" value={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
-                </dl>
-                <div className="admin-card-actions">
-                  <button
-                    type="button"
-                    className="admin-link-button primary"
-                    onClick={() => onOpenRequest(request)}
-                  >
-                    상세보기
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      )}
+      <SectionTitle count={`${totalCount}건`} title="배정 관리" />
+      <div className="admin-filters admin-assignment-filters">
+        <label className="admin-search-control">
+          <Search size={16} aria-hidden="true" />
+          <input
+            value={filters.search}
+            onChange={(event) => updateFilter("search", event.target.value)}
+            placeholder="관리번호, 기업명, 행사명으로 검색"
+          />
+        </label>
+        <select
+          value={filters.status}
+          onChange={(event) => updateFilter("status", event.target.value)}
+        >
+          <option value="all">전체</option>
+          <option value="waiting">배정 대기</option>
+          <option value="assigning">배정중</option>
+          <option value="assigned">배정 완료</option>
+          <option value="completed">완료</option>
+          <option value="cancelled">취소</option>
+        </select>
+      </div>
 
       <div className="admin-subsection">
-        <SectionTitle count={`${rows.length}건`} title="전체 배정" />
-        {rows.length === 0 ? (
-          <MessageBox text="아직 배정된 건이 없습니다." />
+        <SectionTitle count={`${filteredRows.length}건`} title="전체 배정" />
+        {filteredRows.length === 0 ? (
+          <MessageBox text="검색 조건에 맞는 배정 의뢰가 없습니다." />
         ) : (
           <div className="admin-management-card-grid">
-            {rows.map((row) => (
+            {filteredRows.map((row) => (
               <article className="admin-list-card" key={row.rowId}>
                 <div className="admin-list-card-head">
                   <div>
@@ -6798,6 +6834,49 @@ function AssignmentManagement({
           </div>
         )}
       </div>
+
+      {filteredPendingRequests.length > 0 && (
+        <div className="admin-subsection">
+          <SectionTitle count={`${filteredPendingRequests.length}건`} title="배정 대기 상태 의뢰" />
+          <div className="admin-management-card-grid">
+            {filteredPendingRequests.map((request) => (
+              <article className="admin-list-card" key={`pending-assignment-${request.id}`}>
+                <div className="admin-list-card-head">
+                  <div>
+                    <span className="admin-card-meta">배정 대기</span>
+                    <ManagementNumberBadge value={request.request_no} />
+                    <h3>{request.event_name || request.title || "-"}</h3>
+                  </div>
+                  <StatusBadge status={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
+                </div>
+                <dl className="admin-card-summary">
+                  <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+                  <Info label="기업명" value={request.company_name || "-"} />
+                  <Info
+                    label="일정"
+                    value={formatDateRange(
+                      request.start_date,
+                      request.end_date,
+                      request.event_date || request.date
+                    )}
+                  />
+                  <Info label="장소" value={request.event_location || request.location || "-"} />
+                  <Info label="배정 상태" value={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
+                </dl>
+                <div className="admin-card-actions">
+                  <button
+                    type="button"
+                    className="admin-link-button primary"
+                    onClick={() => onOpenRequest(request)}
+                  >
+                    상세보기
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -7036,6 +7115,7 @@ function NotificationHistoryManagement({
   onRetryEvent,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const notificationItems = buildNotificationDisplayItems({
     events,
     requests,
@@ -7093,53 +7173,108 @@ function NotificationHistoryManagement({
                 </span>
               </div>
               <dl className="admin-card-summary">
+                <Info label="알림 종류" value={event.eventLabel} />
                 <Info label="대상" value={event.targetLabel} />
                 <Info label="관련" value={event.relatedLabel} />
-                <Info label="상태" value={event.statusLabel} />
-                <Info label="수신 이메일" value={event.recipient_email || "-"} />
+                <Info label="발송 상태" value={event.statusLabel} />
                 <Info label="생성일" value={formatDateTime(event.created_at)} />
-                <Info label="처리일" value={formatDateTime(event.processed_at)} />
-                <Info label="발송일" value={formatDateTime(event.sent_at)} />
-                <Info label="재시도" value={`${event.retry_count || 0}회`} />
-                <Info label="실패 사유" value={event.error_message || "-"} />
               </dl>
               <div className="admin-button-row">
                 <button
                   type="button"
                   className="admin-secondary"
-                  onClick={() => showNotificationEventDetail(event)}
+                  onClick={() => setSelectedEvent(event)}
                 >
                   상세보기
                 </button>
-                {event.status === "pending" && (
-                  <button
-                    type="button"
-                    className="admin-save"
-                    disabled={processing}
-                    onClick={() => onProcessEvent?.(event)}
-                  >
-                    발송 처리
-                  </button>
-                )}
-                {event.status === "failed" && (
-                  <button
-                    type="button"
-                    className="admin-save"
-                    disabled={processing}
-                    onClick={() => onRetryEvent(event)}
-                  >
-                    재발송
-                  </button>
-                )}
               </div>
             </article>
           ))}
         </div>
       )}
       {failedCount > 0 && (
-        <p className="admin-empty-text">실패 {failedCount}건은 개별 재발송 버튼으로 다시 처리할 수 있습니다.</p>
+        <p className="admin-empty-text">실패 {failedCount}건은 상세보기에서 다시 처리할 수 있습니다.</p>
+      )}
+      {selectedEvent && (
+        <NotificationEventDetailModal
+          event={selectedEvent}
+          processing={processing}
+          onClose={() => setSelectedEvent(null)}
+          onProcessEvent={onProcessEvent}
+          onRetryEvent={onRetryEvent}
+        />
       )}
     </section>
+  );
+}
+
+function NotificationEventDetailModal({
+  event,
+  processing = false,
+  onClose,
+  onProcessEvent,
+  onRetryEvent,
+}) {
+  const payloadText = getNotificationPayloadSummary(event);
+
+  return (
+    <div className="admin-modal-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="admin-modal-card admin-notification-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notification-detail-title"
+        onClick={(clickEvent) => clickEvent.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <div>
+            <span className="admin-card-meta">알림 상세</span>
+            <h2 id="notification-detail-title">{event.eventLabel || "운영 알림"}</h2>
+          </div>
+          <button type="button" className="admin-modal-close" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+        <dl className="admin-card-summary admin-notification-detail-list">
+          <Info label="알림 종류" value={event.eventLabel} />
+          <Info label="대상자" value={event.targetLabel} />
+          <Info label="관련 번호" value={event.relatedLabel} />
+          <Info label="수신 이메일" value={event.recipient_email || "-"} />
+          <Info label="상태" value={event.statusLabel} />
+          <Info label="생성일" value={formatDateTime(event.created_at)} />
+          <Info label="처리일" value={formatDateTime(event.processed_at)} />
+          <Info label="발송일" value={formatDateTime(event.sent_at)} />
+          <Info label="재시도 횟수" value={`${event.retry_count || 0}회`} />
+          <Info label="실패 사유" value={event.error_message || "-"} />
+          <Info label="알림 내용/메모" value={payloadText} />
+        </dl>
+        <div className="admin-modal-actions admin-notification-modal-actions">
+          <button type="button" className="admin-secondary" onClick={onClose}>
+            닫기
+          </button>
+          {event.status === "failed" && (
+            <button
+              type="button"
+              className="admin-save"
+              disabled={processing}
+              onClick={() => onRetryEvent?.(event)}
+            >
+              재발송
+            </button>
+          )}
+          {event.status === "pending" && (
+            <button
+              type="button"
+              className="admin-save"
+              disabled={processing}
+              onClick={() => onProcessEvent?.(event)}
+            >
+              발송 처리
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -8072,6 +8207,51 @@ function isSettlementCompletedRequest(request = {}) {
   );
 }
 
+function getApplicationStatusValues(application = {}) {
+  return [
+    application.status,
+    application.matching_status,
+    application.assignment_status,
+  ]
+    .filter((status) => status !== undefined && status !== null)
+    .map((status) => String(status).trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isPostAcceptanceApplication(application = {}) {
+  const normalizedStatus = normalizeApplicationStatus(application.status);
+  if (normalizedStatus === APPLICATION_STATUS.ACCEPTED) return true;
+  return getApplicationStatusValues(application).some((status) =>
+    POST_ACCEPTANCE_STATUS_VALUES.has(status)
+  );
+}
+
+function isApplicantManagementApplication(application = {}) {
+  if (isPostAcceptanceApplication(application)) return false;
+  return APPLICANT_MANAGEMENT_STATUSES.has(
+    normalizeApplicationStatus(application.status)
+  );
+}
+
+function getApplicationAssignmentStatus(application = {}) {
+  const statuses = getApplicationStatusValues(application);
+  if (
+    statuses.some((status) =>
+      ["assigned", "confirmed", "배정", "배정완료", "확정"].includes(status)
+    )
+  ) {
+    return ASSIGNMENT_STATUS.ASSIGNED;
+  }
+  if (
+    statuses.some((status) =>
+      ["assigning", "matching", "배정중", "매칭중", "진행중"].includes(status)
+    )
+  ) {
+    return ASSIGNMENT_STATUS.ASSIGNING;
+  }
+  return ASSIGNMENT_STATUS.WAITING;
+}
+
 function buildAssignmentManagementRows({
   assignments = [],
   jobApplications = [],
@@ -8080,6 +8260,11 @@ function buildAssignmentManagementRows({
   interpreters = [],
 }) {
   const requestsById = new Map(requests.map((request) => [String(request.id), request]));
+  const requestsByJobId = requests.reduce((map, request) => {
+    if (request.job_id) map.set(String(request.job_id), request);
+    return map;
+  }, new Map());
+  const usedApplicationIds = new Set();
   const applicationsByInterpreterAndJob = jobApplications.reduce((map, application) => {
     const key = `${application.interpreter_id || ""}:${application.job_id || ""}`;
     if (!map.has(key)) map.set(key, application);
@@ -8094,7 +8279,7 @@ function buildAssignmentManagementRows({
     interpreters.map((interpreter) => [String(interpreter.id), interpreter])
   );
 
-  return assignments.map((assignment) => {
+  const assignmentRows = assignments.map((assignment) => {
     const request = requestsById.get(String(assignment.request_id)) || null;
     const matching =
       matchingsByRequestInterpreter.get(
@@ -8106,6 +8291,7 @@ function buildAssignmentManagementRows({
             `${assignment.interpreter_id || ""}:${request.job_id || ""}`
           )
         : null;
+    if (application?.id) usedApplicationIds.add(application.id);
     const interpreter =
       assignment.interpreter || interpretersById.get(String(assignment.interpreter_id)) || {};
     const flowSource = getRequestFlowSource(request || {}, {});
@@ -8125,10 +8311,123 @@ function buildAssignmentManagementRows({
         ? formatDateRange(request.start_date, request.end_date, request.event_date || request.date)
         : "-",
       location: request?.event_location || request?.location || "",
+      assignmentStatusValue: assignmentStatus,
       assignmentStatusLabel: getAssignmentStatusLabel(assignmentStatus),
       settlementStatusLabel: getSettlementFlowStatusLabel(settlementStatus),
     };
   });
+
+  const acceptedApplicationRows = jobApplications
+    .filter(
+      (application) =>
+        !usedApplicationIds.has(application.id) &&
+        isPostAcceptanceApplication(application)
+    )
+    .map((application) => {
+      const request = requestsByJobId.get(String(application.job_id)) || null;
+      const assignmentStatus = getApplicationAssignmentStatus(application);
+
+      return {
+        rowId: `application-assignment-${application.id}`,
+        assignment: null,
+        request,
+        application,
+        assignmentNo: application.matching_no || "",
+        requestNo: request?.request_no || request?.request_number || "",
+        applicationNo: application.application_no || "",
+        interpreterName: application.applicant_name || application.name || "",
+        eventName:
+          request?.event_name ||
+          request?.title ||
+          application.jobs?.event_name ||
+          application.jobs?.title ||
+          "",
+        dateLabel: request
+          ? formatDateRange(request.start_date, request.end_date, request.event_date || request.date)
+          : "-",
+        location: request?.event_location || request?.location || "",
+        assignmentStatusValue: assignmentStatus,
+        assignmentStatusLabel: getAssignmentStatusLabel(assignmentStatus),
+        settlementStatusLabel: getSettlementFlowStatusLabel(
+          request ? normalizeSettlementFlowStatus(request) : SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
+        ),
+      };
+    });
+
+  return [...assignmentRows, ...acceptedApplicationRows];
+}
+
+function normalizeAssignmentManagementSearchText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]/g, "");
+}
+
+function getAssignmentManagementSearchValues(item = {}) {
+  const request = item.request || item;
+  return [
+    item.assignmentNo,
+    item.requestNo,
+    item.applicationNo,
+    request.request_no,
+    request.request_number,
+    request.management_no,
+    request.company_name,
+    item.interpreterName,
+    item.eventName,
+    request.event_name,
+    request.title,
+    item.location,
+    request.event_location,
+    request.location,
+  ];
+}
+
+function getAssignmentManagementStatusValue(item = {}) {
+  if (item.assignmentStatusValue) return item.assignmentStatusValue;
+
+  const source = item.request || item.assignment || item;
+  const rawStatuses = [
+    source.status,
+    source.matching_status,
+    source.assignment_status,
+    source.operation_status,
+  ].map((status) => String(status || "").trim().toLowerCase());
+
+  if (
+    rawStatuses.some((status) =>
+      ["cancelled", "canceled", "cancel", "취소", "취소됨"].includes(status)
+    )
+  ) {
+    return "cancelled";
+  }
+
+  if (
+    normalizeOperationStatus(source) === OPERATION_STATUS.COMPLETED ||
+    rawStatuses.some((status) =>
+      ["completed", "complete", "finished", "done", "운영완료", "완료"].includes(status)
+    )
+  ) {
+    return "completed";
+  }
+
+  return normalizeAssignmentStatus(source);
+}
+
+function doesAssignmentManagementItemMatchFilters(item = {}, filters = {}) {
+  const search = normalizeAssignmentManagementSearchText(filters.search);
+  const matchesSearch =
+    !search ||
+    getAssignmentManagementSearchValues(item).some((value) =>
+      normalizeAssignmentManagementSearchText(value).includes(search)
+    );
+  const matchesStatus =
+    !filters.status ||
+    filters.status === "all" ||
+    getAssignmentManagementStatusValue(item) === filters.status;
+
+  return matchesSearch && matchesStatus;
 }
 
 function buildAdminMemoItems({ requests = [], interpreters = [], assignmentRows = [] }) {
@@ -8404,6 +8703,34 @@ function getNotificationPayload(event = {}) {
   }
 }
 
+function getNotificationPayloadSummary(event = {}) {
+  const payload = getNotificationPayload(event);
+  const directText =
+    payload.message ||
+    payload.memo ||
+    payload.note ||
+    payload.content ||
+    payload.description ||
+    payload.title ||
+    "";
+
+  if (directText) return String(directText);
+
+  const summaryItems = [
+    payload.company_name,
+    payload.event_name,
+    payload.applicant_name,
+    payload.interpreter_name,
+    payload.status_label,
+    payload.status,
+  ].filter(Boolean);
+
+  if (summaryItems.length > 0) return summaryItems.join(" / ");
+  if (event.error_message) return event.error_message;
+
+  return "-";
+}
+
 function getNotificationEventTypeLabel(eventType) {
   const labels = {
     assignment_created: "배정 완료 알림",
@@ -8459,22 +8786,6 @@ function getNotificationRelatedLabel({ targetType, request, interpreter, applica
   if (targetType === "request") return formatManagementNumber(request?.request_no || request?.request_number);
   if (targetType === "interpreter") return formatManagementNumber(interpreter?.interpreter_no);
   return "-";
-}
-
-function showNotificationEventDetail(event = {}) {
-  alert(
-    [
-      event.eventLabel || "운영 알림",
-      `대상: ${event.targetLabel || "-"}`,
-      `관련: ${event.relatedLabel || "-"}`,
-      `상태: ${event.statusLabel || "-"}`,
-      `생성: ${formatDateTime(event.created_at)}`,
-      event.sent_at ? `발송: ${formatDateTime(event.sent_at)}` : "",
-      event.error_message ? `실패 사유: ${event.error_message}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n")
-  );
 }
 
 function buildProcessingQueueItems({
