@@ -445,29 +445,35 @@ function Admin({ onBackClick }) {
 
     try {
       const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult] =
-        await Promise.all([
-          publicSupabase.from("requests").select("*").order("created_at", {
-            ascending: false,
-            nullsFirst: false,
-          }),
-          publicSupabase.from("jobs").select("*").order("created_at", {
-            ascending: false,
-            nullsFirst: false,
-          }),
-          publicSupabase.from("interpreters").select("*").order("id", {
-            ascending: false,
-          }),
-          publicSupabase
-            .from("request_interpreters")
-            .select(
-              "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
-            )
-            .order("id", { ascending: false }),
-          publicSupabase
-            .from("matchings")
-            .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
-            .order("created_at", { ascending: false }),
-        ]);
+        (
+          await Promise.allSettled([
+            publicSupabase.from("requests").select("*").order("created_at", {
+              ascending: false,
+              nullsFirst: false,
+            }),
+            publicSupabase.from("jobs").select("*").order("created_at", {
+              ascending: false,
+              nullsFirst: false,
+            }),
+            publicSupabase.from("interpreters").select("*").order("id", {
+              ascending: false,
+            }),
+            publicSupabase
+              .from("request_interpreters")
+              .select(
+                "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
+              )
+              .order("id", { ascending: false }),
+            publicSupabase
+              .from("matchings")
+              .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
+              .order("created_at", { ascending: false }),
+          ])
+        ).map((result) =>
+          result.status === "fulfilled"
+            ? result.value
+            : { data: [], error: result.reason }
+        );
 
       const getAdminData = (label, result) => {
         if (result.error) {
@@ -489,7 +495,7 @@ function Admin({ onBackClick }) {
         interpreterResult.error ||
         assignmentResult.error;
       if (hasRequiredFetchError) {
-        setErrorMessage("일부 관리자 데이터를 불러오지 못했습니다. 권한 또는 RLS 정책을 확인해주세요.");
+        setErrorMessage("관리자 데이터를 불러오지 못했습니다. Supabase RLS 정책 또는 DB migration 적용 상태를 확인해주세요.");
       }
 
       const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData);
@@ -511,7 +517,7 @@ function Admin({ onBackClick }) {
       setJobApplications(jobApplicationData);
     } catch (error) {
       console.error("admin data fetch failed:", error);
-      setErrorMessage("관리자 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setErrorMessage("관리자 데이터를 불러오지 못했습니다. Supabase RLS 정책 또는 DB migration 적용 상태를 확인해주세요.");
       setRequests([]);
       setJobs([]);
       setInterpreters([]);
@@ -520,40 +526,50 @@ function Admin({ onBackClick }) {
       setJobApplications([]);
     }
     if (supabase) {
-      const [notesResult, logsResult, notificationsResult] = await Promise.all([
-        supabase
-          .from("admin_notes")
-          .select("id, target_type, target_id, note, created_by, created_at, updated_at")
-          .order("created_at", { ascending: false })
-          .limit(300),
-        supabase
-          .from("admin_activity_logs")
-          .select("id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at")
-          .order("created_at", { ascending: false })
-          .limit(300),
-        supabase
-          .from("notification_events")
-          .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
-          .order("created_at", { ascending: false })
-          .limit(300),
-      ]);
+      try {
+        const [notesResult, logsResult, notificationsResult] = (
+          await Promise.allSettled([
+            supabase
+              .from("admin_notes")
+              .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+              .order("created_at", { ascending: false })
+              .limit(300),
+            supabase
+              .from("admin_activity_logs")
+              .select("id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at")
+              .order("created_at", { ascending: false })
+              .limit(300),
+            supabase
+              .from("notification_events")
+              .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
+              .order("created_at", { ascending: false })
+              .limit(300),
+          ])
+        ).map((result) =>
+          result.status === "fulfilled"
+            ? result.value
+            : { data: [], error: result.reason }
+        );
 
-      if (notesResult.error) {
-        console.warn("admin notes fetch skipped:", notesResult.error);
-      } else {
-        setAdminNotes(uniqueById(notesResult.data || []));
-      }
+        if (notesResult.error) {
+          console.warn("admin notes fetch skipped:", notesResult.error);
+        } else {
+          setAdminNotes(uniqueById(notesResult.data || []));
+        }
 
-      if (logsResult.error) {
-        console.warn("admin activity logs fetch skipped:", logsResult.error);
-      } else {
-        setAdminActivityLogs(logsResult.data || []);
-      }
+        if (logsResult.error) {
+          console.warn("admin activity logs fetch skipped:", logsResult.error);
+        } else {
+          setAdminActivityLogs(logsResult.data || []);
+        }
 
-      if (notificationsResult.error) {
-        console.warn("notification events fetch skipped:", notificationsResult.error);
-      } else {
-        setNotificationEvents(uniqueById(notificationsResult.data || []));
+        if (notificationsResult.error) {
+          console.warn("notification events fetch skipped:", notificationsResult.error);
+        } else {
+          setNotificationEvents(uniqueById(notificationsResult.data || []));
+        }
+      } catch (error) {
+        console.warn("admin optional data fetch skipped:", error);
       }
     }
     setLoading(false);
@@ -3109,11 +3125,9 @@ function Admin({ onBackClick }) {
           </div>
         </header>
 
-        {loading ? (
-          <MessageBox text="관리자 데이터를 불러오는 중입니다..." />
-        ) : errorMessage ? (
-          <MessageBox text={errorMessage} />
-        ) : (
+        {loading && <MessageBox text="관리자 데이터를 불러오는 중입니다..." />}
+        {errorMessage && <MessageBox text={errorMessage} />}
+        {!loading && (
           <>
             <section className="admin-metrics">
               {metricCards.map((card) => (
