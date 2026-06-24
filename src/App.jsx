@@ -10,6 +10,7 @@ import JobList from "./pages/JobList";
 import JobDetail from "./pages/JobDetail";
 import InterpreterLogin from "./pages/InterpreterLogin";
 import InterpreterSignup from "./pages/InterpreterSignup";
+import InterpreterDashboard from "./pages/InterpreterDashboard";
 import InterpreterMypage from "./pages/InterpreterMypage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
@@ -79,6 +80,7 @@ function getInitialPage() {
   if (path === "/login") return "login";
   if (path === "/interpreter-login") return "interpreterLogin";
   if (path === "/interpreter-signup") return "interpreterSignup";
+  if (path === "/interpreter-dashboard") return "interpreterDashboard";
   if (path === "/interpreter-mypage") return "interpreterMypage";
   if (path === "/reset-password") return "resetPassword";
   if (path.startsWith("/jobs/") && path.endsWith("/apply")) {
@@ -127,6 +129,7 @@ function getPath(page, interpreter, jobId, policyKey) {
   if (page === "login") return "/login";
   if (page === "interpreterLogin") return "/interpreter-login";
   if (page === "interpreterSignup") return "/interpreter-signup";
+  if (page === "interpreterDashboard") return "/interpreter-dashboard";
   if (page === "interpreterMypage") return "/interpreter-mypage";
   if (page === "resetPassword") return "/reset-password";
   if (page === "list") return "/interpreters";
@@ -225,10 +228,13 @@ function App() {
         } else if (page === "interpreterMypage") {
           alert("로그인 후 이용 가능합니다.");
           navigate("interpreterLogin", null, null);
+        } else if (page === "interpreterDashboard") {
+          alert("로그인 후 이용 가능합니다.");
+          navigate("interpreterLogin", null, null);
         }
       } else if (!isAdmin && page === "admin") {
         alert("관리자 권한이 없습니다.");
-        navigate("interpreterMypage", null, null);
+        navigate("interpreterDashboard", null, null);
       }
     }
   }, [user, authLoading, page, isAdmin]);
@@ -281,7 +287,7 @@ function App() {
           onRequestClick={() => navigate("jobCreate", null, null)}
           onInterpreterLoginClick={() => navigate("login", null, null)}
           onInterpreterSignupClick={() => navigate("login", null, null)}
-          onMypageClick={() => navigate("interpreterMypage", null, null)}
+          onMypageClick={() => navigate("interpreterDashboard", null, null)}
           onAdminClick={() => {
             if (isAdmin) {
               navigateAdminJobs();
@@ -347,7 +353,7 @@ function App() {
         <InterpreterLogin
           onBackClick={() => navigate("home", null, null)}
           onSignupClick={() => navigate("interpreterSignup", null, null)}
-          onLoginSuccess={() => navigate("interpreterMypage", null, null)}
+          onLoginSuccess={() => navigate("interpreterDashboard", null, null)}
         />
       )}
 
@@ -355,7 +361,21 @@ function App() {
         <InterpreterSignup
           onBackClick={() => navigate("home", null, null)}
           onLoginClick={() => navigate("interpreterLogin", null, null)}
-          onSignupSuccess={() => navigate("interpreterMypage", null, null)}
+          onSignupSuccess={() => navigate("interpreterDashboard", null, null)}
+        />
+      )}
+
+      {page === "interpreterDashboard" && (
+        <InterpreterDashboard
+          authLoading={authLoading}
+          isAdmin={isAdmin}
+          user={user}
+          onHomeClick={() => navigate("home", null, null)}
+          onJobDetailClick={(jobId) => navigate("jobDetail", null, jobId)}
+          onLoginClick={() => navigate("interpreterLogin", null, null)}
+          onMypageClick={() => navigate("interpreterMypage", null, null)}
+          onRegisterClick={openInterpreterRegister}
+          onSignOut={handleInterpreterSignOut}
         />
       )}
 
@@ -412,9 +432,9 @@ function App() {
       {page === "admin" && !authLoading && user && !isAdmin && (
         <RouteMessage
           title="관리자 권한이 필요합니다."
-          description="관리자 권한이 없는 계정은 마이페이지로 이동합니다."
-          primaryText="마이페이지로 이동"
-          onPrimaryClick={() => navigate("interpreterMypage", null, null)}
+          description="관리자 권한이 없는 계정은 통역사 대시보드로 이동합니다."
+          primaryText="대시보드로 이동"
+          onPrimaryClick={() => navigate("interpreterDashboard", null, null)}
           onHomeClick={() => navigate("home", null, null)}
         />
       )}
