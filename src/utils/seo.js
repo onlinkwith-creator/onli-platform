@@ -26,7 +26,7 @@ const SEO_BY_PAGE = {
   },
   business: {
     title: "기업 한일 통역 서비스 | ON-LI",
-    description: "전시회, 바이어 상담회, 기업 미팅, 일본 출장 동행 통역을 ON-LI에서 요청하세요.",
+    description: "일본 전시회, 상담회, 기업 미팅에 필요한 한일 비즈니스 통역사를 ON-LI에서 빠르게 매칭하세요.",
   },
   about: {
     title: "ON-LI 소개 | 한일 비즈니스 통역 플랫폼",

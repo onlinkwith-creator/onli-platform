@@ -55,7 +55,7 @@ function Home({
   onMypageClick,
   onAdminClick,
 }) {
-  const HOME_JOB_PREVIEW_LIMIT = 4;
+  const HOME_JOB_PREVIEW_LIMIT = 8;
   const [featuredInterpreters, setFeaturedInterpreters] = useState([]);
   const [previewJobs, setPreviewJobs] = useState([]);
   const [interpreterLoading, setInterpreterLoading] = useState(true);
@@ -414,6 +414,7 @@ function Home({
               ariaLabel="현재 모집 중인 통역 공고"
               previousLabel="이전 공고 보기"
               nextLabel="다음 공고 보기"
+              scrollMode="page"
             >
                 {previewJobs.map((job) => (
                   <JobCard
@@ -555,6 +556,7 @@ function HomeCarousel({
   ariaLabel,
   previousLabel,
   nextLabel,
+  scrollMode = "card",
 }) {
   const carouselRef = useRef(null);
 
@@ -565,9 +567,13 @@ function HomeCarousel({
     const firstCard = carousel.firstElementChild;
     const cardWidth = firstCard?.getBoundingClientRect().width || 280;
     const gap = Number.parseFloat(getComputedStyle(carousel).columnGap) || 14;
+    const scrollAmount =
+      scrollMode === "page"
+        ? Math.max(cardWidth + gap, carousel.clientWidth - gap)
+        : cardWidth + gap;
 
     carousel.scrollBy({
-      left: direction * (cardWidth + gap),
+      left: direction * scrollAmount,
       behavior: "smooth",
     });
   };
