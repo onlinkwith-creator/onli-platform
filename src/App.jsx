@@ -15,8 +15,10 @@ import InterpreterMypage from "./pages/InterpreterMypage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
-import { useAuth } from "./hooks/useAuth";
+import { useAuth, ADMIN_EMAILS } from "./hooks/useAuth";
 import { supabase } from "./supabase";
+import BusinessRegister from "./pages/BusinessRegister";
+import BusinessMypage from "./pages/BusinessMypage";
 import {
   PUBLIC_INTERPRETER_SELECT,
   PUBLIC_INTERPRETER_SELECT_FALLBACK,
@@ -66,6 +68,8 @@ function getInitialPage() {
   if (POLICY_PATH_TO_KEY[path]) return "policy";
   if (path === "/about") return "about";
   if (path === "/business") return "business";
+  if (path === "/business/register") return "businessRegister";
+  if (path === "/business/mypage") return "businessMypage";
   if (path === "/register") return "register";
   if (
     path === "/admin" ||
@@ -127,6 +131,8 @@ function getPath(page, interpreter, jobId, policyKey) {
   }
   if (page === "about") return "/about";
   if (page === "business") return "/business";
+  if (page === "businessRegister") return "/business/register";
+  if (page === "businessMypage") return "/business/mypage";
   if (page === "register") return "/register";
   if (page === "admin") return "/admin";
   if (page === "jobs") return "/jobs";
@@ -154,6 +160,117 @@ function App() {
   const [selectedJobId, setSelectedJobId] = useState(getInitialJobId);
   const [selectedPolicyKey, setSelectedPolicyKey] = useState(getInitialPolicyKey);
   const { user, loading: authLoading, signOut, isAdmin } = useAuth();
+  
+  const [businessProfile, setBusinessProfile] = useState(null);
+  const [fetchingBusiness, setFetchingBusiness] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setBusinessProfile(null);
+      setFetchingBusiness(false);
+      return;
+    }
+
+    const fetchBizProfile = async () => {
+      setFetchingBusiness(true);
+      try {
+        const { data, error } = await supabase
+          .from("businesses")
+          .select("*")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
+        if (!error && data) {
+          setBusinessProfile(data);
+        } else {
+          setBusinessProfile(null);
+        }
+      } catch (err) {
+        console.error("Error fetching biz profile in App:", err);
+        setBusinessProfile(null);
+      } finally {
+        setFetchingBusiness(false);
+      }
+    };
+    fetchBizProfile();
+  }, [user]);
+
+  const handleBusinessRegisterSuccess = async () => {
+    if (user) {
+      try {
+        const { data } = await supabase
+          .from("businesses")
+          .select("*")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
+        setBusinessProfile(data || null);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    navigate("businessMypage", null, null);
+  };
+
+  const handleLoginSuccess = async () => {
+    if (!supabase) {
+      navigate("home", null, null);
+      return;
+    }
+
+    try {
+      const currentUser = (await supabase.auth.getUser()).data.user;
+      if (!currentUser) {
+        navigate("home", null, null);
+        return;
+      }
+
+      const email = currentUser.email.toLowerCase();
+      const isAdminEmail = ADMIN_EMAILS.includes(email);
+      let isDbAdmin = false;
+      const { data: adminData } = await supabase
+        .from("admin_users")
+        .select("status")
+        .ilike("email", email)
+        .maybeSingle();
+      if (adminData && adminData.status === "active") {
+        isDbAdmin = true;
+      }
+
+      if (isAdminEmail || isDbAdmin) {
+        navigateAdminJobs();
+        return;
+      }
+
+      // Check if business profile exists
+      const { data: bizData } = await supabase
+        .from("businesses")
+        .select("*")
+        .eq("auth_user_id", currentUser.id)
+        .maybeSingle();
+
+      if (bizData) {
+        setBusinessProfile(bizData);
+        navigate("businessMypage", null, null);
+        return;
+      }
+
+      // Check if interpreter profile exists
+      const { data: interpreterData } = await supabase
+        .from("interpreters")
+        .select("id")
+        .ilike("email", email)
+        .maybeSingle();
+
+      if (interpreterData) {
+        navigate("interpreterMypage", null, null);
+        return;
+      }
+
+      navigate("home", null, null);
+    } catch (err) {
+      console.error("Redirection logic error after login:", err);
+      navigate("home", null, null);
+    }
+  };
 
   const navigate = (
     nextPage,
@@ -241,13 +358,25 @@ function App() {
         } else if (page === "interpreterMypage") {
           alert("로그인 후 이용 가능합니다.");
           navigate("interpreterLogin", null, null);
+        } else if (page === "businessRegister" || page === "businessMypage") {
+          alert("로그인 후 이용 가능합니다.");
+          navigate("login", null, null);
+        } else if (page === "jobCreate") {
+          alert("로그인 후 통역 의뢰가 가능합니다.");
+          navigate("login", null, null);
         }
       } else if (!isAdmin && page === "admin") {
         alert("관리자 권한이 없습니다.");
         navigate("interpreterMypage", null, null);
+      } else if (user && page === "businessMypage" && !fetchingBusiness && !businessProfile) {
+        alert("기업 등록이 필요합니다.");
+        navigate("businessRegister", null, null);
+      } else if (user && page === "jobCreate" && !fetchingBusiness && !businessProfile && !isAdmin) {
+        alert("기업 등록 후 통역 의뢰가 가능합니다.");
+        navigate("businessRegister", null, null);
       }
     }
-  }, [user, authLoading, page, isAdmin]);
+  }, [user, authLoading, page, isAdmin, fetchingBusiness, businessProfile]);
 
   useEffect(() => {
     const fetchInterpreter = async () => {
@@ -333,6 +462,28 @@ function App() {
         <Business
           onBackClick={() => navigate("home", null, null)}
           onRequestClick={() => navigate("jobCreate", null, null)}
+          onRegisterClick={() => navigate("businessRegister", null, null)}
+          onMypageClick={() => navigate("businessMypage", null, null)}
+          hasBusinessProfile={Boolean(businessProfile)}
+        />
+      )}
+
+      {page === "businessRegister" && (
+        <BusinessRegister
+          user={user}
+          onRegisterSuccess={handleBusinessRegisterSuccess}
+          onBackClick={() => navigate("business", null, null)}
+        />
+      )}
+
+      {page === "businessMypage" && (
+        <BusinessMypage
+          user={user}
+          authLoading={authLoading}
+          onLoginClick={() => navigate("login", null, null)}
+          onRegisterClick={() => navigate("businessRegister", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+          onSignOut={handleLogout}
         />
       )}
 
@@ -369,7 +520,7 @@ function App() {
       {page === "login" && (
         <Login
           onBackClick={() => navigate("home", null, null)}
-          onLoginSuccess={() => navigate("home", null, null)}
+          onLoginSuccess={handleLoginSuccess}
         />
       )}
 
@@ -440,7 +591,7 @@ function App() {
       {page === "admin" && !authLoading && !user && (
         <Login
           onBackClick={() => navigate("home", null, null)}
-          onLoginSuccess={() => {}}
+          onLoginSuccess={handleLoginSuccess}
           isAdminMode={true}
         />
       )}
@@ -472,7 +623,7 @@ function App() {
         <JobList
           isAuthenticated={Boolean(user)}
           onBackClick={() => navigate("home", null, null)}
-          onCreateJobClick={navigateAdminJobs}
+          onCreateJobClick={() => navigate("jobCreate", null, null)}
           onLoginClick={() => navigate("login", null, null)}
           onDetailClick={(job) => navigate("jobDetail", null, job.id)}
           onApplyClick={(job) => {

@@ -92,6 +92,7 @@ const MAIN_TABS = [
   { id: "new", label: "신규 관리", defaultSubTab: "new_requests" },
   { id: "requests", label: "의뢰 관리", defaultSubTab: "all_requests" },
   { id: "interpreters", label: "통역사 관리", defaultSubTab: "registered_interpreters" },
+  { id: "businesses", label: "기업 관리", defaultSubTab: "all_businesses" },
   { id: "settlements", label: "정산 관리", defaultSubTab: "settlement_pending" },
   { id: "internal", label: "내부 관리", defaultSubTab: "admin_memos" },
 ];
@@ -110,6 +111,9 @@ const SUB_TABS = {
     { id: "registered_interpreters", label: "등록 통역사" },
     { id: "verification_pending", label: "검증 대기" },
     { id: "interpreter_activity", label: "활동 상태 관리" },
+  ],
+  businesses: [
+    { id: "all_businesses", label: "전체 기업" },
   ],
   settlements: [
     { id: "settlement_pending", label: "정산 대기" },
@@ -193,6 +197,7 @@ const NEW_REQUEST_STATUSES = [
 const ADMIN_TAB_ALIASES = {
   requests: "all_requests",
   interpreters: "registered_interpreters",
+  businesses: "all_businesses",
   settlement: "settlement_pending",
   interpreter_applications: "applications",
   new_applications: "new_interpreters",
@@ -353,6 +358,7 @@ function getInitialAdminSubTab() {
   if (path === "/admin/jobs") return "jobs";
   if (path === "/admin/applications") return "applications";
   if (path === "/admin/interpreters") return "registered_interpreters";
+  if (path === "/admin/businesses") return "all_businesses";
   if (path === "/admin/settings") return "admin_accounts";
   if (path === "/admin/new" || sectionParam === "new") return "new_requests";
   if (path === "/admin/requests" || sectionParam === "requests") return "all_requests";
@@ -371,6 +377,7 @@ function getAdminPathForSubTab(subTabId) {
     new: "/admin/new",
     requests: "/admin/requests",
     interpreters: "/admin/interpreters",
+    businesses: "/admin/businesses",
     settlements: "/admin/settlements",
     internal: "/admin/internal",
   };
@@ -388,6 +395,7 @@ function Admin({ onBackClick }) {
   const [requests, setRequests] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
+  const [businesses, setBusinesses] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [matchings, setMatchings] = useState([]);
   const [jobApplications, setJobApplications] = useState([]);
@@ -455,7 +463,7 @@ function Admin({ onBackClick }) {
     }
 
     try {
-      const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult] =
+      const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult, businessResult] =
         (
           await Promise.allSettled([
             publicSupabase.from("requests").select("*").order("created_at", {
@@ -479,6 +487,9 @@ function Admin({ onBackClick }) {
               .from("matchings")
               .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
               .order("created_at", { ascending: false }),
+            publicSupabase.from("businesses").select("*").order("created_at", {
+              ascending: false,
+            }),
           ])
         ).map((result) =>
           result.status === "fulfilled"
@@ -499,6 +510,7 @@ function Admin({ onBackClick }) {
       const interpreterData = getAdminData("interpreters", interpreterResult);
       const assignmentData = getAdminData("request_interpreters", assignmentResult);
       const matchingData = getAdminData("matchings", matchingResult);
+      const businessData = getAdminData("businesses", businessResult);
 
       const hasRequiredFetchError =
         requestResult.error ||
@@ -526,6 +538,7 @@ function Admin({ onBackClick }) {
       setAssignments(assignmentData);
       setMatchings(matchingData);
       setJobApplications(jobApplicationData);
+      setBusinesses(businessData);
     } catch (error) {
       console.error("admin data fetch failed:", error);
       setErrorMessage("관리자 데이터를 불러오지 못했습니다. Supabase RLS 정책 또는 DB migration 적용 상태를 확인해주세요.");
@@ -535,6 +548,7 @@ function Admin({ onBackClick }) {
       setAssignments([]);
       setMatchings([]);
       setJobApplications([]);
+      setBusinesses([]);
     }
     if (supabase) {
       try {
@@ -589,6 +603,29 @@ function Admin({ onBackClick }) {
   useEffect(() => {
     queueMicrotask(fetchAdminData);
   }, [fetchAdminData]);
+
+  const updateBusiness = async (bizId, payload) => {
+    if (!publicSupabase) return;
+    try {
+      const { error } = await publicSupabase
+        .from("businesses")
+        .update(payload)
+        .eq("id", bizId);
+
+      if (error) {
+        alert(`기업 정보 수정 실패: ${error.message}`);
+        return;
+      }
+
+      alert("수정되었습니다.");
+      setBusinesses((current) =>
+        current.map((biz) => (biz.id === bizId ? { ...biz, ...payload } : biz))
+      );
+    } catch (err) {
+      console.error(err);
+      alert("네트워크 오류가 발생했습니다.");
+    }
+  };
 
   const closeInterpreterModal = useCallback(() => {
     setSelectedInterpreter(null);
@@ -1018,6 +1055,7 @@ function Admin({ onBackClick }) {
     if (subTabId === "registered_interpreters") return interpreters.length;
     if (subTabId === "verification_pending") return pendingResumeReviewInterpreters.length;
     if (subTabId === "interpreter_activity") return interpreters.length;
+    if (subTabId === "all_businesses") return businesses.length;
     if (subTabId === "settlement_pending") return settlementPendingRequests.length;
     if (subTabId === "settlement_confirmed") return settlementConfirmedRequests.length;
     if (subTabId === "settlement_completed") return settlementCompletedRequests.length;
@@ -3252,6 +3290,15 @@ function Admin({ onBackClick }) {
               })}
             </nav>
 
+            {activeSubTab === "all_businesses" && (
+              <BusinessManagement
+                businesses={businesses}
+                requests={requests}
+                onUpdateStatus={(bizId, newStatus) => updateBusiness(bizId, { status: newStatus })}
+                onUpdateNotes={(bizId, newNotes) => updateBusiness(bizId, { notes: newNotes })}
+              />
+            )}
+
             {activeSubTab === "all_requests" && (
               <RequestManagement
                 applicationsRequestId={applicationsRequestId}
@@ -3612,6 +3659,8 @@ function Admin({ onBackClick }) {
               onClose={closeInterpreterModal}
               onSave={saveInterpreterEditDraft}
               updateInterpreter={updateInterpreter}
+              deleteInterpreter={deleteInterpreter}
+              onOpenModal={openInterpreterModal}
               adminNotes={adminNotes}
               adminActivityLogs={adminActivityLogs}
               noteDrafts={adminNoteDrafts}
@@ -4550,6 +4599,171 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
         </button>
       </div>
     </form>
+  );
+}
+
+function BusinessManagement({
+  businesses,
+  requests,
+  onUpdateStatus,
+  onUpdateNotes,
+}) {
+  const [editingNotesId, setEditingNotesId] = useState(null);
+  const [notesDraft, setNotesDraft] = useState("");
+
+  const getRequestCount = (authUserId) => {
+    return requests.filter((r) => r.company_auth_user_id === authUserId).length;
+  };
+
+  const handleStartEditNotes = (biz) => {
+    setEditingNotesId(biz.id);
+    setNotesDraft(biz.notes || "");
+  };
+
+  const handleSaveNotes = (bizId) => {
+    onUpdateNotes(bizId, notesDraft);
+    setEditingNotesId(null);
+  };
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-header">
+        <h2>전체 기업 관리</h2>
+        <p className="admin-section-desc">등록된 기업 계정의 승인 상태와 관리자 메모를 관리합니다.</p>
+      </div>
+
+      <div className="admin-table-container">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>회사명</th>
+              <th>대표자/담당자</th>
+              <th>연락처 / 이메일</th>
+              <th>국가</th>
+              <th>주요 의뢰 분야</th>
+              <th>의뢰 건수</th>
+              <th>가입일</th>
+              <th>상태</th>
+              <th>관리자 메모</th>
+            </tr>
+          </thead>
+          <tbody>
+            {businesses.length === 0 ? (
+              <tr>
+                <td colSpan="9" style={{ textAlign: "center", padding: "40px 0", color: "#6b7280" }}>
+                  등록된 기업이 없습니다.
+                </td>
+              </tr>
+            ) : (
+              businesses.map((biz) => {
+                const reqCount = getRequestCount(biz.auth_user_id);
+                return (
+                  <tr key={biz.id}>
+                    <td>
+                      <strong style={{ color: "#111827" }}>{biz.company_name}</strong>
+                      <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>
+                        사업자: {biz.business_number}
+                      </div>
+                    </td>
+                    <td>{biz.contact_name}</td>
+                    <td>
+                      <div>{biz.contact_phone}</div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>{biz.contact_email}</div>
+                    </td>
+                    <td>{biz.country}</td>
+                    <td>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                        {biz.primary_fields && biz.primary_fields.length > 0 ? (
+                          biz.primary_fields.map((f) => (
+                            <span key={f} className="admin-badge info-badge" style={{ fontSize: "11px" }}>
+                              {f}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ color: "#9ca3af" }}>없음</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <strong style={{ color: "#4f46e5" }}>{reqCount} 건</strong>
+                    </td>
+                    <td>{new Date(biz.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <select
+                        className="admin-inline-select"
+                        value={biz.status}
+                        onChange={(e) => onUpdateStatus(biz.id, e.target.value)}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid #d1d5db",
+                          fontSize: "12px",
+                          fontWeight: "800",
+                        }}
+                      >
+                        <option value="검토중">검토중</option>
+                        <option value="승인 완료">승인 완료</option>
+                        <option value="이용 제한">이용 제한</option>
+                      </select>
+                    </td>
+                    <td>
+                      {editingNotesId === biz.id ? (
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                          <textarea
+                            value={notesDraft}
+                            onChange={(e) => setNotesDraft(e.target.value)}
+                            style={{
+                              width: "180px",
+                              minHeight: "48px",
+                              padding: "6px",
+                              fontSize: "12px",
+                              border: "1px solid #d1d5db",
+                              borderRadius: "6px",
+                            }}
+                          />
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <button
+                              type="button"
+                              className="admin-save-btn"
+                              onClick={() => handleSaveNotes(biz.id)}
+                              style={{ padding: "4px 8px", fontSize: "11px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                            >
+                              저장
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingNotesId(null)}
+                              style={{ padding: "4px 8px", fontSize: "11px", background: "#f3f4f6", color: "#374151", border: "1px solid #d1d5db", borderRadius: "4px", cursor: "pointer" }}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => handleStartEditNotes(biz)}
+                          style={{
+                            cursor: "pointer",
+                            minWidth: "120px",
+                            minHeight: "24px",
+                            fontSize: "12px",
+                            color: biz.notes ? "#374151" : "#9ca3af",
+                            borderBottom: "1px dashed #d1d5db",
+                            paddingBottom: "2px",
+                          }}
+                        >
+                          {biz.notes || "메모 추가..."}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -5575,185 +5789,84 @@ function InterpreterCard({
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const activityStatus = getInterpreterActivityStatus(interpreter);
   const activityLabel = getInterpreterActivityStatusLabel(activityStatus);
-  const isSaving = savingKey === `interpreter-${interpreter.id}`;
   const duplicateTitle = duplicateReasons.join(", ");
-  const isWithdrawn = isWithdrawnInterpreter(interpreter);
-
-  const handleDownloadFile = async (filePath) => {
-    if (!supabase || !filePath) return;
-    try {
-      let resolvedPath = filePath;
-      if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-        const parts = filePath.split("/resume-files/");
-        if (parts.length > 1) {
-          resolvedPath = parts[1].split("?")[0];
-        }
-      }
-
-      const { data, error } = await supabase.storage
-        .from("resume-files")
-        .createSignedUrl(resolvedPath, 60);
-
-      if (error) throw error;
-      window.open(data.signedUrl, "_blank");
-    } catch (err) {
-      console.error("Failed to generate signed URL", err);
-      alert("이력서 파일을 다운로드할 수 없습니다. 권한이 없거나 링크가 만료되었습니다.");
-    }
-  };
 
   return (
-    <article className="admin-list-card admin-interpreter-card">
-      <div className="admin-list-card-head">
-        <div>
-          <span className="admin-card-meta">통역사</span>
-          <h3>{interpreter.name || "이름 미입력"}</h3>
+    <article
+      className="admin-list-card admin-interpreter-card"
+      style={{
+        cursor: "pointer",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        height: "100%",
+        padding: "16px",
+        gap: "12px",
+        minHeight: "170px"
+      }}
+      onClick={() => onOpenModal(interpreter, "detail")}
+    >
+      <div>
+        <div className="admin-list-card-head" style={{ marginBottom: "8px" }}>
+          <div>
+            <span className="admin-card-meta">통역사</span>
+            <h3 style={{ fontSize: "16px", margin: 0 }}>{interpreter.name || "이름 미입력"}</h3>
+          </div>
         </div>
-        <div className="admin-card-chip-row">
+
+        {/* 배지 표시 영역 */}
+        <div className="admin-card-chip-row" style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
           {interpreter.approved && (
-            <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              ⭐ ON-LI 인증 완료
+            <span className="status-badge verified" style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", fontSize: "11px", padding: "2px 6px", borderRadius: "4px", fontWeight: "bold" }}>
+              ⭐ ON-LI 인증
             </span>
           )}
-          {isResumeReviewPending(interpreter) && (
-            <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a' }}>
-              ⏳ 심사 대기
+          <span className="status-badge" style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+            {approvalLabel}
+          </span>
+          <span className={`status-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`} style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+            {activityLabel}
+          </span>
+          {(interpreter.resume_url || interpreter.resume_file_url) ? (
+            <span className="status-badge" style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+              📄 이력서 제출
+            </span>
+          ) : (
+            <span className="status-badge" style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb", fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+              미제출
             </span>
           )}
+          <span className="status-badge" style={{ background: (interpreter.warning_count || 0) > 0 ? "#fee2e2" : "#f3f4f6", color: (interpreter.warning_count || 0) > 0 ? "#991b1b" : "#6b7280", border: (interpreter.warning_count || 0) > 0 ? "1px solid #fca5a5" : "1px solid #e5e7eb", fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+            경고 {interpreter.warning_count || 0}회
+          </span>
           {duplicateSuspected && (
             <DuplicateBadge title={duplicateTitle} />
           )}
-          <StatusBadge status={approvalLabel} />
-          <span className={`status-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}>
-            {activityLabel}
-          </span>
         </div>
+
+        <dl className="admin-card-summary" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "4px", margin: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "none", padding: "2px 0" }}>
+            <span style={{ color: "#6b7280", fontSize: "12px", fontWeight: "900" }}>통역사번호</span>
+            <span style={{ color: "#111827", fontSize: "13px", fontWeight: "800" }}>{formatManagementNumber(interpreter.interpreter_no)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "none", padding: "2px 0" }}>
+            <span style={{ color: "#6b7280", fontSize: "12px", fontWeight: "900" }}>레벨</span>
+            <span style={{ color: "#111827", fontSize: "13px", fontWeight: "800" }}>{normalizeLevel(interpreter.level)}</span>
+          </div>
+        </dl>
       </div>
 
-      <dl className="admin-card-summary">
-        <Info label="통역사번호" value={formatManagementNumber(interpreter.interpreter_no)} />
-        <Info label="이메일" value={interpreter.email} />
-        <Info label="카카오톡 ID" value={interpreter.kakao_or_line} />
-        <Info label="레벨" value={normalizeLevel(interpreter.level)} />
-        <Info label="승인 상태" value={approvalLabel} />
-        <Info label="활동 상태" value={activityLabel} />
-        {isWithdrawn && (
-          <Info label="탈퇴일" value={formatDateTime(interpreter.withdrawn_at)} />
-        )}
-        <Info
-          label="이력서 제출"
-          value={
-            interpreter.approved ? (
-              <span style={{ color: "#15803d", fontWeight: "bold" }}>⭐ ON-LI 인증 완료</span>
-            ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ color: "#a16207", fontWeight: "bold" }}>
-                  ⏳ 심사 대기 (
-                  {interpreter.resume_url && interpreter.resume_file_url ? "링크+파일" : interpreter.resume_file_url ? "파일" : "링크"}
-                  )
-                </span>
-                {interpreter.resume_url && (
-                  <a href={interpreter.resume_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#3b82f6", textDecoration: "underline", wordBreak: "break-all" }}>
-                    🔗 포트폴리오 링크
-                  </a>
-                )}
-                {interpreter.resume_file_url && (
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadFile(interpreter.resume_file_url, interpreter.resume_file_name)}
-                    style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#5b5cf0", color: "#ffffff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer", marginTop: "2px", width: "fit-content" }}
-                  >
-                    📥 파일 다운로드
-                  </button>
-                )}
-              </div>
-            ) : (
-              <span style={{ color: "#6b7280" }}>미제출</span>
-            )
-          }
-        />
-        {interpreter.resume_submitted_at && (
-          <Info
-            label="제출일"
-            value={new Date(interpreter.resume_submitted_at).toLocaleDateString()}
-          />
-        )}
-        <Info label="활동 지역" value={formatListOrMissing(interpreter.available_regions)} />
-        <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
-        <Info label="통역 경험" value={getExperienceLabel(interpreter)} />
-        <Info label="경고" value={`${interpreter.warning_count || 0}회`} />
-      </dl>
-
-      <div className="admin-card-controls-grid single">
-        <FieldControl label="공개 활동 상태">
-          <select
-            className="admin-inline-select"
-            value={activityStatus}
-            disabled={isSaving}
-            onChange={(event) =>
-              updateInterpreter(interpreter.id, {
-                activity_status: event.target.value,
-              })
-            }
-          >
-            {INTERPRETER_ACTIVITY_STATUS_OPTIONS.map((status) => (
-              <option key={status.value} value={status.value}>
-                {status.label}
-              </option>
-            ))}
-          </select>
-        </FieldControl>
-      </div>
-
-      <div className="admin-card-actions admin-interpreter-actions">
+      <div className="admin-card-actions admin-interpreter-actions" style={{ display: "block", paddingTop: 0 }}>
         <button
           type="button"
           className="admin-link-button admin-detail-action"
-          onClick={() => onOpenModal(interpreter, "detail")}
+          style={{ width: "100%", justifyContent: "center", minHeight: "36px", fontSize: "12px" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenModal(interpreter, "detail");
+          }}
         >
           상세보기
-        </button>
-        <button
-          type="button"
-          className="admin-link-button admin-edit-action"
-          onClick={() => onOpenModal(interpreter, "edit")}
-        >
-          수정
-        </button>
-        <button
-          type="button"
-          className="admin-save admin-approve-action"
-          disabled={isSaving}
-          onClick={() =>
-            updateInterpreter(interpreter.id, {
-              status: "active",
-              activity_status: INTERPRETER_ACTIVITY_STATUS.ACTIVE,
-              is_public: true,
-              withdrawn_at: null,
-            })
-          }
-        >
-          {isWithdrawn ? "계정 복구" : "승인"}
-        </button>
-        <button
-          type="button"
-          className="admin-save orange admin-reject-action"
-          disabled={isSaving}
-          onClick={() =>
-            updateInterpreter(interpreter.id, {
-              status: "rejected",
-            })
-          }
-        >
-          반려
-        </button>
-        <button
-          type="button"
-          className="admin-save danger admin-delete-action"
-          disabled={isSaving}
-          onClick={() => deleteInterpreter(interpreter.id)}
-        >
-          삭제
         </button>
       </div>
     </article>
@@ -5780,6 +5893,8 @@ function InterpreterModal({
   onCreateNote,
   onSave,
   updateInterpreter,
+  deleteInterpreter,
+  onOpenModal,
 }) {
   if (!interpreter || !modalType) return null;
 
@@ -6307,6 +6422,95 @@ function InterpreterModal({
               onChangeNoteDraft={onChangeNoteDraft}
               onCreateNote={onCreateNote}
             />
+
+            <div
+              className="admin-modal-actions admin-interpreter-detail-actions"
+              style={{
+                marginTop: "24px",
+                paddingTop: "16px",
+                borderTop: "1px solid var(--border, #e5e7eb)",
+                display: "flex",
+                gap: "10px",
+                justifyContent: "flex-end",
+                flexWrap: "wrap",
+                alignItems: "center"
+              }}
+            >
+              <div style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "13px", fontWeight: "900", color: "var(--text-h, #111827)" }}>공개 활동 상태</span>
+                <select
+                  className="admin-inline-select"
+                  value={activityStatus}
+                  disabled={saving}
+                  style={{ minHeight: "36px", fontSize: "13px", padding: "6px 12px", border: "1px solid #d1d5db", borderRadius: "8px" }}
+                  onChange={(event) =>
+                    updateInterpreter(interpreter.id, {
+                      activity_status: event.target.value,
+                    }, { showSuccess: true })
+                  }
+                >
+                  {INTERPRETER_ACTIVITY_STATUS_OPTIONS.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                className="admin-link-button admin-edit-action"
+                style={{ minHeight: "36px", fontSize: "13px", padding: "8px 16px" }}
+                onClick={() => onOpenModal(interpreter, "edit")}
+              >
+                수정
+              </button>
+              <button
+                type="button"
+                className="admin-save admin-approve-action"
+                disabled={saving}
+                style={{ minHeight: "36px", fontSize: "13px", padding: "8px 16px" }}
+                onClick={async () => {
+                  await updateInterpreter(interpreter.id, {
+                    status: "active",
+                    activity_status: INTERPRETER_ACTIVITY_STATUS.ACTIVE,
+                    is_public: true,
+                    withdrawn_at: null,
+                  }, { showSuccess: true });
+                  onClose();
+                }}
+              >
+                {isWithdrawnInterpreter(interpreter) ? "계정 복구" : "승인"}
+              </button>
+              <button
+                type="button"
+                className="admin-save orange admin-reject-action"
+                disabled={saving}
+                style={{ minHeight: "36px", fontSize: "13px", padding: "8px 16px" }}
+                onClick={async () => {
+                  await updateInterpreter(interpreter.id, {
+                    status: "rejected",
+                  }, { showSuccess: true });
+                  onClose();
+                }}
+              >
+                반려
+              </button>
+              <button
+                type="button"
+                className="admin-save danger admin-delete-action"
+                disabled={saving}
+                style={{ minHeight: "36px", fontSize: "13px", padding: "8px 16px" }}
+                onClick={async () => {
+                  if (window.confirm("이 통역사를 정말 삭제하시겠습니까?")) {
+                    await deleteInterpreter(interpreter.id);
+                    onClose();
+                  }
+                }}
+              >
+                삭제
+              </button>
+            </div>
           </>
         ) : (
           <>

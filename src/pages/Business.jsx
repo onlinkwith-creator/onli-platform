@@ -38,7 +38,13 @@ const trustItems = [
   "전시회/상담회 대응 가능",
 ];
 
-function Business({ onBackClick, onRequestClick }) {
+function Business({
+  onBackClick,
+  onRequestClick,
+  onRegisterClick,
+  onMypageClick,
+  hasBusinessProfile,
+}) {
   return (
     <div className="about-page">
       <div className="about-bg-glow" />
@@ -66,7 +72,28 @@ function Business({ onBackClick, onRequestClick }) {
             </p>
           </div>
           <div className="about-hero-actions">
-            <button type="button" onClick={onRequestClick} className="about-primary-button">
+            {hasBusinessProfile ? (
+              <button
+                type="button"
+                onClick={onMypageClick}
+                className="about-secondary-button"
+              >
+                기업 마이페이지
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onRegisterClick}
+                className="about-secondary-button"
+              >
+                기업 등록하기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onRequestClick}
+              className="about-primary-button"
+            >
               통역 의뢰하기
             </button>
           </div>
@@ -136,7 +163,28 @@ function Business({ onBackClick, onRequestClick }) {
             조건에 맞는 통역을 준비합니다.
           </h2>
           <div className="about-hero-actions">
-            <button type="button" onClick={onRequestClick} className="about-primary-button">
+            {hasBusinessProfile ? (
+              <button
+                type="button"
+                onClick={onMypageClick}
+                className="about-secondary-button"
+              >
+                기업 마이페이지
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onRegisterClick}
+                className="about-secondary-button"
+              >
+                기업 등록하기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onRequestClick}
+              className="about-primary-button"
+            >
               통역 의뢰하기
             </button>
           </div>
