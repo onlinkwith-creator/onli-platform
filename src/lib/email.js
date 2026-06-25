@@ -1,10 +1,16 @@
 import { supabase } from "../supabase";
 
-// TODO: 추후 .env 또는 Supabase secrets 기반 관리로 이동해주세요.
-export const ADMIN_EMAILS = [
+const FALLBACK_ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
   "onlinkcp@gmail.com",
 ];
+
+export const ADMIN_EMAILS = parseAdminEmails(import.meta.env.VITE_ADMIN_EMAILS);
+
+function parseAdminEmails(value) {
+  const envEmails = normalizeRecipients(String(value || "").split(","));
+  return envEmails.length > 0 ? envEmails : FALLBACK_ADMIN_EMAILS;
+}
 
 function normalizeRecipients(to) {
   const recipients = Array.isArray(to) ? to : [to];

@@ -1,6 +1,7 @@
 import { Component, useEffect, useState } from "react";
 import Home from "./pages/Home";
 import About from "./pages/About";
+import Business from "./pages/Business";
 import InterpreterList from "./pages/InterpreterList";
 import InterpreterDetail from "./pages/InterpreterDetail";
 import RegisterInterpreter from "./pages/RegisterInterpreter";
@@ -22,6 +23,7 @@ import {
   isMissingColumnError,
 } from "./utils/publicInterpreter";
 import { isPublicInterpreterVisible } from "./utils/accountStatus";
+import { applySeo } from "./utils/seo";
 
 const POLICY_PATH_TO_KEY = Object.fromEntries(
   Object.entries(POLICY_PAGES).map(([key, policy]) => [policy.path, key])
@@ -63,6 +65,7 @@ function getInitialPage() {
 
   if (POLICY_PATH_TO_KEY[path]) return "policy";
   if (path === "/about") return "about";
+  if (path === "/business") return "business";
   if (path === "/register") return "register";
   if (
     path === "/admin" ||
@@ -123,6 +126,7 @@ function getPath(page, interpreter, jobId, policyKey) {
     return POLICY_PAGES[policyKey]?.path || "/";
   }
   if (page === "about") return "/about";
+  if (page === "business") return "/business";
   if (page === "register") return "/register";
   if (page === "admin") return "/admin";
   if (page === "jobs") return "/jobs";
@@ -199,6 +203,14 @@ function App() {
     }
     navigate("register", null, null);
   };
+
+  useEffect(() => {
+    applySeo(
+      page,
+      getPath(page, selectedInterpreter, selectedJobId, selectedPolicyKey),
+      selectedPolicyKey
+    );
+  }, [page, selectedInterpreter, selectedJobId, selectedPolicyKey]);
 
   useEffect(() => {
     const handlePopState = (event) => {
@@ -314,6 +326,13 @@ function App() {
           onBackClick={() => navigate("home", null, null)}
           onRequestClick={() => navigate("jobCreate", null, null)}
           onListClick={() => navigate("list", null, null)}
+        />
+      )}
+
+      {page === "business" && (
+        <Business
+          onBackClick={() => navigate("home", null, null)}
+          onRequestClick={() => navigate("jobCreate", null, null)}
         />
       )}
 

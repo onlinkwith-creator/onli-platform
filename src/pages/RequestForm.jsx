@@ -505,27 +505,14 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     if (interpreter?.id) {
       try {
         console.log("DESIGNATED INTERPRETER EMAIL START");
-        let interpreterEmail = "";
-        const { data: interpreterData, error: interpreterError } = await supabase
-          .from("interpreters")
-          .select("email, name")
-          .eq("id", interpreter.id)
-          .single();
-
-        if (interpreterError) {
-          console.warn("Failed to query interpreter email in browser. Edge function will resolve it:", interpreterError);
-        } else {
-          interpreterEmail = interpreterData?.email || "";
-        }
-
         const result = await sendAutoEmail(
           "designated_request_received_interpreter",
-          interpreterEmail,
+          "",
           {
             ...emailPayload,
             interpreterId: interpreter.id,
             interpreter_id: interpreter.id,
-            interpreterName: interpreterData?.name || interpreter.name || "",
+            interpreterName: interpreter.name || "",
           }
         );
         if (!result.ok) {
@@ -533,7 +520,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         } else {
           console.log("Designated interpreter email sent successfully", {
             interpreterId: interpreter.id,
-            resolvedInBrowser: Boolean(interpreterEmail),
+            resolvedInBrowser: false,
           });
         }
       } catch (error) {
