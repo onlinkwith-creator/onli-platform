@@ -25,7 +25,7 @@ export const ASSIGNMENT_STATUS_OPTIONS = [
 export const OPERATION_STATUS_OPTIONS = [
   { value: OPERATION_STATUS.BEFORE_OPERATION, label: "운영전" },
   { value: OPERATION_STATUS.IN_PROGRESS, label: "운영중" },
-  { value: OPERATION_STATUS.COMPLETED, label: "운영완료" },
+  { value: OPERATION_STATUS.COMPLETED, label: "업무완료" },
 ];
 
 export const SETTLEMENT_FLOW_STATUS_OPTIONS = [
@@ -47,7 +47,7 @@ export function normalizeAssignmentStatus(item = {}) {
 
 export function normalizeOperationStatus(item = {}) {
   const value = getStatusValue(item.operation_status || item.status || item.matching_status);
-  if (["completed", "settled", "운영완료", "완료", "정산완료"].includes(value)) {
+  if (["completed", "settled", "운영완료", "업무완료", "완료", "정산완료"].includes(value)) {
     return OPERATION_STATUS.COMPLETED;
   }
   if (["in_progress", "matching", "운영중", "진행중"].includes(value)) {

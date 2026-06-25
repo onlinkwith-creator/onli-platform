@@ -266,7 +266,7 @@ const STATUS_LABELS = {
   confirmed: "확정",
   in_progress: "운영중",
   settlement_pending: "정산대기",
-  completed: "운영완료",
+  completed: "업무완료",
   cancelled: "취소",
   not_contacted: "미연락",
   contacted: "연락완료",
@@ -3514,6 +3514,8 @@ function Admin({ onBackClick }) {
               draft={interpreterEditDraft}
               interpreter={selectedInterpreter}
               matchings={matchings}
+              requestAssignments={assignmentRows}
+              requests={requests}
               duplicateReasons={
                 selectedInterpreter
                   ? duplicateInterpreterResult.reasonMap.get(selectedInterpreter.id) || []
@@ -5692,6 +5694,8 @@ function InterpreterModal({
   interpreter,
   matchings = [],
   modalType,
+  requestAssignments = [],
+  requests = [],
   saving,
   noteDrafts = {},
   onChangeDraft,
@@ -5775,6 +5779,15 @@ function InterpreterModal({
   const relatedSettlements = matchings.filter(
     (matching) => String(matching.interpreter_id || "") === String(interpreter.id)
   );
+  const onliPerformanceCount = getOnliPerformanceCount({
+    interpreter,
+    matchings,
+    requestAssignments,
+    requests,
+  });
+  const certificationRequirementMet = onliPerformanceCount >= 5;
+  const certificationRequirementLabel = certificationRequirementMet ? "충족" : "미충족";
+  const certificationStateLabel = interpreter.approved ? "ON-LI 인증 통역사" : "등록 통역사";
 
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
@@ -5943,6 +5956,9 @@ function InterpreterModal({
                 <InterpreterDetailItem label="가능 언어" value={interpreter.language_level || interpreter.level} />
                 <InterpreterDetailItem label="JLPT 여부" value={interpreter.jlpt} />
                 <InterpreterDetailItem label="통역 경험" value={getExperienceLabel(interpreter)} />
+                <InterpreterDetailItem label="ON-LI 수행 횟수" value={`${onliPerformanceCount}회`} />
+                <InterpreterDetailItem label="인증 조건" value={certificationRequirementLabel} />
+                <InterpreterDetailItem label="현재 인증 상태" value={certificationStateLabel} />
                 <InterpreterDetailItem
                   label="통역 횟수"
                   value={
@@ -6122,10 +6138,17 @@ function InterpreterModal({
                       ON-LI에서 5회 이상 통역 업무를 수행하고 운영자가 신뢰도를 확인한 통역사에게 인증 뱃지를 부여합니다.
                     </p>
                     <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
+                      <strong style={{ color: "var(--text-h)" }}>현재 판단:</strong>
+                      <div>ON-LI 수행 횟수: {onliPerformanceCount}회</div>
+                      <div>인증 조건: {certificationRequirementLabel}</div>
+                      <div>ON-LI 인증 상태: {certificationStateLabel}</div>
+                    </div>
+                    <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
                       <strong style={{ color: "var(--text-h)" }}>인증 기준:</strong>
                       <div>✓ ON-LI 업무 수행 5회 이상</div>
                       <div>✓ 관리자 활동 이력 확인 완료</div>
-                      <div>✓ 신뢰도 확인 완료</div>
+                      <div>✓ 관리자 내부 품질 메모 확인 완료</div>
+                      <div>※ 조건 충족 시에도 자동 인증되지 않으며, 관리자가 수동으로 부여합니다.</div>
                     </div>
                   </div>
                   <div>
@@ -6188,7 +6211,7 @@ function InterpreterModal({
                 rows={5}
                 value={adminMemo}
                 onChange={(event) => onChangeDraft("admin_memo", event.target.value)}
-                placeholder="운영팀 내부에서만 확인하는 메모를 입력하세요."
+                placeholder="시간 준수 문제 여부, 현장 대응 특이사항, 기업 재요청 여부, 주의사항, 내부 메모"
               />
               <div className="admin-interpreter-memo-actions">
                 <span>공개 페이지에는 노출되지 않습니다.</span>
@@ -8329,6 +8352,7 @@ function isCompletedRequest(request = {}) {
   ).trim();
   const normalizedStatus = operationStatus.toLowerCase();
   const completedStatuses = new Set([
+    "업무완료",
     "운영완료",
     "운영종료",
     "completed",
@@ -8575,7 +8599,7 @@ function getAssignmentManagementStatusValue(item = {}) {
   if (
     normalizeOperationStatus(source) === OPERATION_STATUS.COMPLETED ||
     rawStatuses.some((status) =>
-      ["completed", "complete", "finished", "done", "운영완료", "완료"].includes(status)
+      ["completed", "complete", "finished", "done", "업무완료", "운영완료", "완료"].includes(status)
     )
   ) {
     return "completed";
@@ -8824,6 +8848,80 @@ function getCompanyHistory(request = {}, requests = [], assignments = [], interp
     totalAmount,
     memo,
   };
+}
+
+function getOnliPerformanceCount({ interpreter = {}, matchings = [], requestAssignments = [], requests = [] } = {}) {
+  const interpreterId = String(interpreter.id || "");
+  if (!interpreterId) return 0;
+
+  const completedKeys = new Set();
+
+  matchings.forEach((matching) => {
+    if (String(matching.interpreter_id || "") !== interpreterId) return;
+    if (!isCompletedOnliPerformanceRecord(matching)) return;
+    const key = matching.request_id
+      ? `request:${matching.request_id}`
+      : `matching:${matching.id || matching.job_id || ""}`;
+    completedKeys.add(key);
+  });
+
+  requestAssignments.forEach((assignment) => {
+    if (String(assignment.interpreter_id || "") !== interpreterId) return;
+    const request = requests.find((item) => String(item.id || "") === String(assignment.request_id || ""));
+    if (!request || !isCompletedOnliPerformanceRecord(request)) return;
+    completedKeys.add(`request:${request.id}`);
+  });
+
+  requests.forEach((request) => {
+    const assignedId = request.assigned_interpreter_id || request.matched_interpreter_id;
+    if (String(assignedId || "") !== interpreterId) return;
+    if (!isCompletedOnliPerformanceRecord(request)) return;
+    completedKeys.add(`request:${request.id}`);
+  });
+
+  return completedKeys.size;
+}
+
+function isCompletedOnliPerformanceRecord(item = {}) {
+  if (isExcludedOnliPerformanceRecord(item)) return false;
+  const operationStatus = normalizeOperationStatus(item);
+  const settlementStatus = normalizeSettlementFlowStatus(item);
+  const status = String(item.status || item.matching_status || "").trim().toLowerCase();
+  return (
+    operationStatus === OPERATION_STATUS.COMPLETED ||
+    settlementStatus === SETTLEMENT_FLOW_STATUS.PENDING ||
+    settlementStatus === SETTLEMENT_FLOW_STATUS.COMPLETED ||
+    ["completed", "settlement_pending", "settled", "업무완료", "운영완료", "정산대기", "정산완료"].includes(status)
+  );
+}
+
+function isExcludedOnliPerformanceRecord(item = {}) {
+  const statusText = [
+    item.status,
+    item.matching_status,
+    item.assignment_status,
+    item.operation_status,
+    item.settlement_status,
+    item.cancel_reason,
+    item.event_name,
+    item.title,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    item.is_test === true ||
+    item.test_data === true ||
+    item.is_test_data === true ||
+    statusText.includes("test") ||
+    statusText.includes("테스트") ||
+    statusText.includes("cancel") ||
+    statusText.includes("취소") ||
+    statusText.includes("no_show") ||
+    statusText.includes("noshow") ||
+    statusText.includes("노쇼")
+  );
 }
 
 function normalizeAdminTargetType(targetType) {
@@ -9248,6 +9346,7 @@ function isUrgentOperationRequest(request = {}) {
     "cancelled",
     "closed",
     "deleted",
+    "업무완료",
     "운영완료",
     "정산완료",
     "취소",
@@ -9695,7 +9794,7 @@ function getRequestHeadlineStatus(item = {}) {
     return { type: "settlement", value: statuses.settlement_status, label: "정산대기" };
   }
   if (statuses.operation_status === OPERATION_STATUS.COMPLETED) {
-    return { type: "operation", value: statuses.operation_status, label: "운영완료" };
+    return { type: "operation", value: statuses.operation_status, label: "업무완료" };
   }
   if (statuses.operation_status === OPERATION_STATUS.IN_PROGRESS) {
     return { type: "operation", value: statuses.operation_status, label: "운영중" };
@@ -10411,7 +10510,7 @@ function getStatusLabel(status) {
   const normalizedMatching = normalizeMatchingStatus(status);
   if (
     Object.values(MATCHING_STATUS).includes(status) ||
-    ["임시배정", "배정", "배정완료", "확정", "운영중", "진행중", "운영완료", "정산대기"].includes(status)
+    ["임시배정", "배정", "배정완료", "확정", "운영중", "진행중", "업무완료", "운영완료", "정산대기"].includes(status)
   ) {
     return getMatchingStatusLabel(normalizedMatching);
   }
