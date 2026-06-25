@@ -29,7 +29,10 @@ const initialForm = {
   eventName: "",
   startDate: "",
   endDate: "",
+  startTime: "",
+  endTime: "",
   eventLocation: "",
+  languageDirection: "양방향",
   requestedLevel: "운영팀 추천받기",
   requestedPeopleCount: "1",
   preferredGender: "성별 무관",
@@ -43,6 +46,7 @@ const initialForm = {
 };
 
 const levelOptions = ["운영팀 추천받기", "LV1", "LV2", "LV3", "LV4"];
+const languageDirectionOptions = ["한국어 → 일본어", "일본어 → 한국어", "양방향"];
 
 const fieldOptions = [
   "화장품",
@@ -58,12 +62,11 @@ const requestReferenceBucket = "request-files";
 const referenceFileMaxSize = 10 * 1024 * 1024;
 const allowedReferenceFileExtensions = new Set(["pdf", "jpg", "jpeg", "png"]);
 const interpretationTypeOptions = [
-  "전시회 통역",
-  "바이어 상담회 통역",
-  "기업 미팅",
-  "수행 통역",
-  "온라인 통역",
-  "기타",
+  "전시회",
+  "상담회",
+  "비즈니스 미팅",
+  "출장 동행",
+  "현장 운영 지원",
 ];
 
 const requestSteps = [
@@ -292,9 +295,10 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
         : form.industryField;
     const referenceFileUpload = await uploadReferenceFile(form.referenceFile);
     const requestDetails = [
-      `통역 언어: ${defaultInterpretationLanguage}`,
+      `통역 언어: ${form.languageDirection || defaultInterpretationLanguage}`,
       `통역 유형: ${form.interpretationTypes.join(", ")}`,
       `산업 분야: ${industryField}`,
+      `진행 시간: ${formatTimeRange(form.startTime, form.endTime)}`,
       `참고 자료: ${form.referenceMaterial}${
         form.referenceFileName ? ` (${form.referenceFileName})` : ""
       }`,
@@ -329,7 +333,10 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       event_date: form.startDate,
       start_date: form.startDate,
       end_date: form.endDate,
+      event_start_time: form.startTime || null,
+      event_end_time: form.endTime || null,
       event_location: form.eventLocation,
+      language_direction: form.languageDirection,
       work_hours: 0,
       requested_level: requestedLevel,
       requested_people_count: Number(form.requestedPeopleCount || 1),
@@ -341,6 +348,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       reference_file_name: referenceFileUpload?.fileName || null,
       reference_file_path: referenceFileUpload?.filePath || null,
       reference_file_url: referenceFileUpload?.fileUrl || null,
+      materials_available: form.referenceMaterial === "있음",
+      estimate_status: "estimate_pending",
       request_type: normalizeRequestType(requestType),
       admin_checked: false,
       checked_at: null,
@@ -416,6 +425,11 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       delete legacyRequestPayload.reference_file_name;
       delete legacyRequestPayload.reference_file_path;
       delete legacyRequestPayload.reference_file_url;
+      delete legacyRequestPayload.event_start_time;
+      delete legacyRequestPayload.event_end_time;
+      delete legacyRequestPayload.language_direction;
+      delete legacyRequestPayload.materials_available;
+      delete legacyRequestPayload.estimate_status;
       const fallbackResult = await supabase
         .from("requests")
         .insert([legacyRequestPayload])
@@ -468,6 +482,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
       location: requestPayload.event_location,
       requestedLevel: requestPayload.requested_level,
       requestedPeopleCount: requestPayload.requested_people_count,
+      languageDirection: requestPayload.language_direction,
+      eventTime: formatTimeRange(form.startTime, form.endTime),
       interpretationField: requestPayload.interpretation_field,
       interpretationTypes: form.interpretationTypes.join(", "),
       requestDetails: form.requestDetails || "-",
@@ -636,6 +652,8 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
               </div>
               <Field label="행사명 또는 프로젝트명" name="eventName" value={form.eventName} onChange={handleChange} placeholder="선택 입력" />
               <Field label="장소" name="eventLocation" value={form.eventLocation} onChange={handleChange} required />
+              <Field label="시작 시간" name="startTime" type="time" value={form.startTime} onChange={handleChange} />
+              <Field label="종료 시간" name="endTime" type="time" value={form.endTime} onChange={handleChange} />
             </div>
           </SectionBlock>
 
@@ -651,6 +669,12 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
                   options={interpretationTypeOptions}
                   values={form.interpretationTypes}
                   onChange={(value) => toggleArrayValue("interpretationTypes", value)}
+                />
+                <TabField
+                  label="언어 방향"
+                  value={form.languageDirection}
+                  onChange={(value) => updateFormValue("languageDirection", value)}
+                  options={languageDirectionOptions}
                 />
                 <TabField
                   className="request-grid-area-field"
@@ -715,7 +739,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
 
           <SectionBlock meta={sectionMeta.details}>
             <TabField
-              label="참고 자료"
+              label="사전 자료 업로드 가능 여부"
               value={form.referenceMaterial}
               onChange={handleReferenceMaterialChange}
               options={["있음", "없음"]}
@@ -813,6 +837,13 @@ function isAgreementColumnError(error) {
     error?.code === "PGRST204" ||
     /agreed_|column|schema cache/i.test(error?.message || "")
   );
+}
+
+function formatTimeRange(startTime, endTime) {
+  if (startTime && endTime) return `${startTime} ~ ${endTime}`;
+  if (startTime) return `${startTime} 시작`;
+  if (endTime) return `${endTime} 종료`;
+  return "미정";
 }
 
 function getReferenceFileValidationMessage(file) {

@@ -166,6 +166,13 @@ const REQUEST_MANAGEMENT_FILTERS = [
   { value: "operation_in_progress", label: "운영 중" },
   { value: "operation_completed", label: "운영 종료" },
 ];
+const ESTIMATE_STATUS_OPTIONS = [
+  { value: "estimate_pending", label: "견적 대기" },
+  { value: "estimate_sent", label: "견적 전달 완료" },
+  { value: "company_approved", label: "기업 승인" },
+  { value: "recruiting_interpreters", label: "통역사 모집" },
+  { value: "assigned", label: "배정 완료" },
+];
 const PENDING_INTERPRETER_STATUSES = [
   "pending",
   "approval_pending",
@@ -212,6 +219,8 @@ const EMPTY_REQUEST_EDIT_DRAFT = {
   settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
   contact_status: "not_contacted",
   payment_status: "unpaid",
+  estimate_status: "estimate_pending",
+  company_internal_memo: "",
 };
 const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
 const APPLICANT_MANAGEMENT_STATUSES = new Set([
@@ -1656,6 +1665,12 @@ function Admin({ onBackClick }) {
       delete legacyPayload.operation_status;
       delete legacyPayload.settlement_status;
       delete legacyPayload.request_type;
+      delete legacyPayload.estimate_status;
+      delete legacyPayload.company_internal_memo;
+      delete legacyPayload.event_start_time;
+      delete legacyPayload.event_end_time;
+      delete legacyPayload.language_direction;
+      delete legacyPayload.materials_available;
 
       const fallbackResult = await supabase
         .from("requests")
@@ -1961,6 +1976,8 @@ function Admin({ onBackClick }) {
       settlement_status: normalizeSettlementFlowStatus(draft),
       contact_status: draft.contact_status,
       payment_status: draft.payment_status,
+      estimate_status: draft.estimate_status,
+      company_internal_memo: draft.company_internal_memo,
       is_public: draft.is_public === "true",
       is_job_public: draft.is_public === "true",
       client_price: clientPrice,
@@ -3564,6 +3581,7 @@ function Admin({ onBackClick }) {
                 interpreters={interpreters}
                 job={activeRequestJob}
                 request={activeRequest}
+                requests={requests}
                 savingKey={savingKey}
                 setAssignmentDrafts={setAssignmentDrafts}
                 assignInterpreter={assignInterpreter}
@@ -3606,6 +3624,7 @@ function RequestActionModal({
   interpreters,
   job,
   request,
+  requests = [],
   savingKey,
   setAssignmentDrafts,
   assignInterpreter,
@@ -3644,6 +3663,7 @@ function RequestActionModal({
       {activeModal.type === "detail" && (
         <RequestDetailPanel
           request={request}
+          requests={requests}
           job={job}
           applications={applications}
           assignmentDrafts={assignmentDrafts}
@@ -4427,7 +4447,22 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
             onChange={(value) => onChange("settlement_status", value)}
           />
         </FieldControl>
+        <FieldControl label="견적 상태">
+          <InlineSelect
+            options={ESTIMATE_STATUS_OPTIONS}
+            value={form.estimate_status || "estimate_pending"}
+            onChange={(value) => onChange("estimate_status", value)}
+          />
+        </FieldControl>
       </div>
+      <FieldControl label="기업 내부 메모">
+        <textarea
+          rows={4}
+          value={form.company_internal_memo || ""}
+          onChange={(event) => onChange("company_internal_memo", event.target.value)}
+          placeholder="담당자 특징, 요청사항, 주의사항, 결제 관련 기록"
+        />
+      </FieldControl>
       <div className="admin-modal-actions">
         <button type="button" className="admin-link-button" onClick={onCancel}>
           취소
@@ -4599,6 +4634,7 @@ function AdminRequestCard({
   requestsByJobId,
   request,
   savingKey,
+  updateRequest,
   updateRequestFlowStatus,
   openRequestModal,
 }) {
@@ -4647,7 +4683,13 @@ function AdminRequestCard({
           <div>
             <ManagementNumberBadge value={request.request_no} />
             <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
-            <p>{request.company_name || "-"}</p>
+            <button
+              type="button"
+              className="admin-company-history-link"
+              onClick={() => openRequestModal("detail", request)}
+            >
+              {request.company_name || "-"}
+            </button>
           </div>
           <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(headlineStatus.type, headlineStatus.value)}`}>
             {headlineStatus.label}
@@ -4655,6 +4697,11 @@ function AdminRequestCard({
         </div>
 
         <div className="admin-status-badge-row">
+          <FlowStatusBadge
+            type="operation"
+            value={request.estimate_status || "estimate_pending"}
+            label={getEstimateStatusLabel(request.estimate_status)}
+          />
           <FlowStatusBadge
             type="assignment"
             value={statuses.assignment_status}
@@ -4669,6 +4716,15 @@ function AdminRequestCard({
             type="settlement"
             value={statuses.settlement_status}
             label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
+          />
+        </div>
+
+        <div className="admin-flow-status-panel">
+          <h3>견적 상태</h3>
+          <InlineSelect
+            options={ESTIMATE_STATUS_OPTIONS}
+            value={request.estimate_status || "estimate_pending"}
+            onChange={(value) => updateRequest(request.id, { estimate_status: value })}
           />
         </div>
 
@@ -4764,6 +4820,7 @@ function RequestDetailPanel({
   interpreters,
   job,
   request,
+  requests = [],
   savingKey,
   setAssignmentDrafts,
   assignInterpreter,
@@ -4800,6 +4857,7 @@ function RequestDetailPanel({
   const requestDescription = getRequestDescription(request);
   const referenceFile = getRequestReferenceFile(request, requestDescription);
   const visibleRequestDescription = removeRequestReferenceFileMeta(requestDescription);
+  const companyHistory = getCompanyHistory(request, requests, assignments, interpreters);
 
   useEffect(() => {
     const requestWithDefaults = applySettlementDefaults(request, settlementTouched);
@@ -4939,7 +4997,37 @@ function RequestDetailPanel({
             }
           />
           <Info label="희망 성별" value={request.preferred_gender} />
+          <Info label="언어 방향" value={request.language_direction} />
+          <Info label="진행 시간" value={formatTimeRange(request.event_start_time, request.event_end_time)} />
+          <Info label="견적 상태" value={getEstimateStatusLabel(request.estimate_status)} />
+          <Info label="자료 업로드" value={request.materials_available ? "가능" : "없음/미정"} />
         </dl>
+      </div>
+
+      <div>
+        <h3>기업 히스토리</h3>
+        <dl className="admin-detail-list compact">
+          <Info label="과거 의뢰 횟수" value={`${companyHistory.requestCount}건`} />
+          <Info label="진행한 행사" value={companyHistory.events || "-"} />
+          <Info label="이용 통역사" value={companyHistory.interpreters || "-"} />
+          <Info label="총 이용 금액" value={formatJPY(companyHistory.totalAmount)} />
+          <Info label="관리자 메모" value={companyHistory.memo || "-"} />
+        </dl>
+      </div>
+
+      <div>
+        <h3>기업 내부 메모</h3>
+        <textarea
+          className="admin-textarea"
+          rows={4}
+          defaultValue={request.company_internal_memo || ""}
+          onBlur={(event) => {
+            if (event.target.value !== (request.company_internal_memo || "")) {
+              updateRequest(request.id, { company_internal_memo: event.target.value });
+            }
+          }}
+          placeholder="담당자 특징, 요청사항, 주의사항, 결제 관련 기록"
+        />
       </div>
 
       <div>
@@ -8176,6 +8264,8 @@ function createRequestEditDraft(request = {}, job = null) {
     settlement_status: normalizeSettlementFlowStatus(flowSource),
     contact_status: request.contact_status || "not_contacted",
     payment_status: request.payment_status || "unpaid",
+    estimate_status: request.estimate_status || "estimate_pending",
+    company_internal_memo: request.company_internal_memo || "",
   };
 }
 
@@ -8683,6 +8773,57 @@ function hasAdminMemo(item = {}) {
 
 function getAdminMemo(item = {}) {
   return String(item?.admin_memo ?? "").trim();
+}
+
+function getEstimateStatusLabel(value) {
+  const normalized = String(value || "estimate_pending").trim();
+  return (
+    ESTIMATE_STATUS_OPTIONS.find((option) => option.value === normalized)?.label ||
+    "견적 대기"
+  );
+}
+
+function formatTimeRange(startTime, endTime) {
+  if (startTime && endTime) return `${startTime} ~ ${endTime}`;
+  if (startTime) return `${startTime} 시작`;
+  if (endTime) return `${endTime} 종료`;
+  return "-";
+}
+
+function getCompanyHistory(request = {}, requests = [], assignments = [], interpreters = []) {
+  const companyName = String(request.company_name || "").trim();
+  const relatedRequests = companyName
+    ? requests.filter((item) => String(item.company_name || "").trim() === companyName)
+    : [];
+  const events = relatedRequests
+    .map((item) => item.event_name || item.title)
+    .filter(Boolean)
+    .slice(0, 5)
+    .join(" / ");
+  const totalAmount = relatedRequests.reduce(
+    (sum, item) => sum + Number(getCompanyAmount(item) || 0),
+    0
+  );
+  const interpreterNames = Array.from(new Set([
+    ...relatedRequests
+      .map((item) => item.assigned_interpreter || item.assigned_interpreter_name || item.interpreter_name)
+      .filter(Boolean),
+    ...assignments
+      .map((assignment) => getAssignedInterpreterLabel(getAssignmentInterpreter(assignment, interpreters)))
+      .filter((name) => name && name !== "-"),
+  ])).slice(0, 5).join(" / ");
+  const memo = relatedRequests
+    .map((item) => item.company_internal_memo || item.admin_memo)
+    .filter(Boolean)
+    .at(0);
+
+  return {
+    requestCount: relatedRequests.length,
+    events,
+    interpreters: interpreterNames,
+    totalAmount,
+    memo,
+  };
 }
 
 function normalizeAdminTargetType(targetType) {

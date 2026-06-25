@@ -2590,6 +2590,40 @@
   overflow-wrap: anywhere;
 }
 
+.admin-company-history-link {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #6b7280;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.admin-company-history-link:hover {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+.admin-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+
 .admin-info-block {
   display: grid;
   gap: 12px;

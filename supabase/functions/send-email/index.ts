@@ -321,8 +321,8 @@ function buildHtml(type: EmailType, payload: Payload) {
       return layout(
         "통역 의뢰가 접수되었습니다",
         `
-          <p>${field(payload, "contactName", "담당자")}님, ON-LI 통역 의뢰가 정상 접수되었습니다.</p>
-          <p>운영팀이 의뢰 내용을 확인한 뒤 적합한 진행 방향을 안내드리겠습니다.</p>
+          <p>${field(payload, "contactName", "담당자")}님, ON-LI 의뢰가 정상 접수되었습니다.</p>
+          <p>담당자가 확인 후 연락드립니다.</p>
           ${infoTable([
             ["회사명", field(payload, "companyName")],
             ["행사명", field(payload, "eventName")],
