@@ -12,6 +12,8 @@ import {
   PUBLIC_INTERPRETER_SELECT,
   PUBLIC_INTERPRETER_SELECT_FALLBACK,
   isMissingColumnError,
+  isOnliCertified,
+  logPublicInterpreterCertification,
 } from "../utils/publicInterpreter";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import { sortJobsByDisplayPriority } from "../utils/jobStatus";
@@ -36,11 +38,6 @@ import {
 
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
-}
-
-function isApprovedInterpreter(interpreter = {}) {
-  const verified = interpreter.verified ?? interpreter.approved;
-  return verified === true || verified === 1 || String(verified).toLowerCase() === "true";
 }
 
 function Home({
@@ -113,6 +110,7 @@ function Home({
         return;
       }
 
+      logPublicInterpreterCertification(data);
       setFeaturedInterpreters((data || []).filter(isPublicInterpreterVisible).slice(0, 10));
     } catch (error) {
       console.error(error);
@@ -171,7 +169,7 @@ function Home({
   }, [fetchFeaturedJobs]);
 
   const mobileFeaturedInterpreters = featuredInterpreters
-    .filter(isApprovedInterpreter)
+    .filter(isOnliCertified)
     .slice(0, 5);
 
   return (
@@ -675,8 +673,8 @@ function InterpreterCard({ interpreter, onProfileClick }) {
               >
                 {statusLabel}
               </span>
-              <span className={`registration-badge ${isApprovedInterpreter(interpreter) ? "verified verified-badge" : "regular"} home-interpreter-registration-badge`}>
-                {isApprovedInterpreter(interpreter) ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
+              <span className={`registration-badge ${isOnliCertified(interpreter) ? "verified verified-badge" : "regular"} home-interpreter-registration-badge`}>
+                {isOnliCertified(interpreter) ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
               </span>
             </div>
           </div>

@@ -11,6 +11,8 @@ import {
   PUBLIC_INTERPRETER_SELECT,
   PUBLIC_INTERPRETER_SELECT_FALLBACK,
   isMissingColumnError,
+  isOnliCertified,
+  logPublicInterpreterCertification,
 } from "../utils/publicInterpreter";
 import "./InterpreterList.css";
 
@@ -116,6 +118,7 @@ function InterpreterList({
         return;
       }
 
+      logPublicInterpreterCertification(data);
       setInterpreters((data || []).filter(isPublicInterpreterVisible));
       setLoading(false);
     };
@@ -414,8 +417,8 @@ function InterpreterList({
                                 <span className="dot" />
                                 {getInterpreterStatusLabel(person)}
                               </span>
-                              <span className={`interpreter-list-mobile-verification ${person.verified || person.approved ? "verified" : "regular"}`}>
-                                {person.verified || person.approved ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
+                              <span className={`interpreter-list-mobile-verification ${isOnliCertified(person) ? "verified" : "regular"}`}>
+                                {isOnliCertified(person) ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
                               </span>
                             </div>
                           </div>
@@ -462,7 +465,7 @@ function InterpreterList({
                           <Info
                             label="인증 상태"
                             value={
-                              person.verified || person.approved ? (
+                              isOnliCertified(person) ? (
                                 <span className="interpreter-verification-badge verified">⭐ ON-LI 인증 통역사</span>
                               ) : (
                                 <span className="interpreter-verification-badge regular">○ 등록 통역사</span>

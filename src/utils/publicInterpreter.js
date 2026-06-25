@@ -25,6 +25,35 @@ export const PUBLIC_INTERPRETER_SELECT_FALLBACK = [
   "status",
 ].join(", ");
 
+export function isOnliCertified(interpreter = {}) {
+  const verificationStatus = String(interpreter.verification_status || "")
+    .trim()
+    .toLowerCase();
+  const values = [
+    interpreter.verified,
+    interpreter.approved,
+    verificationStatus,
+  ];
+
+  return values.some((value) => {
+    if (value === true || value === 1) return true;
+    const normalized = String(value || "").trim().toLowerCase();
+    return ["true", "verified", "approved"].includes(normalized);
+  });
+}
+
+export function logPublicInterpreterCertification(data) {
+  console.log(
+    "[public interpreters certification]",
+    data?.map((item) => ({
+      name: item.name,
+      verified: item.verified,
+      approved: item.approved,
+      verification_status: item.verification_status,
+    }))
+  );
+}
+
 export function isMissingColumnError(error) {
   return (
     error?.code === "42703" ||
