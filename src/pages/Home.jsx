@@ -13,7 +13,6 @@ import {
   PUBLIC_INTERPRETER_SELECT_FALLBACK,
   isMissingColumnError,
   isOnliCertified,
-  logPublicInterpreterCertification,
 } from "../utils/publicInterpreter";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import { sortJobsByDisplayPriority } from "../utils/jobStatus";
@@ -110,7 +109,6 @@ function Home({
         return;
       }
 
-      logPublicInterpreterCertification(data);
       setFeaturedInterpreters((data || []).filter(isPublicInterpreterVisible).slice(0, 10));
     } catch (error) {
       console.error(error);

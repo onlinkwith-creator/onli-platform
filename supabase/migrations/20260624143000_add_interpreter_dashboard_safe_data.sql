@@ -49,9 +49,9 @@ as $$
       case when j.event_date::text ~ '^\d{4}-\d{2}-\d{2}' then left(j.event_date::text, 10)::date end,
       case when r.event_date::text ~ '^\d{4}-\d{2}-\d{2}' then left(r.event_date::text, 10)::date end
     ) as end_date,
-    coalesce(r.interpreter_payment, j.interpreter_fee, 0)::bigint as amount,
-    coalesce(r.settlement_status, j.settlement_status, 'not_required') as settlement_status,
-    coalesce(r.payment_status, j.payment_status, 'unpaid') as payment_status
+    coalesce(r.interpreter_payment, 0)::bigint as amount,
+    coalesce(r.settlement_status, 'not_required') as settlement_status,
+    coalesce(r.payment_status, 'unpaid') as payment_status
   from public.matchings m
   join public.interpreters i
     on i.id = m.interpreter_id
@@ -88,9 +88,9 @@ as $$
       case when j.event_date::text ~ '^\d{4}-\d{2}-\d{2}' then left(j.event_date::text, 10)::date end,
       case when r.event_date::text ~ '^\d{4}-\d{2}-\d{2}' then left(r.event_date::text, 10)::date end
     ) as end_date,
-    coalesce(r.interpreter_payment, j.interpreter_fee, 0)::bigint as amount,
-    coalesce(r.settlement_status, j.settlement_status, 'not_required') as settlement_status,
-    coalesce(r.payment_status, j.payment_status, 'unpaid') as payment_status
+    coalesce(r.interpreter_payment, 0)::bigint as amount,
+    coalesce(r.settlement_status, 'not_required') as settlement_status,
+    coalesce(r.payment_status, 'unpaid') as payment_status
   from public.request_interpreters ri
   join public.interpreters i
     on i.id = ri.interpreter_id

@@ -12,7 +12,6 @@ import {
   PUBLIC_INTERPRETER_SELECT_FALLBACK,
   isMissingColumnError,
   isOnliCertified,
-  logPublicInterpreterCertification,
 } from "../utils/publicInterpreter";
 import "./InterpreterList.css";
 
@@ -118,7 +117,6 @@ function InterpreterList({
         return;
       }
 
-      logPublicInterpreterCertification(data);
       setInterpreters((data || []).filter(isPublicInterpreterVisible));
       setLoading(false);
     };
