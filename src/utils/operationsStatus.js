@@ -13,7 +13,9 @@ export const OPERATION_STATUS = {
 export const SETTLEMENT_FLOW_STATUS = {
   NOT_REQUIRED: "not_required",
   PENDING: "pending",
+  CONFIRMED: "confirmed",
   COMPLETED: "completed",
+  ON_HOLD: "on_hold",
 };
 
 export const ASSIGNMENT_STATUS_OPTIONS = [
@@ -31,7 +33,9 @@ export const OPERATION_STATUS_OPTIONS = [
 export const SETTLEMENT_FLOW_STATUS_OPTIONS = [
   { value: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED, label: "정산없음" },
   { value: SETTLEMENT_FLOW_STATUS.PENDING, label: "정산대기" },
+  { value: SETTLEMENT_FLOW_STATUS.CONFIRMED, label: "정산확정" },
   { value: SETTLEMENT_FLOW_STATUS.COMPLETED, label: "정산완료" },
+  { value: SETTLEMENT_FLOW_STATUS.ON_HOLD, label: "정산보류" },
 ];
 
 export function normalizeAssignmentStatus(item = {}) {
@@ -60,6 +64,12 @@ export function normalizeSettlementFlowStatus(item = {}) {
   const value = getStatusValue(item.settlement_status || item.status || item.matching_status);
   if (["completed", "settled", "정산완료"].includes(value)) {
     return SETTLEMENT_FLOW_STATUS.COMPLETED;
+  }
+  if (["confirmed", "settlement_confirmed", "정산확정"].includes(value)) {
+    return SETTLEMENT_FLOW_STATUS.CONFIRMED;
+  }
+  if (["on_hold", "hold", "settlement_on_hold", "보류", "정산보류"].includes(value)) {
+    return SETTLEMENT_FLOW_STATUS.ON_HOLD;
   }
   if (["pending", "settlement_pending", "unsettled", "정산대기", "미정산"].includes(value)) {
     return SETTLEMENT_FLOW_STATUS.PENDING;
@@ -99,7 +109,9 @@ export function getSettlementFlowStatusBadgeClass(status) {
   return {
     [SETTLEMENT_FLOW_STATUS.NOT_REQUIRED]: "flow-badge-gray",
     [SETTLEMENT_FLOW_STATUS.PENDING]: "flow-badge-purple",
+    [SETTLEMENT_FLOW_STATUS.CONFIRMED]: "flow-badge-blue",
     [SETTLEMENT_FLOW_STATUS.COMPLETED]: "flow-badge-emerald",
+    [SETTLEMENT_FLOW_STATUS.ON_HOLD]: "flow-badge-orange",
   }[status] || "flow-badge-gray";
 }
 

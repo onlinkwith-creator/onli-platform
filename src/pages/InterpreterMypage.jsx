@@ -38,6 +38,7 @@ const TABS = [
   { id: "profile", label: "프로필 정보", icon: "👤" },
   { id: "applications", label: "지원 내역", icon: "📄" },
   { id: "assignments", label: "배정 내역", icon: "💼" },
+  { id: "settlements", label: "정산", icon: "💰" },
   { id: "schedule", label: "일정 및 캘린더", icon: "📅" },
 ];
 
@@ -77,6 +78,7 @@ function InterpreterMypage({
   // Dynamic dashboard states
   const [applications, setApplications] = useState([]);
   const [matchings, setMatchings] = useState([]);
+  const [settlements, setSettlements] = useState([]);
   const [activeTab, setActiveTab] = useState("profile");
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -266,12 +268,14 @@ function InterpreterMypage({
       // Fetch applications and matchings dynamically
       setLoadingData(true);
       try {
-        const [apps, mats] = await Promise.all([
+        const [apps, mats, settlementRows] = await Promise.all([
           fetchApplicationsData(nextInterpreter.id),
           fetchMatchingsData(nextInterpreter.id),
+          fetchSettlementsData(),
         ]);
         setApplications(apps);
         setMatchings(mats);
+        setSettlements(settlementRows);
       } catch (err) {
         console.error("Failed to load applications/matchings", err);
       } finally {
@@ -843,6 +847,19 @@ function InterpreterMypage({
     }
 
     return (data || []).map(mapMyAssignmentRow);
+  };
+
+  const fetchSettlementsData = async () => {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase.rpc("get_my_settlements");
+
+    if (error) {
+      console.error("get_my_settlements RPC failed", error);
+      return [];
+    }
+
+    return (data || []).map(mapMySettlementRow);
   };
 
   const handleConfirmWithdrawal = async () => {
@@ -2142,6 +2159,48 @@ function InterpreterMypage({
                   </article>
                 )}
 
+                {activeTab === "settlements" && (
+                  <article className="interpreter-mypage-card animate-fade-in">
+                    <h2>정산 내역</h2>
+                    {loadingData ? (
+                      <p className="loading-text">정산 내역을 불러오고 있습니다...</p>
+                    ) : settlements.length === 0 ? (
+                      <div className="interpreter-empty-state">
+                        <span className="empty-icon">💰</span>
+                        <p>아직 정산 내역이 없습니다.</p>
+                        <p className="empty-sub">
+                          업무 완료 후 정산 예정 금액과 상태가 이곳에 표시됩니다.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="interpreter-assignment-list">
+                        {settlements.map((settlement) => (
+                          <div key={settlement.id} className="interpreter-assignment-card">
+                            <div className="card-top-row">
+                              <span className="matching-no">{settlement.publicJobCode || "정산"}</span>
+                              <span className={`status-badge ${getStatusBadgeClass(settlement.settlementStatus)}`}>
+                                {getSettlementStatusLabel(settlement.settlementStatus)}
+                              </span>
+                            </div>
+                            <div className="assignment-list-summary">
+                              <h3>{settlement.eventName || settlement.title || "배정된 통역"}</h3>
+                              <p className="assignment-primary-meta">
+                                업무일: {formatDateRange(settlement.startDate, settlement.endDate)}
+                              </p>
+                              <p className="assignment-secondary-meta">
+                                정산 예정 금액: {formatKRW(settlement.amount)}
+                              </p>
+                              <p className="assignment-language">
+                                정산 완료일: {formatDate(settlement.completedAt)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                )}
+
                 {activeTab === "schedule" && (
                   <article className="interpreter-mypage-card animate-fade-in">
                     <h2>내 일정 및 캘린더 타임라인</h2>
@@ -2814,6 +2873,21 @@ function formatDate(dateString) {
   });
 }
 
+function formatKRW(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return "-";
+  return `${amount.toLocaleString("ko-KR")}원`;
+}
+
+function getSettlementStatusLabel(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (["pending", "settlement_pending", "정산대기"].includes(normalized)) return "정산대기";
+  if (["confirmed", "settlement_confirmed", "정산확정"].includes(normalized)) return "정산확정";
+  if (["completed", "settled", "정산완료"].includes(normalized)) return "정산완료";
+  if (["on_hold", "hold", "settlement_on_hold", "정산보류"].includes(normalized)) return "정산보류";
+  return "정산대기";
+}
+
 function getDaysRemaining(startDateStr) {
   if (!startDateStr) return null;
   const start = new Date(startDateStr);
@@ -2898,6 +2972,20 @@ function mapMyAssignmentRow(row = {}) {
     status: row.public_status,
     created_at: row.assigned_at,
     jobs: mapPublicJobFromMypageRow(row),
+  };
+}
+
+function mapMySettlementRow(row = {}) {
+  return {
+    id: row.settlement_id,
+    publicJobCode: row.public_job_code,
+    title: row.title,
+    eventName: row.event_name,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    amount: row.settlement_final_amount ?? row.amount,
+    settlementStatus: row.settlement_status,
+    completedAt: row.settlement_completed_at,
   };
 }
 
