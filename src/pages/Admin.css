@@ -1189,6 +1189,18 @@
   color: #047857;
 }
 
+.flow-badge-teal {
+  border-color: #99f6e4;
+  background-color: #ccfbf1;
+  color: #0f766e;
+}
+
+.flow-badge-cyan {
+  border-color: #a5f3fc;
+  background-color: #cffafe;
+  color: #0e7490;
+}
+
 .admin-request-card .admin-detail-panel,
 .admin-request-card .admin-applications-panel,
 .admin-list-card .admin-detail-panel,
@@ -2321,6 +2333,16 @@
 .badge-neutral {
   background: #f3f4f6;
   color: #4b5563;
+}
+
+.badge-teal {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.badge-cyan {
+  background: #cffafe;
+  color: #0e7490;
 }
 
 .badge-designated {
@@ -5028,3 +5050,105 @@
     scroll-snap-type: none;
   }
 }
+
+/* ========================
+   Preparation Checklist
+   ======================== */
+
+.prep-checklist-panel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #e0e7ff;
+  border-radius: 14px;
+  background: #f5f3ff;
+}
+
+.prep-checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.prep-checklist-header h4 {
+  margin: 0;
+  color: #3730a3;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.prep-count {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.prep-checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.prep-checklist-item label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: background 140ms, border-color 140ms;
+}
+
+.prep-checklist-item label:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.prep-checklist-item.is-done label {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  text-decoration: line-through;
+  color: #6b7280;
+}
+
+.prep-checklist-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: #4f46e5;
+  cursor: pointer;
+}
+
+.prep-checklist-item span {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 800;
+  color: #374151;
+}
+
+.prep-checklist-item.is-done span {
+  color: #6b7280;
+}
+
+.prep-done-time {
+  flex: 0 0 auto !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #9ca3af !important;
+}
+
+.prep-loading {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  text-align: center;
+  padding: 8px 0;
+}
+

@@ -33,6 +33,10 @@ const getClientNotificationLabel = (eventType) => {
       return "통역사 모집 시작";
     case "assignment_confirmed_client":
       return "배정 완료";
+    case "client_work_preparing":
+      return "업무 준비 시작";
+    case "client_work_ready":
+      return "진행 예정";
     case "client_work_completed":
       return "업무 완료";
     case "client_settlement_ready":
@@ -71,6 +75,10 @@ const getClientNotificationText = (event) => {
       return `의뢰 [${eventName}] 통역사 모집을 시작했습니다.${suffix}`;
     case "assignment_confirmed_client":
       return `의뢰 [${eventName}] 통역사 배정이 확정되었습니다.${suffix}`;
+    case "client_work_preparing":
+      return `의뢰 [${eventName}] 업무 준비가 시작되었습니다. 행사 자료를 업로드해 주세요.${suffix}`;
+    case "client_work_ready":
+      return `의뢰 [${eventName}] 업무 준비가 완료되었습니다. 진행 예정 상태입니다.${suffix}`;
     case "client_work_completed":
       return `의뢰 [${eventName}] 통역 업무가 종료되었습니다.${suffix}`;
     case "client_settlement_ready":
@@ -487,6 +495,12 @@ function BusinessMypage({
     if (req.operation_status === "completed") {
       return "진행 완료";
     }
+    if (req.assignment_status === "ready") {
+      return "진행 예정";
+    }
+    if (req.assignment_status === "preparing") {
+      return "업무 준비중";
+    }
     if (req.assignment_status === "assigned") {
       return "배정 완료";
     }
@@ -505,6 +519,8 @@ function BusinessMypage({
       "검토중": "badge-yellow",
       "통역사 모집중": "badge-orange",
       "배정 완료": "badge-purple",
+      "업무 준비중": "badge-teal",
+      "진행 예정": "badge-cyan",
       "진행 완료": "badge-green",
       "취소됨": "badge-red",
     };
@@ -512,7 +528,7 @@ function BusinessMypage({
   };
 
   const getStatusStepIndex = (statusLabel) => {
-    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "진행 완료"];
+    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "업무 준비중", "진행 예정", "진행 완료"];
     return steps.indexOf(statusLabel);
   };
 
@@ -530,7 +546,7 @@ function BusinessMypage({
     }
 
     const currentIndex = getStatusStepIndex(statusLabel);
-    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "진행 완료"];
+    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "업무 준비중", "진행 예정", "진행 완료"];
 
     return (
       <div className="status-timeline">

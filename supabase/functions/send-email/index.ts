@@ -29,6 +29,8 @@ const subjects = {
   client_recruiting_started: "[ON-LI] 통역사 모집이 시작되었습니다",
   client_work_completed: "[ON-LI] 통역 업무가 완료되었습니다",
   client_settlement_ready: "[ON-LI] 정산/결제 요청 안내",
+  client_work_preparing: "[ON-LI] 통역 업무 준비가 시작되었습니다",
+  client_work_ready: "[ON-LI] 통역 업무 진행 예정 안내",
 } as const;
 
 type EmailType = keyof typeof subjects;
@@ -621,6 +623,34 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
             ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
             ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
             ["의뢰 상태", "정산/결제 안내 필요"],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "client_work_preparing":
+      return layout(
+        "통역 업무 준비 시작",
+        `
+          <p>통역사 배정이 완료되어 업무 준비가 시작되었습니다. 기업 마이페이지에서 행사 자료를 업로드하시면 배정된 통역사에게 전달됩니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["현재 상태", "업무 준비중"],
+          ])}
+          ${linkButton("자료 업로드하기", appUrl("/business/mypage"))}
+        `
+      );
+    case "client_work_ready":
+      return layout(
+        "통역 업무 진행 예정 안내",
+        `
+          <p>통역 업무 준비가 완료되어 진행 예정 상태로 변경되었습니다. 행사 당일 원활한 진행을 위해 담당 통역사와의 최종 확인을 부탁드립니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["현재 상태", "진행 예정"],
           ])}
           ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
         `

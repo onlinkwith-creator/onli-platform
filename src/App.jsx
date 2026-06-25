@@ -223,18 +223,14 @@ function App() {
     }
 
     try {
-      // A. Check interpreter profile
       const normalizedEmail = user.email.toLowerCase().trim();
+
+      // A. Check interpreter profile
       const { data: interpreterData } = await supabase
         .from("interpreters")
         .select("id")
-        .ilike("email", normalizedEmail)
+        .or(`email.ilike."${normalizedEmail}",auth_user_id.eq.${user.id}`)
         .maybeSingle();
-
-      if (interpreterData) {
-        navigate("interpreterMypage", null, null);
-        return;
-      }
 
       // B. Check business profile
       const { data: bizData } = await supabase
@@ -243,7 +239,21 @@ function App() {
         .eq("auth_user_id", user.id)
         .maybeSingle();
 
-      if (bizData) {
+      const hasInterpreter = !!interpreterData;
+      const hasBusiness = !!bizData;
+
+      if (hasInterpreter && hasBusiness) {
+        alert("계정 유형이 중복 등록되어 있습니다. 관리자에게 문의해주세요.");
+        navigate("home", null, null);
+        return;
+      }
+
+      if (hasInterpreter) {
+        navigate("interpreterMypage", null, null);
+        return;
+      }
+
+      if (hasBusiness) {
         navigate("businessMypage", null, null);
         return;
       }
@@ -256,12 +266,27 @@ function App() {
     }
   };
 
-  const openBusinessRegister = () => {
+  const openBusinessRegister = async () => {
     if (authLoading) return;
     if (!user) {
       alert("로그인 후 이용 가능합니다.");
       navigate("login", null, null);
       return;
+    }
+    try {
+      const normalizedEmail = user.email.toLowerCase().trim();
+      const { data } = await supabase
+        .from("interpreters")
+        .select("id")
+        .or(`email.ilike."${normalizedEmail}",auth_user_id.eq.${user.id}`)
+        .maybeSingle();
+
+      if (data) {
+        alert("이미 통역사로 등록된 계정은 기업 등록을 할 수 없습니다. 기업 이용은 별도 계정으로 가입해주세요.");
+        return;
+      }
+    } catch (err) {
+      console.error("Error checking interpreter profile before business registration:", err);
     }
     navigate("businessRegister", null, null);
   };
@@ -303,21 +328,30 @@ function App() {
         .eq("auth_user_id", currentUser.id)
         .maybeSingle();
 
-      if (bizData) {
-        setBusinessProfile(bizData);
-        navigate("businessMypage", null, null);
-        return;
-      }
-
       // Check if interpreter profile exists
       const { data: interpreterData } = await supabase
         .from("interpreters")
         .select("id")
-        .ilike("email", email)
+        .or(`email.ilike."${email}",auth_user_id.eq.${currentUser.id}`)
         .maybeSingle();
 
-      if (interpreterData) {
+      const hasInterpreter = !!interpreterData;
+      const hasBusiness = !!bizData;
+
+      if (hasInterpreter && hasBusiness) {
+        alert("계정 유형이 중복 등록되어 있습니다. 관리자에게 문의해주세요.");
+        navigate("home", null, null);
+        return;
+      }
+
+      if (hasInterpreter) {
         navigate("interpreterMypage", null, null);
+        return;
+      }
+
+      if (hasBusiness) {
+        setBusinessProfile(bizData);
+        navigate("businessMypage", null, null);
         return;
       }
 
@@ -367,12 +401,26 @@ function App() {
     navigate("home", null, null);
   };
 
-  const openInterpreterRegister = () => {
+  const openInterpreterRegister = async () => {
     if (authLoading) return;
     if (!user) {
       alert("로그인 후 이용 가능합니다.");
       navigate("login", null, null);
       return;
+    }
+    try {
+      const { data } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (data) {
+        alert("이미 기업으로 등록된 계정은 통역사 등록을 할 수 없습니다. 통역사 이용은 별도 계정으로 가입해주세요.");
+        return;
+      }
+    } catch (err) {
+      console.error("Error checking business profile before interpreter registration:", err);
     }
     navigate("register", null, null);
   };

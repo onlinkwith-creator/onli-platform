@@ -2,6 +2,8 @@ export const ASSIGNMENT_STATUS = {
   WAITING: "waiting",
   ASSIGNING: "assigning",
   ASSIGNED: "assigned",
+  PREPARING: "preparing",
+  READY: "ready",
 };
 
 export const OPERATION_STATUS = {
@@ -22,6 +24,8 @@ export const ASSIGNMENT_STATUS_OPTIONS = [
   { value: ASSIGNMENT_STATUS.WAITING, label: "배정대기" },
   { value: ASSIGNMENT_STATUS.ASSIGNING, label: "배정중" },
   { value: ASSIGNMENT_STATUS.ASSIGNED, label: "배정완료" },
+  { value: ASSIGNMENT_STATUS.PREPARING, label: "업무준비중" },
+  { value: ASSIGNMENT_STATUS.READY, label: "진행예정" },
 ];
 
 export const OPERATION_STATUS_OPTIONS = [
@@ -42,6 +46,12 @@ export function normalizeAssignmentStatus(item = {}) {
   const value = getStatusValue(item.assignment_status || item.status || item.matching_status);
   if (["assigned", "confirmed", "배정완료", "배정", "매칭완료"].includes(value)) {
     return ASSIGNMENT_STATUS.ASSIGNED;
+  }
+  if (["preparing", "업무준비중", "업무 준비중"].includes(value)) {
+    return ASSIGNMENT_STATUS.PREPARING;
+  }
+  if (["ready", "진행예정", "진행 예정"].includes(value)) {
+    return ASSIGNMENT_STATUS.READY;
   }
   if (["assigning", "in_progress", "matching", "배정중", "매칭중", "진행중", "통역사 확인중", "확인중", "지정 요청중"].includes(value)) {
     return ASSIGNMENT_STATUS.ASSIGNING;
@@ -94,6 +104,8 @@ export function getAssignmentStatusBadgeClass(status) {
     [ASSIGNMENT_STATUS.WAITING]: "flow-badge-gray",
     [ASSIGNMENT_STATUS.ASSIGNING]: "flow-badge-blue",
     [ASSIGNMENT_STATUS.ASSIGNED]: "flow-badge-indigo",
+    [ASSIGNMENT_STATUS.PREPARING]: "flow-badge-teal",
+    [ASSIGNMENT_STATUS.READY]: "flow-badge-cyan",
   }[status] || "flow-badge-gray";
 }
 

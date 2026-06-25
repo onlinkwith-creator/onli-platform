@@ -38,9 +38,11 @@ const TABS = [
   { id: "profile", label: "프로필 정보", icon: "👤" },
   { id: "applications", label: "지원 내역", icon: "📄" },
   { id: "assignments", label: "배정 내역", icon: "💼" },
+  { id: "preparation", label: "업무 준비", icon: "🗂️" },
   { id: "settlements", label: "정산", icon: "💰" },
   { id: "schedule", label: "일정 및 캘린더", icon: "📅" },
 ];
+
 
 const SETTLEMENT_DOCUMENT_BUCKET = "resume-files";
 const SETTLEMENT_DOCUMENT_MAX_SIZE = 10 * 1024 * 1024;
@@ -2159,7 +2161,73 @@ function InterpreterMypage({
                   </article>
                 )}
 
+                {activeTab === "preparation" && (
+                  <article className="interpreter-mypage-card animate-fade-in">
+                    <h2>업무 준비</h2>
+                    <p style={{ margin: "0 0 16px", color: "#6b7280", fontSize: "13px" }}>
+                      배정 확정 후 업무 준비 단계의 통역 일정입니다. 기업 자료를 확인하고 업무를 준비해 주세요.
+                    </p>
+                    {loadingData ? (
+                      <p className="loading-text">업무 준비 정보를 불러오는 중...</p>
+                    ) : (() => {
+                      const prepItems = matchings.filter(
+                        (m) =>
+                          m.request_assignment_status === "preparing" ||
+                          m.request_assignment_status === "ready" ||
+                          m.request_assignment_status === "assigned"
+                      );
+                      if (prepItems.length === 0) {
+                        return (
+                          <div className="interpreter-empty-state">
+                            <span className="empty-icon">🗂️</span>
+                            <p>현재 업무 준비 단계의 배정 건이 없습니다.</p>
+                            <p className="empty-sub">
+                              통역 배정이 완료되면 이곳에서 행사 자료와 연락처를 확인할 수 있습니다.
+                            </p>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="interpreter-prep-list">
+                          {prepItems.map((mat) => {
+                            const job = mat.jobs;
+                            const title = job?.event_name || job?.title || "배정된 통역";
+                            const start = mat.start_date || job?.start_date;
+                            const end = mat.end_date || job?.end_date;
+                            const location = job?.location || job?.event_location || "장소 미등록";
+                            const prepStatus = mat.request_assignment_status;
+                            const prepStatusLabel =
+                              prepStatus === "ready" ? "진행 예정" :
+                              prepStatus === "preparing" ? "업무 준비중" :
+                              "배정 완료";
+                            const prepBadgeStyle =
+                              prepStatus === "ready"
+                                ? { background: "#cffafe", color: "#0e7490" }
+                                : prepStatus === "preparing"
+                                ? { background: "#ccfbf1", color: "#0f766e" }
+                                : { background: "#e0e7ff", color: "#4338ca" };
+
+                            return (
+                              <InterpreterPrepCard
+                                key={mat.id}
+                                mat={mat}
+                                title={title}
+                                start={start}
+                                end={end}
+                                location={location}
+                                prepStatusLabel={prepStatusLabel}
+                                prepBadgeStyle={prepBadgeStyle}
+                              />
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </article>
+                )}
+
                 {activeTab === "settlements" && (
+
                   <article className="interpreter-mypage-card animate-fade-in">
                     <h2>정산 내역</h2>
                     {loadingData ? (
@@ -2971,9 +3039,12 @@ function mapMyAssignmentRow(row = {}) {
     end_date: row.end_date,
     status: row.public_status,
     created_at: row.assigned_at,
+    request_assignment_status: row.request_assignment_status || "assigned",
+    is_contact_visible: row.is_contact_visible || false,
     jobs: mapPublicJobFromMypageRow(row),
   };
 }
+
 
 function mapMySettlementRow(row = {}) {
   return {
@@ -2989,4 +3060,115 @@ function mapMySettlementRow(row = {}) {
   };
 }
 
+function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
+  const [materials, setMaterials] = useState([]);
+  const [loadingMats, setLoadingMats] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+
+  // Fetch materials when expanded
+  useEffect(() => {
+    if (!expanded || !mat.request_id) return;
+    Promise.resolve().then(async () => {
+      setLoadingMats(true);
+      try {
+        const { data, error } = await supabase
+          .from("request_materials")
+          .select("*")
+          .eq("request_id", mat.request_id)
+          .order("created_at", { ascending: false });
+        if (!error) setMaterials(data || []);
+      } catch (err) {
+        console.error("Error fetching prep materials:", err);
+      } finally {
+        setLoadingMats(false);
+      }
+    });
+  }, [expanded, mat.request_id]);
+
+
+  const handleDownload = async (filePath, fileName) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("request-files")
+        .createSignedUrl(filePath, 600, { download: fileName || true });
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Material download error:", err);
+      alert("파일을 다운로드할 수 없습니다.");
+    }
+  };
+
+  const scheduleText = (() => {
+    if (!start && !end) return "일정 미등록";
+    if (!end || start === end) return start;
+    return `${start} ~ ${end}`;
+  })();
+
+  return (
+    <div className="interpreter-prep-card">
+      <div className="prep-card-header" onClick={() => setExpanded((v) => !v)}>
+        <div className="prep-card-info">
+          <strong className="prep-card-title">{title}</strong>
+          <span className="prep-card-meta">📅 {scheduleText}</span>
+          <span className="prep-card-meta">📍 {location}</span>
+        </div>
+        <div className="prep-card-right">
+          <span
+            className="prep-status-badge"
+            style={{ ...prepBadgeStyle, padding: "4px 10px", borderRadius: "999px", fontSize: "12px", fontWeight: 900 }}
+          >
+            {prepStatusLabel}
+          </span>
+          <span className="prep-expand-toggle">{expanded ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="prep-card-detail">
+          {/* Contact info if visible */}
+          {mat.is_contact_visible ? (
+            <div className="prep-contact-section">
+              <span className="prep-section-label">📞 기업 연락처</span>
+              <p className="prep-contact-note">관리자가 연락처 공개를 승인했습니다. 의뢰 정보를 통해 기업 담당자에게 연락해 주세요.</p>
+            </div>
+          ) : (
+            <div className="prep-contact-section muted">
+              <span className="prep-section-label">📞 기업 연락처</span>
+              <p className="prep-contact-note muted">아직 연락처가 공개되지 않았습니다. 관리자 확인 후 공개됩니다.</p>
+            </div>
+          )}
+
+          {/* Materials */}
+          <div className="prep-materials-section">
+            <span className="prep-section-label">📂 행사 자료</span>
+            {loadingMats ? (
+              <p className="prep-mat-empty">자료를 불러오는 중...</p>
+            ) : materials.length === 0 ? (
+              <p className="prep-mat-empty">아직 업로드된 자료가 없습니다.</p>
+            ) : (
+              <ul className="prep-mat-list">
+                {materials.map((mat) => (
+                  <li key={mat.id} className="prep-mat-item">
+                    <span className="prep-mat-type">{mat.file_type || "자료"}</span>
+                    <button
+                      type="button"
+                      className="prep-mat-download"
+                      onClick={() => handleDownload(mat.file_path, mat.file_name)}
+                    >
+                      {mat.file_name} ↓
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default InterpreterMypage;
+

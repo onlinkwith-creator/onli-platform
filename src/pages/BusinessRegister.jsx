@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 import "./BusinessRegister.css";
 
@@ -21,6 +21,35 @@ const COUNTRY_OPTIONS = [
 ];
 
 function BusinessRegister({ user, onRegisterSuccess, onBackClick }) {
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [isInterpreter, setIsInterpreter] = useState(false);
+
+  useEffect(() => {
+    const checkInterpreterProfile = async () => {
+      if (!user || !supabase) {
+        setCheckingStatus(false);
+        return;
+      }
+      try {
+        const normalizedEmail = user.email.toLowerCase().trim();
+        const { data } = await supabase
+          .from("interpreters")
+          .select("id")
+          .or(`email.ilike."${normalizedEmail}",auth_user_id.eq.${user.id}`)
+          .maybeSingle();
+
+        if (data) {
+          setIsInterpreter(true);
+        }
+      } catch (err) {
+        console.error("Error checking interpreter profile:", err);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+    checkInterpreterProfile();
+  }, [user]);
+
   const [form, setForm] = useState({
     companyName: "",
     businessNumber: "",
@@ -76,6 +105,25 @@ function BusinessRegister({ user, onRegisterSuccess, onBackClick }) {
       return;
     }
 
+    // Final validation check for interpreter profile before submitting
+    try {
+      const normalizedEmail = user.email.toLowerCase().trim();
+      const { data: interpreterCheck } = await supabase
+        .from("interpreters")
+        .select("id")
+        .or(`email.ilike."${normalizedEmail}",auth_user_id.eq.${user.id}`)
+        .maybeSingle();
+
+      if (interpreterCheck) {
+        const message = "통역사 계정으로는 기업 등록을 할 수 없습니다.";
+        setErrorMessage(message);
+        alert(message);
+        return;
+      }
+    } catch (err) {
+      console.error("Interpreter check error on submit:", err);
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
 
@@ -112,6 +160,51 @@ function BusinessRegister({ user, onRegisterSuccess, onBackClick }) {
       setIsSubmitting(false);
     }
   };
+
+  if (checkingStatus) {
+    return (
+      <main className="business-register-page">
+        <div className="register-bg-glow" />
+        <section className="business-register-card" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "300px" }}>
+          <p>프로필 확인 중...</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (isInterpreter) {
+    return (
+      <main className="business-register-page">
+        <div className="register-bg-glow" />
+        <section className="business-register-card">
+          <p className="business-register-kicker" style={{ color: "#ef4444", fontWeight: 800 }}>ACCESS DENIED</p>
+          <h1>기업 등록 제한</h1>
+          <p className="business-register-desc" style={{ marginTop: "24px", color: "#4b5563" }}>
+            이미 통역사로 등록된 계정은 기업 등록을 할 수 없습니다. <br />
+            기업 이용은 별도 계정으로 가입해주세요.
+          </p>
+          <div style={{ display: "flex", gap: "16px", marginTop: "32px", justifyContent: "center" }}>
+            <button
+              type="button"
+              onClick={onBackClick}
+              className="business-register-submit"
+              style={{ background: "#4f46e5", maxWidth: "200px", margin: "0" }}
+            >
+              마이페이지로 돌아가기
+            </button>
+            <button
+              type="button"
+              onClick={() => supabase.auth.signOut()}
+              className="business-register-submit"
+              style={{ background: "#ef4444", maxWidth: "200px", margin: "0" }}
+            >
+              로그아웃
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="business-register-page">

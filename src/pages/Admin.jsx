@@ -5121,6 +5121,137 @@ function AdminRequestCard({
   );
 }
 
+const DEFAULT_CHECKLIST_ITEMS = [
+  "기업 자료 수령 확인",
+  "통역사 배정 통보 완료",
+  "연락처 공개 처리",
+  "행사 장소/일정 재확인",
+  "통역 장비 필요 여부 확인",
+  "업무 시작 전 최종 확인",
+];
+
+function PreparationChecklistPanel({ requestId }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.resolve().then(async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("request_preparation_checklist")
+          .select("*")
+          .eq("request_id", requestId)
+          .order("created_at", { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          setItems(data);
+        } else {
+          // If no items yet, show default items as unchecked
+          setItems(
+            DEFAULT_CHECKLIST_ITEMS.map((label, idx) => ({
+              id: `draft-${idx}`,
+              request_id: requestId,
+              item_label: label,
+              is_done: false,
+              done_by: null,
+              done_at: null,
+              isDraft: true,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Error loading preparation checklist:", err);
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [requestId]);
+
+  const handleToggle = async (item) => {
+    setSaving(true);
+    try {
+      if (item.isDraft) {
+        // Insert all draft items first, then toggle this one
+        const allDraftItems = items.filter((i) => i.isDraft);
+        const insertPayload = allDraftItems.map((i) => ({
+          request_id: requestId,
+          item_label: i.item_label,
+          is_done: i.item_label === item.item_label ? !item.is_done : i.is_done,
+        }));
+        const { data, error } = await supabase
+          .from("request_preparation_checklist")
+          .insert(insertPayload)
+          .select("*")
+          .order("created_at", { ascending: true });
+        if (error) throw error;
+        setItems(data || []);
+      } else {
+        const newDone = !item.is_done;
+        const { error } = await supabase
+          .from("request_preparation_checklist")
+          .update({
+            is_done: newDone,
+            done_at: newDone ? new Date().toISOString() : null,
+          })
+          .eq("id", item.id);
+        if (error) throw error;
+        setItems((current) =>
+          current.map((i) =>
+            i.id === item.id ? { ...i, is_done: newDone, done_at: newDone ? new Date().toISOString() : null } : i
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error toggling checklist item:", err);
+      alert("체크리스트 저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="prep-checklist-panel"><p className="prep-loading">불러오는 중...</p></div>;
+  }
+
+  const doneCount = items.filter((i) => i.is_done).length;
+
+  return (
+    <div className="prep-checklist-panel">
+      <div className="prep-checklist-header">
+        <h4>🗒️ 업무 준비 체크리스트</h4>
+        <span className="prep-count">{doneCount} / {items.length} 완료</span>
+      </div>
+      <ul className="prep-checklist-list">
+        {items.map((item) => (
+          <li key={item.id} className={`prep-checklist-item ${item.is_done ? "is-done" : ""}`}>
+            <label>
+              <input
+                type="checkbox"
+                checked={item.is_done}
+                disabled={saving}
+                onChange={() => handleToggle(item)}
+              />
+              <span>{item.item_label}</span>
+              {item.is_done && item.done_at && (
+                <span className="prep-done-time">
+                  {new Date(item.done_at).toLocaleDateString("ko-KR", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function RequestDetailPanel({
   adminActivityLogs = [],
   adminNotes = [],
@@ -5597,6 +5728,10 @@ function RequestDetailPanel({
           onStatusChange={updateApplicationStatus}
         />
       </div>
+
+      {["assigned", "preparing", "ready"].includes(request.assignment_status) && (
+        <PreparationChecklistPanel requestId={request.id} />
+      )}
 
       <AdminOperationsPanel
         activityLogs={adminActivityLogs}

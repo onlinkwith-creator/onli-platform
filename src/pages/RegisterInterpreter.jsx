@@ -61,9 +61,36 @@ const levelSystemCards = [
 ];
 
 function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginClick, onSignupClick }) {
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [isBusiness, setIsBusiness] = useState(false);
+
+  useEffect(() => {
+    const checkBusinessProfile = async () => {
+      if (!authUser || !supabase) {
+        setCheckingStatus(false);
+        return;
+      }
+      try {
+        const { data } = await supabase
+          .from("businesses")
+          .select("id")
+          .eq("auth_user_id", authUser.id)
+          .maybeSingle();
+
+        if (data) {
+          setIsBusiness(true);
+        }
+      } catch (err) {
+        console.error("Error checking business profile:", err);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+    checkBusinessProfile();
+  }, [authUser]);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [form, setForm] = useState({
@@ -189,6 +216,24 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       alert(message);
       onLoginClick?.();
       return;
+    }
+
+    // Final check for business profile before submitting
+    try {
+      const { data: businessCheck } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (businessCheck) {
+        const message = "기업 계정으로는 통역사 등록을 할 수 없습니다.";
+        setErrorMessage(message);
+        alert(message);
+        return;
+      }
+    } catch (err) {
+      console.error("Business check error on submit:", err);
     }
 
     console.log("BEFORE DB INSERT");
@@ -365,6 +410,55 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       setIsSubmitting(false);
     }
   };
+
+  if (checkingStatus) {
+    return (
+      <div className="register-page">
+        <div className="register-shell">
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px", color: "#fff" }}>
+            <p>프로필 확인 중...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isBusiness) {
+    return (
+      <div className="register-page">
+        <div className="register-shell">
+          <section className="register-hero" style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+            <div className="register-hero-copy">
+              <p className="register-kicker" style={{ color: "#ef4444" }}>ACCESS DENIED</p>
+              <h1>통역사 등록 제한</h1>
+              <p style={{ marginTop: "24px", color: "#e2e8f0" }}>
+                이미 기업으로 등록된 계정은 통역사 등록을 할 수 없습니다. <br />
+                통역사 이용은 별도 계정으로 가입해주세요.
+              </p>
+              <div style={{ display: "flex", gap: "16px", marginTop: "32px", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  onClick={onBackClick}
+                  className="register-submit-button"
+                  style={{ background: "#4f46e5", maxWidth: "200px", margin: "0" }}
+                >
+                  마이페이지로 돌아가기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => supabase.auth.signOut()}
+                  className="register-submit-button"
+                  style={{ background: "#ef4444", maxWidth: "200px", margin: "0" }}
+                >
+                  로그아웃
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="register-page">

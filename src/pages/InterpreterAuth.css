@@ -2344,3 +2344,164 @@
   cursor: not-allowed;
   border: 1px solid #e5e7eb !important;
 }
+
+/* ========================
+   Interpreter Prep Tab
+   ======================== */
+
+.interpreter-prep-list {
+  display: grid;
+  gap: 14px;
+}
+
+.interpreter-prep-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+  overflow: hidden;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.interpreter-prep-card:hover {
+  border-color: #a5b4fc;
+  box-shadow: 0 4px 16px rgba(91, 92, 240, 0.08);
+}
+
+.prep-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 20px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.prep-card-info {
+  display: grid;
+  gap: 4px;
+}
+
+.prep-card-title {
+  font-size: 16px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.prep-card-meta {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.prep-card-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.prep-expand-toggle {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.prep-card-detail {
+  border-top: 1px solid #e5e7eb;
+  padding: 16px 20px;
+  background: #ffffff;
+  display: grid;
+  gap: 14px;
+}
+
+.prep-section-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.prep-contact-section,
+.prep-materials-section {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.prep-contact-section.muted {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.prep-contact-note {
+  margin: 0;
+  font-size: 13px;
+  color: #374151;
+  font-weight: 700;
+}
+
+.prep-contact-note.muted {
+  color: #9ca3af;
+}
+
+.prep-mat-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #9ca3af;
+  font-weight: 700;
+}
+
+.prep-mat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.prep-mat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.prep-mat-type {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.prep-mat-download {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prep-mat-download:hover {
+  color: #3730a3;
+}
+
