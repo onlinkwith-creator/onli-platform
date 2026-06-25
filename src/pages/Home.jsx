@@ -54,6 +54,9 @@ function Home({
   onInterpreterLoginClick,
   onMypageClick,
   onAdminClick,
+  onBusinessRegisterClick,
+  onBusinessMypageClick,
+  hasBusinessProfile,
 }) {
   const HOME_JOB_PREVIEW_LIMIT = 8;
   const [featuredInterpreters, setFeaturedInterpreters] = useState([]);
@@ -353,11 +356,17 @@ function Home({
             </p>
           </div>
           <div className="home-cta-actions">
-            <button type="button" onClick={onRequestClick}>
+            {hasBusinessProfile ? (
+              <button type="button" onClick={onBusinessMypageClick}>
+                기업 마이페이지
+              </button>
+            ) : (
+              <button type="button" onClick={onBusinessRegisterClick}>
+                기업 등록하기
+              </button>
+            )}
+            <button type="button" onClick={onRequestClick} className="home-secondary">
               통역 의뢰하기
-            </button>
-            <button type="button" onClick={onJobsClick} className="home-secondary">
-              전체 통역공고 확인하기
             </button>
           </div>
         </div>

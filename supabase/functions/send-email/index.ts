@@ -24,6 +24,11 @@ const subjects = {
   interpreter_matching_confirmed: "[ON-LI] 통역 배정이 확정되었습니다",
   interpreter_schedule_reminder: "[ON-LI] 통역 일정 안내드립니다",
   designated_request_received_interpreter: "[ON-LI] 지정 통역 의뢰가 도착했습니다",
+  client_review_started: "[ON-LI] 통역 의뢰 검토가 시작되었습니다",
+  client_estimate_ready: "[ON-LI] 통역 의뢰 견적서 준비 완료 안내",
+  client_recruiting_started: "[ON-LI] 통역사 모집이 시작되었습니다",
+  client_work_completed: "[ON-LI] 통역 업무가 완료되었습니다",
+  client_settlement_ready: "[ON-LI] 정산/결제 요청 안내",
 } as const;
 
 type EmailType = keyof typeof subjects;
@@ -425,6 +430,11 @@ function notificationSubject(eventType: string) {
     status_changed: "[ON-LI] 운영 상태가 변경되었습니다",
     settlement_ready: "[ON-LI] 정산 확인이 필요합니다",
     memo_created: "[ON-LI] 관리자 메모가 추가되었습니다",
+    client_review_started: "[ON-LI] 통역 의뢰 검토가 시작되었습니다",
+    client_estimate_ready: "[ON-LI] 통역 의뢰 견적서 준비 완료 안내",
+    client_recruiting_started: "[ON-LI] 통역사 모집이 시작되었습니다",
+    client_work_completed: "[ON-LI] 통역 업무가 완료되었습니다",
+    client_settlement_ready: "[ON-LI] 정산/결제 요청 안내",
   };
   return subjectsByEvent[eventType] || "[ON-LI] 알림이 도착했습니다";
 }
@@ -543,6 +553,76 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
             ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
             ["배정 상태", fieldFrom(payload, ["status"], "배정 완료")],
           ])}
+        `
+      );
+    case "client_review_started":
+      return layout(
+        "통역 의뢰 검토가 시작되었습니다",
+        `
+          <p>고객님의 의뢰 내용을 담당자가 확인하여 검토를 시작했습니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["의뢰 상태", "검토중"],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "client_estimate_ready":
+      return layout(
+        "통역 의뢰 견적서 준비 완료 안내",
+        `
+          <p>요청하신 통역 의뢰의 견적이 확인되었습니다. 마이페이지에서 견적 세부 내역을 확인해 주세요.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["의뢰 상태", "견적 안내"],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "client_recruiting_started":
+      return layout(
+        "통역사 모집이 시작되었습니다",
+        `
+          <p>고객님의 의뢰 일정에 적합한 최적의 통역사 모집을 시작했습니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["의뢰 상태", "통역사 모집중"],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "client_work_completed":
+      return layout(
+        "통역 업무가 완료되었습니다",
+        `
+          <p>배정된 통역사의 현장 업무 수행이 성공적으로 완료되었습니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["의뢰 상태", "업무 완료"],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "client_settlement_ready":
+      return layout(
+        "정산/결제 요청 안내",
+        `
+          <p>완료된 통역 업무의 정산/결제 정보가 준비되었습니다. 마이페이지에서 정산 세부 내용을 확인 및 정산 진행해 주시기 바랍니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["의뢰 상태", "정산/결제 안내 필요"],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
         `
       );
     default:
@@ -807,14 +887,17 @@ async function processNotificationEvents({
 
   let query = supabase
     .from("notification_events")
-    .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count,created_at")
-    .in("status", selectableStatuses)
-    .order("created_at", { ascending: true })
-    .limit(Math.max(1, Math.min(limit || 10, 50)));
+    .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count,created_at");
 
   if (eventIds.length > 0) {
     query = query.in("id", eventIds);
+  } else {
+    query = query.in("status", selectableStatuses);
   }
+
+  query = query
+    .order("created_at", { ascending: true })
+    .limit(Math.max(1, Math.min(limit || 10, 50)));
 
   const { data: events, error } = await query;
   if (error) {
@@ -824,7 +907,7 @@ async function processNotificationEvents({
   const results = [];
 
   for (const event of (events || []) as NotificationEvent[]) {
-    const { data: lockedEvent, error: lockError } = await supabase
+    let updateQuery = supabase
       .from("notification_events")
       .update({
         status: "processing",
@@ -832,8 +915,13 @@ async function processNotificationEvents({
         error_message: null,
         processed_at: new Date().toISOString(),
       })
-      .eq("id", event.id)
-      .in("status", selectableStatuses)
+      .eq("id", event.id);
+
+    if (eventIds.length === 0) {
+      updateQuery = updateQuery.in("status", selectableStatuses);
+    }
+
+    const { data: lockedEvent, error: lockError } = await updateQuery
       .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count")
       .single();
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
+import { isOnliCertified } from "../utils/publicInterpreter";
 import "./BusinessMypage.css";
 
 const PRIMARY_FIELDS_OPTIONS = [
@@ -20,6 +21,65 @@ const COUNTRY_OPTIONS = [
   { value: "기타", label: "기타 (미국, 중국 등)" },
 ];
 
+const getClientNotificationLabel = (eventType) => {
+  switch (eventType) {
+    case "request_created_client":
+      return "의뢰 접수 완료";
+    case "client_review_started":
+      return "관리자 검토 시작";
+    case "client_estimate_ready":
+      return "견적 안내";
+    case "client_recruiting_started":
+      return "통역사 모집 시작";
+    case "assignment_confirmed_client":
+      return "배정 완료";
+    case "client_work_completed":
+      return "업무 완료";
+    case "client_settlement_ready":
+      return "정산/결제 안내";
+    default:
+      return "알림";
+  }
+};
+
+const getNotificationPayload = (event = {}) => {
+  if (!event.payload) return {};
+  if (typeof event.payload === "string") {
+    try {
+      return JSON.parse(event.payload);
+    } catch {
+      return {};
+    }
+  }
+  return event.payload;
+};
+
+const getClientNotificationText = (event) => {
+  const payload = getNotificationPayload(event);
+  const eventName = payload.event_name || payload.eventName || "";
+  const requestNo = payload.request_no || payload.requestCode || "";
+  const suffix = requestNo ? ` (${requestNo})` : "";
+
+  switch (event.event_type) {
+    case "request_created_client":
+      return `등록하신 의뢰 [${eventName}] 접수가 완료되었습니다.${suffix}`;
+    case "client_review_started":
+      return `의뢰 [${eventName}] 검토를 진행하고 있습니다.${suffix}`;
+    case "client_estimate_ready":
+      return `의뢰 [${eventName}] 견적 준비가 완료되었습니다.${suffix}`;
+    case "client_recruiting_started":
+      return `의뢰 [${eventName}] 통역사 모집을 시작했습니다.${suffix}`;
+    case "assignment_confirmed_client":
+      return `의뢰 [${eventName}] 통역사 배정이 확정되었습니다.${suffix}`;
+    case "client_work_completed":
+      return `의뢰 [${eventName}] 통역 업무가 종료되었습니다.${suffix}`;
+    case "client_settlement_ready":
+      return `의뢰 [${eventName}] 정산/결제 요청이 접수되었습니다.${suffix}`;
+    default:
+      return `새로운 알림이 도착했습니다.`;
+  }
+};
+
 function BusinessMypage({
   user,
   authLoading,
@@ -27,13 +87,24 @@ function BusinessMypage({
   onRegisterClick,
   onHomeClick,
   onSignOut,
+  onNewRequestClick,
+  onDuplicateRequest,
 }) {
   const [business, setBusiness] = useState(null);
   const [requests, setRequests] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
-  const [activeTab, setActiveTab] = useState("requests"); // "requests" or "profile"
+  const [activeTab, setActiveTab] = useState("requests"); // "requests", "profile", "interpreters", "materials", "inquiry"
   const [status, setStatus] = useState("loading"); // "loading", "ready", "notRegistered", "restricted", "signedOut"
+
+  // Material selection states
+  const [selectedMaterialRequestId, setSelectedMaterialRequestId] = useState("");
+  const [materialCategory, setMaterialCategory] = useState("제품 소개서");
+  const [uploadingMaterial, setUploadingMaterial] = useState(false);
+  const materialFileInputRef = useRef(null);
 
   // Edit profile states
   const [isEditing, setIsEditing] = useState(false);
@@ -50,11 +121,7 @@ function BusinessMypage({
   const [errorMessage, setErrorMessage] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // File upload state per request
-  const [uploadingRequestId, setUploadingRequestId] = useState(null);
-  const fileInputRef = useRef(null);
-
-  // Fetch business profile and requests
+  // Fetch business profile, requests, assignments, and materials
   const fetchData = async () => {
     if (authLoading) return;
     if (!user) {
@@ -92,6 +159,12 @@ function BusinessMypage({
         return;
       }
 
+      if (bizData.status === "검토중") {
+        setStatus("pending");
+        setLoading(false);
+        return;
+      }
+
       setStatus("ready");
 
       // Fetch requests
@@ -105,7 +178,76 @@ function BusinessMypage({
       if (reqError) {
         console.error("Error fetching requests:", reqError);
       } else {
-        setRequests(reqData || []);
+        const fetchedRequests = reqData || [];
+        setRequests(fetchedRequests);
+
+        if (fetchedRequests.length > 0) {
+          const requestIds = fetchedRequests.map((r) => r.id);
+
+          // 1. Fetch assigned interpreters
+          const { data: assignData, error: assignError } = await supabase
+            .from("request_interpreters")
+            .select(`
+              id,
+              request_id,
+              is_contact_visible,
+              interpreter:interpreters (
+                id,
+                name,
+                level,
+                approved,
+                jlpt,
+                specialties,
+                experience_count,
+                phone,
+                kakao_or_line,
+                email
+              )
+            `)
+            .in("request_id", requestIds);
+
+          if (assignError) {
+            console.error("Error fetching assignments:", assignError);
+          } else {
+            setAssignments(assignData || []);
+          }
+
+          // 2. Fetch request materials
+          const { data: matData, error: matError } = await supabase
+            .from("request_materials")
+            .select("*")
+            .in("request_id", requestIds)
+            .order("created_at", { ascending: false });
+
+          if (matError) {
+            console.error("Error fetching materials:", matError);
+          } else {
+            setMaterials(matData || []);
+          }
+
+          // 3. Fetch recent notifications
+          const { data: notifData, error: notifError } = await supabase
+            .from("notification_events")
+            .select("*")
+            .eq("recipient_type", "client")
+            .in("target_id", requestIds.map(String))
+            .eq("target_type", "request")
+            .order("created_at", { ascending: false })
+            .limit(5);
+
+          if (notifError) {
+            console.error("Error fetching notifications:", notifError);
+          } else {
+            setNotifications(notifData || []);
+          }
+
+          // Set default selected request for materials tab if not set
+          setSelectedMaterialRequestId((current) => current || String(fetchedRequests[0].id));
+        } else {
+          setAssignments([]);
+          setMaterials([]);
+          setNotifications([]);
+        }
       }
     } catch (err) {
       console.error("Unexpected error fetching business data:", err);
@@ -117,7 +259,10 @@ function BusinessMypage({
   };
 
   useEffect(() => {
-    fetchData();
+    Promise.resolve().then(() => {
+      fetchData();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const handleStartEdit = () => {
@@ -134,6 +279,10 @@ function BusinessMypage({
     });
     setErrorMessage("");
     setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
   };
 
   const handleEditChange = (e) => {
@@ -210,22 +359,18 @@ function BusinessMypage({
     }
   };
 
-  // Upload reference file
-  const handleUploadFileClick = (requestId) => {
-    setUploadingRequestId(requestId);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-      fileInputRef.current.click();
+  // Upload Material Document
+  const handleUploadMaterialClick = () => {
+    if (materialFileInputRef.current) {
+      materialFileInputRef.current.value = "";
+      materialFileInputRef.current.click();
     }
   };
 
-  const handleFileChange = async (e) => {
+  const handleMaterialFileChange = async (e) => {
     const file = e.target.files?.[0];
-    const requestId = uploadingRequestId;
-    setUploadingRequestId(null);
-    if (!file || !requestId) return;
+    if (!file || !selectedMaterialRequestId) return;
 
-    // Validate size and extensions
     const maxSize = 10 * 1024 * 1024; // 10MB
     const fileExtension = file.name.split(".").pop().toLowerCase();
     const allowedExtensions = ["pdf", "jpg", "jpeg", "png"];
@@ -239,46 +384,81 @@ function BusinessMypage({
       return;
     }
 
-    setLoadingData(true);
+    setUploadingMaterial(true);
     try {
       const timestamp = Date.now();
       const storageId = Math.random().toString(36).substring(2, 10);
-      const filePath = `requests/reference_files/request_${timestamp}_${storageId}.${fileExtension}`;
+      const filePath = `requests/reference_files/materials/${selectedMaterialRequestId}/${materialCategory}_${timestamp}_${storageId}.${fileExtension}`;
 
-      // Upload to storage
+      // 1. Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from("request-files")
         .upload(filePath, file, {
           cacheControl: "3600",
           contentType: file.type || "application/octet-stream",
-          upsert: true,
+          upsert: false,
         });
 
       if (uploadError) throw uploadError;
 
-      // Update database
+      // 2. Insert record in public.request_materials
       const { error: dbError } = await supabase
-        .from("requests")
-        .update({
-          reference_file_name: file.name,
-          reference_file_path: filePath,
-          reference_file_url: filePath,
-        })
-        .eq("id", requestId);
+        .from("request_materials")
+        .insert([{
+          request_id: Number(selectedMaterialRequestId),
+          file_name: file.name,
+          file_path: filePath,
+          file_size: file.size,
+          file_type: materialCategory,
+          uploaded_by: user.id
+        }]);
+
+      if (dbError) {
+        // Cleanup storage file on db error
+        await supabase.storage.from("request-files").remove([filePath]);
+        throw dbError;
+      }
+
+      alert("자료가 업로드되었습니다.");
+      fetchData();
+    } catch (err) {
+      console.error("Material upload error:", err);
+      alert(`자료 업로드 실패: ${err.message || "다시 시도해주세요."}`);
+    } finally {
+      setUploadingMaterial(false);
+    }
+  };
+
+  // Delete Material Document
+  const handleDeleteMaterial = async (materialId, filePath) => {
+    if (!window.confirm("이 행사 자료를 삭제하시겠습니까?")) return;
+
+    setLoadingData(true);
+    try {
+      const { error: dbError } = await supabase
+        .from("request_materials")
+        .delete()
+        .eq("id", materialId);
 
       if (dbError) throw dbError;
 
-      alert("참고 자료가 업로드되었습니다.");
+      try {
+        await supabase.storage.from("request-files").remove([filePath]);
+      } catch (err) {
+        console.warn("Storage deletion warning:", err);
+      }
+
+      alert("행사 자료가 삭제되었습니다.");
       fetchData();
     } catch (err) {
-      console.error("File upload error:", err);
-      alert(`파일 업로드 실패: ${err.message || "다시 시도해주세요."}`);
+      console.error("Material deletion error:", err);
+      alert(`자료 삭제 실패: ${err.message || "다시 시도해주세요."}`);
     } finally {
       setLoadingData(false);
     }
   };
 
-  // Download reference file
+  // Download File via signed URL
   const handleDownloadFile = async (path, name) => {
     if (!path) return;
     if (path.startsWith("http://") || path.startsWith("https://")) {
@@ -299,27 +479,82 @@ function BusinessMypage({
     }
   };
 
-  // Render Status Badges
-  const getRequestStatusBadge = (req) => {
-    const isMatched = Boolean(req.assigned_interpreter_id || req.matched_interpreter_id);
-    const hasEstimate = req.estimated_amount !== null && req.estimated_amount !== undefined;
-
-    if (req.progress_status === "completed") {
-      return <span className="status-badge badge-green">진행 완료</span>;
+  // Dynamic corporate request status
+  const getRequestStatusLabel = (req) => {
+    if (req.matching_status === "cancelled" || req.status === "cancelled") {
+      return "취소됨";
     }
-    if (req.progress_status === "cancelled") {
-      return <span className="status-badge badge-red">취소됨</span>;
+    if (req.operation_status === "completed") {
+      return "진행 완료";
     }
-    if (isMatched) {
-      return <span className="status-badge badge-purple">통역사 배정 완료</span>;
+    if (req.assignment_status === "assigned") {
+      return "배정 완료";
     }
-    if (hasEstimate) {
-      return <span className="status-badge badge-yellow">견적 발행 완료</span>;
+    if (req.assignment_status === "assigning") {
+      return "통역사 모집중";
     }
-    return <span className="status-badge badge-blue">의뢰 검토 중</span>;
+    if (req.admin_checked) {
+      return "검토중";
+    }
+    return "접수 완료";
   };
 
-  // Render Views
+  const getStatusBadgeClass = (statusLabel) => {
+    const classes = {
+      "접수 완료": "badge-blue",
+      "검토중": "badge-yellow",
+      "통역사 모집중": "badge-orange",
+      "배정 완료": "badge-purple",
+      "진행 완료": "badge-green",
+      "취소됨": "badge-red",
+    };
+    return classes[statusLabel] || "badge-blue";
+  };
+
+  const getStatusStepIndex = (statusLabel) => {
+    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "진행 완료"];
+    return steps.indexOf(statusLabel);
+  };
+
+  const renderStatusSteps = (req) => {
+    const statusLabel = getRequestStatusLabel(req);
+    if (statusLabel === "취소됨") {
+      return (
+        <div className="status-timeline cancelled">
+          <div className="timeline-step is-cancelled">
+            <span className="step-num">❌</span>
+            <strong className="step-name">취소됨</strong>
+          </div>
+        </div>
+      );
+    }
+
+    const currentIndex = getStatusStepIndex(statusLabel);
+    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "진행 완료"];
+
+    return (
+      <div className="status-timeline">
+        {steps.map((step, idx) => {
+          const isCompleted = idx < currentIndex;
+          const isActive = idx === currentIndex;
+          return (
+            <div
+              key={step}
+              className={`timeline-step ${isCompleted ? "is-completed" : ""} ${
+                isActive ? "is-active" : ""
+              }`}
+            >
+              <span className="step-num">
+                {isCompleted ? "✓" : String(idx + 1).padStart(2, "0")}
+              </span>
+              <strong className="step-name">{step}</strong>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="business-mypage-loading">
@@ -361,16 +596,29 @@ function BusinessMypage({
     );
   }
 
+  if (status === "pending") {
+    return (
+      <main className="business-mypage-empty">
+        <div className="empty-card">
+          <span className="empty-icon">⏳</span>
+          <h2>관리자 승인 대기 중입니다</h2>
+          <p>관리자 승인 대기 중입니다.</p>
+          <div className="empty-actions">
+            <button onClick={onHomeClick} className="btn-secondary">메인으로</button>
+            <button onClick={onSignOut} className="btn-signout">로그아웃</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (status === "restricted") {
     return (
       <main className="business-mypage-empty">
         <div className="empty-card restriction-card">
           <span className="empty-icon text-red">⚠️</span>
-          <h2>이용이 제한된 계정입니다</h2>
-          <p>
-            해당 기업 계정은 관리자에 의해 활동이 정지되었습니다. <br />
-            자세한 문의 사항은 ON-LI 고객센터로 문의해 주시기 바랍니다.
-          </p>
+          <h2>기업 등록이 반려되었습니다</h2>
+          <p>기업 등록이 반려되었습니다. 관리자에게 문의해주세요.</p>
           <div className="empty-actions">
             <button onClick={onSignOut} className="btn-danger">로그아웃</button>
             <button onClick={onHomeClick} className="btn-secondary">메인으로</button>
@@ -416,29 +664,88 @@ function BusinessMypage({
                 <span className="tab-icon">📋</span> 내 의뢰 현황
               </button>
               <button
+                className={`mypage-tab-btn ${activeTab === "interpreters" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("interpreters")}
+              >
+                <span className="tab-icon">🤝</span> 배정 통역
+              </button>
+              <button
+                className={`mypage-tab-btn ${activeTab === "materials" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("materials")}
+              >
+                <span className="tab-icon">📂</span> 자료 관리
+              </button>
+              <button
                 className={`mypage-tab-btn ${activeTab === "profile" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("profile")}
               >
-                <span className="tab-icon">👤</span> 기업 정보 관리
+                <span className="tab-icon">👤</span> 기업 정보
+              </button>
+              <button
+                className={`mypage-tab-btn ${activeTab === "inquiry" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("inquiry")}
+              >
+                <span className="tab-icon">💬</span> 문의
               </button>
             </nav>
             
             <div className="sidebar-contact-info">
               <h3>ON-LI 고객센터</h3>
               <p>의뢰 변경이나 매칭 관련 긴급 문의는 고객센터로 연락해 주세요.</p>
-              <span className="contact-tel">010-XXXX-XXXX</span>
+              <span className="contact-tel">010-4494-0418</span>
               <span className="contact-email">support@on-li.co.kr</span>
             </div>
           </aside>
 
           {/* Main Display Area */}
           <main className="business-mypage-main-content">
+            
+            {/* 1. 내 의뢰 현황 */}
             {activeTab === "requests" && (
               <div className="business-mypage-card">
                 <div className="card-header-with-action">
                   <h2>내 의뢰 현황</h2>
-                  <p className="data-count-label">총 {requests.length}건</p>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={onNewRequestClick}
+                      className="btn-edit-trigger"
+                      style={{ background: "linear-gradient(135deg, #5b5cf0, #7c3aed)", color: "#fff", border: "none" }}
+                    >
+                      + 새 통역 의뢰하기
+                    </button>
+                    <p className="data-count-label">총 {requests.length}건</p>
+                  </div>
                 </div>
+
+                {/* 최근 알림 영역 */}
+                {!loadingData && notifications.length > 0 && (
+                  <div className="client-notifications-panel">
+                    <h3 className="panel-title">
+                      <span className="panel-icon">🔔</span> 최근 알림
+                    </h3>
+                    <ul className="notification-list">
+                      {notifications.map((notif) => (
+                        <li key={notif.id} className="notification-item">
+                          <div className="notif-header">
+                            <span className="notif-badge">
+                              {getClientNotificationLabel(notif.event_type)}
+                            </span>
+                            <span className="notif-time">
+                              {new Date(notif.created_at).toLocaleDateString("ko-KR", {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          <p className="notif-text">{getClientNotificationText(notif)}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {loadingData ? (
                   <div className="loading-placeholder">의뢰 불러오는 중...</div>
@@ -447,88 +754,328 @@ function BusinessMypage({
                     <span className="empty-state-symbol">📝</span>
                     <p>등록된 의뢰가 없습니다.</p>
                     <small>통역이 필요한 행사 일정을 등록해 보세요.</small>
+                    <button
+                      type="button"
+                      onClick={onNewRequestClick}
+                      className="btn-edit-trigger"
+                      style={{ background: "linear-gradient(135deg, #5b5cf0, #7c3aed)", color: "#fff", border: "none", marginTop: "16px" }}
+                    >
+                      새 통역 의뢰하기
+                    </button>
                   </div>
                 ) : (
                   <div className="business-requests-list">
-                    {requests.map((req) => (
-                      <article key={req.id} className="business-request-card">
-                        <div className="request-card-header">
-                          <span className="request-date">
-                            등록일: {new Date(req.created_at).toLocaleDateString()}
-                          </span>
-                          {getRequestStatusBadge(req)}
-                        </div>
-
-                        <h3>{req.event_name || req.title || "제목 미입력 의뢰"}</h3>
-
-                        <div className="request-meta-grid">
-                          <div className="meta-item">
-                            <span className="meta-label">일정</span>
-                            <span className="meta-value">
-                              {req.start_date || req.event_date} {req.end_date ? `~ ${req.end_date}` : ""}
+                    {requests.map((req) => {
+                      const statusLabel = getRequestStatusLabel(req);
+                      return (
+                        <article key={req.id} className="business-request-card">
+                          <div className="request-card-header">
+                            <span className="request-no-badge">
+                              의뢰번호: {req.request_no || `REQ-${req.id}`}
+                            </span>
+                            <span className={`status-badge ${getStatusBadgeClass(statusLabel)}`}>
+                              {statusLabel}
                             </span>
                           </div>
-                          <div className="meta-item">
-                            <span className="meta-label">장소</span>
-                            <span className="meta-value">{req.location || req.event_location}</span>
-                          </div>
-                          <div className="meta-item">
-                            <span className="meta-label">분야/언어</span>
-                            <span className="meta-value">
-                              {req.specialty || req.category} / {req.language || req.language_pair || "한일 통역"}
-                            </span>
-                          </div>
-                        </div>
 
-                        {/* Reference File Section */}
-                        <div className="request-file-section">
-                          <span className="file-section-title">행사 참고 자료</span>
-                          {req.reference_file_path ? (
-                            <div className="file-info-bar">
-                              <span className="file-name" title={req.reference_file_name}>
-                                📄 {req.reference_file_name || "첨부 파일"}
+                          <h3 className="request-card-title">{req.event_name || req.title || "제목 미입력 의뢰"}</h3>
+
+                          <div className="request-meta-grid">
+                            <div className="meta-item">
+                              <span className="meta-label">일정</span>
+                              <span className="meta-value">
+                                {req.start_date || req.event_date} {req.end_date ? `~ ${req.end_date}` : ""}
                               </span>
-                              <div className="file-actions">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDownloadFile(req.reference_file_path, req.reference_file_name)}
-                                  className="btn-download"
-                                >
-                                  보기
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUploadFileClick(req.id)}
-                                  className="btn-reupload"
-                                >
-                                  변경
-                                </button>
-                              </div>
                             </div>
-                          ) : (
-                            <div className="file-empty-bar">
-                              <span className="file-empty-message">등록된 참고 자료가 없습니다. (통역용 세부 정보)</span>
+                            <div className="meta-item">
+                              <span className="meta-label">장소</span>
+                              <span className="meta-value">{req.event_location || req.location}</span>
+                            </div>
+                            <div className="meta-item">
+                              <span className="meta-label">필요 인원</span>
+                              <span className="meta-value">{req.requested_people_count || req.required_count || 1}명</span>
+                            </div>
+                          </div>
+
+                          {/* Interactive Step Progress Timeline */}
+                          <div className="timeline-section">
+                            {renderStatusSteps(req)}
+                          </div>
+
+                          {/* Action Button: Duplicate Request */}
+                          {req.operation_status === "completed" && (
+                            <div className="request-card-actions">
                               <button
                                 type="button"
-                                onClick={() => handleUploadFileClick(req.id)}
-                                className="btn-upload"
+                                onClick={() => onDuplicateRequest(req)}
+                                className="btn-duplicate-request"
                               >
-                                + 자료 추가
+                                🔄 같은 조건으로 다시 의뢰
                               </button>
                             </div>
                           )}
-                        </div>
-                      </article>
-                    ))}
+                        </article>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             )}
 
+            {/* 2. 배정 통역 */}
+            {activeTab === "interpreters" && (
+              <div className="business-mypage-card">
+                <div className="card-header-with-action">
+                  <h2>배정 통역사</h2>
+                  <p className="data-count-label">총 {assignments.length}명 배정됨</p>
+                </div>
+
+                {loadingData ? (
+                  <div className="loading-placeholder">배정 통역사 정보 불러오는 중...</div>
+                ) : assignments.length === 0 ? (
+                  <div className="mypage-empty-state">
+                    <span className="empty-state-symbol">🤝</span>
+                    <p>배정 완료된 통역사가 없습니다.</p>
+                    <small>의뢰 검토 및 매칭이 완료되면 통역사 정보가 표시됩니다.</small>
+                  </div>
+                ) : (
+                  <div className="assigned-interpreters-list">
+                    {assignments.map((assign) => {
+                      const req = requests.find((r) => r.id === assign.request_id);
+                      const interpreter = assign.interpreter;
+                      if (!interpreter) return null;
+
+                      const isCertified = isOnliCertified(interpreter);
+                      const displayLanguages = interpreter.jlpt || "한국어 · 일본어";
+                      const specialtiesList = Array.isArray(interpreter.specialties)
+                        ? interpreter.specialties.filter(Boolean)
+                        : (interpreter.specialties || "").split(",").map((s) => s.trim()).filter(Boolean);
+
+                      return (
+                        <article key={assign.id} className="assigned-interpreter-card">
+                          <div className="assignment-request-info">
+                            <span className="req-indicator">배정 업무</span>
+                            <span className="req-title">
+                              [{req?.request_no || `REQ-${assign.request_id}`}] {req?.event_name || "행사"}
+                            </span>
+                          </div>
+
+                          <div className="interpreter-card-body">
+                            <div className="interpreter-card-profile">
+                              <div className="profile-header">
+                                <div className="profile-info-left">
+                                  <h3 className="interpreter-name">{interpreter.name}</h3>
+                                  <span className="interpreter-level-badge">{interpreter.level || "Lv1"}</span>
+                                  {isCertified && (
+                                    <span className="certified-badge">ON-LI 인증</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <dl className="interpreter-details-dl">
+                                <div>
+                                  <dt>가능 언어</dt>
+                                  <dd>{displayLanguages}</dd>
+                                </div>
+                                <div>
+                                  <dt>통역 경험 횟수</dt>
+                                  <dd>{interpreter.experience_count || 0}회</dd>
+                                </div>
+                                <div className="full-width">
+                                  <dt>전문 분야</dt>
+                                  <dd>
+                                    <div className="tags-container">
+                                      {specialtiesList.length > 0 ? (
+                                        specialtiesList.map((spec) => (
+                                          <span key={spec} className="biz-field-tag">{spec}</span>
+                                        ))
+                                      ) : (
+                                        <span className="no-data">일반 비즈니스</span>
+                                      )}
+                                    </div>
+                                  </dd>
+                                </div>
+                              </dl>
+
+                              {/* Protected Contacts Section */}
+                              <div className="protected-contacts-box">
+                                <h4>연락처 정보</h4>
+                                {assign.is_contact_visible ? (
+                                  <div className="contacts-grid">
+                                    <div className="contact-item">
+                                      <span className="contact-label">전화번호</span>
+                                      <span className="contact-value">{interpreter.phone || "-"}</span>
+                                    </div>
+                                    <div className="contact-item">
+                                      <span className="contact-label">이메일</span>
+                                      <span className="contact-value">{interpreter.email || "-"}</span>
+                                    </div>
+                                    <div className="contact-item">
+                                      <span className="contact-label">카카오톡</span>
+                                      <span className="contact-value">{interpreter.kakao_or_line || "-"}</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="contacts-masked">
+                                    <span className="masked-icon">🔒</span>
+                                    <p>관리자 승인 대기 중</p>
+                                    <small>원활한 조율을 위해 매칭 확정 후 연락처가 공개됩니다.</small>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 3. 자료 관리 */}
+            {activeTab === "materials" && (
+              <div className="business-mypage-card">
+                <div className="card-header-with-action">
+                  <h2>자료 관리</h2>
+                  <p className="data-count-label">행사 관련 통역 참고 자료 관리</p>
+                </div>
+
+                {requests.length === 0 ? (
+                  <div className="mypage-empty-state">
+                    <span className="empty-state-symbol">📂</span>
+                    <p>등록된 의뢰가 없습니다.</p>
+                    <small>의뢰를 먼저 등록한 뒤 자료를 업로드할 수 있습니다.</small>
+                  </div>
+                ) : (
+                  <div className="materials-management-container">
+                    
+                    {/* Request Selector */}
+                    <div className="material-selector-row">
+                      <label className="edit-field">
+                        <span>행사 의뢰 선택</span>
+                        <select
+                          value={selectedMaterialRequestId}
+                          onChange={(e) => setSelectedMaterialRequestId(e.target.value)}
+                          className="edit-select"
+                        >
+                          {requests.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              [{r.request_no || `REQ-${r.id}`}] {r.event_name || "행사"}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    {/* Upload Box */}
+                    <div className="material-upload-box">
+                      <h3>새 자료 업로드</h3>
+                      <p>통역사의 원활한 행사 진행을 위한 참고 자료를 공유해 주세요.</p>
+                      
+                      <div className="upload-fields">
+                        <label className="edit-field">
+                          <span>자료 구분</span>
+                          <select
+                            value={materialCategory}
+                            onChange={(e) => setMaterialCategory(e.target.value)}
+                            className="edit-select"
+                          >
+                            <option value="제품 소개서">제품 소개서</option>
+                            <option value="상담 자료">상담 자료</option>
+                            <option value="발표 자료">발표 자료</option>
+                            <option value="행사 안내문">행사 안내문</option>
+                          </select>
+                        </label>
+                        
+                        <div className="file-drop-zone">
+                          <button
+                            type="button"
+                            disabled={uploadingMaterial}
+                            onClick={handleUploadMaterialClick}
+                            className="btn-save"
+                          >
+                            {uploadingMaterial ? "업로드 중..." : "📁 컴퓨터에서 파일 선택"}
+                          </button>
+                          <small>PDF, JPG, PNG 파일 형식만 지원합니다. (최대 10MB)</small>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Uploaded Files List */}
+                    <div className="materials-list-section">
+                      <h3>업로드된 자료</h3>
+                      {loadingData ? (
+                        <div className="loading-placeholder">자료 목록 갱신 중...</div>
+                      ) : (
+                        (() => {
+                          const currentRequestId = Number(selectedMaterialRequestId);
+                          const filteredMaterials = materials.filter((m) => m.request_id === currentRequestId);
+
+                          if (filteredMaterials.length === 0) {
+                            return (
+                              <div className="no-materials-box">
+                                <p>해당 의뢰에 등록된 행사 자료가 없습니다.</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="materials-table-wrapper">
+                              <table className="materials-table">
+                                <thead>
+                                  <tr>
+                                    <th>구분</th>
+                                    <th>파일명</th>
+                                    <th>크기</th>
+                                    <th>등록일</th>
+                                    <th>동작</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredMaterials.map((mat) => (
+                                    <tr key={mat.id}>
+                                      <td>
+                                        <span className="material-type-pill">{mat.file_type}</span>
+                                      </td>
+                                      <td className="file-name-cell">
+                                        <span
+                                          onClick={() => handleDownloadFile(mat.file_path, mat.file_name)}
+                                          className="clickable-file"
+                                        >
+                                          {mat.file_name}
+                                        </span>
+                                      </td>
+                                      <td>{(mat.file_size / 1024 / 1024).toFixed(2)} MB</td>
+                                      <td>{new Date(mat.created_at).toLocaleDateString()}</td>
+                                      <td>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteMaterial(mat.id, mat.file_path)}
+                                          className="btn-delete-link"
+                                        >
+                                          삭제
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })()
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 4. 기업 정보 */}
             {activeTab === "profile" && (
               <div className="business-mypage-card">
                 <div className="card-header-with-action">
-                  <h2>기업 정보 관리</h2>
+                  <h2>기업 정보</h2>
                   {!isEditing && (
                     <button onClick={handleStartEdit} className="btn-edit-trigger">
                       수정하기
@@ -545,7 +1092,7 @@ function BusinessMypage({
                           name="companyName"
                           type="text"
                           value={editForm.companyName}
-                          onChange={editChange => handleEditChange(editChange)}
+                          onChange={handleEditChange}
                           required
                         />
                       </label>
@@ -555,7 +1102,7 @@ function BusinessMypage({
                           name="businessNumber"
                           type="text"
                           value={editForm.businessNumber}
-                          onChange={editChange => handleEditChange(editChange)}
+                          onChange={handleEditChange}
                           required
                         />
                       </label>
@@ -565,7 +1112,7 @@ function BusinessMypage({
                           name="contactName"
                           type="text"
                           value={editForm.contactName}
-                          onChange={editChange => handleEditChange(editChange)}
+                          onChange={handleEditChange}
                           required
                         />
                       </label>
@@ -575,7 +1122,7 @@ function BusinessMypage({
                           name="contactPhone"
                           type="text"
                           value={editForm.contactPhone}
-                          onChange={editChange => handleEditChange(editChange)}
+                          onChange={handleEditChange}
                           required
                         />
                       </label>
@@ -584,7 +1131,7 @@ function BusinessMypage({
                         <select
                           name="country"
                           value={editForm.country}
-                          onChange={editChange => handleEditChange(editChange)}
+                          onChange={handleEditChange}
                           className="edit-select"
                         >
                           {COUNTRY_OPTIONS.map((opt) => (
@@ -642,7 +1189,7 @@ function BusinessMypage({
                       <textarea
                         name="notes"
                         value={editForm.notes}
-                        onChange={editChange => handleEditChange(editChange)}
+                        onChange={handleEditChange}
                         rows={3}
                       />
                     </label>
@@ -721,16 +1268,68 @@ function BusinessMypage({
                 )}
               </div>
             )}
+
+            {/* 5. 문의 */}
+            {activeTab === "inquiry" && (
+              <div className="business-mypage-card">
+                <div className="card-header-with-action">
+                  <h2>고객 지원 및 문의</h2>
+                  <p className="data-count-label">ON-LI 담당자와 연결하기</p>
+                </div>
+
+                <div className="inquiry-content-wrapper">
+                  <div className="inquiry-intro">
+                    <span className="inquiry-icon">🛎️</span>
+                    <h3>무엇을 도와드릴까요?</h3>
+                    <p>
+                      통역 일정 변경, 긴급 의뢰 접수, 추가 통역사 배정 요청 등 <br />
+                      운영 관련 모든 요청은 아래 고객센터 또는 전담 매니저에게 연락주시면 친절하게 응대해 드립니다.
+                    </p>
+                  </div>
+
+                  <div className="inquiry-channels">
+                    <div className="channel-card">
+                      <span className="channel-icon">📞</span>
+                      <h4>대표 전화</h4>
+                      <p className="channel-contact">010-4494-0418</p>
+                      <small>평일 오전 9시 - 오후 6시 (주말/공휴일 제외)</small>
+                    </div>
+
+                    <div className="channel-card">
+                      <span className="channel-icon">✉️</span>
+                      <h4>이메일 문의</h4>
+                      <p className="channel-contact">support@on-li.co.kr</p>
+                      <small>24시간 접수 가능 (영업일 기준 3시간 이내 회신)</small>
+                    </div>
+
+                    <div className="channel-card">
+                      <span className="channel-icon">💬</span>
+                      <h4>카카오톡 실시간 상담</h4>
+                      <p className="channel-contact">카카오톡 채널: @onli</p>
+                      <small>친구 추가 후 실시간 1:1 조율이 가능합니다.</small>
+                    </div>
+                  </div>
+
+                  <div className="inquiry-notice-box">
+                    <h5>💡 꼭 확인해 주세요!</h5>
+                    <ul>
+                      <li>행사 3일 전 취소 시 취소 수수료가 발생할 수 있습니다.</li>
+                      <li>통역사의 식사 제공 여부 등 행사 세부 진행 요건은 매칭 후 담당 매니저와 조율할 수 있습니다.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </main>
 
         </div>
       </div>
 
-      {/* Hidden file input for uploading reference files */}
+      {/* Hidden file input for uploading material documents */}
       <input
         type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
+        ref={materialFileInputRef}
+        onChange={handleMaterialFileChange}
         style={{ display: "none" }}
         accept=".pdf,.jpg,.jpeg,.png"
       />

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
@@ -100,7 +100,7 @@ const sectionMeta = {
   },
 };
 
-function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
+function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubmitSuccess }) {
   const isGeneralRequest = !interpreter;
   const [form, setForm] = useState(initialForm);
   const requestedLevel = isGeneralRequest
@@ -111,6 +111,84 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
   const submittingRef = useRef(false);
   const referenceFileInputRef = useRef(null);
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Prepopulate from duplicate template
+  useEffect(() => {
+    if (duplicateTemplate) {
+      const detailsText = duplicateTemplate.request_details || duplicateTemplate.request_detail || "";
+      
+      const parsedTypes = [];
+      interpretationTypeOptions.forEach(opt => {
+        if (detailsText.includes(opt)) {
+          parsedTypes.push(opt);
+        }
+      });
+      
+      const industryField = duplicateTemplate.interpretation_field || duplicateTemplate.job_field || "";
+      const isFieldOption = fieldOptions.includes(industryField);
+      const formIndustryField = isFieldOption ? industryField : (industryField ? "기타" : "무역");
+      const customIndustryField = isFieldOption ? "" : industryField;
+      
+      let customDetails = "";
+      const match = detailsText.match(/추가 요청사항:\s*([\s\S]*)$/);
+      if (match) {
+        customDetails = match[1].trim();
+      }
+
+      Promise.resolve().then(() => {
+        setForm({
+          companyName: duplicateTemplate.company_name || "",
+          contactName: duplicateTemplate.manager_name || duplicateTemplate.contact_name || "",
+          contactPhone: duplicateTemplate.phone || "",
+          contactEmail: duplicateTemplate.email || "",
+          eventName: duplicateTemplate.event_name || "",
+          startDate: duplicateTemplate.start_date || duplicateTemplate.event_date || "",
+          endDate: duplicateTemplate.end_date || "",
+          startTime: duplicateTemplate.event_start_time || "",
+          endTime: duplicateTemplate.event_end_time || "",
+          eventLocation: duplicateTemplate.event_location || "",
+          languageDirection: duplicateTemplate.language_direction || "양방향",
+          requestedLevel: duplicateTemplate.requested_level || "운영팀 추천받기",
+          requestedPeopleCount: String(duplicateTemplate.requested_people_count || duplicateTemplate.required_count || "1"),
+          preferredGender: duplicateTemplate.preferred_gender || "성별 무관",
+          interpretationTypes: parsedTypes,
+          industryField: formIndustryField,
+          customIndustryField: customIndustryField,
+          referenceMaterial: "없음",
+          referenceFileName: "",
+          referenceFile: null,
+          requestDetails: customDetails,
+        });
+      });
+    }
+  }, [duplicateTemplate]);
+
+  // Prepopulate from user's business profile if not duplicating
+  useEffect(() => {
+    if (user && !duplicateTemplate) {
+      const fetchBusinessProfile = async () => {
+        try {
+          const { data, error } = await supabase
+            .from("businesses")
+            .select("*")
+            .eq("auth_user_id", user.id)
+            .maybeSingle();
+          if (!error && data) {
+            setForm(current => ({
+              ...current,
+              companyName: data.company_name || "",
+              contactName: data.contact_name || "",
+              contactPhone: data.contact_phone || "",
+              contactEmail: data.contact_email || "",
+            }));
+          }
+        } catch (err) {
+          console.error("Error loading business profile for form auto-populate:", err);
+        }
+      };
+      fetchBusinessProfile();
+    }
+  }, [user, duplicateTemplate]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -321,6 +399,7 @@ function RequestForm({ interpreter, onBackClick, onSubmitSuccess }) {
     const isDesignatedRequest = Boolean(interpreter?.id);
 
     const requestPayload = {
+      company_auth_user_id: user?.id || null,
       interpreter_id: interpreter?.id || null,
       interpreter_name: interpreter?.name || "",
       company_name: form.companyName,

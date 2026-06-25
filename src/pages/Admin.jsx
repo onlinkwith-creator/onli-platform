@@ -3729,6 +3729,7 @@ function Admin({ onBackClick }) {
                 noteDrafts={adminNoteDrafts}
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
+                setAssignments={setAssignments}
               />
             )}
           
@@ -3770,6 +3771,7 @@ function RequestActionModal({
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
+  setAssignments,
 }) {
   if (!activeModal || !request) return null;
 
@@ -3812,6 +3814,23 @@ function RequestActionModal({
           noteDrafts={noteDrafts}
           onChangeNoteDraft={onChangeNoteDraft}
           onCreateNote={onCreateNote}
+          toggleContactVisibility={async (assignmentId, currentVal) => {
+            try {
+              const { error } = await supabase
+                .from("request_interpreters")
+                .update({ is_contact_visible: !currentVal })
+                .eq("id", assignmentId);
+              if (error) throw error;
+              setAssignments(current =>
+                current.map(item =>
+                  item.id === assignmentId ? { ...item, is_contact_visible: !currentVal } : item
+                )
+              );
+            } catch (err) {
+              console.error("Error toggling contact visibility:", err);
+              alert("연락처 공개 설정 변경에 실패했습니다.");
+            }
+          }}
         />
       )}
 
@@ -5126,6 +5145,7 @@ function RequestDetailPanel({
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
+  toggleContactVisibility,
 }) {
   const flowSource = getRequestFlowSource(request, job);
   const requestType = getDesignatedRequestType(request);
@@ -5150,6 +5170,75 @@ function RequestDetailPanel({
   const referenceFile = getRequestReferenceFile(request, requestDescription);
   const visibleRequestDescription = removeRequestReferenceFileMeta(requestDescription);
   const companyHistory = getCompanyHistory(request, requests, assignments, interpreters);
+
+  const [businessProfile, setBusinessProfile] = useState(null);
+  const [uploadedMaterials, setUploadedMaterials] = useState([]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      if (!request.company_auth_user_id) {
+        setBusinessProfile(null);
+        return;
+      }
+      const fetchBiz = async () => {
+        try {
+          const { data, error } = await supabase
+            .from("businesses")
+            .select("*")
+            .eq("auth_user_id", request.company_auth_user_id)
+            .maybeSingle();
+          if (!error && data) {
+            setBusinessProfile(data);
+          } else {
+            setBusinessProfile(null);
+          }
+        } catch (err) {
+          console.error("Error fetching biz profile in admin request panel:", err);
+          setBusinessProfile(null);
+        }
+      };
+      fetchBiz();
+    });
+  }, [request.company_auth_user_id]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      const fetchMaterials = async () => {
+        try {
+          const { data, error } = await supabase
+            .from("request_materials")
+            .select("*")
+            .eq("request_id", request.id)
+            .order("created_at", { ascending: false });
+          if (!error) {
+            setUploadedMaterials(data || []);
+          }
+        } catch (err) {
+          console.error("Error fetching request materials in admin request panel:", err);
+        }
+      };
+      fetchMaterials();
+    });
+  }, [request.id]);
+
+  const companyPreviousRequests = requests.filter(r => 
+    r.id !== request.id && 
+    ((request.company_auth_user_id && r.company_auth_user_id === request.company_auth_user_id) || 
+     (r.company_name && r.company_name === request.company_name))
+  );
+
+  const handleDownloadMaterial = async (path, name) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("request-files")
+        .createSignedUrl(path, 600, { download: name || true });
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error generating signed URL for admin:", err);
+      alert("자료 파일을 다운로드할 수 없습니다.");
+    }
+  };
 
   useEffect(() => {
     const requestWithDefaults = applySettlementDefaults(request, settlementTouched);
@@ -5296,6 +5385,23 @@ function RequestDetailPanel({
         </dl>
       </div>
 
+      {businessProfile && (
+        <div>
+          <h3>기업 상세 정보</h3>
+          <dl className="admin-detail-list compact">
+            <Info label="회사명" value={businessProfile.company_name} />
+            <Info label="사업자등록번호" value={businessProfile.business_number} />
+            <Info label="담당자명" value={businessProfile.contact_name} />
+            <Info label="담당자 연락처" value={businessProfile.contact_phone} />
+            <Info label="담당자 이메일" value={businessProfile.contact_email} />
+            <Info label="국가" value={businessProfile.country} />
+            <Info label="주요 분야" value={businessProfile.primary_fields?.join(", ") || "-"} />
+            <Info label="세금계산서" value={businessProfile.tax_invoice_required ? "필요" : "불필요"} />
+            <Info label="기타 메모" value={businessProfile.notes || "-"} />
+          </dl>
+        </div>
+      )}
+
       <div>
         <h3>기업 히스토리</h3>
         <dl className="admin-detail-list compact">
@@ -5306,6 +5412,22 @@ function RequestDetailPanel({
           <Info label="관리자 메모" value={companyHistory.memo || "-"} />
         </dl>
       </div>
+
+      {companyPreviousRequests.length > 0 && (
+        <div>
+          <h3>이전 의뢰 기록</h3>
+          <div className="admin-previous-requests-list" style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px", background: "#f8fafc" }}>
+            {companyPreviousRequests.map(prev => (
+              <div key={prev.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", borderBottom: "1px solid #f1f5f9", fontSize: "12px" }}>
+                <span style={{ fontWeight: "700" }}>{prev.event_name || prev.title || `REQ-${prev.id}`} ({prev.start_date})</span>
+                <span className="badge-gray" style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+                  {prev.status || prev.matching_status || "접수"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <h3>기업 내부 메모</h3>
@@ -5330,6 +5452,33 @@ function RequestDetailPanel({
           onOpen={handleOpenReferenceFile}
           onDownload={handleDownloadReferenceFile}
         />
+        
+        <div style={{ marginTop: "16px" }}>
+          <h4 style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: "850", color: "#334155" }}>업로드 행사 자료</h4>
+          {uploadedMaterials.length === 0 ? (
+            <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>업로드된 행사 자료가 없습니다.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {uploadedMaterials.map(mat => (
+                <div key={mat.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", background: "#f8fafc", fontSize: "12px" }}>
+                  <div>
+                    <span className="badge-green" style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", marginRight: "8px" }}>{mat.file_type}</span>
+                    <strong style={{ color: "#334155" }}>{mat.file_name}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadMaterial(mat.file_path, mat.file_name)}
+                    className="admin-link-button"
+                    style={{ fontSize: "11px", color: "#5b5cf0", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    다운로드
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <h3>복장/주의사항</h3>
         <p>{request.dress_code || "추후 안내"}</p>
       </div>
@@ -5404,6 +5553,7 @@ function RequestDetailPanel({
             ),
           }))}
           onRemove={removeAssignment}
+          onToggleContactVisibility={toggleContactVisibility}
         />
         <div className="admin-assign-row">
           <select
@@ -5781,10 +5931,7 @@ function InterpreterCard({
   duplicateReasons,
   duplicateSuspected,
   interpreter,
-  savingKey,
   onOpenModal,
-  updateInterpreter,
-  deleteInterpreter,
 }) {
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const activityStatus = getInterpreterActivityStatus(interpreter);
@@ -7630,6 +7777,17 @@ function NotificationHistoryManagement({
                 >
                   상세보기
                 </button>
+                {event.status !== "pending" && event.status !== "processing" && (
+                  <button
+                    type="button"
+                    className="admin-save"
+                    style={{ marginLeft: "8px" }}
+                    onClick={() => onRetryEvent(event)}
+                    disabled={processing}
+                  >
+                    재발송
+                  </button>
+                )}
               </div>
             </article>
           ))}
@@ -8516,25 +8674,39 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove }) {
+function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
 
   return (
     <div className="admin-assignment-list">
-      {items.map((item) => (
-        <div key={item.id} className="admin-assignment-row">
-          <span>{item.label}</span>
-          <button
-            type="button"
-            className="admin-link-button danger"
-            onClick={() => onRemove(item.assignment || item.id)}
-          >
-            매칭 취소
-          </button>
-        </div>
-      ))}
+      {items.map((item) => {
+        const isVisible = item.assignment?.is_contact_visible || false;
+        return (
+          <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+            <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
+            {onToggleContactVisibility && (
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
+                <input
+                  type="checkbox"
+                  checked={isVisible}
+                  onChange={() => onToggleContactVisibility(item.id, isVisible)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>연락처 공개</span>
+              </label>
+            )}
+            <button
+              type="button"
+              className="admin-link-button danger"
+              onClick={() => onRemove(item.assignment || item.id)}
+            >
+              매칭 취소
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -9451,6 +9623,13 @@ function getNotificationEventTypeLabel(eventType) {
     settlement_status_changed: "정산 상태 변경 알림",
     memo_created: "내부 메모 알림",
     new_interpreter: "신규 통역사 알림",
+    request_created_client: "의뢰 접수 완료 알림",
+    client_review_started: "의뢰 검토 시작 알림",
+    client_estimate_ready: "견적 안내 알림",
+    client_recruiting_started: "통역사 모집 시작 알림",
+    assignment_confirmed_client: "배정 완료 알림",
+    client_work_completed: "업무 완료 알림",
+    client_settlement_ready: "정산/결제 안내 알림",
   };
   return labels[String(eventType || "").trim()] || "운영 알림";
 }
