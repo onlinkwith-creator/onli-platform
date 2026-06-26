@@ -544,6 +544,7 @@ function BusinessMypage({
   const handleApproveEstimate = async (requestId) => {
     if (!window.confirm("견적을 승인하시겠습니까? 승인 후 금액 수정은 관리자 문의가 필요합니다.")) return;
 
+    // 1. Update request estimate status
     const { error } = await supabase
       .from("requests")
       .update({ estimate_status: "estimate_approved" })
@@ -554,6 +555,44 @@ function BusinessMypage({
       console.error("Estimate approval failed:", error);
       alert("견적 승인에 실패했습니다. 다시 시도해주세요.");
       return;
+    }
+
+    // 2. Fetch and update the latest estimate document's metadata
+    try {
+      const latestEstimate = documents
+        .filter((doc) => doc.request_id === requestId && doc.document_type === "estimate" && doc.status === "issued")
+        .sort((a, b) => b.version - a.version)[0];
+
+      if (latestEstimate) {
+        const { data: docData } = await supabase
+          .from("documents")
+          .select("metadata")
+          .eq("id", latestEstimate.id)
+          .maybeSingle();
+
+        const updatedMetadata = {
+          ...(docData?.metadata || {}),
+          approved_at: new Date().toISOString(),
+          approved_by: user.id,
+        };
+
+        const { error: docUpdateError } = await supabase
+          .from("documents")
+          .update({ metadata: updatedMetadata })
+          .eq("id", latestEstimate.id);
+
+        if (docUpdateError) {
+          console.warn("Failed to update estimate document metadata:", docUpdateError);
+        } else {
+          setDocuments((current) =>
+            current.map((doc) =>
+              doc.id === latestEstimate.id ? { ...doc, metadata: updatedMetadata } : doc
+            )
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("Error updating document metadata on approval:", err);
     }
 
     setRequests((current) =>

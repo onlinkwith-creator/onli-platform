@@ -169,11 +169,16 @@ export async function createOnliDocument({ supabase, draft, userId }) {
         ? recalculatePaymentDraft(draft)
         : draft;
 
-  const { data: documentNo, error: numberError } = await supabase.rpc(
-    "allocate_onli_document_number",
-    { p_document_type: documentType }
-  );
-  if (numberError) throw numberError;
+  let storagePath;
+  let documentNo;
+  try {
+    documentNo = await getNextDocumentNo(supabase, documentType);
+  } catch (error) {
+    if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('Only admins')) {
+      throw new Error('관리자 권한이 없습니다.', { cause: error });
+    }
+    throw error;
+  }
 
   const request = normalizedDraft.request || {};
   let companyId = null;
@@ -190,27 +195,31 @@ export async function createOnliDocument({ supabase, draft, userId }) {
 
   const version = await getNextDocumentVersion(supabase, documentType, request.id);
   const fileName = `${documentNo}-v${version}.pdf`;
-  const storagePath =
-    documentType === "completion"
-      ? `completions/${companyId || "no-company"}/${documentNo}-v${version}.pdf`
-      : [
-          documentType,
-          request.id || "no-request",
-          fileName,
-        ].join("/");
+  
+  if (documentType === "estimate") {
+    storagePath = `estimates/${companyId || "no-company"}/${documentNo}-v${version}.pdf`;
+  } else if (documentType === "completion") {
+    storagePath = `completions/${companyId || "no-company"}/${documentNo}-v${version}.pdf`;
+  } else if (documentType === "payout") {
+    storagePath = `payouts/${normalizedDraft.interpreterId || "no-interpreter"}/${documentNo}-v${version}.pdf`;
+  } else {
+    storagePath = `${documentType}/${request.id || "no-request"}/${fileName}`;
+  }
+
   const pdfBlob = await renderDocumentPdf({
     documentNo,
     version,
     draft: normalizedDraft,
   });
 
-  const { error: uploadError } = await supabase.storage
-    .from(DOCUMENT_BUCKET)
-    .upload(storagePath, pdfBlob, {
-      contentType: "application/pdf",
-      upsert: false,
-    });
-  if (uploadError) throw uploadError;
+  try {
+    await uploadDocumentPdf(supabase, pdfBlob, storagePath);
+  } catch (error) {
+    if (error.code === '42501' || error.message?.includes('permission')) {
+      throw new Error('관리자 권한이 없습니다.', { cause: error });
+    }
+    throw error;
+  }
 
   const metadata = buildDocumentMetadata(normalizedDraft);
   const insertPayload = {
@@ -231,14 +240,17 @@ export async function createOnliDocument({ supabase, draft, userId }) {
     created_by: userId || null,
   };
 
-  const { data, error } = await supabase
-    .from("documents")
-    .insert([insertPayload])
-    .select("*")
-    .single();
-  if (error) throw error;
+  let documentData;
+  try {
+    documentData = await createDocumentRecord(supabase, insertPayload);
+  } catch (error) {
+    if (error.code === '42501' || error.message?.includes('permission')) {
+      throw new Error('관리자 권한이 없습니다.', { cause: error });
+    }
+    throw error;
+  }
 
-  return { document: data, blob: pdfBlob, fileName };
+  return { document: documentData, blob: pdfBlob, fileName };
 }
 
 export async function openDocumentSignedUrl(supabase, document, options = {}) {
@@ -521,4 +533,81 @@ function formatTimeRange(start, end) {
 function toMoney(value) {
   const numeric = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+export async function getNextDocumentNo(supabase, documentType) {
+  const { data, error } = await supabase.rpc("get_next_document_no", {
+    p_document_type: documentType,
+  });
+  if (error) {
+    console.error("Failed to allocate document number:", error);
+    if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('Only admins')) {
+      throw new Error("관리자 권한이 없습니다.");
+    }
+    throw new Error(`문서 번호 생성에 실패했습니다: ${error.message}`);
+  }
+  return data;
+}
+
+export async function uploadDocumentPdf(supabase, fileBlob, filePath) {
+  const { error } = await supabase.storage
+    .from(DOCUMENT_BUCKET)
+    .upload(filePath, fileBlob, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+  if (error) {
+    console.error("Failed to upload PDF to storage:", error);
+    if (error.code === '42501' || error.message?.includes('permission')) {
+      throw new Error("관리자 권한이 없습니다.");
+    }
+    if (error.message?.includes("bucket") || error.message?.includes("not found") || error.statusCode === "404") {
+      throw new Error(`Storage bucket "${DOCUMENT_BUCKET}"이 존재하지 않습니다. Supabase에서 bucket을 생성하거나 RLS 정책을 확인해주세요.`);
+    }
+    throw new Error(`Storage 업로드에 실패했습니다: ${error.message}`);
+  }
+}
+
+export async function createDocumentRecord(supabase, payload) {
+  const { data, error } = await supabase
+    .from("documents")
+    .insert([payload])
+    .select("*")
+    .single();
+  if (error) {
+    console.error("Failed to insert document record:", error);
+    if (error.code === '42501' || error.message?.includes('permission')) {
+      throw new Error("관리자 권한이 없습니다.");
+    }
+    throw new Error(`문서 저장에 실패했습니다: ${error.message}`);
+  }
+  return data;
+}
+
+export async function getSignedDocumentUrl(supabase, filePath) {
+  const { data, error } = await supabase.storage
+    .from(DOCUMENT_BUCKET)
+    .createSignedUrl(filePath, 600);
+  if (error) {
+    console.error("Failed to generate signed URL:", error);
+    throw new Error(`PDF 링크 생성에 실패했습니다: ${error.message}`);
+  }
+  return data.signedUrl;
+}
+
+export async function getLatestDocumentByRequest(supabase, requestId, documentType) {
+  const { data, error } = await supabase
+    .from("documents")
+    .select("*")
+    .eq("request_id", requestId)
+    .eq("document_type", documentType)
+    .eq("status", "issued")
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("Failed to fetch latest document:", error);
+    throw new Error(`문서 조회에 실패했습니다: ${error.message}`);
+  }
+  return data;
 }

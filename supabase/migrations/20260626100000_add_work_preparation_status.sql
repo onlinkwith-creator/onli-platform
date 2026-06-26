@@ -21,6 +21,7 @@ add constraint jobs_assignment_status_check
 check (assignment_status in ('waiting', 'assigning', 'assigned', 'preparing', 'ready'));
 
 -- 2. Update get_my_assignments RPC to expose assignment_status and contact visibility
+drop function if exists public.get_my_assignments();
 create or replace function public.get_my_assignments()
 returns table (
   assignment_id text,

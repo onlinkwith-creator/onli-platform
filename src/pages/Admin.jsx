@@ -5534,6 +5534,8 @@ function AdminRequestCard({
   updateRequestFlowStatus,
   openRequestModal,
   onOpenDocumentPreview,
+  expanded,
+  setExpandedRequestId,
 }) {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const moreMenuRef = useRef(null);
@@ -5574,8 +5576,32 @@ function AdminRequestCard({
   const closeMoreMenu = () => setIsMoreOpen(false);
 
   return (
-    <article className="admin-request-card request-card">
-      <div className="request-card-body">
+    <article
+      className={`admin-request-card request-card accordion-card ${expanded ? "is-expanded" : ""}`}
+      onClick={(e) => {
+        // Only expand/collapse if clicking general areas, not controls or buttons
+        if (
+          e.target.closest("button") ||
+          e.target.closest("select") ||
+          e.target.closest("a") ||
+          e.target.closest("input") ||
+          e.target.closest("textarea") ||
+          e.target.closest(".admin-more-menu") ||
+          e.target.closest(".admin-flow-status-panel") ||
+          e.target.closest(".operation-flow-controls")
+        ) {
+          return;
+        }
+        setExpandedRequestId(expanded ? null : request.id);
+      }}
+      style={{
+        cursor: "pointer",
+        transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+        borderColor: expanded ? "#c084fc" : "#e5e7eb",
+        boxShadow: expanded ? "0 4px 20px rgba(192, 132, 252, 0.15)" : "",
+      }}
+    >
+      <div className="request-card-body" style={{ gap: "8px" }}>
         <div className="admin-request-card-head">
           <div>
             <ManagementNumberBadge value={request.request_no} />
@@ -5583,7 +5609,10 @@ function AdminRequestCard({
             <button
               type="button"
               className="admin-company-history-link"
-              onClick={() => openRequestModal("detail", request)}
+              onClick={(e) => {
+                e.stopPropagation();
+                openRequestModal("detail", request);
+              }}
             >
               {request.company_name || "-"}
             </button>
@@ -5593,7 +5622,7 @@ function AdminRequestCard({
           </span>
         </div>
 
-        <div className="admin-status-badge-row">
+        <div className="admin-status-badge-row" style={{ marginBottom: expanded ? "6px" : "0" }}>
           <FlowStatusBadge
             type="operation"
             value={request.estimate_status || "estimate_preparing"}
@@ -5616,107 +5645,176 @@ function AdminRequestCard({
           />
         </div>
 
-        <div className="admin-flow-status-panel">
-          <h3>견적 상태</h3>
-          <InlineSelect
-            options={ESTIMATE_STATUS_OPTIONS}
-            value={request.estimate_status || "estimate_preparing"}
-            onChange={(value) => updateRequest(request.id, { estimate_status: value })}
-          />
-        </div>
+        {/* Expandable Details Container */}
+        <div className={`admin-card-expandable-content ${expanded ? "is-expanded" : ""}`}>
+          <div className="admin-card-expandable-content-inner">
+            <div className="admin-flow-status-panel" onClick={(e) => e.stopPropagation()}>
+              <h3>견적 상태</h3>
+              <InlineSelect
+                options={ESTIMATE_STATUS_OPTIONS}
+                value={request.estimate_status || "estimate_preparing"}
+                onChange={(value) => updateRequest(request.id, { estimate_status: value })}
+              />
+            </div>
 
-        <dl className="admin-request-summary admin-request-summary-clean">
-          <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
-          <Info label="날짜" value={requestDate} />
-          <Info label="장소" value={request.event_location || "-"} />
-          <Info label="지정 요청" value={designatedInterpreterName} />
-          <Info label="배정 통역사" value={assignedInterpreterName || "-"} />
-        </dl>
+            <dl className="admin-request-summary admin-request-summary-clean">
+              <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+              <Info label="날짜" value={requestDate} />
+              <Info label="장소" value={request.event_location || "-"} />
+              <Info label="지정 요청" value={designatedInterpreterName} />
+              <Info label="배정 통역사" value={assignedInterpreterName || "-"} />
+            </dl>
 
-        <OperationFlowStatusControls
-          item={flowSource}
-          disabled={savingKey === `request-${request.id}`}
-          onChange={(changes) => updateRequestFlowStatus(request, changes)}
-        />
-      </div>
+            <OperationFlowStatusControls
+              item={flowSource}
+              disabled={savingKey === `request-${request.id}`}
+              onChange={(changes) => updateRequestFlowStatus(request, changes)}
+            />
 
-      <div className="admin-request-actions request-card-actions">
-        <button
-          type="button"
-          className="admin-link-button primary"
-          onClick={() => openRequestModal("applicants", request)}
-        >
-          지원자 확인 ({jobApplications.length}명)
-        </button>
-        <button
-          type="button"
-          className="admin-link-button primary subtle"
-          onClick={() => openRequestModal("detail", request)}
-        >
-          상세보기
-        </button>
-        <button
-          type="button"
-          className="admin-link-button"
-          onClick={() => onOpenDocumentPreview("estimate", request)}
-        >
-          견적서 생성
-        </button>
-        {normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED && (
-          <button
-            type="button"
-            className="admin-link-button"
-            onClick={() => onOpenDocumentPreview("completion", request)}
-          >
-            업무 확인서 생성
-          </button>
-        )}
-        <div className="admin-more-menu request-more-wrapper" ref={moreMenuRef}>
-          <button
-            type="button"
-            className="request-more-trigger"
-            aria-label="더보기"
-            aria-expanded={isMoreOpen}
-            onClick={() => setIsMoreOpen((current) => !current)}
-          >
-            <MoreHorizontal size={18} aria-hidden="true" />
-          </button>
-          {isMoreOpen && (
-            <div className="request-more-menu">
+            {/* Row 1: Primary Actions (지원자 확인, 상세보기) */}
+            <div className="admin-card-primary-actions">
               <button
                 type="button"
-                className="request-more-item"
-                onClick={() => {
-                  openRequestModal("edit", request);
-                  closeMoreMenu();
+                className="admin-link-button primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openRequestModal("applicants", request);
                 }}
               >
-                수정
+                지원자 확인 ({jobApplications.length}명)
               </button>
               <button
                 type="button"
-                className="request-more-item"
-                disabled={savingKey === `request-job-${request.id}`}
-                onClick={() => {
-                  openRequestModal("visibility", request);
-                  closeMoreMenu();
+                className="admin-link-button primary subtle"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openRequestModal("detail", request);
                 }}
               >
-                {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
-              </button>
-              <button
-                type="button"
-                className="request-more-item danger"
-                disabled={savingKey === `request-delete-${request.id}`}
-                onClick={() => {
-                  openRequestModal("delete", request);
-                  closeMoreMenu();
-                }}
-              >
-                삭제
+                상세보기
               </button>
             </div>
-          )}
+
+            {/* Row 2: Secondary Actions (견적서 생성, 업무 확인서 생성, 더보기) */}
+            <div className="admin-card-secondary-area">
+              <div className="admin-card-secondary-title">문서 생성</div>
+              <div className="admin-card-secondary-actions">
+                <button
+                  type="button"
+                  className="admin-link-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenDocumentPreview("estimate", request);
+                  }}
+                >
+                  견적서 생성
+                </button>
+                {(() => {
+                  const isCompleted = normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED;
+                  return (
+                    <button
+                      type="button"
+                      className="admin-link-button"
+                      disabled={!isCompleted}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenDocumentPreview("completion", request);
+                      }}
+                      style={{
+                        background: isCompleted ? "" : "#f3f4f6",
+                        color: isCompleted ? "" : "#9ca3af",
+                        border: isCompleted ? "" : "1px solid #e5e7eb",
+                        cursor: isCompleted ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {isCompleted ? "업무 확인서 생성" : "업무 완료 후 생성"}
+                    </button>
+                  );
+                })()}
+                <div className="admin-more-menu request-more-wrapper" ref={moreMenuRef} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="request-more-trigger"
+                    aria-label="더보기"
+                    aria-expanded={isMoreOpen}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMoreOpen((current) => !current);
+                    }}
+                  >
+                    <MoreHorizontal size={18} aria-hidden="true" />
+                  </button>
+                  {isMoreOpen && (
+                    <div className="request-more-menu">
+                      <button
+                        type="button"
+                        className="request-more-item"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openRequestModal("edit", request);
+                          closeMoreMenu();
+                        }}
+                      >
+                        수정
+                      </button>
+                      <button
+                        type="button"
+                        className="request-more-item"
+                        disabled={savingKey === `request-job-${request.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openRequestModal("visibility", request);
+                          closeMoreMenu();
+                        }}
+                      >
+                        {jobPublicState.type === "public" ? "비공개 전환" : "공고 공개"}
+                      </button>
+                      <button
+                        type="button"
+                        className="request-more-item danger"
+                        disabled={savingKey === `request-delete-${request.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openRequestModal("delete", request);
+                          closeMoreMenu();
+                        }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Expand / Collapse Indicator Button */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedRequestId(expanded ? null : request.id);
+            }}
+            style={{
+              fontSize: "11px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 8px",
+              background: "none",
+              border: "none",
+              color: "#6b7280",
+              cursor: "pointer",
+              fontWeight: "800",
+              transition: "color 0.2s ease"
+            }}
+            onMouseEnter={(e) => e.target.style.color = "#4f46e5"}
+            onMouseLeave={(e) => e.target.style.color = "#6b7280"}
+          >
+            {expanded ? "▲ 접기" : "▼ 펼치기"}
+          </button>
         </div>
       </div>
     </article>
@@ -6338,6 +6436,25 @@ function RequestDetailPanel({
       )}
 
       <div>
+        <h3>견적서 관리</h3>
+        <div className="admin-settlement" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <p className="admin-settlement-note">
+            의뢰인용 견적서를 발급하거나 수정할 수 있습니다.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              type="button"
+              className="admin-save"
+              onClick={() => onOpenDocumentPreview("estimate", request)}
+              style={{ width: "auto", minWidth: "150px" }}
+            >
+              견적서 생성
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div>
         <h3>업무확인서 관리</h3>
         <div className="admin-settlement" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <p className="admin-settlement-note">
@@ -6363,47 +6480,144 @@ function RequestDetailPanel({
       </div>
 
       <div>
-        <h3>발급 문서 이력</h3>
-        <div className="admin-settlement">
+        <h3>발급 문서 관리</h3>
+        <div className="admin-settlement" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {(() => {
             const requestDocs = generatedDocuments.filter((doc) => doc.request_id === request.id);
+            const latestEstimate = requestDocs
+              .filter((d) => d.document_type === "estimate")
+              .sort((a, b) => b.version - a.version)[0];
+            const latestCompletion = requestDocs
+              .filter((d) => d.document_type === "completion")
+              .sort((a, b) => b.version - a.version)[0];
+
             if (requestDocs.length === 0) {
               return <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>발급된 문서가 없습니다.</p>;
             }
+
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {requestDocs.map((doc) => (
-                  <div
-                    key={doc.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "8px 12px",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                      background: "#ffffff",
-                      fontSize: "13px",
-                    }}
-                  >
-                    <div>
-                      <strong style={{ marginRight: "6px", color: "#111827" }}>
-                        [{getDocumentTypeLabel(doc.document_type)}]
-                      </strong>
-                      <span style={{ marginRight: "6px", color: "#4b5563" }}>{doc.document_no}</span>
-                      <span style={{ fontSize: "11px", color: "#9ca3af" }}>v{doc.version}</span>
-                    </div>
+              <>
+                {/* Latest Estimate */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 14px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    background: "#f8fafc",
+                    fontSize: "13px",
+                  }}
+                >
+                  <div>
+                    <strong style={{ color: "#1e293b", marginRight: "8px" }}>📄 최신 견적서</strong>
+                    {latestEstimate ? (
+                      <span style={{ color: "#475569" }}>
+                        {latestEstimate.document_no} (v{latestEstimate.version})
+                      </span>
+                    ) : (
+                      <span style={{ color: "#94a3b8" }}>미발급</span>
+                    )}
+                  </div>
+                  {latestEstimate && (
                     <button
                       type="button"
                       className="admin-link-button"
-                      onClick={() => openDocumentSignedUrl(supabase, doc)}
+                      onClick={() => openDocumentSignedUrl(supabase, latestEstimate)}
                       style={{ fontSize: "12px", color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
                     >
                       보기
                     </button>
+                  )}
+                </div>
+
+                {/* Latest Completion */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 14px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    background: "#f8fafc",
+                    fontSize: "13px",
+                  }}
+                >
+                  <div>
+                    <strong style={{ color: "#1e293b", marginRight: "8px" }}>📋 최신 업무확인서</strong>
+                    {latestCompletion ? (
+                      <span style={{ color: "#475569" }}>
+                        {latestCompletion.document_no} (v{latestCompletion.version})
+                      </span>
+                    ) : (
+                      <span style={{ color: "#94a3b8" }}>미발급</span>
+                    )}
                   </div>
-                ))}
-              </div>
+                  {latestCompletion && (
+                    <button
+                      type="button"
+                      className="admin-link-button"
+                      onClick={() => openDocumentSignedUrl(supabase, latestCompletion)}
+                      style={{ fontSize: "12px", color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                    >
+                      보기
+                    </button>
+                  )}
+                </div>
+
+                {/* Version History */}
+                {requestDocs.length > 0 && (
+                  <div style={{ marginTop: "8px" }}>
+                    <h4 style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#475569", fontWeight: "700" }}>
+                      전체 문서 발급 이력 ({requestDocs.length}건)
+                    </h4>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        maxHeight: "150px",
+                        overflowY: "auto",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        background: "#ffffff",
+                      }}
+                    >
+                      {requestDocs.map((doc) => (
+                        <div
+                          key={doc.id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: "12px",
+                            padding: "4px 0",
+                            borderBottom: "1px solid #f1f5f9",
+                          }}
+                        >
+                          <span style={{ color: "#334155" }}>
+                            <strong style={{ color: "#111827", marginRight: "6px" }}>
+                              [{getDocumentTypeLabel(doc.document_type)}]
+                            </strong>
+                            {doc.document_no} <span style={{ color: "#9ca3af" }}>(v{doc.version})</span>
+                          </span>
+                          <button
+                            type="button"
+                            className="admin-link-button"
+                            onClick={() => openDocumentSignedUrl(supabase, doc)}
+                            style={{ fontSize: "12px", color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                          >
+                            보기
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             );
           })()}
         </div>
