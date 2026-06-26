@@ -82,6 +82,17 @@ import {
   addManagementNumber,
   isManagementNumberConflict,
 } from "../utils/managementNumber";
+import {
+  buildCompletionDraft,
+  buildEstimateDraft,
+  buildPaymentDraft,
+  createOnliDocument,
+  downloadBlob,
+  formatDocumentAmount,
+  getDocumentTypeLabel,
+  recalculateEstimateDraft,
+  recalculatePaymentDraft,
+} from "../utils/documents";
 import { useAuth } from "../hooks/useAuth";
 import { WITHDRAWN_STATUS, isWithdrawnInterpreter } from "../utils/accountStatus";
 import "./Admin.css";
@@ -173,11 +184,9 @@ const REQUEST_MANAGEMENT_FILTERS = [
   { value: "operation_completed", label: "운영 종료" },
 ];
 const ESTIMATE_STATUS_OPTIONS = [
-  { value: "estimate_pending", label: "견적 대기" },
-  { value: "estimate_sent", label: "견적 전달 완료" },
-  { value: "company_approved", label: "기업 승인" },
-  { value: "recruiting_interpreters", label: "통역사 모집" },
-  { value: "assigned", label: "배정 완료" },
+  { value: "estimate_preparing", label: "견적 준비중" },
+  { value: "estimate_required", label: "견적 확인 필요" },
+  { value: "estimate_approved", label: "견적 승인 완료" },
 ];
 const PENDING_INTERPRETER_STATUSES = [
   "pending",
@@ -226,7 +235,7 @@ const EMPTY_REQUEST_EDIT_DRAFT = {
   settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
   contact_status: "not_contacted",
   payment_status: "unpaid",
-  estimate_status: "estimate_pending",
+  estimate_status: "estimate_preparing",
   company_internal_memo: "",
 };
 const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
@@ -412,6 +421,8 @@ function Admin({ onBackClick }) {
   const [, setSelectedRequest] = useState(null);
   const [activeRequestModal, setActiveRequestModal] = useState(null);
   const [requestEditDraft, setRequestEditDraft] = useState(null);
+  const [documentDraft, setDocumentDraft] = useState(null);
+  const [, setGeneratedDocuments] = useState([]);
   const [isAdminAccountModalOpen, setIsAdminAccountModalOpen] = useState(false);
   const [isSettlementPendingModalOpen, setIsSettlementPendingModalOpen] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
@@ -480,7 +491,7 @@ function Admin({ onBackClick }) {
             publicSupabase
               .from("request_interpreters")
               .select(
-                "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
+                "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
               )
               .order("id", { ascending: false }),
             publicSupabase
@@ -552,7 +563,7 @@ function Admin({ onBackClick }) {
     }
     if (supabase) {
       try {
-        const [notesResult, logsResult, notificationsResult] = (
+        const [notesResult, logsResult, notificationsResult, documentsResult] = (
           await Promise.allSettled([
             supabase
               .from("admin_notes")
@@ -567,6 +578,11 @@ function Admin({ onBackClick }) {
             supabase
               .from("notification_events")
               .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
+              .order("created_at", { ascending: false })
+              .limit(300),
+            supabase
+              .from("documents")
+              .select("id, document_type, document_no, status, version, request_id, interpreter_id, title, amount, storage_bucket, file_path, metadata, created_at")
               .order("created_at", { ascending: false })
               .limit(300),
           ])
@@ -592,6 +608,12 @@ function Admin({ onBackClick }) {
           console.warn("notification events fetch skipped:", notificationsResult.error);
         } else {
           setNotificationEvents(uniqueById(notificationsResult.data || []));
+        }
+
+        if (documentsResult.error) {
+          console.warn("generated documents fetch skipped:", documentsResult.error);
+        } else {
+          setGeneratedDocuments(uniqueById(documentsResult.data || []));
         }
       } catch (error) {
         console.warn("admin optional data fetch skipped:", error);
@@ -1655,6 +1677,63 @@ function Admin({ onBackClick }) {
         ? { ...EMPTY_REQUEST_EDIT_DRAFT, ...createRequestEditDraft(request, requestJob) }
         : null
     );
+  };
+
+  const openDocumentPreview = (documentType, request) => {
+    const requestAssignments = assignmentsByRequest.get(request.id) || [];
+    if (documentType === "estimate") {
+      setDocumentDraft(buildEstimateDraft(request));
+      return;
+    }
+    if (documentType === "completion") {
+      setDocumentDraft(buildCompletionDraft(request, requestAssignments));
+      return;
+    }
+    setDocumentDraft(buildPaymentDraft(request, requestAssignments));
+  };
+
+  const updateDocumentDraft = (field, value) => {
+    setDocumentDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, [field]: value };
+      if (current.documentType === "estimate") return recalculateEstimateDraft(next);
+      if (current.documentType === "payout") return recalculatePaymentDraft(next);
+      return next;
+    });
+  };
+
+  const confirmDocumentGeneration = async () => {
+    if (!documentDraft || !supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const documentType = documentDraft.documentType;
+    const request = documentDraft.request || {};
+    setSavingKey(`document-${documentType}-${request.id || "new"}`);
+
+    try {
+      const { document, blob, fileName } = await createOnliDocument({
+        supabase,
+        draft: documentDraft,
+        userId: user?.id,
+      });
+
+      setGeneratedDocuments((current) => uniqueById([document, ...current]));
+      await downloadBlob(blob, fileName);
+
+      if (documentType === "estimate" && request.id) {
+        await updateRequest(request.id, { estimate_status: "estimate_required" });
+      }
+
+      setDocumentDraft(null);
+      alert(`${getDocumentTypeLabel(documentType)}가 생성되었습니다.`);
+    } catch (error) {
+      console.error("document generation failed:", error);
+      alert(`문서 생성 실패: ${error.message || "원인을 확인해주세요."}`);
+    } finally {
+      setSavingKey("");
+    }
   };
 
   const updateRequestEditDraft = (name, value) => {
@@ -3330,6 +3409,7 @@ function Admin({ onBackClick }) {
                 deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
                 updateRequestFlowStatus={updateRequestFlowStatus}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
@@ -3419,6 +3499,7 @@ function Admin({ onBackClick }) {
                 deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
                 updateRequestFlowStatus={updateRequestFlowStatus}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
@@ -3471,6 +3552,7 @@ function Admin({ onBackClick }) {
                 noteDrafts={adminNoteDrafts}
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
@@ -3484,6 +3566,7 @@ function Admin({ onBackClick }) {
                 noteDrafts={adminNoteDrafts}
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
@@ -3529,6 +3612,7 @@ function Admin({ onBackClick }) {
                 noteDrafts={adminNoteDrafts}
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
@@ -3547,6 +3631,7 @@ function Admin({ onBackClick }) {
                 noteDrafts={adminNoteDrafts}
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
@@ -3691,6 +3776,15 @@ function Admin({ onBackClick }) {
                 onClose={() => setIsSettlementPendingModalOpen(false)}
                 onCompleteSettlement={completeSettlementFromPendingModal}
                 onOpenDetail={openRequestDetailFromSettlementPending}
+              />
+            )}
+            {documentDraft && (
+              <DocumentPreviewModal
+                draft={documentDraft}
+                saving={savingKey === `document-${documentDraft.documentType}-${documentDraft.request?.id || "new"}`}
+                onChange={updateDocumentDraft}
+                onClose={() => setDocumentDraft(null)}
+                onConfirm={confirmDocumentGeneration}
               />
             )}
             {activeRequest && (
@@ -4438,6 +4532,91 @@ function AdminModal({ children, className = "", onClose, title, titleId }) {
   );
 }
 
+function DocumentPreviewModal({ draft, saving, onChange, onClose, onConfirm }) {
+  const documentType = draft.documentType;
+  const title = `${getDocumentTypeLabel(documentType)} 미리보기`;
+
+  return (
+    <AdminModal title={title} titleId="document-preview-modal-title" onClose={onClose}>
+      <div className="admin-modal-form">
+        <dl className="admin-detail-list compact">
+          <Info label="문서 종류" value={getDocumentTypeLabel(documentType)} />
+          <Info label="의뢰번호" value={formatManagementNumber(draft.request?.request_no)} />
+          <Info label="행사명" value={draft.eventName || "-"} />
+          <Info label="최종 금액" value={formatDocumentAmount(draft.totalAmount)} />
+        </dl>
+
+        {documentType === "estimate" && (
+          <div className="admin-modal-edit-grid">
+            <TextField label="기업명" value={draft.companyName} onChange={(value) => onChange("companyName", value)} />
+            <TextField label="담당자명" value={draft.contactName} onChange={(value) => onChange("contactName", value)} />
+            <TextField label="행사명" value={draft.eventName} onChange={(value) => onChange("eventName", value)} />
+            <TextField label="일정" value={draft.eventDate} onChange={(value) => onChange("eventDate", value)} />
+            <TextField label="장소" value={draft.location} onChange={(value) => onChange("location", value)} />
+            <TextField label="통역 레벨" value={draft.level} onChange={(value) => onChange("level", value)} />
+            <NumberControl label="단가" value={draft.unitPrice} onChange={(value) => onChange("unitPrice", value)} />
+            <NumberControl label="인원" value={draft.peopleCount} onChange={(value) => onChange("peopleCount", value)} />
+            <NumberControl label="업무 일수" value={draft.workDays} onChange={(value) => onChange("workDays", value)} />
+            <NumberControl label="할인" value={draft.discountAmount} onChange={(value) => onChange("discountAmount", value)} />
+            <NumberControl label="추가 비용" value={draft.extraAmount} onChange={(value) => onChange("extraAmount", value)} />
+          </div>
+        )}
+
+        {documentType === "completion" && (
+          <div className="admin-modal-edit-grid">
+            <TextField label="기업명" value={draft.companyName} onChange={(value) => onChange("companyName", value)} />
+            <TextField label="행사명" value={draft.eventName} onChange={(value) => onChange("eventName", value)} />
+            <TextField label="진행 날짜" value={draft.eventDate} onChange={(value) => onChange("eventDate", value)} />
+            <TextField label="진행 장소" value={draft.location} onChange={(value) => onChange("location", value)} />
+            <TextField label="담당 통역사" value={draft.interpreters} onChange={(value) => onChange("interpreters", value)} />
+            <TextField label="업무 시간" value={draft.workTime} onChange={(value) => onChange("workTime", value)} />
+            <TextField label="완료 확인일" value={draft.confirmedAt} onChange={(value) => onChange("confirmedAt", value)} />
+          </div>
+        )}
+
+        {documentType === "payout" && (
+          <div className="admin-modal-edit-grid">
+            <TextField label="통역사명" value={draft.interpreterName} onChange={(value) => onChange("interpreterName", value)} />
+            <TextField label="업무명" value={draft.eventName} onChange={(value) => onChange("eventName", value)} />
+            <TextField label="업무 날짜" value={draft.eventDate} onChange={(value) => onChange("eventDate", value)} />
+            <TextField label="적용 레벨" value={draft.level} onChange={(value) => onChange("level", value)} />
+            <NumberControl label="일당" value={draft.dailyPay} onChange={(value) => onChange("dailyPay", value)} />
+            <NumberControl label="근무 일수" value={draft.workDays} onChange={(value) => onChange("workDays", value)} />
+            <NumberControl label="최종 지급 금액" value={draft.totalAmount} onChange={(value) => onChange("totalAmount", value)} />
+          </div>
+        )}
+
+        <FieldControl label="메모">
+          <textarea
+            className="admin-textarea"
+            rows={3}
+            value={draft.memo || ""}
+            onChange={(event) => onChange("memo", event.target.value)}
+            placeholder="문서에 표시할 메모"
+          />
+        </FieldControl>
+
+        <div className="admin-modal-actions">
+          <button type="button" className="admin-link-button" onClick={onClose}>
+            취소
+          </button>
+          <button type="button" className="admin-save" disabled={saving} onClick={onConfirm}>
+            확정 생성
+          </button>
+        </div>
+      </div>
+    </AdminModal>
+  );
+}
+
+function TextField({ label, value, onChange }) {
+  return (
+    <FieldControl label={label}>
+      <input value={value || ""} onChange={(event) => onChange(event.target.value)} />
+    </FieldControl>
+  );
+}
+
 function ConfirmPanel({
   confirmText,
   message,
@@ -4596,7 +4775,7 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
         <FieldControl label="견적 상태">
           <InlineSelect
             options={ESTIMATE_STATUS_OPTIONS}
-            value={form.estimate_status || "estimate_pending"}
+            value={form.estimate_status || "estimate_preparing"}
             onChange={(value) => onChange("estimate_status", value)}
           />
         </FieldControl>
@@ -4816,6 +4995,7 @@ function RequestManagement({
   deleteRequest,
   toggleRequestJobPublic,
   updateRequestFlowStatus,
+  onOpenDocumentPreview,
 }) {
   const isListView = filters.view === "list";
 
@@ -4928,6 +5108,7 @@ function RequestManagement({
               deleteRequest={deleteRequest}
               toggleRequestJobPublic={toggleRequestJobPublic}
               openRequestModal={openRequestModal}
+              onOpenDocumentPreview={onOpenDocumentPreview}
             
             />
           ))}
@@ -4948,6 +5129,7 @@ function AdminRequestCard({
   updateRequest,
   updateRequestFlowStatus,
   openRequestModal,
+  onOpenDocumentPreview,
 }) {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const moreMenuRef = useRef(null);
@@ -5010,7 +5192,7 @@ function AdminRequestCard({
         <div className="admin-status-badge-row">
           <FlowStatusBadge
             type="operation"
-            value={request.estimate_status || "estimate_pending"}
+            value={request.estimate_status || "estimate_preparing"}
             label={getEstimateStatusLabel(request.estimate_status)}
           />
           <FlowStatusBadge
@@ -5034,7 +5216,7 @@ function AdminRequestCard({
           <h3>견적 상태</h3>
           <InlineSelect
             options={ESTIMATE_STATUS_OPTIONS}
-            value={request.estimate_status || "estimate_pending"}
+            value={request.estimate_status || "estimate_preparing"}
             onChange={(value) => updateRequest(request.id, { estimate_status: value })}
           />
         </div>
@@ -5069,6 +5251,22 @@ function AdminRequestCard({
         >
           상세보기
         </button>
+        <button
+          type="button"
+          className="admin-link-button"
+          onClick={() => onOpenDocumentPreview("estimate", request)}
+        >
+          견적서 생성
+        </button>
+        {normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED && (
+          <button
+            type="button"
+            className="admin-link-button"
+            onClick={() => onOpenDocumentPreview("completion", request)}
+          >
+            업무 확인서 생성
+          </button>
+        )}
         <div className="admin-more-menu request-more-wrapper" ref={moreMenuRef}>
           <button
             type="button"
@@ -8028,6 +8226,7 @@ function SettlementManagement({
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
+  onOpenDocumentPreview,
 }) {
   const filteredRequests = requests.filter((request) => {
     const matchesMonth =
@@ -8083,6 +8282,7 @@ function SettlementManagement({
               noteDrafts={noteDrafts}
               onChangeNoteDraft={onChangeNoteDraft}
               onCreateNote={onCreateNote}
+              onOpenDocumentPreview={onOpenDocumentPreview}
             />
           ))}
         </div>
@@ -8102,6 +8302,7 @@ function SettlementRequestCard({
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
+  onOpenDocumentPreview,
 }) {
   const assignedInterpreterNames = getAssignedInterpreterName(
     request,
@@ -8269,6 +8470,13 @@ function SettlementRequestCard({
           onClick={completeSettlement}
         >
           정산 완료 처리
+        </button>
+        <button
+          type="button"
+          className="admin-link-button"
+          onClick={() => onOpenDocumentPreview("payout", request)}
+        >
+          정산 내역서 생성
         </button>
       </div>
 
@@ -8969,7 +9177,7 @@ function createRequestEditDraft(request = {}, job = null) {
     settlement_status: normalizeSettlementFlowStatus(flowSource),
     contact_status: request.contact_status || "not_contacted",
     payment_status: request.payment_status || "unpaid",
-    estimate_status: request.estimate_status || "estimate_pending",
+    estimate_status: request.estimate_status || "estimate_preparing",
     company_internal_memo: request.company_internal_memo || "",
   };
 }
@@ -9482,10 +9690,16 @@ function getAdminMemo(item = {}) {
 }
 
 function getEstimateStatusLabel(value) {
-  const normalized = String(value || "estimate_pending").trim();
+  const normalized = String(value || "estimate_preparing").trim();
+  const legacyLabels = {
+    estimate_pending: "견적 준비중",
+    estimate_sent: "견적 확인 필요",
+    company_approved: "견적 승인 완료",
+  };
   return (
     ESTIMATE_STATUS_OPTIONS.find((option) => option.value === normalized)?.label ||
-    "견적 대기"
+    legacyLabels[normalized] ||
+    "견적 준비중"
   );
 }
 

@@ -33,6 +33,10 @@ import {
   FileText,
   X,
 } from "lucide-react";
+import {
+  DOCUMENT_BUCKET,
+  formatDocumentAmount,
+} from "../utils/documents";
 
 const TABS = [
   { id: "profile", label: "프로필 정보", icon: "👤" },
@@ -81,6 +85,7 @@ function InterpreterMypage({
   const [applications, setApplications] = useState([]);
   const [matchings, setMatchings] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [paymentDocuments, setPaymentDocuments] = useState([]);
   const [activeTab, setActiveTab] = useState("profile");
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -270,14 +275,16 @@ function InterpreterMypage({
       // Fetch applications and matchings dynamically
       setLoadingData(true);
       try {
-        const [apps, mats, settlementRows] = await Promise.all([
+        const [apps, mats, settlementRows, documentRows] = await Promise.all([
           fetchApplicationsData(nextInterpreter.id),
           fetchMatchingsData(nextInterpreter.id),
           fetchSettlementsData(),
+          fetchPaymentDocumentsData(),
         ]);
         setApplications(apps);
         setMatchings(mats);
         setSettlements(settlementRows);
+        setPaymentDocuments(documentRows);
       } catch (err) {
         console.error("Failed to load applications/matchings", err);
       } finally {
@@ -862,6 +869,39 @@ function InterpreterMypage({
     }
 
     return (data || []).map(mapMySettlementRow);
+  };
+
+  const fetchPaymentDocumentsData = async () => {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from("documents")
+      .select("id, document_type, document_no, status, version, request_id, title, amount, storage_bucket, file_path, created_at")
+      .eq("document_type", "payout")
+      .eq("status", "issued")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.warn("Payment documents fetch skipped", error);
+      return [];
+    }
+
+    return data || [];
+  };
+
+  const openPaymentDocument = async (documentRow) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(documentRow.storage_bucket || DOCUMENT_BUCKET)
+        .createSignedUrl(documentRow.file_path, 600, {
+          download: `${documentRow.document_no || "ONLI-PAY"}.pdf`,
+        });
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Payment document signed URL failed", error);
+      alert("정산 내역서를 열 수 없습니다. 권한 또는 파일 상태를 확인해주세요.");
+    }
   };
 
   const handleConfirmWithdrawal = async () => {
@@ -2242,7 +2282,12 @@ function InterpreterMypage({
                       </div>
                     ) : (
                       <div className="interpreter-assignment-list">
-                        {settlements.map((settlement) => (
+                        {settlements.map((settlement) => {
+                          const documentRow = paymentDocuments.find(
+                            (doc) => doc.request_id === settlement.requestId
+                          );
+
+                          return (
                           <div key={settlement.id} className="interpreter-assignment-card">
                             <div className="card-top-row">
                               <span className="matching-no">{settlement.publicJobCode || "정산"}</span>
@@ -2261,9 +2306,24 @@ function InterpreterMypage({
                               <p className="assignment-language">
                                 정산 완료일: {formatDate(settlement.completedAt)}
                               </p>
+                              {documentRow && (
+                                <>
+                                  <p className="assignment-secondary-meta">
+                                    정산 내역서 금액: {formatDocumentAmount(documentRow.amount)}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    className="file-download-btn"
+                                    onClick={() => openPaymentDocument(documentRow)}
+                                  >
+                                    정산 내역서 PDF
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     )}
                   </article>
@@ -3050,6 +3110,7 @@ function mapMySettlementRow(row = {}) {
   return {
     id: row.settlement_id,
     publicJobCode: row.public_job_code,
+    requestId: row.request_id,
     title: row.title,
     eventName: row.event_name,
     startDate: row.start_date,
@@ -3171,4 +3232,3 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
 }
 
 export default InterpreterMypage;
-

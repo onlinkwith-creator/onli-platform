@@ -428,7 +428,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       reference_file_path: referenceFileUpload?.filePath || null,
       reference_file_url: referenceFileUpload?.fileUrl || null,
       materials_available: form.referenceMaterial === "있음",
-      estimate_status: "estimate_pending",
+      estimate_status: "estimate_preparing",
       request_type: normalizeRequestType(requestType),
       admin_checked: false,
       checked_at: null,

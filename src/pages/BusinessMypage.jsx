@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { isOnliCertified } from "../utils/publicInterpreter";
+import {
+  DOCUMENT_BUCKET,
+  formatDocumentAmount,
+  getDocumentTypeLabel,
+} from "../utils/documents";
 import "./BusinessMypage.css";
 
 const PRIMARY_FIELDS_OPTIONS = [
@@ -102,6 +107,7 @@ function BusinessMypage({
   const [requests, setRequests] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [materials, setMaterials] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
@@ -249,11 +255,27 @@ function BusinessMypage({
             setNotifications(notifData || []);
           }
 
+          const { data: docData, error: docError } = await supabase
+            .from("documents")
+            .select("id, document_type, document_no, status, version, request_id, title, amount, storage_bucket, file_path, created_at")
+            .in("request_id", requestIds)
+            .in("document_type", ["estimate", "completion"])
+            .eq("status", "issued")
+            .order("created_at", { ascending: false });
+
+          if (docError) {
+            console.warn("Generated documents fetch skipped:", docError);
+            setDocuments([]);
+          } else {
+            setDocuments(docData || []);
+          }
+
           // Set default selected request for materials tab if not set
           setSelectedMaterialRequestId((current) => current || String(fetchedRequests[0].id));
         } else {
           setAssignments([]);
           setMaterials([]);
+          setDocuments([]);
           setNotifications([]);
         }
       }
@@ -485,6 +507,47 @@ function BusinessMypage({
       console.error("Error creating signed URL:", err);
       alert("파일을 다운로드할 수 없습니다. 권한이 없거나 만료되었습니다.");
     }
+  };
+
+  const handleOpenGeneratedDocument = async (documentRow) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(documentRow.storage_bucket || DOCUMENT_BUCKET)
+        .createSignedUrl(documentRow.file_path, 600, {
+          download: `${documentRow.document_no || "ONLI-DOC"}.pdf`,
+        });
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Generated document signed URL failed:", error);
+      alert("문서를 열 수 없습니다. 권한 또는 파일 상태를 확인해주세요.");
+    }
+  };
+
+  const handleApproveEstimate = async (requestId) => {
+    if (!window.confirm("견적을 승인하시겠습니까? 승인 후 금액 수정은 관리자 문의가 필요합니다.")) return;
+
+    const { error } = await supabase
+      .from("requests")
+      .update({ estimate_status: "estimate_approved" })
+      .eq("id", requestId)
+      .eq("company_auth_user_id", user.id);
+
+    if (error) {
+      console.error("Estimate approval failed:", error);
+      alert("견적 승인에 실패했습니다. 다시 시도해주세요.");
+      return;
+    }
+
+    setRequests((current) =>
+      current.map((request) =>
+        request.id === requestId
+          ? { ...request, estimate_status: "estimate_approved" }
+          : request
+      )
+    );
+    alert("견적 승인 완료");
   };
 
   // Dynamic corporate request status
@@ -783,6 +846,14 @@ function BusinessMypage({
                   <div className="business-requests-list">
                     {requests.map((req) => {
                       const statusLabel = getRequestStatusLabel(req);
+                      const requestDocuments = documents.filter((doc) => doc.request_id === req.id);
+                      const estimateDocument = requestDocuments.find((doc) => doc.document_type === "estimate");
+                      const estimateStatus =
+                        ["estimate_approved", "company_approved"].includes(req.estimate_status)
+                          ? "견적 승인 완료"
+                          : estimateDocument
+                            ? "견적 확인 필요"
+                            : "견적 준비중";
                       return (
                         <article key={req.id} className="business-request-card">
                           <div className="request-card-header">
@@ -812,6 +883,51 @@ function BusinessMypage({
                               <span className="meta-value">{req.requested_people_count || req.required_count || 1}명</span>
                             </div>
                           </div>
+
+                          <div className="request-meta-grid" style={{ marginTop: "14px" }}>
+                            <div className="meta-item">
+                              <span className="meta-label">견적 상태</span>
+                              <span className="meta-value">{estimateStatus}</span>
+                            </div>
+                            <div className="meta-item">
+                              <span className="meta-label">견적 금액</span>
+                              <span className="meta-value">
+                                {estimateDocument ? formatDocumentAmount(estimateDocument.amount) : "-"}
+                              </span>
+                            </div>
+                            <div className="meta-item">
+                              <span className="meta-label">문서</span>
+                              <span className="meta-value">
+                                {requestDocuments.length === 0 ? (
+                                  "-"
+                                ) : (
+                                  requestDocuments.map((doc) => (
+                                    <button
+                                      key={doc.id}
+                                      type="button"
+                                      className="file-download-btn"
+                                      onClick={() => handleOpenGeneratedDocument(doc)}
+                                      style={{ marginRight: "6px", marginBottom: "4px" }}
+                                    >
+                                      {getDocumentTypeLabel(doc.document_type)} PDF
+                                    </button>
+                                  ))
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          {estimateDocument && !["estimate_approved", "company_approved"].includes(req.estimate_status) && (
+                            <div className="request-card-actions">
+                              <button
+                                type="button"
+                                className="btn-duplicate-request"
+                                onClick={() => handleApproveEstimate(req.id)}
+                              >
+                                견적 승인
+                              </button>
+                            </div>
+                          )}
 
                           {/* Interactive Step Progress Timeline */}
                           <div className="timeline-section">
