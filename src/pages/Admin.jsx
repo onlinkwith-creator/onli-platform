@@ -90,6 +90,7 @@ import {
   downloadBlob,
   formatDocumentAmount,
   getDocumentTypeLabel,
+  openDocumentSignedUrl,
   recalculateEstimateDraft,
   recalculatePaymentDraft,
 } from "../utils/documents";
@@ -422,7 +423,7 @@ function Admin({ onBackClick }) {
   const [activeRequestModal, setActiveRequestModal] = useState(null);
   const [requestEditDraft, setRequestEditDraft] = useState(null);
   const [documentDraft, setDocumentDraft] = useState(null);
-  const [, setGeneratedDocuments] = useState([]);
+  const [generatedDocuments, setGeneratedDocuments] = useState([]);
   const [isAdminAccountModalOpen, setIsAdminAccountModalOpen] = useState(false);
   const [isSettlementPendingModalOpen, setIsSettlementPendingModalOpen] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
@@ -3824,6 +3825,8 @@ function Admin({ onBackClick }) {
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
                 setAssignments={setAssignments}
+                onOpenDocumentPreview={openDocumentPreview}
+                generatedDocuments={generatedDocuments}
               />
             )}
           
@@ -3866,6 +3869,8 @@ function RequestActionModal({
   onChangeNoteDraft,
   onCreateNote,
   setAssignments,
+  onOpenDocumentPreview,
+  generatedDocuments = [],
 }) {
   if (!activeModal || !request) return null;
 
@@ -3908,6 +3913,8 @@ function RequestActionModal({
           noteDrafts={noteDrafts}
           onChangeNoteDraft={onChangeNoteDraft}
           onCreateNote={onCreateNote}
+          onOpenDocumentPreview={onOpenDocumentPreview}
+          generatedDocuments={generatedDocuments}
           toggleContactVisibility={async (assignmentId, currentVal) => {
             try {
               const { error } = await supabase
@@ -4534,76 +4541,314 @@ function AdminModal({ children, className = "", onClose, title, titleId }) {
 
 function DocumentPreviewModal({ draft, saving, onChange, onClose, onConfirm }) {
   const documentType = draft.documentType;
-  const title = `${getDocumentTypeLabel(documentType)} 미리보기`;
+  const [isEditing, setIsEditing] = useState(false);
+  const title = `${getDocumentTypeLabel(documentType)} ${
+    documentType === "completion" ? (isEditing ? "정보 수정" : "미리보기") : "미리보기"
+  }`;
 
   return (
     <AdminModal title={title} titleId="document-preview-modal-title" onClose={onClose}>
       <div className="admin-modal-form">
-        <dl className="admin-detail-list compact">
-          <Info label="문서 종류" value={getDocumentTypeLabel(documentType)} />
-          <Info label="의뢰번호" value={formatManagementNumber(draft.request?.request_no)} />
-          <Info label="행사명" value={draft.eventName || "-"} />
-          <Info label="최종 금액" value={formatDocumentAmount(draft.totalAmount)} />
-        </dl>
+        {documentType === "completion" && !isEditing ? (
+          <div style={{ display: "grid", gap: "16px" }}>
+            <div
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                padding: "24px",
+                background: "#ffffff",
+                boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "14px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  borderBottom: "2px solid #334155",
+                  paddingBottom: "12px",
+                }}
+              >
+                <span style={{ fontSize: "20px", fontWeight: "900", color: "#1e293b" }}>
+                  업무확인서
+                </span>
+                <span style={{ fontSize: "14px", color: "#64748b", fontWeight: "700" }}>
+                  문서번호: 자동 발급 예정
+                </span>
+              </div>
+              <dl
+                className="admin-detail-list compact"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "10px",
+                  margin: 0,
+                }}
+              >
+                <Info label="기업명" value={draft.companyName} />
+                <Info label="행사명" value={draft.eventName} />
+                <Info label="진행 날짜" value={draft.eventDate} />
+                <Info label="진행 장소" value={draft.location} />
+                <Info label="담당 통역사" value={draft.interpreters} />
+                <Info label="업무 시간" value={draft.workTime} />
+                <Info label="완료 확인일" value={draft.confirmedAt} />
+              </dl>
+              <div
+                style={{
+                  marginTop: "10px",
+                  borderTop: "1px dashed #e2e8f0",
+                  paddingTop: "12px",
+                }}
+              >
+                <dt
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "850",
+                    color: "#64748b",
+                    marginBottom: "4px",
+                  }}
+                >
+                  메모
+                </dt>
+                <dd
+                  style={{
+                    fontSize: "14px",
+                    color: "#1e293b",
+                    margin: 0,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {draft.memo || "-"}
+                </dd>
+              </div>
+            </div>
 
-        {documentType === "estimate" && (
-          <div className="admin-modal-edit-grid">
-            <TextField label="기업명" value={draft.companyName} onChange={(value) => onChange("companyName", value)} />
-            <TextField label="담당자명" value={draft.contactName} onChange={(value) => onChange("contactName", value)} />
-            <TextField label="행사명" value={draft.eventName} onChange={(value) => onChange("eventName", value)} />
-            <TextField label="일정" value={draft.eventDate} onChange={(value) => onChange("eventDate", value)} />
-            <TextField label="장소" value={draft.location} onChange={(value) => onChange("location", value)} />
-            <TextField label="통역 레벨" value={draft.level} onChange={(value) => onChange("level", value)} />
-            <NumberControl label="단가" value={draft.unitPrice} onChange={(value) => onChange("unitPrice", value)} />
-            <NumberControl label="인원" value={draft.peopleCount} onChange={(value) => onChange("peopleCount", value)} />
-            <NumberControl label="업무 일수" value={draft.workDays} onChange={(value) => onChange("workDays", value)} />
-            <NumberControl label="할인" value={draft.discountAmount} onChange={(value) => onChange("discountAmount", value)} />
-            <NumberControl label="추가 비용" value={draft.extraAmount} onChange={(value) => onChange("extraAmount", value)} />
+            <div
+              className="admin-modal-actions"
+              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}
+            >
+              <button
+                type="button"
+                className="admin-link-button"
+                onClick={() => setIsEditing(true)}
+              >
+                수정하기
+              </button>
+              <button
+                type="button"
+                className="admin-save"
+                disabled={saving}
+                onClick={onConfirm}
+              >
+                확정 생성
+              </button>
+            </div>
           </div>
+        ) : (
+          <>
+            <dl className="admin-detail-list compact">
+              <Info label="문서 종류" value={getDocumentTypeLabel(documentType)} />
+              <Info label="의뢰번호" value={formatManagementNumber(draft.request?.request_no)} />
+              <Info label="행사명" value={draft.eventName || "-"} />
+              <Info label="최종 금액" value={formatDocumentAmount(draft.totalAmount)} />
+            </dl>
+
+            {documentType === "estimate" && (
+              <div className="admin-modal-edit-grid">
+                <TextField
+                  label="기업명"
+                  value={draft.companyName}
+                  onChange={(value) => onChange("companyName", value)}
+                />
+                <TextField
+                  label="담당자명"
+                  value={draft.contactName}
+                  onChange={(value) => onChange("contactName", value)}
+                />
+                <TextField
+                  label="행사명"
+                  value={draft.eventName}
+                  onChange={(value) => onChange("eventName", value)}
+                />
+                <TextField
+                  label="일정"
+                  value={draft.eventDate}
+                  onChange={(value) => onChange("eventDate", value)}
+                />
+                <TextField
+                  label="장소"
+                  value={draft.location}
+                  onChange={(value) => onChange("location", value)}
+                />
+                <TextField
+                  label="통역 레벨"
+                  value={draft.level}
+                  onChange={(value) => onChange("level", value)}
+                />
+                <NumberControl
+                  label="단가"
+                  value={draft.unitPrice}
+                  onChange={(value) => onChange("unitPrice", value)}
+                />
+                <NumberControl
+                  label="인원"
+                  value={draft.peopleCount}
+                  onChange={(value) => onChange("peopleCount", value)}
+                />
+                <NumberControl
+                  label="업무 일수"
+                  value={draft.workDays}
+                  onChange={(value) => onChange("workDays", value)}
+                />
+                <NumberControl
+                  label="할인"
+                  value={draft.discountAmount}
+                  onChange={(value) => onChange("discountAmount", value)}
+                />
+                <NumberControl
+                  label="추가 비용"
+                  value={draft.extraAmount}
+                  onChange={(value) => onChange("extraAmount", value)}
+                />
+              </div>
+            )}
+
+            {documentType === "completion" && (
+              <div className="admin-modal-edit-grid">
+                <FieldControl label="기업명">
+                  <input
+                    value={draft.companyName || ""}
+                    disabled
+                    readOnly
+                    style={{ background: "#f3f4f6", color: "#6b7280", cursor: "not-allowed" }}
+                  />
+                </FieldControl>
+                <FieldControl label="행사명">
+                  <input
+                    value={draft.eventName || ""}
+                    disabled
+                    readOnly
+                    style={{ background: "#f3f4f6", color: "#6b7280", cursor: "not-allowed" }}
+                  />
+                </FieldControl>
+                <FieldControl label="진행 날짜">
+                  <input
+                    value={draft.eventDate || ""}
+                    disabled
+                    readOnly
+                    style={{ background: "#f3f4f6", color: "#6b7280", cursor: "not-allowed" }}
+                  />
+                </FieldControl>
+                <FieldControl label="진행 장소">
+                  <input
+                    value={draft.location || ""}
+                    disabled
+                    readOnly
+                    style={{ background: "#f3f4f6", color: "#6b7280", cursor: "not-allowed" }}
+                  />
+                </FieldControl>
+                <TextField
+                  label="담당 통역사"
+                  value={draft.interpreters}
+                  onChange={(value) => onChange("interpreters", value)}
+                />
+                <TextField
+                  label="업무 시간"
+                  value={draft.workTime}
+                  onChange={(value) => onChange("workTime", value)}
+                />
+                <TextField
+                  label="완료 확인일"
+                  value={draft.confirmedAt}
+                  onChange={(value) => onChange("confirmedAt", value)}
+                />
+              </div>
+            )}
+
+            {documentType === "payout" && (
+              <div className="admin-modal-edit-grid">
+                <TextField
+                  label="통역사명"
+                  value={draft.interpreterName}
+                  onChange={(value) => onChange("interpreterName", value)}
+                />
+                <TextField
+                  label="업무명"
+                  value={draft.eventName}
+                  onChange={(value) => onChange("eventName", value)}
+                />
+                <TextField
+                  label="업무 날짜"
+                  value={draft.eventDate}
+                  onChange={(value) => onChange("eventDate", value)}
+                />
+                <TextField
+                  label="적용 레벨"
+                  value={draft.level}
+                  onChange={(value) => onChange("level", value)}
+                />
+                <NumberControl
+                  label="일당"
+                  value={draft.dailyPay}
+                  onChange={(value) => onChange("dailyPay", value)}
+                />
+                <NumberControl
+                  label="근무 일수"
+                  value={draft.workDays}
+                  onChange={(value) => onChange("workDays", value)}
+                />
+                <NumberControl
+                  label="최종 지급 금액"
+                  value={draft.totalAmount}
+                  onChange={(value) => onChange("totalAmount", value)}
+                />
+              </div>
+            )}
+
+            <FieldControl label="메모">
+              <textarea
+                className="admin-textarea"
+                rows={3}
+                value={draft.memo || ""}
+                onChange={(event) => onChange("memo", event.target.value)}
+                placeholder="문서에 표시할 메모"
+              />
+            </FieldControl>
+
+            <div className="admin-modal-actions">
+              {documentType === "completion" ? (
+                <>
+                  <button
+                    type="button"
+                    className="admin-link-button"
+                    onClick={() => setIsEditing(false)}
+                  >
+                    미리보기
+                  </button>
+                  <button type="button" className="admin-save danger" onClick={onClose}>
+                    취소
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="admin-link-button" onClick={onClose}>
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-save"
+                    disabled={saving}
+                    onClick={onConfirm}
+                  >
+                    확정 생성
+                  </button>
+                </>
+              )}
+            </div>
+          </>
         )}
-
-        {documentType === "completion" && (
-          <div className="admin-modal-edit-grid">
-            <TextField label="기업명" value={draft.companyName} onChange={(value) => onChange("companyName", value)} />
-            <TextField label="행사명" value={draft.eventName} onChange={(value) => onChange("eventName", value)} />
-            <TextField label="진행 날짜" value={draft.eventDate} onChange={(value) => onChange("eventDate", value)} />
-            <TextField label="진행 장소" value={draft.location} onChange={(value) => onChange("location", value)} />
-            <TextField label="담당 통역사" value={draft.interpreters} onChange={(value) => onChange("interpreters", value)} />
-            <TextField label="업무 시간" value={draft.workTime} onChange={(value) => onChange("workTime", value)} />
-            <TextField label="완료 확인일" value={draft.confirmedAt} onChange={(value) => onChange("confirmedAt", value)} />
-          </div>
-        )}
-
-        {documentType === "payout" && (
-          <div className="admin-modal-edit-grid">
-            <TextField label="통역사명" value={draft.interpreterName} onChange={(value) => onChange("interpreterName", value)} />
-            <TextField label="업무명" value={draft.eventName} onChange={(value) => onChange("eventName", value)} />
-            <TextField label="업무 날짜" value={draft.eventDate} onChange={(value) => onChange("eventDate", value)} />
-            <TextField label="적용 레벨" value={draft.level} onChange={(value) => onChange("level", value)} />
-            <NumberControl label="일당" value={draft.dailyPay} onChange={(value) => onChange("dailyPay", value)} />
-            <NumberControl label="근무 일수" value={draft.workDays} onChange={(value) => onChange("workDays", value)} />
-            <NumberControl label="최종 지급 금액" value={draft.totalAmount} onChange={(value) => onChange("totalAmount", value)} />
-          </div>
-        )}
-
-        <FieldControl label="메모">
-          <textarea
-            className="admin-textarea"
-            rows={3}
-            value={draft.memo || ""}
-            onChange={(event) => onChange("memo", event.target.value)}
-            placeholder="문서에 표시할 메모"
-          />
-        </FieldControl>
-
-        <div className="admin-modal-actions">
-          <button type="button" className="admin-link-button" onClick={onClose}>
-            취소
-          </button>
-          <button type="button" className="admin-save" disabled={saving} onClick={onConfirm}>
-            확정 생성
-          </button>
-        </div>
       </div>
     </AdminModal>
   );
@@ -5475,6 +5720,8 @@ function RequestDetailPanel({
   onChangeNoteDraft,
   onCreateNote,
   toggleContactVisibility,
+  onOpenDocumentPreview,
+  generatedDocuments = [],
 }) {
   const flowSource = getRequestFlowSource(request, job);
   const requestType = getDesignatedRequestType(request);
@@ -5930,6 +6177,78 @@ function RequestDetailPanel({
       {["assigned", "preparing", "ready"].includes(request.assignment_status) && (
         <PreparationChecklistPanel requestId={request.id} />
       )}
+
+      <div>
+        <h3>업무확인서 관리</h3>
+        <div className="admin-settlement" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <p className="admin-settlement-note">
+            의뢰 상태가 '완료'일 때만 업무확인서 발급이 가능합니다.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              type="button"
+              className="admin-save"
+              disabled={normalizeOperationStatus(request) !== OPERATION_STATUS.COMPLETED}
+              onClick={() => onOpenDocumentPreview("completion", request)}
+              style={{ width: "auto", minWidth: "150px" }}
+            >
+              업무확인서 생성
+            </button>
+            {normalizeOperationStatus(request) !== OPERATION_STATUS.COMPLETED && (
+              <span style={{ fontSize: "13px", fontWeight: "700", color: "#dc2626" }}>
+                ⚠️ 업무 완료 후 생성 가능
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3>발급 문서 이력</h3>
+        <div className="admin-settlement">
+          {(() => {
+            const requestDocs = generatedDocuments.filter((doc) => doc.request_id === request.id);
+            if (requestDocs.length === 0) {
+              return <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>발급된 문서가 없습니다.</p>;
+            }
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {requestDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "8px 12px",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "8px",
+                      background: "#ffffff",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <div>
+                      <strong style={{ marginRight: "6px", color: "#111827" }}>
+                        [{getDocumentTypeLabel(doc.document_type)}]
+                      </strong>
+                      <span style={{ marginRight: "6px", color: "#4b5563" }}>{doc.document_no}</span>
+                      <span style={{ fontSize: "11px", color: "#9ca3af" }}>v{doc.version}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-link-button"
+                      onClick={() => openDocumentSignedUrl(supabase, doc)}
+                      style={{ fontSize: "12px", color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                    >
+                      보기
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
 
       <AdminOperationsPanel
         activityLogs={adminActivityLogs}

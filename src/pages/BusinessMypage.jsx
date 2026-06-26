@@ -514,7 +514,7 @@ function BusinessMypage({
       const { data, error } = await supabase.storage
         .from(documentRow.storage_bucket || DOCUMENT_BUCKET)
         .createSignedUrl(documentRow.file_path, 600, {
-          download: `${documentRow.document_no || "ONLI-DOC"}.pdf`,
+          download: false,
         });
 
       if (error) throw error;
@@ -522,6 +522,22 @@ function BusinessMypage({
     } catch (error) {
       console.error("Generated document signed URL failed:", error);
       alert("문서를 열 수 없습니다. 권한 또는 파일 상태를 확인해주세요.");
+    }
+  };
+
+  const handleDownloadGeneratedDocument = async (documentRow) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(documentRow.storage_bucket || DOCUMENT_BUCKET)
+        .createSignedUrl(documentRow.file_path, 600, {
+          download: `${documentRow.document_no || "ONLI-DOC"}.pdf`,
+        });
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Generated document download URL failed:", error);
+      alert("문서를 다운로드할 수 없습니다. 권한 또는 파일 상태를 확인해주세요.");
     }
   };
 
@@ -847,7 +863,18 @@ function BusinessMypage({
                     {requests.map((req) => {
                       const statusLabel = getRequestStatusLabel(req);
                       const requestDocuments = documents.filter((doc) => doc.request_id === req.id);
-                      const estimateDocument = requestDocuments.find((doc) => doc.document_type === "estimate");
+                      
+                      // Filter to get only the latest version of each document type
+                      const latestDocs = {};
+                      requestDocuments.forEach((doc) => {
+                        if (!latestDocs[doc.document_type] || doc.version > latestDocs[doc.document_type].version) {
+                          latestDocs[doc.document_type] = doc;
+                        }
+                      });
+
+                      const estimateDocument = latestDocs["estimate"];
+                      const completionDocument = latestDocs["completion"];
+
                       const estimateStatus =
                         ["estimate_approved", "company_approved"].includes(req.estimate_status)
                           ? "견적 승인 완료"
@@ -898,10 +925,10 @@ function BusinessMypage({
                             <div className="meta-item">
                               <span className="meta-label">문서</span>
                               <span className="meta-value">
-                                {requestDocuments.length === 0 ? (
+                                {Object.keys(latestDocs).length === 0 ? (
                                   "-"
                                 ) : (
-                                  requestDocuments.map((doc) => (
+                                  Object.values(latestDocs).map((doc) => (
                                     <button
                                       key={doc.id}
                                       type="button"
@@ -932,6 +959,59 @@ function BusinessMypage({
                           {/* Interactive Step Progress Timeline */}
                           <div className="timeline-section">
                             {renderStatusSteps(req)}
+                          </div>
+
+                          {/* 업무확인서 영역 */}
+                          <div
+                            className="completion-document-section"
+                            style={{
+                              marginTop: "16px",
+                              padding: "16px",
+                              borderRadius: "10px",
+                              background: "rgba(255, 255, 255, 0.45)",
+                              border: "1px solid rgba(226, 232, 240, 0.8)",
+                              backdropFilter: "blur(8px)",
+                              marginBottom: "16px",
+                            }}
+                          >
+                            <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", fontWeight: "850", color: "#1e293b" }}>
+                              업무확인서 발급 정보
+                            </h4>
+                            {completionDocument ? (
+                              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px" }}>
+                                <span style={{ fontSize: "13px", color: "#475569" }}>
+                                  발급 완료 ({completionDocument.document_no} - v{completionDocument.version})
+                                </span>
+                                <div style={{ display: "flex", gap: "6px" }}>
+                                  <button
+                                    type="button"
+                                    className="file-download-btn"
+                                    onClick={() => handleOpenGeneratedDocument(completionDocument)}
+                                    style={{ fontSize: "12px", padding: "6px 12px" }}
+                                  >
+                                    보기
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="file-download-btn secondary"
+                                    onClick={() => handleDownloadGeneratedDocument(completionDocument)}
+                                    style={{
+                                      fontSize: "12px",
+                                      padding: "6px 12px",
+                                      background: "#f1f5f9",
+                                      color: "#475569",
+                                      border: "1px solid #cbd5e1",
+                                    }}
+                                  >
+                                    다운로드
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
+                                업무 완료 후 확인서가 발급됩니다.
+                              </p>
+                            )}
                           </div>
 
                           {/* Action Button: Duplicate Request */}

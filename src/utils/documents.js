@@ -176,13 +176,28 @@ export async function createOnliDocument({ supabase, draft, userId }) {
   if (numberError) throw numberError;
 
   const request = normalizedDraft.request || {};
+  let companyId = null;
+  if (request.company_auth_user_id) {
+    const { data: bizData } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("auth_user_id", request.company_auth_user_id)
+      .maybeSingle();
+    if (bizData) {
+      companyId = bizData.id;
+    }
+  }
+
   const version = await getNextDocumentVersion(supabase, documentType, request.id);
   const fileName = `${documentNo}-v${version}.pdf`;
-  const storagePath = [
-    documentType,
-    request.id || "no-request",
-    fileName,
-  ].join("/");
+  const storagePath =
+    documentType === "completion"
+      ? `completions/${companyId || "no-company"}/${documentNo}-v${version}.pdf`
+      : [
+          documentType,
+          request.id || "no-request",
+          fileName,
+        ].join("/");
   const pdfBlob = await renderDocumentPdf({
     documentNo,
     version,
@@ -204,6 +219,7 @@ export async function createOnliDocument({ supabase, draft, userId }) {
     status: "issued",
     version,
     request_id: request.id || null,
+    company_id: companyId || null,
     company_auth_user_id: request.company_auth_user_id || null,
     interpreter_id: normalizedDraft.interpreterId || null,
     interpreter_auth_user_id: normalizedDraft.interpreterAuthUserId || null,
