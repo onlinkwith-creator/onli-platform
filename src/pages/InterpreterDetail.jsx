@@ -12,6 +12,7 @@ import {
   Tag,
 } from "lucide-react";
 import { getLevelBadgeClass, normalizeLevel } from "../utils/levelBadge";
+import { isOnliCertified } from "../utils/publicInterpreter";
 import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusBadgeClass,
@@ -71,11 +72,11 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
   return (
     <section className="profile-hero-card" aria-labelledby="interpreter-profile-title">
       <div className="profile-hero-main">
-        {interpreter.approved && (
+        {isOnliCertified(interpreter) && (
           <div className="profile-verified-kicker">
             <BadgeCheck size={17} aria-hidden="true" />
-            <span>검증된 통역사</span>
-            <em>VERIFIED INTERPRETER</em>
+            <span>⭐ ON-LI 인증 통역사</span>
+            <em>ON-LI CERTIFIED</em>
           </div>
         )}
 
@@ -95,10 +96,10 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
 
       <aside className="profile-hero-side" aria-label="프로필 인증 및 의뢰">
         <div className={`profile-level-badge ${getLevelBadgeClass(interpreter.level)}`}>
-          {interpreter.approved ? (
+          {isOnliCertified(interpreter) ? (
             <>
               <ShieldCheck size={30} aria-hidden="true" />
-              <span>VERIFIED</span>
+              <span>ON-LI 인증</span>
             </>
           ) : (
             <>
@@ -120,6 +121,10 @@ function ProfileHero({ interpreter, profile, onRequestClick }) {
           이 통역사 지정해서 의뢰하기
           <ArrowRight size={18} aria-hidden="true" />
         </button>
+        <p className="profile-designated-note">
+          선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.
+          일정이 맞지 않는 경우 ON-LI에서 조건에 맞는 다른 통역사를 안내해드립니다.
+        </p>
       </aside>
     </section>
   );
@@ -134,7 +139,7 @@ function InfoMetricGrid({ profile }) {
     },
     {
       icon: Languages,
-      label: "언어 수준",
+      label: "가능 언어",
       value: profile.languageLevel,
     },
     {
@@ -233,8 +238,12 @@ function ProfileCTA({ interpreter, name, onBackClick, onRequestClick }) {
   return (
     <section className="profile-bottom-cta" aria-label="프로필 하단 액션">
       <div>
-        <span>{interpreter.approved ? "ON-LI Verified Interpreter" : "ON-LI Interpreter"}</span>
+        <span>{isOnliCertified(interpreter) ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}</span>
         <strong>{name} 통역사와 의뢰를 시작해보세요.</strong>
+        <p className="profile-designated-note">
+          선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.
+          일정이 맞지 않는 경우 ON-LI에서 조건에 맞는 다른 통역사를 안내해드립니다.
+        </p>
       </div>
       <div className="profile-bottom-actions">
         <button

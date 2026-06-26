@@ -3,12 +3,20 @@ import { createClient } from "@supabase/supabase-js";
 const rawUrl = import.meta.env.VITE_SUPABASE_URL;
 const rawAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+function cleanEnvValue(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .split(/\s+/)[0]
+    .trim();
+}
+
 let cleanedUrl = rawUrl?.trim() || "";
 cleanedUrl = cleanedUrl.replace(/\/+$/, "");
 cleanedUrl = cleanedUrl.replace(/\/rest\/v1\/?$/, "");
 cleanedUrl = cleanedUrl.replace(/\/+$/, "");
 const supabaseUrl = cleanedUrl;
-const supabaseAnonKey = rawAnonKey?.trim();
+const supabaseAnonKey = cleanEnvValue(rawAnonKey);
 
 console.log("Supabase env check:", {
   hasUrl: Boolean(supabaseUrl),

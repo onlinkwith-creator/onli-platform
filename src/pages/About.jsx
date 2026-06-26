@@ -1,205 +1,313 @@
-const features = [
+import "./About.css";
+
+const serviceFeatures = [
   {
-    title: "한일 비즈니스 통역 특화",
-    text: "전시·상담·미팅 현장 중심 매칭",
+    number: "01",
+    title: "한일 비즈니스 특화",
+    text: "전시회·상담회·출장 등 한국 기업의 일본 비즈니스 환경에 맞는 통역 인력 연결을 지원합니다.",
   },
   {
-    title: "운영팀 검토 후 매칭",
-    text: "일정·난이도 기준 통역사 배정",
+    number: "02",
+    title: "조건 기반 매칭",
+    text: "언어, 분야, 경험, 일정 정보를 기반으로 필요 조건에 맞는 인력을 확인할 수 있습니다.",
   },
   {
-    title: "현장 대응 가능",
-    text: "단순 전달을 넘어 부스 응대, 바이어 상담, 제품 설명 등 현장 커뮤니케이션을 지원합니다.",
+    number: "03",
+    title: "현장 경험 확인",
+    text: "부스 운영, 제품 설명, 상담 지원 등 다양한 활동 경험 정보를 제공합니다.",
   },
   {
-    title: "레벨 기준을 통한 품질 관리",
-    text: "LV1~LV4 기준으로 현장 난이도와 통역사의 경험을 함께 고려해 안정적인 배정을 돕습니다.",
+    number: "04",
+    title: "레벨 정보 제공",
+    text: "LV1~LV4 기준으로 가능 업무 범위 확인을 돕습니다.",
   },
+];
+
+const challengeCards = [
+  {
+    number: "01",
+    title: "현지 인력 탐색",
+    problem: "일본 현장에서 활동 가능한 통역 인력을 찾기 어렵습니다.",
+    solution: "등록된 통역 인력 정보를 기반으로 조건에 맞는 연결을 지원합니다.",
+  },
+  {
+    number: "02",
+    title: "일정 관리",
+    problem: "행사 일정과 통역 가능 여부 확인 과정이 복잡합니다.",
+    solution: "일정 확인과 매칭 진행 과정을 온라인으로 관리합니다.",
+  },
+  {
+    number: "03",
+    title: "정산 관리",
+    problem: "해외 인력 비용 처리와 관리가 번거롭습니다.",
+    solution: "정산 진행을 위한 관리 시스템을 제공합니다.",
+  },
+];
+
+const fieldCards = [
+  { icon: "🏢", label: "일본 전시회 통역" },
+  { icon: "🤝", label: "바이어 상담회 통역" },
+  { icon: "💼", label: "한일 비즈니스 미팅" },
+  { icon: "🏭", label: "공장 및 현장 방문" },
+  { icon: "✈", label: "일본 출장 수행 통역" },
+  { icon: "💻", label: "온라인 화상회의 통역" },
+];
+
+const processSteps = [
+  {
+    number: "01",
+    title: "의뢰 접수",
+    text: "필요 일정과 조건을 전달합니다.",
+  },
+  {
+    number: "02",
+    title: "조건 확인",
+    text: "현장 조건과 통역 범위를 확인합니다.",
+  },
+  {
+    number: "03",
+    title: "통역사 추천",
+    text: "목적에 맞는 통역사를 추천합니다.",
+  },
+  {
+    number: "04",
+    title: "자료 공유",
+    text: "사전 자료와 진행 정보를 공유합니다.",
+  },
+  {
+    number: "05",
+    title: "현장/온라인 진행",
+    text: "행사 현장 또는 온라인 미팅을 지원합니다.",
+  },
+  {
+    number: "06",
+    title: "피드백",
+    text: "진행 후 필요한 피드백을 확인합니다.",
+  },
+];
+
+const matchingMethodCards = [
+  {
+    number: "01",
+    title: "ON-LI 인증 통역사",
+    text: "이력서와 통역 경험 정보를 기반으로 통역사를 검토합니다.",
+  },
+  {
+    number: "02",
+    title: "분야별 매칭",
+    text: "전시회, 상담회, 기업 미팅 등 목적에 맞는 통역사를 연결합니다.",
+  },
+  {
+    number: "03",
+    title: "진행 관리",
+    text: "의뢰 접수부터 조건 확인, 자료 공유, 현장 진행까지 지원합니다.",
+  },
+  {
+    number: "04",
+    title: "운영 지원",
+    text: "일정 확인과 자료 공유, 현장 진행부터 피드백까지 안정적으로 지원합니다.",
+  },
+];
+
+const interpreterPoints = [
+  "분야별 경력 등록",
+  "프로젝트 단위 매칭",
+  "비즈니스 현장 경험 확대",
 ];
 
 function About({ onBackClick, onRequestClick, onListClick }) {
   return (
-    <div style={styles.page}>
-      <div style={styles.shell}>
+    <div className="about-page">
+      <div className="about-bg-glow" />
+
+      <main className="about-shell">
         <button
           type="button"
           onClick={onBackClick}
-          className="main-return-button"
-          style={styles.backButton}
+          className="main-return-button about-back-button"
         >
           ← 메인으로
         </button>
 
-        <section style={styles.hero}>
-          <p style={styles.kicker}>ABOUT ON-LI</p>
-          <h1 style={styles.title}>ON-LI 소개</h1>
-          <div style={styles.body}>
+        <section className="about-hero">
+          <p className="about-pill">ABOUT ON-LI</p>
+          <h1 className="about-hero-title">
+            한국 기업의 일본 현장 운영을
+            <br />
+            <strong>더 쉽게</strong>
+          </h1>
+          <div className="about-hero-copy">
             <p>
-              ON-LI는 한국 기업과 일본 현장을 연결하는 한일 비즈니스 통역
-              매칭 서비스입니다. 전시회, 상담회, 비즈니스 미팅 등 다양한
-              현장에서 필요한 통역 인력을 보다 빠르고 안정적으로 연결합니다.
+              ON-LI는 일본 현장에서 활동 가능한 통역 인력과 한국 기업을
+              연결하는 비즈니스 매칭 플랫폼입니다.
             </p>
             <p>
-              전시회·상담회·비즈니스 미팅에 최적화된 검증 통역사를 직접 매칭합니다.
+              전시회, 상담회, 출장 미팅 등 현장 조건에 맞는 인력을 찾고
+              일정 조율부터 정산 과정까지 지원합니다.
             </p>
           </div>
-          <div style={styles.actions}>
-            <button type="button" onClick={onRequestClick} style={styles.primary}>
+          <div className="about-hero-actions">
+            <button type="button" onClick={onRequestClick} className="about-primary-button">
               통역 의뢰하기
             </button>
-            <button type="button" onClick={onListClick} style={styles.secondary}>
-              통역사 보기
+            <button type="button" onClick={onListClick} className="about-secondary-button">
+              통역 인력 보기
             </button>
           </div>
         </section>
 
-        <section style={styles.featureSection}>
-          <div style={styles.sectionHead}>
-            <p style={styles.kicker}>SERVICE</p>
-            <h2 style={styles.sectionTitle}>서비스 특징</h2>
+        <section className="about-interpreter-guide">
+          <div className="about-interpreter-guide-copy">
+            <p className="about-section-eyebrow">FOR INTERPRETERS</p>
+            <h2>통역 경험을 ON-LI와 연결하세요</h2>
+            <p>
+              한국어와 일본어 능력을 가진 분이라면 일본 거주자와 한국 거주자 모두 등록 가능합니다.
+              전문 분야, 통역 경험, 가능 일정을 등록하고 조건에 맞는 프로젝트와 연결될 수 있습니다.
+            </p>
           </div>
+          <div className="about-interpreter-point-list">
+            {interpreterPoints.map((point, index) => (
+              <div className="about-interpreter-point" key={point}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{point}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
 
-          <div style={styles.featureGrid}>
-            {features.map((feature, index) => (
-              <article key={feature.title} style={styles.featureCard}>
-                <span style={styles.featureNumber}>{index + 1}</span>
-                <h3 style={styles.featureTitle}>{feature.title}</h3>
-                <p style={styles.featureText}>{feature.text}</p>
+        <section className="about-trust-section">
+          <div className="about-trust-copy">
+            <SectionHeader eyebrow="TRUST" title="ON-LI는 어떻게 통역사를 연결하나요?" />
+            <p>
+              통역 경험과 현장 조건을 함께 확인해 기업의 목적에 맞는 통역 환경을 지원합니다.
+            </p>
+          </div>
+          <div className="about-trust-list" aria-label="신뢰 지원 항목">
+            {matchingMethodCards.map((item) => (
+              <div className="about-trust-item" key={item.title}>
+                <span>{item.number}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <SectionHeader
+          eyebrow="WHY ON-LI"
+          title="해외 현장 통역 준비, 이런 어려움이 있습니다"
+        />
+        <section className="about-challenge-grid" aria-label="ON-LI 문제 해결 방식">
+          {challengeCards.map((card) => (
+            <article className="about-challenge-card" key={card.title}>
+              <span className="about-feature-symbol">{card.number}</span>
+              <h3>{card.title}</h3>
+              <p className="about-problem-text">“{card.problem}”</p>
+              <span className="about-solution-arrow" aria-hidden="true">↓</span>
+              <div className="about-solution-box">
+                <strong>ON-LI</strong>
+                <p>{card.solution}</p>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <SectionHeader
+          eyebrow="FIELD"
+          title="지원 가능한 통역 현장"
+          description="ON-LI는 다양한 한일 비즈니스 상황에 맞는 통역 인재를 연결합니다."
+        />
+        <section className="about-field-grid" aria-label="지원 산업 분야">
+          {fieldCards.map((field) => (
+            <article className="about-field-card" key={field.label}>
+              <span aria-hidden="true">{field.icon}</span>
+              <strong>{field.label}</strong>
+            </article>
+          ))}
+        </section>
+
+        <section className="about-business-section" aria-labelledby="about-business-title">
+          <div>
+            <p className="about-section-eyebrow">BUSINESS INTERPRETATION</p>
+            <h2 id="about-business-title">한일 비즈니스 현장을 위한 전문 통역 플랫폼</h2>
+          </div>
+          <div className="about-business-copy">
+            <p>
+              ON-LI는 한국과 일본을 연결하는 한일 통역 플랫폼입니다.
+              일본 전시회, 바이어 상담회, 기업 미팅 등 다양한 비즈니스 현장에 맞는
+              검증된 일본어 통역 인재를 연결합니다.
+            </p>
+            <p>
+              전문 분야와 경험을 기반으로 한 통역사 매칭을 통해
+              전시회 통역, 비즈니스 통역, 수행 통역, 일본 출장 통역까지
+              목적에 맞는 통역 환경을 지원합니다.
+            </p>
+          </div>
+        </section>
+
+        <SectionHeader eyebrow="SERVICE" title="ON-LI가 제공하는 연결 경험" />
+        <section className="about-feature-grid" aria-label="ON-LI 서비스 특징">
+          {serviceFeatures.map((feature) => (
+            <article className="about-feature-card" key={feature.title}>
+              <span className="about-feature-symbol">{feature.number}</span>
+              <div>
+                <h3>{feature.title}</h3>
+                <p>{feature.text}</p>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="about-process-section">
+          <SectionHeader
+            eyebrow="PROCESS"
+            title="진행 절차"
+            description="의뢰 내용과 현장 조건을 확인한 뒤 적합한 통역사를 추천하고, 사전 자료 공유부터 현장 진행까지 안정적으로 지원합니다."
+          />
+          <div className="about-process-timeline">
+            {processSteps.map((step) => (
+              <article className="about-process-step" key={step.title}>
+                <span className="about-step-number">{step.number}</span>
+                <div className="about-step-copy">
+                  <strong>{step.title}</strong>
+                  <small>{step.text}</small>
+                </div>
               </article>
             ))}
           </div>
         </section>
-      </div>
+
+        <section className="about-final-cta">
+          <p className="about-section-eyebrow">READY TO START</p>
+          <h2>
+            일본 비즈니스 현장,
+            <br />
+            필요한 통역 인력을 연결하세요.
+          </h2>
+          <div className="about-hero-actions">
+            <button type="button" onClick={onRequestClick} className="about-primary-button">
+              통역 의뢰하기
+            </button>
+            <button type="button" onClick={onListClick} className="about-secondary-button">
+              등록 통역사 보기
+            </button>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
 
-const styles = {
-  page: {
-    minHeight: "100vh",
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "48px 24px",
-    background:
-      "radial-gradient(circle at 80% 18%, rgba(99, 102, 241, 0.1), transparent 30%), linear-gradient(135deg, #f8fafc, #eef2ff)",
-    color: "#111827",
-  },
-  shell: {
-    maxWidth: "1240px",
-    margin: "0 auto",
-  },
-  backButton: {
-    marginBottom: "30px",
-    padding: "12px 18px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#111827",
-    cursor: "pointer",
-    fontWeight: "700",
-  },
-  hero: {
-    background: "rgba(255, 255, 255, 0.94)",
-    border: "1px solid rgba(255, 255, 255, 0.85)",
-    borderRadius: "18px",
-    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
-    padding: "34px",
-  },
-  kicker: {
-    margin: "0 0 8px",
-    fontSize: "12px",
-    letterSpacing: "4px",
-    color: "#4f46e5",
-    fontWeight: "900",
-  },
-  title: {
-    margin: 0,
-    color: "#111827",
-    fontSize: "48px",
-    fontWeight: "800",
-    marginBottom: "28px",
-  },
-  body: {
-    maxWidth: "720px",
-    margin: "0 auto",
-    textAlign: "center",
-    lineHeight: 1.9,
-    fontSize: "16px",
-    color: "#4b5563",
-    wordBreak: "keep-all",
-  },
-  actions: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "12px",
-    marginTop: "28px",
-  },
-  primary: {
-    padding: "14px 18px",
-    borderRadius: "14px",
-    border: "none",
-    background: "#4f46e5",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontWeight: "900",
-  },
-  secondary: {
-    padding: "14px 18px",
-    borderRadius: "14px",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#374151",
-    cursor: "pointer",
-    fontWeight: "900",
-  },
-  featureSection: {
-    marginTop: "30px",
-  },
-  sectionHead: {
-    marginBottom: "18px",
-  },
-  sectionTitle: {
-    margin: 0,
-    color: "#111827",
-    fontSize: "30px",
-    fontWeight: "900",
-  },
-  featureGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-    gap: "18px",
-  },
-  featureCard: {
-    background: "rgba(255, 255, 255, 0.94)",
-    border: "1px solid rgba(255, 255, 255, 0.85)",
-    borderRadius: "18px",
-    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.09)",
-    padding: "24px",
-  },
-  featureNumber: {
-    display: "inline-flex",
-    width: "30px",
-    height: "30px",
-    borderRadius: "999px",
-    background: "#eef2ff",
-    color: "#4f46e5",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "13px",
-    fontWeight: "900",
-  },
-  featureTitle: {
-    margin: "16px 0 8px",
-    color: "#111827",
-    fontSize: "18px",
-    fontWeight: "900",
-  },
-  featureText: {
-    margin: 0,
-    color: "#4b5563",
-    fontSize: "14px",
-    lineHeight: 1.7,
-  },
-};
+function SectionHeader({ eyebrow, title, description }) {
+  return (
+    <div className="about-section-head">
+      <p className="about-section-eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+      {description && <p className="about-section-description">{description}</p>}
+    </div>
+  );
+}
 
 export default About;

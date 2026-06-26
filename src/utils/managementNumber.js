@@ -1,13 +1,29 @@
 export const MANAGEMENT_NUMBER_CONFIG = {
-  requests: { column: "request_no", prefix: "ONLI-REQ" },
-  jobs: { column: "job_no", prefix: "ONLI-JOB" },
+  requests: { column: "request_no", prefix: "ONLI-REQ", rpcName: "generate_request_no" },
+  jobs: { column: "job_no", prefix: "ONLI-JOB", rpcName: "generate_job_no" },
   matchings: { column: "matching_no", prefix: "ONLI-MAT" },
   interpreters: { column: "interpreter_no", prefix: "ONLI-INT" },
   job_applications: { column: "application_no", prefix: "ONLI-APP" },
   applications: { column: "application_no", prefix: "ONLI-APP" },
 };
 
-export async function generateManagementNumber({ supabase, table, column, prefix }) {
+export async function generateManagementNumber({ supabase, table, column, prefix, rpcName }) {
+  if (rpcName) {
+    try {
+      const { data, error } = await supabase.rpc(rpcName);
+      if (error) throw error;
+      if (data) return data;
+    } catch (error) {
+      console.warn("management number rpc fallback", {
+        rpcName,
+        table,
+        column,
+        prefix,
+        error,
+      });
+    }
+  }
+
   try {
     const { data, error } = await supabase
       .from(table)
@@ -42,6 +58,7 @@ export async function addManagementNumber({
   payload,
   column,
   prefix,
+  rpcName,
 }) {
   if (!payload || payload[column]) return payload;
 
@@ -50,6 +67,7 @@ export async function addManagementNumber({
     table,
     column,
     prefix,
+    rpcName,
   });
 
   return managementNo ? { ...payload, [column]: managementNo } : payload;

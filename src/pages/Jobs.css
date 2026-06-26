@@ -92,6 +92,19 @@
   text-align: left;
 }
 
+.jobs-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.jobs-hero-actions .jobs-back-btn,
+.jobs-hero-actions .jobs-create-btn {
+  height: 42px;
+  margin-bottom: 0;
+}
+
 .jobs-back-btn {
   height: 38px;
   padding: 0 18px;
@@ -154,7 +167,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
   width: 100%;
 }
 
@@ -525,6 +537,21 @@
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: keep-all;
+}
+
+.job-login-guide {
+  margin: -6px 0 14px;
+  color: #64748b;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.job-protected-info,
+.job-protected-text {
+  filter: blur(5px);
+  user-select: none;
+  pointer-events: none;
 }
 
 /* Info lines layout with Lucide icons */
@@ -1134,34 +1161,6 @@
   border-top: 1px solid #e5e7eb;
 }
 
-.job-take-home-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 42px;
-  margin-top: 18px;
-  padding: 9px 15px;
-  border: 1px solid #cfc8ee;
-  border-radius: 11px;
-  background: #f8f7ff;
-  color: #5b50b7;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.job-take-home-button:hover {
-  border-color: #a99fe0;
-  background: #f1efff;
-}
-
-.job-take-home-button:focus-visible {
-  outline: 3px solid rgba(116, 103, 216, 0.22);
-  outline-offset: 2px;
-}
-
 .job-detail-mobile-summary-card,
 .job-detail-mobile-info-slider {
   display: none;
@@ -1497,7 +1496,7 @@
    Responsive Adaptations (Job Detail Redesign)
    ========================================================================== */
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .job-detail-hero-content {
     grid-template-columns: 1fr;
     gap: 22px;
@@ -1840,14 +1839,14 @@
 /* ==========================================================================
    Responsive Breakdowns
    ========================================================================== */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .jobs-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 28px;
   }
 
   .jobs-filter-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1889,6 +1888,12 @@
     text-align: left;
   }
 
+  .jobs-hero-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .jobs-hero-right {
     justify-content: flex-start;
   }
@@ -1914,7 +1919,7 @@
   }
 
   .jobs-filter-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .jobs-toolbar-desktop {
@@ -2182,7 +2187,7 @@
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 480px) {
   .jobs-toolbar {
     align-items: flex-start;
   }

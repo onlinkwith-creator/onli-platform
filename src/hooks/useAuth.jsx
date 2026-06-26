@@ -1,10 +1,20 @@
 import { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 
-// 관리자 이메일 하드코딩 (DB 장애/누락 시 최종 백업)
-export const ADMIN_EMAILS = [
+const FALLBACK_ADMIN_EMAILS = [
   "onlinkwith@gmail.com",
+  "onlinkcp@gmail.com",
 ];
+
+export const ADMIN_EMAILS = parseAdminEmails(import.meta.env.VITE_ADMIN_EMAILS);
+
+function parseAdminEmails(value) {
+  const emails = String(value || "")
+    .split(",")
+    .map(normalizeEmail)
+    .filter((email) => email.includes("@"));
+  return emails.length > 0 ? emails : FALLBACK_ADMIN_EMAILS;
+}
 
 export function normalizeEmail(value) {
   if (typeof value !== "string") return "";

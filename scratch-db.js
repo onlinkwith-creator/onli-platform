@@ -5,14 +5,14 @@ const supabase = createClient("https://mhtxknpdpakjvhlhrgwq.supabase.co", "sb_pu
 async function run() {
   console.log("Checking interpreters schema...");
   const { data: interpreters, error } = await supabase
-    .from("interpreters")
+    .from("public_interpreters")
     .select("*")
     .limit(1);
   if (error) {
-    console.error("Error fetching interpreters:", error);
+    console.error("Error fetching public_interpreters:", error);
   } else {
-    console.log("Interpreters keys:", interpreters.length > 0 ? Object.keys(interpreters[0]) : "No data to check keys");
-    console.log("Interpreter data sample:", interpreters[0]);
+    console.log("public_interpreters keys:", interpreters.length > 0 ? Object.keys(interpreters[0]) : "No data to check keys");
+    console.log("public_interpreter data sample:", interpreters[0]);
   }
 }
 

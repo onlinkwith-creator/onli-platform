@@ -47,3 +47,29 @@ export function isPublicJob(job = {}) {
 export function canApplyToJob(job = {}) {
   return isPublicJob(job) && normalizeJobStatus(job) === JOB_STATUS.RECRUITING;
 }
+
+export function getJobDisplayStatusOrder(job = {}) {
+  const status = normalizeJobStatus(job);
+
+  if (status === JOB_STATUS.RECRUITING) return 1;
+  if (status === JOB_STATUS.ASSIGNED) return 2;
+  if (status === JOB_STATUS.COMPLETED) return 3;
+  return 4;
+}
+
+export function compareJobsByLatest(a = {}, b = {}) {
+  const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+  const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+  if (bTime !== aTime) return bTime - aTime;
+  return Number(b.id || 0) - Number(a.id || 0);
+}
+
+export function compareJobsByDisplayPriority(a = {}, b = {}) {
+  const statusDiff = getJobDisplayStatusOrder(a) - getJobDisplayStatusOrder(b);
+  if (statusDiff !== 0) return statusDiff;
+  return compareJobsByLatest(a, b);
+}
+
+export function sortJobsByDisplayPriority(jobs = []) {
+  return [...jobs].sort(compareJobsByDisplayPriority);
+}

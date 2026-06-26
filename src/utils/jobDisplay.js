@@ -27,12 +27,5 @@ export function getJobSpecialty(job) {
 }
 
 export function getJobPayDisplay(job) {
-  return (
-    job?.pay ||
-    job?.dailyPay ||
-    job?.daily_pay ||
-    job?.wage ||
-    job?.price ||
-    "협의"
-  );
+  return "레벨 기준 통역 단가 적용";
 }

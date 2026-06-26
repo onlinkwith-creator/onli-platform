@@ -7,8 +7,14 @@ const APPROVED_STATUS_VALUES = new Set([
   "활동중",
 ]);
 
+export function isWithdrawnInterpreter(interpreter = {}) {
+  const normalizedStatus = String(interpreter?.status || "").trim().toLowerCase();
+  return normalizedStatus === "withdrawn" || Boolean(interpreter?.withdrawn_at);
+}
+
 export function isInterpreterApprovedForApplication(interpreter = {}) {
   if (!interpreter) return false;
+  if (isWithdrawnInterpreter(interpreter)) return false;
 
   const normalizedStatus = String(interpreter.status || "").trim().toLowerCase();
   return APPROVED_STATUS_VALUES.has(normalizedStatus);

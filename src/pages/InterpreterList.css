@@ -57,7 +57,7 @@
 .interpreter-list-shell .main-return-button {
   display: inline-flex;
   align-items: center;
-  margin-bottom: 32px;
+  margin-bottom: 48px;
   padding: 10px 20px !important;
   border-radius: 99px !important;
   border: 1px solid rgba(17, 24, 39, 0.1) !important;
@@ -81,10 +81,6 @@
   -webkit-text-fill-color: #4f46e5 !important;
 }
 
-.mobile-back-link {
-  display: none;
-}
-
 /* Premium Hero Section */
 .interpreter-list-hero-content {
   display: flex;
@@ -95,17 +91,21 @@
 }
 
 .interpreter-list-hero-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   flex: 1;
   text-align: left;
 }
 
 .interpreter-list-hero-label {
-  display: inline-block;
+  display: block;
   font-size: 13px;
   letter-spacing: 2px;
   color: #6366f1;
   font-weight: 800;
-  margin-bottom: 12px;
+  margin-top: 0;
+  margin-bottom: 20px;
   text-transform: uppercase;
 }
 
@@ -449,6 +449,23 @@
   letter-spacing: -0.5px;
 }
 
+.interpreter-masked-value {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 8px;
+  background: rgba(241, 245, 249, 0.88);
+  color: #475569;
+  filter: blur(0.2px);
+}
+
+.interpreter-login-guide {
+  margin: 0 0 14px;
+  color: #64748b;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 /* Glowing Level Badges */
 .interpreter-list-card-level {
   display: inline-flex;
@@ -786,9 +803,9 @@
 }
 
 /* Responsive Breakdowns */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .interpreter-list-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 24px;
   }
 }
@@ -816,38 +833,21 @@
     padding-left: 16px;
   }
 
-  .interpreter-list-shell .main-return-button {
-    display: none !important;
-  }
-
-  .mobile-back-link {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 18px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #6b7280;
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-  }
-
-  .mobile-back-link:hover {
-    color: #111827;
-  }
-
   .interpreter-list-hero-content {
     flex-direction: column;
     align-items: stretch;
     gap: 0;
     margin-bottom: 16px;
-    padding: 32px 20px 20px;
+    padding: 0 20px 20px;
+  }
+
+  .interpreter-list-shell .main-return-button {
+    margin-bottom: 48px;
   }
 
   .interpreter-list-hero-label {
-    display: none;
+    display: block;
+    margin-bottom: 16px;
   }
 
   .interpreter-list-hero-title {
@@ -1135,7 +1135,7 @@
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 480px) {
   .interpreter-list-toolbar {
     align-items: flex-start;
   }

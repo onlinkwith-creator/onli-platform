@@ -210,6 +210,15 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.request-event-grid {
+  gap: 16px;
+}
+
+.request-event-date {
+  grid-column: 1 / -1;
+  margin-bottom: 8px;
+}
+
 .request-full-width {
   grid-column: 1 / -1;
 }
@@ -245,6 +254,11 @@
 .request-input:focus {
   border-color: #5b5cf0;
   box-shadow: 0 0 0 3px rgba(91, 92, 240, 0.12);
+}
+
+.request-file-input {
+  min-height: 48px;
+  padding: 10px 14px;
 }
 
 .request-textarea {
@@ -291,6 +305,52 @@
   background: #5b5cf0;
   color: #ffffff;
   box-shadow: 0 10px 20px rgba(91, 92, 240, 0.18);
+}
+
+.request-checkbox-field {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+
+.request-checkbox-field legend {
+  margin: 0 0 7px;
+}
+
+.request-checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.request-checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid #dbe3f0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4b5563;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.request-checkbox-option input {
+  width: 15px;
+  height: 15px;
+  accent-color: #5b5cf0;
+  flex: 0 0 auto;
+}
+
+.request-checkbox-option:has(input:checked) {
+  border-color: #5b5cf0;
+  background: #eef2ff;
+  color: #4f46e5;
 }
 
 .request-help-text {
@@ -368,6 +428,73 @@
   font-size: 28px;
   font-weight: 800;
   line-height: 1.2;
+  white-space: nowrap;
+}
+
+.request-estimate-breakdown {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.request-estimate-row,
+.request-estimate-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.request-estimate-row span,
+.request-estimate-total span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.request-estimate-detail-label {
+  display: block;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.request-estimate-row strong {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.request-estimate-divider {
+  height: 1px;
+  margin: 12px 0 10px;
+  background: #ddd6fe;
+}
+
+.request-estimate-total {
+  margin-top: 0;
+}
+
+.request-estimate-receipt-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 5px 10px;
+  border: 1px solid #c4b5fd;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .request-estimate-standard,
@@ -375,7 +502,7 @@
 .request-estimate-note {
   margin: 10px 0 0;
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.55;
   word-break: keep-all;
@@ -520,6 +647,11 @@
   display: block;
   margin-top: 8px;
   color: #818899;
+}
+
+.request-designated-note {
+  margin-top: 8px;
+  color: #4b5563;
 }
 
 .request-submit-button {

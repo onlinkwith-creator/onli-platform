@@ -49,7 +49,7 @@ export const JOB_STATUS_OPTIONS = [
   { value: JOB_STATUS.CLOSING_SOON, label: "마감임박" },
   { value: JOB_STATUS.CLOSED, label: "마감" },
   { value: JOB_STATUS.ASSIGNED, label: "배정완료" },
-  { value: JOB_STATUS.COMPLETED, label: "운영완료" },
+  { value: JOB_STATUS.COMPLETED, label: "업무완료" },
   { value: JOB_STATUS.CANCELLED, label: "취소" },
 ];
 
@@ -66,7 +66,7 @@ export const MATCHING_STATUS_OPTIONS = [
   { value: MATCHING_STATUS.ASSIGNED, label: "배정완료" },
   { value: MATCHING_STATUS.CONFIRMED, label: "확정" },
   { value: MATCHING_STATUS.IN_PROGRESS, label: "운영중" },
-  { value: MATCHING_STATUS.COMPLETED, label: "운영완료" },
+  { value: MATCHING_STATUS.COMPLETED, label: "업무완료" },
   { value: MATCHING_STATUS.SETTLEMENT_PENDING, label: "정산대기" },
   { value: MATCHING_STATUS.SETTLED, label: "정산완료" },
   { value: MATCHING_STATUS.CANCELLED, label: "취소" },
@@ -104,7 +104,7 @@ export function normalizeJobStatus(status) {
   if (["마감임박", "closing_soon"].includes(normalized)) return JOB_STATUS.CLOSING_SOON;
   if (["마감", "모집마감", "closed"].includes(normalized)) return JOB_STATUS.CLOSED;
   if (["배정", "배정완료", "assigned"].includes(normalized)) return JOB_STATUS.ASSIGNED;
-  if (["완료", "운영완료", "completed"].includes(normalized)) return JOB_STATUS.COMPLETED;
+  if (["완료", "업무완료", "운영완료", "completed"].includes(normalized)) return JOB_STATUS.COMPLETED;
   if (["취소", "cancelled", "canceled"].includes(normalized)) return JOB_STATUS.CANCELLED;
   return JOB_STATUS.RECRUITING;
 }
@@ -141,7 +141,7 @@ export function normalizeMatchingStatus(status) {
   if (["운영중", "진행중", "matching", "in_progress", "in progress"].includes(normalized)) {
     return MATCHING_STATUS.IN_PROGRESS;
   }
-  if (["완료", "운영완료", "completed"].includes(normalized)) {
+  if (["완료", "업무완료", "운영완료", "completed"].includes(normalized)) {
     return MATCHING_STATUS.COMPLETED;
   }
   if (["정산대기", "settlement_pending"].includes(normalized)) {
@@ -252,6 +252,7 @@ export function getStatusBadgeClass(status) {
     "배정완료",
     "assigned",
     "완료",
+    "업무완료",
     "운영완료",
     "completed",
     "취소",
@@ -296,6 +297,7 @@ export function getStatusBadgeClass(status) {
     "in_progress",
     "in progress",
     "완료",
+    "업무완료",
     "운영완료",
     "completed",
     "정산대기",

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://onli-platform.vercel.app/</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/interpreters</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/jobs</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/request</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/about</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/privacy</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/terms</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/client-policy</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/interpreter-policy</loc>
+  </url>
+  <url>
+    <loc>https://onli-platform.vercel.app/business</loc>
+  </url>
+</urlset>

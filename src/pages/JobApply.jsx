@@ -10,9 +10,12 @@ import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import {
   ensureInterpreterAuthLink,
-  isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
+import {
+  WITHDRAWN_ACCOUNT_MESSAGE,
+  isWithdrawnInterpreter,
+} from "../utils/accountStatus";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
@@ -20,6 +23,7 @@ import {
   findExistingJobApplication,
   getJobApplicationSubmitErrorMessage,
   getSupabaseErrorDetails,
+  isAgreementColumnError,
   isDuplicateApplicationError,
   normalizeApplicationEmail,
   normalizeApplicationPhone,
@@ -55,6 +59,7 @@ function JobApply({
   onSubmitSuccess,
   onHomeClick,
   onLoginClick,
+  onMypageClick,
   onRegisterClick,
 }) {
   const { user, loading: authLoading } = useAuth();
@@ -85,7 +90,7 @@ function JobApply({
       if (!publicSupabase) throw supabaseConfigError;
 
       const { data, error } = await publicSupabase
-        .from("jobs")
+        .from("public_jobs")
         .select("*")
         .eq("id", jobId)
         .single();
@@ -145,7 +150,10 @@ function JobApply({
           user
         );
 
-        if (matched) {
+        if (matched && isWithdrawnInterpreter(matched)) {
+          setInterpreterProfile(matched);
+          setErrorMessage(WITHDRAWN_ACCOUNT_MESSAGE);
+        } else if (matched) {
           setInterpreterProfile(matched);
           setForm({
             name: matched.name || "",
@@ -246,14 +254,20 @@ function JobApply({
       return;
     }
 
-    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
-      const message = "관리자 승인 완료 후 지원할 수 있습니다.";
+    if (isWithdrawnInterpreter(interpreterProfile)) {
+      setErrorMessage(WITHDRAWN_ACCOUNT_MESSAGE);
+      alert(WITHDRAWN_ACCOUNT_MESSAGE);
+      return;
+    }
+
+    if (!hasRegisteredResume(interpreterProfile)) {
+      const message = "이력서를 등록한 후 지원할 수 있습니다.";
       setErrorMessage(message);
       alert(message);
       return;
     }
 
-    if (!areTermsAgreed(agreements)) {
+    if (!areTermsAgreed(agreements, { requireCancelPolicy: true })) {
       const message = "약관 동의 후 제출 가능합니다.";
       setErrorMessage(message);
       alert(message);
@@ -295,6 +309,7 @@ function JobApply({
     );
     setInterpreterProfile(matchedInterpreter);
 
+    const agreedAt = new Date().toISOString();
     const application = {
       job_id: job.id,
       interpreter_id: matchedInterpreter?.id || null,
@@ -314,7 +329,9 @@ function JobApply({
       status: "pending",
       agreed_terms: true,
       agreed_policy: true,
-      agreed_at: new Date().toISOString(),
+      agreed_cancel_policy: true,
+      agreed_at: agreedAt,
+      cancel_policy_agreed_at: agreedAt,
     };
     const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
 
@@ -394,7 +411,7 @@ function JobApply({
 
       if (error) {
         const errorDetails = getSupabaseErrorDetails(error);
-        console.error("지원서 제출 실패:", {
+        console.error("지원 저장 실패:", {
           ...errorDetails,
           table: "job_applications",
           payloadKeys: Object.keys(insertPayload || {}),
@@ -457,7 +474,7 @@ function JobApply({
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
     } catch (error) {
-      console.error("지원 실패:", getSupabaseErrorDetails(error));
+      console.error("지원 저장 실패:", getSupabaseErrorDetails(error));
       if (isDuplicateApplicationError(error)) {
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
@@ -565,10 +582,18 @@ function JobApply({
                     통역사 등록하기
                   </button>
                 </div>
-              ) : !isInterpreterApprovedForApplication(interpreterProfile) ? (
+              ) : isWithdrawnInterpreter(interpreterProfile) ? (
                 <div className="jobs-success-inline">
-                  <h2>관리자 승인 대기 중입니다</h2>
-                  <p>관리자 승인 완료 후 공고에 지원할 수 있습니다.</p>
+                  <h2>탈퇴 처리된 계정입니다</h2>
+                  <p>{WITHDRAWN_ACCOUNT_MESSAGE}</p>
+                </div>
+              ) : !hasRegisteredResume(interpreterProfile) ? (
+                <div className="jobs-success-inline">
+                  <h2>이력서 등록이 필요합니다</h2>
+                  <p>통역 지원을 위해 이력서 등록이 필요합니다.</p>
+                  <button type="button" onClick={onMypageClick || onHomeClick}>
+                    이력서 등록하러 가기
+                  </button>
                 </div>
               ) : (
               <form onSubmit={handleSubmit}>
@@ -661,11 +686,14 @@ function JobApply({
                 <TermsAgreement
                   agreements={agreements}
                   onChange={handleAgreementChange}
+                  requireCancelPolicy
                   role="interpreter"
                 />
 
                 <p className="jobs-notice">
                   제출된 지원서는 ON-LI 운영팀 검토 후 공고 담당자에게 전달됩니다.
+                  <br />
+                  배정 확정 후 지원 취소 및 철회 시 취소 규정에 따라 위약금이 발생할 수 있습니다.
                 </p>
 
                 <button
@@ -678,12 +706,16 @@ function JobApply({
                     profileLoading ||
                     !user ||
                     !interpreterProfile ||
+                    isWithdrawnInterpreter(interpreterProfile) ||
                     !canApplyToJob(job) ||
-                    !areTermsAgreed(agreements)
+                    !hasRegisteredResume(interpreterProfile) ||
+                    !areTermsAgreed(agreements, { requireCancelPolicy: true })
                   }
                 >
                   {!canApplyToJob(job)
                     ? "마감됨"
+                    : isWithdrawnInterpreter(interpreterProfile)
+                      ? "지원 불가"
                     : submitted
                       ? "지원된 통역공고입니다"
                     : applicationCheckLoading
@@ -715,11 +747,11 @@ function MessageBox({ text }) {
   return <div className="jobs-message">{text}</div>;
 }
 
-function isAgreementColumnError(error) {
-  return (
-    error?.code === "42703" ||
-    error?.code === "PGRST204" ||
-    /agreed_|column|schema cache/i.test(error?.message || "")
+function hasRegisteredResume(profile = {}) {
+  return Boolean(
+    String(profile.resume_url || "").trim() ||
+      String(profile.resume_file_url || "").trim() ||
+      String(profile.resume_file_name || "").trim()
   );
 }
 

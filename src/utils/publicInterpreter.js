@@ -1,21 +1,54 @@
 export const PUBLIC_INTERPRETER_SELECT = [
   "id",
   "name",
-  "gender",
-  "age",
   "region",
-  "school",
-  "jlpt",
-  "stay_period",
-  "has_experience",
+  "level",
+  "short_intro",
   "specialties",
   "available_regions",
-  "available_tasks",
-  "level",
-  "approved",
+  "experience_count",
+  "is_public",
   "status",
-  "activity_status",
+  "verified",
 ].join(", ");
+
+export const PUBLIC_INTERPRETER_SELECT_FALLBACK = [
+  "id",
+  "name",
+  "region",
+  "level",
+  "short_intro",
+  "specialties",
+  "available_regions",
+  "experience_count",
+  "is_public",
+  "status",
+].join(", ");
+
+export function isOnliCertified(interpreter = {}) {
+  const verificationStatus = String(interpreter.verification_status || "")
+    .trim()
+    .toLowerCase();
+  const values = [
+    interpreter.verified,
+    interpreter.approved,
+    verificationStatus,
+  ];
+
+  return values.some((value) => {
+    if (value === true || value === 1) return true;
+    const normalized = String(value || "").trim().toLowerCase();
+    return ["true", "verified", "approved", "onli_verified"].includes(normalized);
+  });
+}
+
+export function isMissingColumnError(error) {
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column|schema cache/i.test(error?.message || "")
+  );
+}
 
 const FALLBACK_TEXT = "정보 확인 중";
 

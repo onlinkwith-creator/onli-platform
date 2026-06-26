@@ -16,6 +16,9 @@ on public.admin_users (lower(email));
 create index if not exists admin_users_status_idx
 on public.admin_users (status);
 
+alter table public.admin_users
+add column if not exists auth_user_id uuid;
+
 insert into public.admin_users (email, role, status)
 values
   ('onlinkwith@gmail.com', 'owner', 'active'),

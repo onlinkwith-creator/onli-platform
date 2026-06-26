@@ -9,7 +9,14 @@ import {
 import { getLevelBadgeClass, getLevelBadgeStyle, normalizeLevel } from "../utils/levelBadge";
 import {
   getPrimaryPublicInterpreterInfo,
+  PUBLIC_INTERPRETER_SELECT,
+  PUBLIC_INTERPRETER_SELECT_FALLBACK,
+  isMissingColumnError,
+  isOnliCertified,
 } from "../utils/publicInterpreter";
+import { isPublicInterpreterVisible } from "../utils/accountStatus";
+import { sortJobsByDisplayPriority } from "../utils/jobStatus";
+import { fetchPublicJobs } from "../utils/jobsApi";
 import "./Home.css";
 import {
   Building2,
@@ -32,11 +39,6 @@ function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
 }
 
-function isApprovedInterpreter(interpreter = {}) {
-  const approved = interpreter.approved;
-  return approved === true || approved === 1 || String(approved).toLowerCase() === "true";
-}
-
 function Home({
   user,
   isAdmin,
@@ -52,9 +54,13 @@ function Home({
   onInterpreterLoginClick,
   onMypageClick,
   onAdminClick,
+  onBusinessRegisterClick,
+  onBusinessMypageClick,
+  hasBusinessProfile,
 }) {
+  const HOME_JOB_PREVIEW_LIMIT = 8;
   const [featuredInterpreters, setFeaturedInterpreters] = useState([]);
-  const [featuredJobs, setFeaturedJobs] = useState([]);
+  const [previewJobs, setPreviewJobs] = useState([]);
   const [interpreterLoading, setInterpreterLoading] = useState(true);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [interpreterErrorMessage, setInterpreterErrorMessage] = useState("");
@@ -77,9 +83,20 @@ function Home({
     try {
       if (!supabase) throw supabaseConfigError;
 
-      const { data, error } = await supabase
-        .from("interpreters")
-        .select("*");
+      let selectString = PUBLIC_INTERPRETER_SELECT;
+      let { data, error } = await supabase
+        .from("public_interpreters")
+        .select(selectString);
+
+      if (error && isMissingColumnError(error)) {
+        console.warn("Retrying public_interpreters query without verified column...");
+        selectString = PUBLIC_INTERPRETER_SELECT_FALLBACK;
+        const fallbackResult = await supabase
+          .from("public_interpreters")
+          .select(selectString);
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) {
         console.error("Interpreters fetch error:", {
@@ -95,7 +112,7 @@ function Home({
         return;
       }
 
-      setFeaturedInterpreters((data || []).slice(0, 10));
+      setFeaturedInterpreters((data || []).filter(isPublicInterpreterVisible).slice(0, 10));
     } catch (error) {
       console.error(error);
       setFeaturedInterpreters([]);
@@ -114,10 +131,9 @@ function Home({
     try {
       if (!supabase) throw supabaseConfigError;
 
-      const { data, error } = await supabase
-        .from("jobs")
-        .select("*")
-        .eq("visibility", "public");
+      const { data, error } = await fetchPublicJobs(supabase, {
+        limit: HOME_JOB_PREVIEW_LIMIT,
+      });
 
       if (error) {
         console.error("Jobs fetch error:", {
@@ -129,14 +145,14 @@ function Home({
         setJobsErrorMessage(
           getSupabaseErrorMessage(error, "데이터를 불러오지 못했습니다.")
         );
-        setFeaturedJobs([]);
+        setPreviewJobs([]);
         return;
       }
 
-      setFeaturedJobs((data || []).slice(0, 7));
+      setPreviewJobs(sortJobsByDisplayPriority(data || []));
     } catch (error) {
       console.error("jobs fetch error:", error);
-      setFeaturedJobs([]);
+      setPreviewJobs([]);
       setJobsErrorMessage(
         getSupabaseErrorMessage(error, "데이터를 불러오지 못했습니다.")
       );
@@ -154,7 +170,7 @@ function Home({
   }, [fetchFeaturedJobs]);
 
   const mobileFeaturedInterpreters = featuredInterpreters
-    .filter(isApprovedInterpreter)
+    .filter(isOnliCertified)
     .slice(0, 5);
 
   return (
@@ -247,17 +263,18 @@ function Home({
 
       <main className="home-main" id="about-onli">
         <section className="home-hero">
-          <p className="home-pill">한일 비지니스 통역 매칭 플랫폼</p>
+          <p className="home-pill">검증된 한일 비즈니스 통역 플랫폼</p>
 
           <h1 className="home-hero-title">
-            <span>한일 비즈니스 통역을</span>
+            <span>한일 비즈니스를 연결하는</span>
             <br />
-            <strong>더 정확하고 빠르게.</strong>
+            <strong>전문 통역 매칭 플랫폼 ON-LI</strong>
           </h1>
 
           <p className="home-description">
-            ON-LI는 전시회, 미팅, 상담회 현장에 맞는 통역 인재를 연결하는
-            한일 통역 매칭 플랫폼입니다.
+            전시회 · 상담회 · 기업 미팅에 맞는
+            <br />
+            검증된 통역 인재를 빠르게 연결합니다.
           </p>
 
           <p className="home-sub-badge">전시회 · 상담회 · 비즈니스 미팅 특화</p>
@@ -286,7 +303,22 @@ function Home({
         </section>
       </main>
 
-      <section className="home-mobile-overview-slider" aria-label="ON-LI 특징 및 진행 프로세스">
+      <section className="home-about-summary" aria-labelledby="home-about-summary-title">
+        <div>
+          <p className="home-brand-sub">ABOUT ON-LI</p>
+          <h2 id="home-about-summary-title">필요한 현장에 맞는 통역 인재를 빠르게 연결합니다.</h2>
+          <p>
+            전시회 · 상담회 · 기업 미팅에 맞는
+            <br />
+            검증된 통역 인재를 빠르게 연결합니다.
+          </p>
+        </div>
+        <button type="button" onClick={onAboutClick}>
+          ON-LI 소개 보기
+        </button>
+      </section>
+
+      <section className="home-mobile-overview-slider" aria-label="ON-LI 특징">
         <article className="home-mobile-overview-slide">
           <h3>ON-LI의 특징</h3>
           <div className="home-mobile-feature-list">
@@ -307,48 +339,6 @@ function Home({
             />
           </div>
         </article>
-
-        <article className="home-mobile-overview-slide home-mobile-process-slide">
-          <div className="home-mobile-process-head">
-            <p className="home-brand-sub">PROCESS</p>
-            <h3>진행 프로세스</h3>
-          </div>
-          <div className="home-mobile-process-list">
-            <div className="process-group">
-              <Step
-                number="1"
-                title="기업 의뢰 접수"
-                text="행사 일정·장소·인원을 전달"
-              />
-              <Step
-                number="2"
-                title="운영팀 검토"
-                text="의뢰 내용과 필요 레벨 확인"
-              />
-            </div>
-
-            <div className="process-single">
-              <Step
-                number="3"
-                title="공고 등록 및 모집"
-                text="관리자 확인 후 통역사 모집"
-              />
-            </div>
-
-            <div className="process-group">
-              <Step
-                number="4"
-                title="매칭 진행"
-                text="조건에 맞는 통역사 선정"
-              />
-              <Step
-                number="5"
-                title="최종 배정 완료"
-                text="사전 안내 후 일정 확정"
-              />
-            </div>
-          </div>
-        </article>
       </section>
 
       <section className="home-cta-stack" aria-label="ON-LI 이용 안내">
@@ -359,14 +349,24 @@ function Home({
           <div className="home-cta-copy">
             <p className="home-brand-sub">FOR COMPANIES</p>
             <h2>통역 의뢰가 필요하신가요?</h2>
-            <p>의뢰 내용을 보내주시면 운영팀 검토 후 공고 등록과 매칭을 진행합니다.</p>
+            <p>
+              일본 현장 통역 준비를 더 간편하게.
+              <br />
+              전시회, 상담회, 출장 일정에 맞는 통역 인력을 찾아보세요.
+            </p>
           </div>
           <div className="home-cta-actions">
-            <button type="button" onClick={onRequestClick}>
+            {hasBusinessProfile ? (
+              <button type="button" onClick={onBusinessMypageClick}>
+                기업 마이페이지
+              </button>
+            ) : (
+              <button type="button" onClick={onBusinessRegisterClick}>
+                기업 등록하기
+              </button>
+            )}
+            <button type="button" onClick={onRequestClick} className="home-secondary">
               통역 의뢰하기
-            </button>
-            <button type="button" onClick={onJobsClick} className="home-secondary">
-              전체 통역공고 확인하기
             </button>
           </div>
         </div>
@@ -379,8 +379,9 @@ function Home({
             <p className="home-brand-sub">FOR INTERPRETERS</p>
             <h2>통역사로 활동하고 싶으신가요?</h2>
             <p>
-              한국어와 일본어 능력을 바탕으로 전시회·비즈니스 현장에서 활동할
-              통역사를 모집합니다.
+              한국어와 일본어 능력을 바탕으로
+              <br />
+              비즈니스 현장에서 활동할 통역사를 모집합니다.
             </p>
           </div>
           <div className="home-cta-actions">
@@ -394,47 +395,7 @@ function Home({
             <button type="button" onClick={onListClick} className="home-secondary">
               등록된 통역사 보기
             </button>
-            {!user && (
-              <button type="button" onClick={onInterpreterLoginClick} className="home-secondary">
-                통역사 로그인
-              </button>
-            )}
           </div>
-        </div>
-      </section>
-
-      <section id="process" className="home-process">
-        <div className="home-process-head">
-          <p className="home-brand-sub">PROCESS</p>
-          <h2>진행 프로세스</h2>
-        </div>
-
-        <div className="home-process-timeline">
-          <Step
-            number="1"
-            title="기업 의뢰 접수"
-            text="행사 일정·장소·인원을 전달"
-          />
-          <Step
-            number="2"
-            title="운영팀 검토"
-            text="의뢰 내용과 필요 레벨 확인"
-          />
-          <Step
-            number="3"
-            title="공고 등록 및 모집"
-            text="관리자 확인 후 통역사 모집"
-          />
-          <Step
-            number="4"
-            title="매칭 진행"
-            text="조건에 맞는 통역사 선정"
-          />
-          <Step
-            number="5"
-            title="최종 배정 완료"
-            text="사전 안내 후 일정 확정"
-          />
         </div>
       </section>
 
@@ -453,7 +414,7 @@ function Home({
           <div className="home-empty">통역 공고를 불러오는 중입니다...</div>
         ) : jobsErrorMessage ? (
           <div className="home-empty">{jobsErrorMessage}</div>
-        ) : featuredJobs.length === 0 ? (
+        ) : previewJobs.length === 0 ? (
           <div className="home-empty">현재 표시할 공고가 없습니다.</div>
         ) : (
           <>
@@ -462,8 +423,9 @@ function Home({
               ariaLabel="현재 모집 중인 통역 공고"
               previousLabel="이전 공고 보기"
               nextLabel="다음 공고 보기"
+              scrollMode="page"
             >
-                {featuredJobs.slice(0, 7).map((job) => (
+                {previewJobs.map((job) => (
                   <JobCard
                     key={job.id}
                     job={job}
@@ -573,6 +535,9 @@ function Home({
         </div>
 
         <nav className="home-footer-policies" aria-label="약관 및 정책">
+          <a className="home-footer-link" href="/business">
+            기업 고객
+          </a>
           <a className="home-footer-link" href="/terms">
             이용약관
           </a>
@@ -600,6 +565,7 @@ function HomeCarousel({
   ariaLabel,
   previousLabel,
   nextLabel,
+  scrollMode = "card",
 }) {
   const carouselRef = useRef(null);
 
@@ -610,9 +576,13 @@ function HomeCarousel({
     const firstCard = carousel.firstElementChild;
     const cardWidth = firstCard?.getBoundingClientRect().width || 280;
     const gap = Number.parseFloat(getComputedStyle(carousel).columnGap) || 14;
+    const scrollAmount =
+      scrollMode === "page"
+        ? Math.max(cardWidth + gap, carousel.clientWidth - gap)
+        : cardWidth + gap;
 
     carousel.scrollBy({
-      left: direction * (cardWidth + gap),
+      left: direction * scrollAmount,
       behavior: "smooth",
     });
   };
@@ -653,18 +623,6 @@ function Feature({ symbol, title, text }) {
       <div>
         <strong>{title}</strong>
         <span>{text}</span>
-      </div>
-    </div>
-  );
-}
-
-function Step({ number, title, text }) {
-  return (
-    <div className="home-step">
-      <span className="home-step-number">{number}</span>
-      <div className="home-step-copy">
-        <strong>{title}</strong>
-        <small>{text}</small>
       </div>
     </div>
   );
@@ -731,8 +689,8 @@ function InterpreterCard({ interpreter, onProfileClick }) {
               >
                 {statusLabel}
               </span>
-              <span className={`registration-badge ${isApprovedInterpreter(interpreter) ? "verified verified-badge" : "regular"} home-interpreter-registration-badge`}>
-                {isApprovedInterpreter(interpreter) ? "검증됨" : "일반 등록"}
+              <span className={`registration-badge ${isOnliCertified(interpreter) ? "verified verified-badge" : "regular"} home-interpreter-registration-badge`}>
+                {isOnliCertified(interpreter) ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
               </span>
             </div>
           </div>
@@ -753,7 +711,7 @@ function InterpreterCard({ interpreter, onProfileClick }) {
           </div>
           <div className="home-interpreter-info-item min-w-0">
             <Languages size={15} aria-hidden="true" />
-            <span className="info-label">언어 수준</span>
+            <span className="info-label">가능 언어</span>
             <span className="info-value truncate">{interpreter.language_level || interpreter.jlpt || "한국어 · 일본어"}</span>
           </div>
           <div className="home-interpreter-info-item min-w-0">

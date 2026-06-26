@@ -61,9 +61,36 @@ const levelSystemCards = [
 ];
 
 function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginClick, onSignupClick }) {
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [isBusiness, setIsBusiness] = useState(false);
+
+  useEffect(() => {
+    const checkBusinessProfile = async () => {
+      if (!authUser || !supabase) {
+        setCheckingStatus(false);
+        return;
+      }
+      try {
+        const { data } = await supabase
+          .from("businesses")
+          .select("id")
+          .eq("auth_user_id", authUser.id)
+          .maybeSingle();
+
+        if (data) {
+          setIsBusiness(true);
+        }
+      } catch (err) {
+        console.error("Error checking business profile:", err);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+    checkBusinessProfile();
+  }, [authUser]);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [agreements, setAgreements] = useState(initialTermsAgreement);
   const [form, setForm] = useState({
@@ -71,8 +98,8 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
     gender: "",
     age: "",
     region: "",
-    email: "",
     phone: "",
+    email: "",
     school: "",
     kakaoOrLine: "",
     jlpt: "N1 보유",
@@ -156,6 +183,13 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       return;
     }
 
+    if (!form.kakaoOrLine.trim()) {
+      const message = "카카오톡 ID를 입력해주세요.";
+      setErrorMessage(message);
+      alert(message);
+      return;
+    }
+
     if (form.has_experience && String(form.experience_count).trim() === "") {
       setErrorMessage("통역 경험 횟수를 입력해주세요.");
       return;
@@ -184,18 +218,36 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       return;
     }
 
+    // Final check for business profile before submitting
+    try {
+      const { data: businessCheck } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (businessCheck) {
+        const message = "기업 계정으로는 통역사 등록을 할 수 없습니다.";
+        setErrorMessage(message);
+        alert(message);
+        return;
+      }
+    } catch (err) {
+      console.error("Business check error on submit:", err);
+    }
+
     console.log("BEFORE DB INSERT");
 
     const managementConfig = MANAGEMENT_NUMBER_CONFIG.interpreters;
-    const basePayload = {
+    const profilePayload = {
       name: form.name,
       gender: form.gender,
       age: form.age,
       region: form.region,
-      email: userEmail,
       phone: form.phone,
+      email: userEmail,
       school: form.school,
-      kakao_or_line: form.kakaoOrLine,
+      kakao_or_line: form.kakaoOrLine.trim(),
       jlpt: form.jlpt,
       stay_period: form.stayPeriod,
       has_experience: form.has_experience,
@@ -203,34 +255,64 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       specialties: form.specialties,
       available_regions: form.availableRegions,
       available_tasks: form.availableTasks,
-      approved: false,
-      status: "pending",
       agreed_terms: true,
       agreed_policy: true,
       agreed_at: new Date().toISOString(),
     };
-    let payload = await addManagementNumber({
-      supabase,
-      table: "interpreters",
-      payload: { ...basePayload, auth_user_id: user.id },
-      ...managementConfig,
-    });
+    const basePayload = {
+      ...profilePayload,
+      approved: false,
+      status: "pending",
+    };
+    const existingInterpreter = await findExistingInterpreterProfile(user, userEmail);
+    const isReactivatingWithdrawn = isWithdrawnProfile(existingInterpreter);
 
-    let { data, error } = await insertInterpreter(payload);
+    let payload = null;
+    let data = null;
+    let error = null;
 
-    if (isManagementNumberConflict(error, managementConfig.column)) {
+    if (existingInterpreter?.id) {
+      payload = {
+        ...profilePayload,
+        auth_user_id: user.id,
+        ...(isReactivatingWithdrawn
+          ? {
+              status: "active",
+              is_public: true,
+              withdrawn_at: null,
+            }
+          : {}),
+      };
+
+      const updateResult = await updateExistingInterpreter(existingInterpreter.id, payload);
+      data = updateResult.data;
+      error = updateResult.error;
+    } else {
       payload = await addManagementNumber({
         supabase,
         table: "interpreters",
         payload: { ...basePayload, auth_user_id: user.id },
         ...managementConfig,
       });
-      const retryResult = await insertInterpreter(payload);
-      data = retryResult.data;
-      error = retryResult.error;
+
+      const insertResult = await insertInterpreter(payload);
+      data = insertResult.data;
+      error = insertResult.error;
+
+      if (isManagementNumberConflict(error, managementConfig.column)) {
+        payload = await addManagementNumber({
+          supabase,
+          table: "interpreters",
+          payload: { ...basePayload, auth_user_id: user.id },
+          ...managementConfig,
+        });
+        const retryResult = await insertInterpreter(payload);
+        data = retryResult.data;
+        error = retryResult.error;
+      }
     }
 
-    console.log("DB INSERT RESULT", {
+    console.log("DB UPSERT RESULT", {
       data,
       error,
     });
@@ -239,9 +321,9 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       if (isAgreementColumnError(error)) {
         console.error("약관 동의 저장 실패:", error);
       }
-      console.error("Interpreter insert error:", error);
-      console.error("DB INSERT ERROR", error);
-      console.error("insert failed", {
+      console.error("Interpreter save error:", error);
+      console.error("DB SAVE ERROR", error);
+      console.error("save failed", {
         table: "interpreters",
         payload,
         error,
@@ -301,6 +383,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
         name: form.name,
         email: interpreterEmail,
         phone: form.phone,
+        kakaoOrLine: form.kakaoOrLine.trim(),
       });
 
       if (!result.ok) {
@@ -314,7 +397,9 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
 
     setAgreements(initialTermsAgreement);
     setSuccessMessage(
-      "등록 신청이 완료되었습니다. 승인 후 마이페이지 이용을 위해 통역사 계정을 생성해주세요."
+      isReactivatingWithdrawn
+        ? "재가입 신청이 완료되었습니다. 프로필 정보가 다시 활성화되었습니다."
+        : "등록 신청이 완료되었습니다. 승인 후 마이페이지 이용을 위해 통역사 계정을 생성해주세요."
     );
     setTimeout(() => {
       onSubmitSuccess?.();
@@ -325,6 +410,55 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       setIsSubmitting(false);
     }
   };
+
+  if (checkingStatus) {
+    return (
+      <div className="register-page">
+        <div className="register-shell">
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px", color: "#fff" }}>
+            <p>프로필 확인 중...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isBusiness) {
+    return (
+      <div className="register-page">
+        <div className="register-shell">
+          <section className="register-hero" style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+            <div className="register-hero-copy">
+              <p className="register-kicker" style={{ color: "#ef4444" }}>ACCESS DENIED</p>
+              <h1>통역사 등록 제한</h1>
+              <p style={{ marginTop: "24px", color: "#e2e8f0" }}>
+                이미 기업으로 등록된 계정은 통역사 등록을 할 수 없습니다. <br />
+                통역사 이용은 별도 계정으로 가입해주세요.
+              </p>
+              <div style={{ display: "flex", gap: "16px", marginTop: "32px", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  onClick={onBackClick}
+                  className="register-submit-button"
+                  style={{ background: "#4f46e5", maxWidth: "200px", margin: "0" }}
+                >
+                  마이페이지로 돌아가기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => supabase.auth.signOut()}
+                  className="register-submit-button"
+                  style={{ background: "#ef4444", maxWidth: "200px", margin: "0" }}
+                >
+                  로그아웃
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="register-page">
@@ -373,16 +507,31 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
               description="운영팀 안내와 매칭 연락에 사용할 정보를 입력해주세요."
             >
               <Field
-                label="이메일"
+                label="로그인 이메일"
                 name="email"
                 type="email"
                 value={authEmail || form.email}
-                onChange={handleChange}
-                readOnly={Boolean(authEmail)}
+                readOnly
+                placeholder="로그인 계정 이메일"
                 required
               />
-              <Field label="전화번호" name="phone" value={form.phone} onChange={handleChange} required />
-              <Field label="카카오/라인 ID" name="kakaoOrLine" value={form.kakaoOrLine} onChange={handleChange} />
+              <Field
+                label="전화번호"
+                name="phone"
+                type="tel"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="전화번호를 입력해주세요"
+                required
+              />
+              <Field
+                label="카카오톡 ID"
+                name="kakaoOrLine"
+                value={form.kakaoOrLine}
+                onChange={handleChange}
+                placeholder="카카오톡 ID를 입력해주세요"
+                required
+              />
             </FormSectionCard>
 
             <FormSectionCard
@@ -518,6 +667,76 @@ function isMissingColumnError(error) {
     error?.code === "PGRST204" ||
     /column|schema cache/i.test(error?.message || "")
   );
+}
+
+function isWithdrawnProfile(profile = {}) {
+  const status = String(profile?.status || "").trim().toLowerCase();
+  return status === "withdrawn" || Boolean(profile?.withdrawn_at);
+}
+
+async function findExistingInterpreterProfile(user, email) {
+  const selectColumns = "id, email, status, withdrawn_at, auth_user_id";
+  const exactEmail = normalizeEmail(email);
+
+  const { data, error } = await supabase
+    .from("interpreters")
+    .select(selectColumns)
+    .or(`auth_user_id.eq.${user.id},email.ilike.${exactEmail}`);
+
+  if (error && isMissingColumnError(error) && /auth_user_id/i.test(error.message || "")) {
+    console.warn("Retry interpreter lookup without auth_user_id column", error);
+    return findExistingInterpreterProfileByEmail(exactEmail);
+  }
+
+  if (error) {
+    throw error;
+  }
+
+  return pickExistingInterpreterProfile(data || [], user, exactEmail);
+}
+
+async function findExistingInterpreterProfileByEmail(email) {
+  const { data, error } = await supabase
+    .from("interpreters")
+    .select("id, email, status, withdrawn_at")
+    .ilike("email", email);
+
+  if (error) throw error;
+
+  return pickExistingInterpreterProfile(data || [], null, email);
+}
+
+function pickExistingInterpreterProfile(profiles = [], user, email) {
+  const exactEmail = normalizeEmail(email);
+  return (
+    profiles.find((profile) => profile.auth_user_id && profile.auth_user_id === user?.id) ||
+    profiles.find((profile) => normalizeEmail(profile.email) === exactEmail) ||
+    null
+  );
+}
+
+async function updateExistingInterpreter(id, payload) {
+  const { data, error } = await supabase
+    .from("interpreters")
+    .update(payload)
+    .eq("id", id)
+    .select("id")
+    .single();
+
+  if (!error || !isMissingColumnError(error) || !("auth_user_id" in payload)) {
+    return { data, error };
+  }
+
+  console.warn("Retry interpreter update without auth_user_id column", error);
+  const legacyPayload = { ...payload };
+  delete legacyPayload.auth_user_id;
+
+  return supabase
+    .from("interpreters")
+    .update(legacyPayload)
+    .eq("id", id)
+    .select("id")
+    .single();
 }
 
 async function insertInterpreter(payload) {

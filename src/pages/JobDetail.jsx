@@ -6,7 +6,6 @@ import {
   Briefcase,
   Building2,
   Calendar,
-  Calculator,
   ClipboardList,
   Clock,
   Languages,
@@ -16,9 +15,7 @@ import {
   Sparkles,
   Star,
   Users,
-  X,
 } from "lucide-react";
-import TakeHomeCalculator from "../components/TakeHomeCalculator";
 import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
@@ -36,7 +33,6 @@ import { attachPublicJobCounts } from "../utils/jobsApi";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
   ensureInterpreterAuthLink,
-  isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
@@ -46,6 +42,7 @@ import {
   findExistingJobApplication,
   getJobApplicationSubmitErrorMessage,
   getSupabaseErrorDetails,
+  isAgreementColumnError,
   isDuplicateApplicationError,
   normalizeApplicationEmail,
   normalizeApplicationPhone,
@@ -69,7 +66,7 @@ const initialForm = {
 
 // TODO: 실서비스 전에는 Supabase Auth 기반으로 통역사 본인 계정만 지원 가능하게 해야 함.
 
-function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick, onHomeClick }) {
+function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick, onHomeClick, onMypageClick }) {
   const { user, loading: authLoading } = useAuth();
   const [interpreterProfile, setInterpreterProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -83,23 +80,6 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
   const [existingApplication, setExistingApplication] = useState(null);
   const [applicationCheckLoading, setApplicationCheckLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
-
-  useEffect(() => {
-    if (!isCalculatorOpen) return undefined;
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") setIsCalculatorOpen(false);
-    };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isCalculatorOpen]);
 
   const fetchJob = useCallback(async () => {
     if (!jobId) {
@@ -118,7 +98,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     }
 
     const { data, error } = await publicSupabase
-      .from("jobs")
+      .from("public_jobs")
       .select("*")
       .eq("id", jobId)
       .single();
@@ -276,14 +256,14 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       return;
     }
 
-    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
-      const message = "관리자 승인 완료 후 지원할 수 있습니다.";
+    if (!hasRegisteredResume(interpreterProfile)) {
+      const message = "이력서를 등록한 후 지원할 수 있습니다.";
       setErrorMessage(message);
       alert(message);
       return;
     }
 
-    if (!areTermsAgreed(agreements)) {
+    if (!areTermsAgreed(agreements, { requireCancelPolicy: true })) {
       const message = "약관 동의 후 제출 가능합니다.";
       setErrorMessage(message);
       alert(message);
@@ -326,6 +306,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     );
     setInterpreterProfile(matchedInterpreter);
 
+    const agreedAt = new Date().toISOString();
     const application = {
       job_id: job.id,
       interpreter_id: matchedInterpreter?.id || null,
@@ -345,7 +326,9 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       status: "pending",
       agreed_terms: true,
       agreed_policy: true,
-      agreed_at: new Date().toISOString(),
+      agreed_cancel_policy: true,
+      agreed_at: agreedAt,
+      cancel_policy_agreed_at: agreedAt,
     };
 
     const existingApplication = await findExistingJobApplication(supabase, {
@@ -425,7 +408,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
 
       if (error) {
         const errorDetails = getSupabaseErrorDetails(error);
-        console.error("지원서 제출 실패:", {
+        console.error("지원 저장 실패:", {
           ...errorDetails,
           table: "job_applications",
           payloadKeys: Object.keys(insertPayload || {}),
@@ -489,7 +472,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
     } catch (error) {
-      console.error("지원 실패:", getSupabaseErrorDetails(error));
+      console.error("지원 저장 실패:", getSupabaseErrorDetails(error));
       if (isDuplicateApplicationError(error)) {
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
@@ -550,7 +533,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                   </h1>
                   
                   <div className="job-detail-hero-meta">
-                    <MetaItem icon={Building2} text={job.company_name || "기업명 확인 중"} />
+                    <MetaItem icon={Building2} text="ON-LI 공개 공고" />
                     <MetaItem icon={Languages} text={job.language || "한국어/일본어"} />
                     <MetaItem icon={BadgeCheck} text={getJobLevelSummary(job)} />
                     <MetaItem icon={Briefcase} text={getJobSpecialty(job)} />
@@ -617,11 +600,11 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                       <h3>지원 정보</h3>
                       <MobileInfo label="지원 마감" value={job.deadline || "상시"} />
                       <MobileInfo label="상태" value={getJobStatusLabel(job)} />
-                      <MobileInfo label="기업명" value={job.company_name} />
+                      <MobileInfo label="공고 구분" value="ON-LI 공개 공고" />
                     </section>
                   </div>
                   <div className="job-info-grid">
-                    <Info icon={Building2} label="기업명" value={job.company_name} />
+                    <Info icon={Building2} label="공고 구분" value="ON-LI 공개 공고" />
                     <Info
                       icon={Calendar}
                       label="날짜"
@@ -640,15 +623,6 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                     <Info icon={Clock} label="지원 마감일" value={job.deadline || "상시"} />
                     <Info icon={ShieldCheck} label="상태" value={getJobStatusLabel(job)} />
                   </div>
-
-                  <button
-                    type="button"
-                    className="job-take-home-button"
-                    onClick={() => setIsCalculatorOpen(true)}
-                  >
-                    <Calculator size={17} />
-                    예상 실수령액 확인하기
-                  </button>
 
                   <div className="job-info-detail-sections">
                     <section className="job-detail-desc-section">
@@ -687,9 +661,10 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                       <h2 className="job-section-title">추가 안내 사항</h2>
                       <div className="job-detail-desc-block">
                         <ul className="job-detail-bullets-list">
-                          <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
+                          <li>레벨 기준 통역 단가가 적용됩니다.</li>
                           <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
                           <li>운영팀 확인 후 최종 연락드립니다.</li>
+                          <li>배정 확정 후 지원 취소 및 철회 시 취소 규정에 따라 위약금이 발생할 수 있습니다.</li>
                         </ul>
                       </div>
                     </section>
@@ -746,10 +721,13 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                               통역사 등록하기 <ArrowRight size={16} />
                             </button>
                           </div>
-                        ) : !isInterpreterApprovedForApplication(interpreterProfile) ? (
+                        ) : !hasRegisteredResume(interpreterProfile) ? (
                           <div className="job-register-required-box">
-                            <h2>관리자 승인 대기 중입니다</h2>
-                            <p>관리자 승인 완료 후 공고에 지원할 수 있습니다.</p>
+                            <h2>이력서 등록이 필요합니다</h2>
+                            <p>통역 지원을 위해 이력서 등록이 필요합니다.</p>
+                            <button type="button" onClick={onMypageClick} className="job-register-outline-btn">
+                              이력서 등록하러 가기 <ArrowRight size={16} />
+                            </button>
                           </div>
                         ) : (
                           <form onSubmit={handleSubmit}>
@@ -781,6 +759,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                             <TermsAgreement
                               agreements={agreements}
                               onChange={handleAgreementChange}
+                              requireCancelPolicy
                               role="interpreter"
                             />
 
@@ -791,7 +770,8 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                                 submitting ||
                                 applicationCheckLoading ||
                                 !canApplyToJob(job) ||
-                                !areTermsAgreed(agreements)
+                                !hasRegisteredResume(interpreterProfile) ||
+                                !areTermsAgreed(agreements, { requireCancelPolicy: true })
                               }
                             >
                               {canApplyToJob(job)
@@ -828,32 +808,6 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
           </div>
         )}
       </div>
-      {isCalculatorOpen && (
-        <div
-          className="take-home-modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setIsCalculatorOpen(false);
-          }}
-        >
-          <div
-            className="take-home-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="예상 실수령액 계산기"
-          >
-            <button
-              type="button"
-              className="take-home-modal-close"
-              onClick={() => setIsCalculatorOpen(false)}
-              aria-label="계산기 닫기"
-            >
-              <X size={20} />
-            </button>
-            <TakeHomeCalculator />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -883,11 +837,11 @@ function MessageBox({ text }) {
   return <div className="jobs-message">{text}</div>;
 }
 
-function isAgreementColumnError(error) {
-  return (
-    error?.code === "42703" ||
-    error?.code === "PGRST204" ||
-    /agreed_|column|schema cache/i.test(error?.message || "")
+function hasRegisteredResume(profile = {}) {
+  return Boolean(
+    String(profile.resume_url || "").trim() ||
+      String(profile.resume_file_url || "").trim() ||
+      String(profile.resume_file_name || "").trim()
   );
 }
 

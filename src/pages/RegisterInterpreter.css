@@ -673,7 +673,7 @@
   color: #047857;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .register-guide-grid {
     grid-template-columns: 1fr;
   }
@@ -770,7 +770,7 @@
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 480px) {
   .register-page {
     padding-right: 16px;
     padding-left: 16px;

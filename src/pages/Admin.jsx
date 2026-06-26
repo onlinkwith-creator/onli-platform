@@ -3,6 +3,7 @@ import {
   Briefcase,
   CheckCircle2,
   Eye,
+  FileText,
   Languages,
   LayoutGrid,
   List,
@@ -34,6 +35,7 @@ import {
   getMatchingStatusLabel,
   getStatusBadgeClass as getStandardStatusBadgeClass,
   normalizeApplicationStatus,
+  normalizeJobStatus,
   normalizeMatchingStatus,
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
@@ -59,6 +61,7 @@ import {
   OPERATION_STATUS_OPTIONS,
   SETTLEMENT_FLOW_STATUS,
   SETTLEMENT_FLOW_STATUS_OPTIONS,
+  getAssignmentStatusLabel,
   getAssignmentStatusBadgeClass,
   getOperationStatusBadgeClass,
   getSettlementFlowStatusBadgeClass,
@@ -69,22 +72,9 @@ import {
 } from "../utils/operationsStatus";
 import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import {
-  DOCUMENT_TYPE_LABELS,
-  createDocumentRecord,
-  createSimplePdfBlob,
-  getAllDocuments,
-  getDocumentVersions,
-  getDocumentStoragePath,
-  getLatestDocumentByRequestAndInterpreter,
-  getLatestDocumentsByRequest,
-  getNextDocumentNo,
-  getSignedDocumentUrl,
-  uploadDocumentPdf,
-  voidDocument,
-} from "../lib/documents";
-import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
+  normalizeRequestType,
   isDesignatedRequest,
 } from "../utils/designatedRequest";
 import {
@@ -92,24 +82,80 @@ import {
   addManagementNumber,
   isManagementNumberConflict,
 } from "../utils/managementNumber";
+import {
+  buildCompletionDraft,
+  buildEstimateDraft,
+  buildPaymentDraft,
+  createOnliDocument,
+  downloadBlob,
+  formatDocumentAmount,
+  getDocumentTypeLabel,
+  openDocumentSignedUrl,
+  recalculateEstimateDraft,
+  recalculatePaymentDraft,
+} from "../utils/documents";
 import { useAuth } from "../hooks/useAuth";
+import { WITHDRAWN_STATUS, isWithdrawnInterpreter } from "../utils/accountStatus";
 import "./Admin.css";
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
 
-const TABS = [
-  { id: "newRequests", label: "신규 의뢰 관리" },
-  { id: "newApplications", label: "신규 지원 관리" },
-  { id: "requests", label: "의뢰 관리" },
-  { id: "completedRequests", label: "완료 의뢰" },
-  { id: "jobs", label: "통역 공고 관리" },
-  { id: "interpreters", label: "통역사 관리" },
-  { id: "applications", label: "지원자 관리" },
-  { id: "matching", label: "정산 관리" },
-  { id: "documents", label: "문서 관리" },
+const MAIN_TABS = [
+  { id: "new", label: "신규 관리", defaultSubTab: "new_requests" },
+  { id: "requests", label: "의뢰 관리", defaultSubTab: "all_requests" },
+  { id: "interpreters", label: "통역사 관리", defaultSubTab: "registered_interpreters" },
+  { id: "businesses", label: "기업 관리", defaultSubTab: "all_businesses" },
+  { id: "settlements", label: "정산 관리", defaultSubTab: "settlement_pending" },
+  { id: "documents", label: "문서 관리", defaultSubTab: "all_documents" },
+  { id: "internal", label: "내부 관리", defaultSubTab: "admin_memos" },
 ];
-const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
+const SUB_TABS = {
+  new: [
+    { id: "new_requests", label: "신규 의뢰" },
+    { id: "new_interpreters", label: "신규 통역사" },
+  ],
+  requests: [
+    { id: "all_requests", label: "전체 의뢰" },
+    { id: "jobs", label: "공고 관리" },
+    { id: "applications", label: "지원자 관리" },
+    { id: "assignments", label: "배정 관리" },
+  ],
+  interpreters: [
+    { id: "registered_interpreters", label: "등록 통역사" },
+    { id: "verification_pending", label: "검증 대기" },
+    { id: "interpreter_activity", label: "활동 상태 관리" },
+  ],
+  businesses: [
+    { id: "all_businesses", label: "전체 기업" },
+  ],
+  settlements: [
+    { id: "settlement_pending", label: "정산 대기" },
+    { id: "settlement_confirmed", label: "정산 확정" },
+    { id: "settlement_completed", label: "정산 완료" },
+    { id: "settlement_on_hold", label: "정산 보류" },
+    { id: "payment_history", label: "지급 기록" },
+  ],
+  documents: [
+    { id: "all_documents", label: "전체 문서" },
+    { id: "estimate_documents", label: "견적서" },
+    { id: "completion_documents", label: "업무확인서" },
+    { id: "payout_documents", label: "정산서" },
+  ],
+  internal: [
+    { id: "admin_memos", label: "관리자 메모" },
+    { id: "notification_history", label: "알림 이력" },
+    { id: "admin_accounts", label: "관리자 계정 관리" },
+  ],
+};
+const SUB_TAB_TO_MAIN_TAB = Object.fromEntries(
+  Object.entries(SUB_TABS).flatMap(([mainTabId, subTabs]) =>
+    subTabs.map((subTab) => [subTab.id, mainTabId])
+  )
+);
+const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended", "withdrawn"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
+const INTERPRETER_DOCUMENT_BUCKET = "resume-files";
+const REQUEST_REFERENCE_BUCKET = "request-files";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -132,6 +178,9 @@ const INTERPRETER_UPDATE_COLUMNS = new Set([
   "specialties",
   "available_regions",
   "admin_memo",
+  "is_public",
+  "withdrawn_at",
+  "resume_verified_email_sent_at",
   "updated_at",
 ]);
 const INTERPRETER_STATUS_VALUES = new Set(INTERPRETER_STATUSES);
@@ -141,6 +190,11 @@ const REQUEST_MANAGEMENT_FILTERS = [
   { value: "before_operation", label: "운영 전" },
   { value: "operation_in_progress", label: "운영 중" },
   { value: "operation_completed", label: "운영 종료" },
+];
+const ESTIMATE_STATUS_OPTIONS = [
+  { value: "estimate_preparing", label: "견적 준비중" },
+  { value: "estimate_required", label: "견적 확인 필요" },
+  { value: "estimate_approved", label: "견적 승인 완료" },
 ];
 const PENDING_INTERPRETER_STATUSES = [
   "pending",
@@ -157,22 +211,22 @@ const NEW_REQUEST_STATUSES = [
   "미확인",
   MATCHING_STATUS.DRAFT,
 ];
-const NEW_APPLICATION_STATUSES = [
-  "new",
-  "pending",
-  "지원접수",
-  "지원완료",
-  "미확인",
-  "승인대기",
-  "승인 대기",
-];
+const ADMIN_TAB_ALIASES = {
+  requests: "all_requests",
+  interpreters: "registered_interpreters",
+  businesses: "all_businesses",
+  settlement: "settlement_pending",
+  interpreter_applications: "applications",
+  new_applications: "new_interpreters",
+  completed_requests: "all_requests",
+};
 const EMPTY_REQUEST_EDIT_DRAFT = {
   id: "",
   title: "",
   event_name: "",
   company_name: "",
   request_no: "",
-  request_type: "일반의뢰",
+  request_type: "general",
   start_date: "",
   end_date: "",
   event_location: "",
@@ -189,14 +243,40 @@ const EMPTY_REQUEST_EDIT_DRAFT = {
   settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
   contact_status: "not_contacted",
   payment_status: "unpaid",
+  estimate_status: "estimate_preparing",
+  company_internal_memo: "",
 };
 const JOB_APPLICATION_STATUSES = APPLICATION_STATUS_OPTIONS;
+const APPLICANT_MANAGEMENT_STATUSES = new Set([
+  APPLICATION_STATUS.PENDING,
+  APPLICATION_STATUS.REVIEWING,
+  APPLICATION_STATUS.REJECTED,
+]);
+const POST_ACCEPTANCE_STATUS_VALUES = new Set([
+  "accepted",
+  "approved",
+  "합격",
+  "승인",
+  "matched",
+  "matching",
+  "매칭됨",
+  "매칭완료",
+  "waiting",
+  "배정대기",
+  "assigning",
+  "배정중",
+  "assigned",
+  "배정",
+  "배정완료",
+  "confirmed",
+  "확정",
+]);
 const SETTLEMENT_MANAGEMENT_FILTERS = [
   { value: "all", label: "전체" },
-  { value: "unpaid", label: "미결제" },
-  { value: "paid", label: "결제완료" },
   { value: "settlement_pending", label: "정산대기" },
+  { value: "settlement_confirmed", label: "정산확정" },
   { value: "settlement_completed", label: "정산완료" },
+  { value: "settlement_on_hold", label: "정산보류" },
 ];
 const STATUS_LABELS = {
   pending: "대기",
@@ -210,7 +290,7 @@ const STATUS_LABELS = {
   confirmed: "확정",
   in_progress: "운영중",
   settlement_pending: "정산대기",
-  completed: "운영완료",
+  completed: "업무완료",
   cancelled: "취소",
   not_contacted: "미연락",
   contacted: "연락완료",
@@ -269,9 +349,9 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
 
   const fallbackData = await fetchBaseJobApplications(publicSupabase);
 
-  const jobsById = new Map(jobs.map((job) => [job.id, job]));
+  const jobsById = new Map(compactAdminRows(jobs).map((job) => [job.id, job]));
   return {
-    data: fallbackData.map((application) => ({
+    data: compactAdminRows(fallbackData).map((application) => ({
       ...application,
       jobs: jobsById.get(application.job_id) || null,
     })),
@@ -279,45 +359,84 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
   };
 }
 
+function normalizeAdminSubTabId(subTabId) {
+  return ADMIN_TAB_ALIASES[subTabId] || subTabId;
+}
+
+function getInitialAdminSubTab() {
+  if (typeof window === "undefined") return "new_requests";
+
+  const path = window.location.pathname;
+  const params = new URLSearchParams(window.location.search);
+  const tabParam = params.get("tab") || params.get("subTab");
+  const sectionParam = params.get("section");
+
+  if (tabParam) return normalizeAdminSubTabId(tabParam);
+  if (path === "/admin/jobs") return "jobs";
+  if (path === "/admin/applications") return "applications";
+  if (path === "/admin/interpreters") return "registered_interpreters";
+  if (path === "/admin/businesses") return "all_businesses";
+  if (path === "/admin/settings") return "admin_accounts";
+  if (path === "/admin/new" || sectionParam === "new") return "new_requests";
+  if (path === "/admin/requests" || sectionParam === "requests") return "all_requests";
+  if (path === "/admin/settlements" || sectionParam === "settlements") {
+    return "settlement_pending";
+  }
+  if (path === "/admin/internal" || sectionParam === "internal") return "admin_memos";
+  if (sectionParam === "interpreters") return "registered_interpreters";
+
+  return "new_requests";
+}
+
+function getAdminPathForSubTab(subTabId) {
+  const mainTabId = SUB_TAB_TO_MAIN_TAB[subTabId] || "new";
+  const sectionPathMap = {
+    new: "/admin/new",
+    requests: "/admin/requests",
+    interpreters: "/admin/interpreters",
+    businesses: "/admin/businesses",
+    settlements: "/admin/settlements",
+    internal: "/admin/internal",
+  };
+  const path = sectionPathMap[mainTabId] || "/admin";
+  return `${path}?tab=${encodeURIComponent(subTabId)}`;
+}
+
 function Admin({ onBackClick }) {
   const { user, signOut, adminProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState("requests");
+  const initialSubTab = getInitialAdminSubTab();
+  const [activeMainTab, setActiveMainTab] = useState(
+    SUB_TAB_TO_MAIN_TAB[initialSubTab] || "new"
+  );
+  const [activeSubTab, setActiveSubTab] = useState(initialSubTab);
   const [requests, setRequests] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [interpreters, setInterpreters] = useState([]);
+  const [businesses, setBusinesses] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [matchings, setMatchings] = useState([]);
   const [jobApplications, setJobApplications] = useState([]);
+  const [adminNotes, setAdminNotes] = useState([]);
+  const [adminActivityLogs, setAdminActivityLogs] = useState([]);
+  const [notificationEvents, setNotificationEvents] = useState([]);
+  const [adminNoteDrafts, setAdminNoteDrafts] = useState({});
+  const [notificationProcessing, setNotificationProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [savingKey, setSavingKey] = useState("");
   const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [applicationsRequestId, setApplicationsRequestId] = useState(null);
-  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [, setSelectedRequest] = useState(null);
   const [activeRequestModal, setActiveRequestModal] = useState(null);
   const [requestEditDraft, setRequestEditDraft] = useState(null);
-  const [documentsByRequest, setDocumentsByRequest] = useState({});
-  const [documentModal, setDocumentModal] = useState(null);
   const [documentDraft, setDocumentDraft] = useState(null);
-  const [payoutDocumentsByKey, setPayoutDocumentsByKey] = useState({});
-  const [payoutModal, setPayoutModal] = useState(null);
-  const [payoutDraft, setPayoutDraft] = useState(null);
-  const [adminDocuments, setAdminDocuments] = useState([]);
-  const [documentVersions, setDocumentVersions] = useState([]);
-  const [selectedAdminDocument, setSelectedAdminDocument] = useState(null);
-  const [adminDocumentFilters, setAdminDocumentFilters] = useState({
-    search: "",
-    documentType: "all",
-    status: "all",
-    startDate: "",
-    endDate: "",
-  });
-  const [adminDocumentDraft, setAdminDocumentDraft] = useState(null);
+  const [generatedDocuments, setGeneratedDocuments] = useState([]);
   const [isAdminAccountModalOpen, setIsAdminAccountModalOpen] = useState(false);
   const [isSettlementPendingModalOpen, setIsSettlementPendingModalOpen] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminAccountDraft, setAdminAccountDraft] = useState({
     email: "",
+    auth_user_id: "",
     role: "staff",
   });
   const [isAdminAccountSaving, setIsAdminAccountSaving] = useState(false);
@@ -325,12 +444,14 @@ function Admin({ onBackClick }) {
   const [interpreterModalType, setInterpreterModalType] = useState(null);
   const [interpreterEditDraft, setInterpreterEditDraft] = useState(null);
   const [assignmentDrafts, setAssignmentDrafts] = useState({});
+  const [settlementTouchedByRequest, setSettlementTouchedByRequest] = useState({});
   const [interpreterFilters, setInterpreterFilters] = useState({
     search: "",
     level: "all",
     status: "all",
     activity: "all",
     approved: "all",
+    resumeReview: "all",
     duplicate: "all",
   });
   const [requestFilters, setRequestFilters] = useState({
@@ -360,77 +481,181 @@ function Admin({ onBackClick }) {
       return;
     }
 
-    const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult] =
-      await Promise.all([
-        publicSupabase.from("requests").select("*").order("created_at", {
-          ascending: false,
-          nullsFirst: false,
-        }),
-        publicSupabase.from("jobs").select("*").order("created_at", {
-          ascending: false,
-          nullsFirst: false,
-        }),
-        publicSupabase.from("interpreters").select("*").order("id", {
-          ascending: false,
-        }),
-        publicSupabase
-          .from("request_interpreters")
-          .select(
-            "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
-          )
-          .order("id", { ascending: false }),
-        publicSupabase
-          .from("matchings")
-          .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
-          .order("created_at", { ascending: false }),
-      ]);
+    try {
+      const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult, businessResult] =
+        (
+          await Promise.allSettled([
+            publicSupabase.from("requests").select("*").order("created_at", {
+              ascending: false,
+              nullsFirst: false,
+            }),
+            publicSupabase.from("jobs").select("*").order("created_at", {
+              ascending: false,
+              nullsFirst: false,
+            }),
+            publicSupabase.from("interpreters").select("*").order("id", {
+              ascending: false,
+            }),
+            publicSupabase
+              .from("request_interpreters")
+              .select(
+                "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
+              )
+              .order("id", { ascending: false }),
+            publicSupabase
+              .from("matchings")
+              .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
+              .order("created_at", { ascending: false }),
+            publicSupabase.from("businesses").select("*").order("created_at", {
+              ascending: false,
+            }),
+          ])
+        ).map((result) =>
+          result.status === "fulfilled"
+            ? result.value
+            : { data: [], error: result.reason }
+        );
 
-    if (
-      requestResult.error ||
-      jobResult.error ||
-      interpreterResult.error ||
-      assignmentResult.error
-    ) {
-      const error =
+      const getAdminData = (label, result) => {
+        if (result.error) {
+          console.error(`${label} fetch failed:`, result.error);
+          return [];
+        }
+        return compactAdminRows(result.data);
+      };
+
+      const requestData = getAdminData("requests", requestResult);
+      const jobData = getAdminData("jobs", jobResult);
+      const interpreterData = getAdminData("interpreters", interpreterResult);
+      const assignmentData = getAdminData("request_interpreters", assignmentResult);
+      const matchingData = getAdminData("matchings", matchingResult);
+      const businessData = getAdminData("businesses", businessResult);
+
+      const hasRequiredFetchError =
         requestResult.error ||
         jobResult.error ||
         interpreterResult.error ||
         assignmentResult.error;
-      console.error("Supabase select error:", error);
-      alert(error.message);
-      setErrorMessage("관리자 데이터를 불러오지 못했습니다.");
-      setLoading(false);
-      return;
-    }
+      if (hasRequiredFetchError) {
+        setErrorMessage("관리자 데이터를 불러오지 못했습니다. Supabase RLS 정책 또는 DB migration 적용 상태를 확인해주세요.");
+      }
 
-    if (matchingResult.error) {
-      console.warn("matchings fetch skipped:", matchingResult.error);
-    }
+      const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData);
+      const jobApplicationData = jobApplicationResult.error
+        ? []
+        : compactAdminRows(jobApplicationResult.data);
+      if (jobApplicationResult.error) {
+        console.error("job_applications fetch failed:", jobApplicationResult.error);
+      }
 
-    const jobApplicationResult = await fetchJobApplicationsWithJobs(jobResult.data || []);
-    if (jobApplicationResult.error) {
-      console.error("Supabase select error:", jobApplicationResult.error);
-      alert(jobApplicationResult.error.message);
-      setErrorMessage("관리자 데이터를 불러오지 못했습니다.");
-      setLoading(false);
-      return;
+      console.log("loaded jobs:", jobData);
+      console.log("loaded interpreters:", interpreterData);
+      console.log("loaded applications:", jobApplicationData);
+      setRequests(requestData);
+      setJobs(jobData);
+      setInterpreters(interpreterData);
+      setAssignments(assignmentData);
+      setMatchings(matchingData);
+      setJobApplications(jobApplicationData);
+      setBusinesses(businessData);
+    } catch (error) {
+      console.error("admin data fetch failed:", error);
+      setErrorMessage("관리자 데이터를 불러오지 못했습니다. Supabase RLS 정책 또는 DB migration 적용 상태를 확인해주세요.");
+      setRequests([]);
+      setJobs([]);
+      setInterpreters([]);
+      setAssignments([]);
+      setMatchings([]);
+      setJobApplications([]);
+      setBusinesses([]);
     }
+    if (supabase) {
+      try {
+        const [notesResult, logsResult, notificationsResult, documentsResult] = (
+          await Promise.allSettled([
+            supabase
+              .from("admin_notes")
+              .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+              .order("created_at", { ascending: false })
+              .limit(300),
+            supabase
+              .from("admin_activity_logs")
+              .select("id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at")
+              .order("created_at", { ascending: false })
+              .limit(300),
+            supabase
+              .from("notification_events")
+              .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
+              .order("created_at", { ascending: false })
+              .limit(300),
+            supabase
+              .from("documents")
+              .select("id, document_type, document_no, status, version, request_id, interpreter_id, title, amount, storage_bucket, file_path, metadata, created_at")
+              .order("created_at", { ascending: false })
+              .limit(300),
+          ])
+        ).map((result) =>
+          result.status === "fulfilled"
+            ? result.value
+            : { data: [], error: result.reason }
+        );
 
-    console.log("loaded jobs:", jobResult.data || []);
-    console.log("loaded interpreters:", interpreterResult.data || []);
-    console.log("loaded applications:", jobApplicationResult.data || []);
-    setRequests(requestResult.data || []);
-    setJobs(jobResult.data || []);
-    setInterpreters(interpreterResult.data || []);
-    setAssignments(assignmentResult.data || []);
-    setMatchings(matchingResult.error ? [] : matchingResult.data || []);
-    setJobApplications(jobApplicationResult.data || []);
+        if (notesResult.error) {
+          console.warn("admin notes fetch skipped:", notesResult.error);
+        } else {
+          setAdminNotes(uniqueById(notesResult.data || []));
+        }
+
+        if (logsResult.error) {
+          console.warn("admin activity logs fetch skipped:", logsResult.error);
+        } else {
+          setAdminActivityLogs(compactAdminRows(logsResult.data));
+        }
+
+        if (notificationsResult.error) {
+          console.warn("notification events fetch skipped:", notificationsResult.error);
+        } else {
+          setNotificationEvents(uniqueById(notificationsResult.data || []));
+        }
+
+        if (documentsResult.error) {
+          console.warn("generated documents fetch skipped:", documentsResult.error);
+        } else {
+          setGeneratedDocuments(uniqueById(documentsResult.data || []));
+        }
+      } catch (error) {
+        console.warn("admin optional data fetch skipped:", error);
+      }
+    }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     queueMicrotask(fetchAdminData);
   }, [fetchAdminData]);
+
+  const updateBusiness = async (bizId, payload) => {
+    if (!publicSupabase) return;
+    try {
+      const { error } = await publicSupabase
+        .from("businesses")
+        .update(payload)
+        .eq("id", bizId);
+
+      if (error) {
+        alert(`기업 정보 수정 실패: ${error.message}`);
+        return;
+      }
+
+      alert("수정되었습니다.");
+      setBusinesses((current) =>
+        current.map((biz) => (biz.id === bizId ? { ...biz, ...payload } : biz))
+      );
+    } catch (err) {
+      console.error(err);
+      alert("네트워크 오류가 발생했습니다.");
+    }
+  };
 
   const closeInterpreterModal = useCallback(() => {
     setSelectedInterpreter(null);
@@ -442,19 +667,13 @@ function Admin({ onBackClick }) {
     setActiveRequestModal(null);
     setRequestEditDraft(null);
     setSelectedRequest(null);
-    setDocumentModal(null);
-    setDocumentDraft(null);
-    setPayoutModal(null);
-    setPayoutDraft(null);
-    setSelectedAdminDocument(null);
-    setAdminDocumentDraft(null);
-    setDocumentVersions([]);
   }, []);
 
   const closeAdminAccountModal = useCallback(() => {
     setIsAdminAccountModalOpen(false);
     setAdminAccountDraft({
       email: "",
+      auth_user_id: "",
       role: "staff",
     });
   }, []);
@@ -468,7 +687,7 @@ function Admin({ onBackClick }) {
 
     const { data, error } = await supabase
       .from("admin_users")
-      .select("id, email, role, status, created_at, updated_at")
+      .select("id, email, auth_user_id, role, status, created_at, updated_at")
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -485,6 +704,11 @@ function Admin({ onBackClick }) {
     setIsAdminAccountModalOpen(true);
     await fetchAdminUsers();
   };
+
+  useEffect(() => {
+    if (activeSubTab !== "admin_accounts") return;
+    queueMicrotask(fetchAdminUsers);
+  }, [activeSubTab, fetchAdminUsers]);
 
   useEffect(() => {
     if (!interpreterModalType) return undefined;
@@ -551,14 +775,7 @@ function Admin({ onBackClick }) {
   const activeRequestJob = activeRequest?.job_id
     ? jobsById.get(String(activeRequest.job_id)) || jobsById.get(activeRequest.job_id)
     : null;
-  const activeRequestDocuments = activeRequest?.id
-    ? documentsByRequest[activeRequest.id] || {}
-    : {};
 
-  const activeRequests = useMemo(
-    () => requests.filter((request) => !isCompletedRequest(request)),
-    [requests]
-  );
   const completedRequests = useMemo(
     () => requests.filter((request) => isCompletedRequest(request)),
     [requests]
@@ -567,23 +784,70 @@ function Admin({ onBackClick }) {
     () => requests.filter((request) => isSettlementPendingRequest(request)),
     [requests]
   );
+  const settlementConfirmedRequests = useMemo(
+    () =>
+      requests.filter(
+        (request) => normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.CONFIRMED
+      ),
+    [requests]
+  );
+  const settlementCompletedRequests = useMemo(
+    () => requests.filter((request) => isSettlementCompletedRequest(request)),
+    [requests]
+  );
+  const settlementOnHoldRequests = useMemo(
+    () =>
+      requests.filter(
+        (request) => normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.ON_HOLD
+      ),
+    [requests]
+  );
   const newRequests = useMemo(
     () => requests.filter((request) => isNewRequest(request)),
     [requests]
+  );
+  const recruitingJobs = useMemo(
+    () =>
+      jobs.filter(
+        (job) =>
+          normalizeJobStatus(job.status) === JOB_STATUS.RECRUITING &&
+          normalizeJobVisibility(job) === "public"
+      ),
+    [jobs]
   );
   const pendingInterpreters = useMemo(
     () => interpreters.filter((interpreter) => isPendingInterpreter(interpreter)),
     [interpreters]
   );
-  const newJobApplications = useMemo(
-    () => jobApplications.filter((application) => isNewJobApplication(application)),
-    [jobApplications]
+  const pendingResumeReviewInterpreters = useMemo(
+    () => interpreters.filter((interpreter) => isResumeReviewPending(interpreter)),
+    [interpreters]
+  );
+  const assignmentRows = useMemo(
+    () => buildAssignmentManagementRows({ assignments, jobApplications, matchings, requests, interpreters }),
+    [assignments, jobApplications, matchings, requests, interpreters]
+  );
+  const pendingAssignmentRequests = useMemo(
+    () =>
+      requests.filter((request) => {
+        const requestAssignments = assignmentsByRequest.get(request.id) || [];
+        return (
+          !isCompletedRequest(request) &&
+          (normalizeAssignmentStatus(request) !== ASSIGNMENT_STATUS.ASSIGNED ||
+            requestAssignments.length === 0)
+        );
+      }),
+    [assignmentsByRequest, requests]
+  );
+  const adminMemoItems = useMemo(
+    () => buildAdminMemoItems({ requests, interpreters, assignmentRows, jobApplications }),
+    [assignmentRows, interpreters, jobApplications, requests]
   );
 
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
 
-    const result = activeRequests.filter((request) => {
+    const result = requests.filter((request) => {
       const searchableText = [
         request.company_name,
         request.event_name,
@@ -620,7 +884,7 @@ function Admin({ onBackClick }) {
 
       return String(b.created_at || "").localeCompare(String(a.created_at || ""));
     });
-  }, [activeRequests, jobsById, requestFilters]);
+  }, [jobsById, requestFilters, requests]);
 
   const filteredCompletedRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
@@ -670,6 +934,8 @@ function Admin({ onBackClick }) {
     return interpreters.filter((interpreter) => {
       const searchableText = [
         interpreter.name,
+        interpreter.email,
+        interpreter.phone,
         interpreter.region,
         interpreter.school,
         interpreter.jlpt,
@@ -685,15 +951,22 @@ function Admin({ onBackClick }) {
         interpreter.level === interpreterFilters.level;
       const matchesStatus =
         interpreterFilters.status === "all" ||
+        (interpreterFilters.status === WITHDRAWN_STATUS
+          ? String(interpreter.status || "").trim().toLowerCase() === WITHDRAWN_STATUS
+          : !isWithdrawnInterpreter(interpreter) &&
         (interpreterFilters.status === "inactive"
           ? getInterpreterActivityStatus(interpreter) === INTERPRETER_ACTIVITY_STATUS.INACTIVE
-          : getInterpreterFilterStatus(interpreter) === interpreterFilters.status);
+          : getInterpreterFilterStatus(interpreter) === interpreterFilters.status));
       const matchesActivity =
         interpreterFilters.activity === "all" ||
         getInterpreterActivityStatus(interpreter) === interpreterFilters.activity;
       const matchesApproved =
         interpreterFilters.approved === "all" ||
         String(Boolean(interpreter.approved)) === interpreterFilters.approved;
+      const matchesResumeReview =
+        interpreterFilters.resumeReview === "all" ||
+        (interpreterFilters.resumeReview === "resume_review_pending" &&
+          isResumeReviewPending(interpreter));
       const matchesDuplicate =
         interpreterFilters.duplicate === "all" ||
         duplicateInterpreterResult.duplicateIds.has(interpreter.id);
@@ -704,6 +977,7 @@ function Admin({ onBackClick }) {
         matchesStatus &&
         matchesActivity &&
         matchesApproved &&
+        matchesResumeReview &&
         matchesDuplicate
       );
     }).sort(sortInterpretersForAdmin);
@@ -716,11 +990,13 @@ function Admin({ onBackClick }) {
         totalInterpreters: interpreters.length,
         pendingInterpreters: pendingInterpreters.length,
         newRequests: newRequests.length,
+        recruitingJobs: recruitingJobs.length,
         uncheckedApplications: jobApplications.filter((application) =>
           [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
             normalizeApplicationStatus(application.status)
           )
         ).length,
+        pendingAssignments: pendingAssignmentRequests.length,
         settlementPending: settlementPendingRequests.length,
       };
     },
@@ -728,6 +1004,8 @@ function Admin({ onBackClick }) {
       jobApplications,
       newRequests.length,
       pendingInterpreters.length,
+      pendingAssignmentRequests.length,
+      recruitingJobs.length,
       requests.length,
       interpreters.length,
       settlementPendingRequests.length,
@@ -737,6 +1015,27 @@ function Admin({ onBackClick }) {
   const operationDashboard = useMemo(
     () => buildOperationDashboard(requests, assignmentsByRequest, interpreters),
     [assignmentsByRequest, interpreters, requests]
+  );
+  const processingQueueItems = useMemo(
+    () =>
+      buildProcessingQueueItems({
+        newRequests,
+        pendingResumeReviewInterpreters,
+        uncheckedApplications: jobApplications.filter((application) =>
+          [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
+            normalizeApplicationStatus(application.status)
+          )
+        ),
+        pendingAssignmentRequests,
+        settlementPendingRequests,
+      }),
+    [
+      jobApplications,
+      newRequests,
+      pendingAssignmentRequests,
+      pendingResumeReviewInterpreters,
+      settlementPendingRequests,
+    ]
   );
   const getInterpreterScheduleConflicts = useCallback(
     (interpreterId, range, excludeMatchingId) =>
@@ -750,46 +1049,104 @@ function Admin({ onBackClick }) {
     [matchings]
   );
 
+  const currentSubTabs = SUB_TABS[activeMainTab] || [];
+
+  const switchMainTab = (mainTabId) => {
+    const mainTab = MAIN_TABS.find((tab) => tab.id === mainTabId);
+    if (!mainTab) return;
+    setActiveMainTab(mainTab.id);
+    switchSubTab(mainTab.defaultSubTab);
+  };
+
+  const switchSubTab = (subTabId) => {
+    const normalizedSubTabId = normalizeAdminSubTabId(subTabId);
+    setActiveMainTab(SUB_TAB_TO_MAIN_TAB[normalizedSubTabId] || "new");
+    setActiveSubTab(normalizedSubTabId);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(
+        { page: "admin", subTab: normalizedSubTabId },
+        "",
+        getAdminPathForSubTab(normalizedSubTabId)
+      );
+    }
+  };
+
+  const getSubTabCount = (subTabId) => {
+    if (subTabId === "new_requests") return newRequests.length;
+    if (subTabId === "new_interpreters") return pendingInterpreters.length;
+    if (subTabId === "all_requests") return requests.length;
+    if (subTabId === "jobs") return jobs.length;
+    if (subTabId === "applications") {
+      return jobApplications.filter(isApplicantManagementApplication).length;
+    }
+    if (subTabId === "assignments") {
+      return assignmentRows.length + pendingAssignmentRequests.length;
+    }
+    if (subTabId === "registered_interpreters") return interpreters.length;
+    if (subTabId === "verification_pending") return pendingResumeReviewInterpreters.length;
+    if (subTabId === "interpreter_activity") return interpreters.length;
+    if (subTabId === "all_businesses") return businesses.length;
+    if (subTabId === "settlement_pending") return settlementPendingRequests.length;
+    if (subTabId === "settlement_confirmed") return settlementConfirmedRequests.length;
+    if (subTabId === "settlement_completed") return settlementCompletedRequests.length;
+    if (subTabId === "settlement_on_hold") return settlementOnHoldRequests.length;
+    if (subTabId === "payment_history") return settlementCompletedRequests.length;
+    if (subTabId === "all_documents") return generatedDocuments.length;
+    if (subTabId === "estimate_documents") {
+      return generatedDocuments.filter((doc) => doc.document_type === "estimate").length;
+    }
+    if (subTabId === "completion_documents") {
+      return generatedDocuments.filter((doc) => doc.document_type === "completion").length;
+    }
+    if (subTabId === "payout_documents") {
+      return generatedDocuments.filter((doc) => doc.document_type === "payout").length;
+    }
+    if (subTabId === "admin_memos") return adminMemoItems.length;
+    if (subTabId === "notification_history") return notificationEvents.length;
+    if (subTabId === "admin_accounts") return adminUsers.length;
+    return null;
+  };
+
   const metricCards = [
-    {
-      label: "전체 의뢰",
-      value: `${dashboard.totalRequests}건`,
-      description: "누적 운영 건수",
-      tone: "purple",
-      icon: Briefcase,
-      targetTab: "requests",
-    },
-    {
-      label: "전체 통역사",
-      value: `${dashboard.totalInterpreters}명`,
-      description: "등록된 전체 통역사",
-      tone: "green",
-      icon: User,
-      targetTab: "interpreters",
-    },
-    {
-      label: "신규 통역사 지원",
-      value: `${dashboard.pendingInterpreters}명`,
-      description: "승인 검토 필요",
-      tone: "purple",
-      icon: Star,
-      targetTab: "interpreters",
-    },
     {
       label: "신규 의뢰",
       value: `${dashboard.newRequests}건`,
       description: "새 의뢰 확인 필요",
-      tone: "blue",
-      icon: Mail,
-      targetTab: "requests",
+      tone: "purple",
+      icon: Briefcase,
+      targetTab: "new_requests",
     },
     {
-      label: "미확인 지원",
+      label: "신규 통역사",
+      value: `${dashboard.pendingInterpreters}명`,
+      description: "검증 처리 필요",
+      tone: "green",
+      icon: User,
+      targetTab: "new_interpreters",
+    },
+    {
+      label: "모집중 공고",
+      value: `${dashboard.recruitingJobs}건`,
+      description: "공개 모집 상태",
+      tone: "blue",
+      icon: Star,
+      targetTab: "jobs",
+    },
+    {
+      label: "신규 지원",
       value: `${dashboard.uncheckedApplications}건`,
       description: "검토가 필요한 지원",
       tone: "orange",
-      icon: Eye,
+      icon: Mail,
       targetTab: "applications",
+    },
+    {
+      label: "배정 대기",
+      value: `${dashboard.pendingAssignments}건`,
+      description: "배정 확인 필요",
+      tone: "red",
+      icon: Eye,
+      targetTab: "assignments",
     },
     {
       label: "정산 대기",
@@ -797,16 +1154,16 @@ function Admin({ onBackClick }) {
       description: "정산 처리 필요",
       tone: "indigo",
       icon: CheckCircle2,
-      targetTab: "matching",
+      targetTab: "settlement_pending",
     },
   ];
 
   const switchToJobsTab = () => {
-    setActiveTab("jobs");
+    switchSubTab("jobs");
   };
 
   const handleMetricCardClick = (card) => {
-    if (card.label === "전체 의뢰") {
+    if (card.targetTab === "all_requests") {
       setRequestFilters((prev) => ({
         ...prev,
         search: "",
@@ -814,36 +1171,37 @@ function Admin({ onBackClick }) {
         status: "all",
         public: "all",
       }));
-      setActiveTab("requests");
-    } else if (card.label === "전체 통역사") {
+      switchSubTab("all_requests");
+    } else if (
+      ["registered_interpreters", "new_interpreters", "verification_pending"].includes(
+        card.targetTab
+      )
+    ) {
       setInterpreterFilters({
         search: "",
         level: "all",
         status: "all",
         activity: "all",
         approved: "all",
+        resumeReview: "all",
         duplicate: "all",
       });
-      setActiveTab("interpreters");
-    } else if (card.label === "신규 통역사 지원") {
-      setActiveTab("newApplications");
-    } else if (card.label === "신규 의뢰") {
-      setActiveTab("newRequests");
-    } else if (card.label === "미확인 지원") {
+      switchSubTab(card.targetTab);
+    } else if (card.targetTab === "applications") {
       setApplicationFilters({
         status: "unchecked",
         duplicate: "all",
       });
-      setActiveTab("newApplications");
-    } else if (card.label === "정산 대기") {
+      switchSubTab("applications");
+    } else if (card.targetTab === "settlement_pending") {
       setMatchingFilters((prev) => ({
         ...prev,
         month: "",
         status: "settlement_pending",
       }));
-      setActiveTab("matching");
+      switchSubTab("settlement_pending");
     } else {
-      setActiveTab(card.targetTab);
+      switchSubTab(card.targetTab);
     }
   };
 
@@ -856,6 +1214,7 @@ function Admin({ onBackClick }) {
 
   const createAdminUser = async () => {
     const email = adminAccountDraft.email.trim().toLowerCase();
+    const authUserId = adminAccountDraft.auth_user_id.trim();
     const currentEmail = user?.email?.trim().toLowerCase() || "";
     const currentAdminRole =
       currentEmail === "onlinkwith@gmail.com" ? "owner" : adminProfile?.role || "staff";
@@ -867,6 +1226,11 @@ function Admin({ onBackClick }) {
 
     if (!email || !email.includes("@")) {
       alert("관리자 이메일을 입력해주세요.");
+      return;
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authUserId)) {
+      alert("Supabase Auth user id(UUID)를 입력해주세요.");
       return;
     }
 
@@ -883,6 +1247,7 @@ function Admin({ onBackClick }) {
       .upsert(
         {
           email,
+          auth_user_id: authUserId,
           role: adminAccountDraft.role,
           status: "active",
           updated_at: new Date().toISOString(),
@@ -897,7 +1262,7 @@ function Admin({ onBackClick }) {
       return;
     }
 
-    setAdminAccountDraft({ email: "", role: "staff" });
+    setAdminAccountDraft({ email: "", auth_user_id: "", role: "staff" });
     await fetchAdminUsers();
     alert(`${email} 을(를) 관리자로 저장했습니다.\n해당 이메일로 직접 회원가입 후 로그인하면 관리자 권한이 적용됩니다.`);
   };
@@ -963,6 +1328,150 @@ function Admin({ onBackClick }) {
     }
 
     window.location.href = "/login";
+  };
+
+  const getAdminNoteDraftKey = (targetType, targetId) =>
+    `${targetType}:${String(targetId || "")}`;
+
+  const updateAdminNoteDraft = (targetType, targetId, value) => {
+    const key = getAdminNoteDraftKey(targetType, targetId);
+    setAdminNoteDrafts((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const createAdminNote = async (targetType, targetId) => {
+    const key = getAdminNoteDraftKey(targetType, targetId);
+    const note = String(adminNoteDrafts[key] || "").trim();
+
+    if (!note) {
+      alert("내부 메모를 입력해주세요.");
+      return false;
+    }
+
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return false;
+    }
+
+    setSavingKey(`admin-note-${key}`);
+    const { data, error } = await supabase
+      .from("admin_notes")
+      .insert([
+        {
+          target_type: targetType,
+          target_id: String(targetId),
+          note,
+          created_by: user?.id || null,
+        },
+      ])
+      .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+      .single();
+
+    if (error) {
+      setSavingKey("");
+      console.error("admin note create failed:", error);
+      alert(`내부 메모 저장 실패: ${error.message}`);
+      return false;
+    }
+
+    const activityPayload = {
+      target_type: targetType,
+      target_id: String(targetId),
+      action_type: "memo_created",
+      before_value: null,
+      after_value: { note },
+      actor_user_id: user?.id || null,
+    };
+    const notificationPayload = {
+      event_type: "memo_created",
+      target_type: targetType,
+      target_id: String(targetId),
+      recipient_type: "admin",
+      payload: { note },
+      status: "pending",
+    };
+
+    const [activityResult, notificationResult] = await Promise.all([
+      supabase.from("admin_activity_logs").insert([activityPayload]).select("*").single(),
+      supabase.from("notification_events").insert([notificationPayload]).select("*").single(),
+    ]);
+
+    if (activityResult.error) {
+      console.warn("admin note activity log skipped:", activityResult.error);
+    } else if (activityResult.data) {
+      setAdminActivityLogs((current) => [activityResult.data, ...current]);
+    }
+
+    if (notificationResult.error) {
+      console.warn("admin note notification event skipped:", notificationResult.error);
+    } else if (notificationResult.data) {
+      setNotificationEvents((current) => uniqueById([notificationResult.data, ...current]));
+    }
+
+    setAdminNotes((current) => (data ? uniqueById([data, ...current]) : current));
+    setAdminNoteDrafts((current) => ({ ...current, [key]: "" }));
+    setSavingKey("");
+    return true;
+  };
+
+  const refreshAdminOperationsData = async () => {
+    if (!supabase) return;
+
+    const [notesResult, logsResult, notificationsResult] = await Promise.all([
+      supabase
+        .from("admin_notes")
+        .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+        .order("created_at", { ascending: false })
+        .limit(300),
+      supabase
+        .from("admin_activity_logs")
+        .select("id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(300),
+      supabase
+        .from("notification_events")
+        .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
+        .order("created_at", { ascending: false })
+        .limit(300),
+    ]);
+
+    if (!notesResult.error) setAdminNotes(uniqueById(notesResult.data || []));
+    if (!logsResult.error) setAdminActivityLogs(logsResult.data || []);
+    if (!notificationsResult.error) setNotificationEvents(uniqueById(notificationsResult.data || []));
+  };
+
+  const processNotificationEvents = async ({ eventIds = [], retryFailed = false } = {}) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return false;
+    }
+
+    setNotificationProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-email", {
+        body: {
+          action: "process_notification_events",
+          eventIds,
+          retryFailed,
+          limit: eventIds.length > 0 ? eventIds.length : 20,
+        },
+      });
+
+      if (error) throw error;
+      await refreshAdminOperationsData();
+      alert(
+        `알림 처리 완료: 발송 ${data?.sentCount || 0}건, 실패 ${data?.failedCount || 0}건, 건너뜀 ${data?.skippedCount || 0}건`
+      );
+      return true;
+    } catch (error) {
+      console.error("notification processing failed:", error);
+      alert(`알림 처리 실패: ${error.message || "알 수 없는 오류"}`);
+      return false;
+    } finally {
+      setNotificationProcessing(false);
+    }
   };
 
   const updateInterpreter = async (id, changes, options = {}) => {
@@ -1039,6 +1548,12 @@ function Admin({ onBackClick }) {
       interpreter &&
       interpreter.status !== "active";
     const nextInterpreter = data[0] || { ...interpreter, ...updatePayload };
+    const shouldSendResumeVerifiedEmail =
+      interpreter &&
+      isInterpreterResumeVerificationComplete(nextInterpreter) &&
+      !isInterpreterResumeVerificationComplete(interpreter) &&
+      !getResumeVerifiedEmailSentAt(interpreter) &&
+      !getResumeVerifiedEmailSentAt(nextInterpreter);
 
     setInterpreters((current) =>
       current.map((item) => (item.id === id ? { ...item, ...nextInterpreter } : item))
@@ -1058,10 +1573,62 @@ function Admin({ onBackClick }) {
       });
     }
 
+    let resumeVerifiedFeedback = "";
+    if (shouldSendResumeVerifiedEmail) {
+      const recipientEmail = getInterpreterVerificationEmail(nextInterpreter);
+
+      if (!recipientEmail) {
+        resumeVerifiedFeedback =
+          "검증 완료 처리됨. 등록 이메일이 없어 안내 메일은 발송되지 않았습니다.";
+      } else {
+        const emailResult = await sendAutoEmail("resume_verified", recipientEmail, {
+          requestId: nextInterpreter.id,
+          interpreterId: nextInterpreter.id,
+          name: nextInterpreter.name,
+          email: recipientEmail,
+          dedupeKey: `resume_verified:${nextInterpreter.id}`,
+        });
+
+        if (emailResult.ok) {
+          const sentAt = new Date().toISOString();
+          const timestampResult = await updateInterpreterResumeVerifiedEmailSentAt(
+            nextInterpreter.id,
+            sentAt
+          );
+
+          if (!timestampResult.error) {
+            nextInterpreter.resume_verified_email_sent_at = sentAt;
+            setInterpreters((current) =>
+              current.map((item) =>
+                item.id === id
+                  ? { ...item, resume_verified_email_sent_at: sentAt }
+                  : item
+              )
+            );
+            setSelectedInterpreter((current) =>
+              current?.id === id
+                ? { ...current, resume_verified_email_sent_at: sentAt }
+                : current
+            );
+          } else {
+            console.error("검증 완료 이메일 발송 시각 저장 실패:", timestampResult.error);
+          }
+
+          resumeVerifiedFeedback =
+            "이력서 검증 완료 처리 및 안내 이메일 발송이 완료되었습니다.";
+        } else {
+          console.error("이력서 검증 완료 안내 이메일 발송 실패:", emailResult.error || emailResult);
+          resumeVerifiedFeedback =
+            "검증 완료 처리는 완료되었지만 안내 이메일 발송에 실패했습니다.";
+        }
+      }
+    }
+
     await fetchAdminData();
+    await refreshAdminOperationsData();
 
     if (options.showSuccess) {
-      alert("수정 완료");
+      alert(resumeVerifiedFeedback || "수정 완료");
     }
 
     return true;
@@ -1108,8 +1675,18 @@ function Admin({ onBackClick }) {
   };
 
   const openRequestModal = (type, request) => {
-    setActiveRequestModal({ type, requestId: request.id, request });
-    setSelectedRequest(type === "detail" ? request : null);
+    const touched = settlementTouchedByRequest[request.id] || {};
+    const requestWithDefaults =
+      type === "detail" ? applySettlementDefaults(request, touched) : request;
+    if (type === "detail" && requestWithDefaults !== request) {
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, ...requestWithDefaults } : item
+        )
+      );
+    }
+    setActiveRequestModal({ type, requestId: request.id, request: requestWithDefaults });
+    setSelectedRequest(type === "detail" ? requestWithDefaults : null);
     const requestJob = request.job_id
       ? jobsById.get(String(request.job_id)) || jobsById.get(request.job_id) || null
       : null;
@@ -1118,6 +1695,177 @@ function Admin({ onBackClick }) {
         ? { ...EMPTY_REQUEST_EDIT_DRAFT, ...createRequestEditDraft(request, requestJob) }
         : null
     );
+  };
+
+  const openDocumentPreview = (documentType, request) => {
+    const requestAssignments = assignmentsByRequest.get(request.id) || [];
+    if (documentType === "estimate") {
+      setDocumentDraft(buildEstimateDraft(request));
+      return;
+    }
+    if (documentType === "completion") {
+      setDocumentDraft(buildCompletionDraft(request, requestAssignments));
+      return;
+    }
+    setDocumentDraft(buildPaymentDraft(request, requestAssignments));
+  };
+
+  const updateDocumentDraft = (field, value) => {
+    setDocumentDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, [field]: value };
+      if (current.documentType === "estimate") return recalculateEstimateDraft(next);
+      if (current.documentType === "payout") return recalculatePaymentDraft(next);
+      return next;
+    });
+  };
+
+  const confirmDocumentGeneration = async () => {
+    if (!documentDraft || !supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const documentType = documentDraft.documentType;
+    const request = documentDraft.request || {};
+    setSavingKey(`document-${documentType}-${request.id || "new"}`);
+
+    try {
+      const { document, blob, fileName } = await createOnliDocument({
+        supabase,
+        draft: documentDraft,
+        userId: user?.id,
+      });
+
+      setGeneratedDocuments((current) => uniqueById([document, ...current]));
+      await downloadBlob(blob, fileName);
+
+      if (documentType === "estimate" && request.id) {
+        await updateRequest(request.id, { estimate_status: "estimate_required" });
+      }
+
+      setDocumentDraft(null);
+      alert(`${getDocumentTypeLabel(documentType)}가 생성되었습니다.`);
+    } catch (error) {
+      console.error("document generation failed:", error);
+      alert(`문서 생성 실패: ${error.message || "원인을 확인해주세요."}`);
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const createDocumentVersionFromExisting = async (document, draft) => {
+    if (!supabase || !document?.id) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const versions = generatedDocuments
+      .filter((item) => item.document_no === document.document_no)
+      .map((item) => Number(item.version || 1));
+    const nextVersion = Math.max(Number(document.version || 1), ...versions) + 1;
+    const amount = normalizeMoneyInput(draft.amount);
+    const metadata = {
+      ...(document.metadata || {}),
+      revision_note: draft.revisionNote || "",
+      admin_note: draft.adminNote || "",
+    };
+    const storagePath = [
+      document.document_type || "document",
+      document.request_id || document.interpreter_id || "no-reference",
+      `${document.document_no}-v${nextVersion}.pdf`,
+    ].join("/");
+
+    setSavingKey(`document-version-${document.id}`);
+    try {
+      const pdfBlob = await createAdminDocumentPdfBlob({
+        title: getDocumentTypeLabel(document.document_type),
+        rows: [
+          ["문서번호", document.document_no],
+          ["버전", `v${nextVersion}`],
+          ["관련 의뢰", metadata.eventName || metadata.event_name || document.title || "-"],
+          ["기업명", metadata.companyName || metadata.company_name || "-"],
+          ["통역사명", metadata.interpreterName || metadata.interpreter_name || "-"],
+          ["금액", formatDocumentAmount(amount)],
+          ["수정 메모", metadata.revision_note || "-"],
+          ["관리자 메모", metadata.admin_note || "-"],
+        ],
+      });
+
+      const { error: uploadError } = await supabase.storage
+        .from(document.storage_bucket || "onli-documents")
+        .upload(storagePath, pdfBlob, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+
+      const payload = {
+        document_type: document.document_type,
+        document_no: document.document_no,
+        status: "issued",
+        version: nextVersion,
+        request_id: document.request_id || null,
+        company_id: document.company_id || null,
+        company_auth_user_id: document.company_auth_user_id || null,
+        interpreter_id: document.interpreter_id || null,
+        interpreter_auth_user_id: document.interpreter_auth_user_id || null,
+        settlement_id: document.settlement_id || null,
+        title: document.title || getDocumentTypeLabel(document.document_type),
+        amount,
+        storage_bucket: document.storage_bucket || "onli-documents",
+        file_path: storagePath,
+        metadata,
+        created_by: user?.id || null,
+      };
+
+      const { data, error } = await supabase
+        .from("documents")
+        .insert([payload])
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      setGeneratedDocuments((current) => uniqueById([data, ...current]));
+      alert("새 버전이 생성되었습니다.");
+    } catch (error) {
+      console.error("document version create failed:", error);
+      alert(`새 버전 생성 실패: ${error.message || "원인을 확인해주세요."}`);
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const voidGeneratedDocument = async (document) => {
+    if (!supabase || !document?.id) return;
+    if (!window.confirm("이 문서를 폐기 처리하시겠습니까? 파일과 버전 기록은 유지됩니다.")) {
+      return;
+    }
+
+    setSavingKey(`document-void-${document.id}`);
+    try {
+      const { data, error } = await supabase
+        .from("documents")
+        .update({
+          status: "voided",
+          voided_at: new Date().toISOString(),
+          voided_by: user?.id || null,
+        })
+        .eq("id", document.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      setGeneratedDocuments((current) =>
+        current.map((item) => (item.id === data.id ? { ...item, ...data } : item))
+      );
+      alert("폐기 처리되었습니다.");
+    } catch (error) {
+      console.error("document void failed:", error);
+      alert(`폐기 처리 실패: ${error.message || "원인을 확인해주세요."}`);
+    } finally {
+      setSavingKey("");
+    }
   };
 
   const updateRequestEditDraft = (name, value) => {
@@ -1150,6 +1898,9 @@ function Admin({ onBackClick }) {
     const nextInterpreterPrice = getInterpreterPayment({ ...request, ...changes });
     const payload = {
       ...changes,
+      ...(Object.prototype.hasOwnProperty.call(changes, "request_type")
+        ? { request_type: normalizeRequestType(changes.request_type) }
+        : {}),
       company_amount: nextClientPrice,
       interpreter_payment: nextInterpreterPrice,
       platform_profit: nextClientPrice - nextInterpreterPrice,
@@ -1180,6 +1931,13 @@ function Admin({ onBackClick }) {
       delete legacyPayload.assignment_status;
       delete legacyPayload.operation_status;
       delete legacyPayload.settlement_status;
+      delete legacyPayload.request_type;
+      delete legacyPayload.estimate_status;
+      delete legacyPayload.company_internal_memo;
+      delete legacyPayload.event_start_time;
+      delete legacyPayload.event_end_time;
+      delete legacyPayload.language_direction;
+      delete legacyPayload.materials_available;
 
       const fallbackResult = await supabase
         .from("requests")
@@ -1235,447 +1993,6 @@ function Admin({ onBackClick }) {
     }
   };
 
-  const loadRequestDocuments = useCallback(async (requestId) => {
-    if (!requestId || !supabase) return;
-
-    try {
-      const latestDocuments = await getLatestDocumentsByRequest(requestId, supabase);
-      setDocumentsByRequest((current) => ({
-        ...current,
-        [requestId]: latestDocuments,
-      }));
-    } catch (error) {
-      console.error("documents fetch error:", error);
-      alert(error.message || "문서 목록 조회에 실패했습니다.");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeRequestModal?.type === "detail" && activeRequest?.id) {
-      queueMicrotask(() => loadRequestDocuments(activeRequest.id));
-    }
-  }, [activeRequest?.id, activeRequestModal?.type, loadRequestDocuments]);
-
-  const loadAdminDocuments = useCallback(async () => {
-    if (!supabase) return;
-
-    try {
-      const documents = await getAllDocuments(supabase);
-      setAdminDocuments(documents);
-    } catch (error) {
-      console.error("admin documents fetch error:", error);
-      alert(error.message || "문서 목록 조회에 실패했습니다.");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "documents") {
-      queueMicrotask(loadAdminDocuments);
-    }
-  }, [activeTab, loadAdminDocuments]);
-
-  const openAdminDocumentDetail = async (document) => {
-    setSelectedAdminDocument(document);
-    setAdminDocumentDraft(null);
-    try {
-      const versions = await getDocumentVersions(document.document_no, supabase);
-      setDocumentVersions(versions);
-    } catch (error) {
-      console.error("document versions fetch error:", error);
-      setDocumentVersions([document]);
-      alert(error.message || "버전 기록 조회에 실패했습니다.");
-    }
-  };
-
-  const closeAdminDocumentDetail = () => {
-    setSelectedAdminDocument(null);
-    setAdminDocumentDraft(null);
-    setDocumentVersions([]);
-  };
-
-  const startAdminDocumentNewVersion = () => {
-    if (!selectedAdminDocument) return;
-    setAdminDocumentDraft(createAdminDocumentDraft(selectedAdminDocument));
-  };
-
-  const updateAdminDocumentDraft = (name, value) => {
-    setAdminDocumentDraft((current) => ({
-      ...(current || {}),
-      [name]: value,
-    }));
-  };
-
-  const createAdminDocumentVersion = async () => {
-    if (!selectedAdminDocument || !adminDocumentDraft || !supabase) return;
-
-    const nextVersion =
-      Math.max(
-        selectedAdminDocument.version || 1,
-        ...documentVersions.map((document) => Number(document.version || 1))
-      ) + 1;
-
-    setSavingKey(`admin-document-version-${selectedAdminDocument.id}`);
-    try {
-      const nextMetadata = {
-        ...(selectedAdminDocument.metadata || {}),
-        admin_note: adminDocumentDraft.admin_note || "",
-        revision_note: adminDocumentDraft.revision_note || "",
-      };
-      const nextAmount = normalizeMoneyInput(adminDocumentDraft.amount);
-      const ownerId =
-        selectedAdminDocument.document_type === "payout"
-          ? selectedAdminDocument.interpreter_id
-          : selectedAdminDocument.company_id ||
-            nextMetadata.company_id ||
-            selectedAdminDocument.request_id ||
-            "unassigned";
-      const filePath = getDocumentStoragePath(
-        selectedAdminDocument.document_type,
-        ownerId,
-        selectedAdminDocument.document_no,
-        nextVersion
-      );
-      const pdfBlob = await createSimplePdfBlob(
-        buildAdminDocumentVersionPdfPayload({
-          document: selectedAdminDocument,
-          metadata: nextMetadata,
-          amount: nextAmount,
-          version: nextVersion,
-        })
-      );
-
-      await uploadDocumentPdf(pdfBlob, filePath, supabase);
-      const record = await createDocumentRecord(
-        {
-          ...copyDocumentForNewVersion(selectedAdminDocument),
-          version: nextVersion,
-          file_path: filePath,
-          amount: nextAmount,
-          metadata: nextMetadata,
-          created_by: user?.id || null,
-          status: "issued",
-        },
-        supabase
-      );
-
-      const versions = await getDocumentVersions(record.document_no, supabase);
-      setDocumentVersions(versions);
-      setSelectedAdminDocument(record);
-      setAdminDocuments((current) => upsertById(current, record));
-      setAdminDocumentDraft(null);
-      alert("새 버전이 생성되었습니다.");
-    } catch (error) {
-      console.error("document version create error:", error);
-      alert(error.message || "새 버전 생성에 실패했습니다.");
-    } finally {
-      setSavingKey("");
-    }
-  };
-
-  const voidAdminDocument = async (document) => {
-    if (!document?.id) return;
-    if (!window.confirm("이 문서를 폐기 처리하시겠습니까? 파일과 버전 기록은 유지됩니다.")) {
-      return;
-    }
-
-    setSavingKey(`admin-document-void-${document.id}`);
-    try {
-      const updated = await voidDocument(document.id, user?.id || null, supabase);
-      setAdminDocuments((current) =>
-        current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
-      );
-      setSelectedAdminDocument((current) =>
-        current?.id === updated.id ? { ...current, ...updated } : current
-      );
-      setDocumentVersions((current) =>
-        current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
-      );
-      alert("폐기 처리되었습니다.");
-    } catch (error) {
-      console.error("document void error:", error);
-      alert(error.message || "폐기 처리에 실패했습니다.");
-    } finally {
-      setSavingKey("");
-    }
-  };
-
-  const openDocumentModal = (documentType, request, assignedInterpreters = "") => {
-    if (documentType === "completion" && !isCompletedRequest(request)) {
-      alert("업무 완료 후 생성 가능합니다.");
-      return;
-    }
-
-    setDocumentModal({ documentType, requestId: request.id });
-    setDocumentDraft(createDocumentDraft(documentType, request, assignedInterpreters));
-  };
-
-  const closeDocumentModal = () => {
-    setDocumentModal(null);
-    setDocumentDraft(null);
-  };
-
-  const updateDocumentDraft = (name, value) => {
-    setDocumentDraft((current) => ({
-      ...(current || {}),
-      [name]: value,
-    }));
-  };
-
-  const openDocumentPdf = async (document) => {
-    if (!document?.file_path) {
-      alert("PDF 파일이 아직 저장되지 않았습니다.");
-      return;
-    }
-
-    try {
-      const signedUrl = await getSignedDocumentUrl(document.file_path, supabase);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      console.error("document signed url error:", error);
-      alert(error.message || "PDF 보기 링크 생성에 실패했습니다.");
-    }
-  };
-
-  const createRequestDocument = async () => {
-    if (!supabase) {
-      alert(supabaseConfigError.message);
-      return;
-    }
-    if (!activeRequest || !documentModal || !documentDraft) {
-      alert("문서 생성에 필요한 의뢰 정보를 확인할 수 없습니다.");
-      return;
-    }
-
-    const documentType = documentModal.documentType;
-    const latestDocument = activeRequestDocuments[documentType];
-    const version = Number(latestDocument?.version || 0) + 1;
-    const amount = documentType === "estimate" ? calculateEstimateAmount(documentDraft) : null;
-
-    setSavingKey(`document-${documentType}-${activeRequest.id}`);
-    try {
-      const documentNo = await getNextDocumentNo(documentType, supabase);
-      const ownerId =
-        documentType === "payout"
-          ? documentDraft.interpreter_id
-          : activeRequest.company_id || activeRequest.company_email || activeRequest.id;
-      const filePath = getDocumentStoragePath(documentType, ownerId, documentNo, version);
-      const pdfBlob = await createSimplePdfBlob(
-        buildRequestDocumentPdfPayload({
-          documentNo,
-          documentType,
-          draft: documentDraft,
-          request: activeRequest,
-          version,
-        })
-      );
-
-      await uploadDocumentPdf(pdfBlob, filePath, supabase);
-      const record = await createDocumentRecord(
-        {
-          document_type: documentType,
-          document_no: documentNo,
-          request_id: activeRequest.id,
-          company_id: activeRequest.company_id || null,
-          interpreter_id: documentDraft.interpreter_id || null,
-          status: "issued",
-          version,
-          title: `${DOCUMENT_TYPE_LABELS[documentType]} ${documentNo}`,
-          file_path: filePath,
-          amount,
-          metadata: buildDocumentMetadata(documentType, documentDraft, activeRequest),
-          created_by: user?.id || null,
-        },
-        supabase
-      );
-
-      if (documentType === "estimate") {
-        await updateRequestEstimateStatus(activeRequest.id, "estimate_issued", amount);
-      }
-
-      setDocumentsByRequest((current) => ({
-        ...current,
-        [activeRequest.id]: {
-          ...(current[activeRequest.id] || {}),
-          [documentType]: record,
-        },
-      }));
-      alert(`${DOCUMENT_TYPE_LABELS[documentType]}가 생성되었습니다.`);
-      closeDocumentModal();
-    } catch (error) {
-      console.error("document create error:", error);
-      alert(error.message || "문서 생성에 실패했습니다.");
-    } finally {
-      setSavingKey("");
-    }
-  };
-
-  const updateRequestEstimateStatus = async (requestId, estimateStatus, amount) => {
-    const payload = {
-      estimate_status: estimateStatus,
-      estimate_amount: amount,
-      updated_at: new Date().toISOString(),
-    };
-    const { data, error } = await supabase
-      .from("requests")
-      .update(payload)
-      .eq("id", requestId)
-      .select("*")
-      .single();
-
-    if (error && isMissingColumnError(error)) {
-      console.warn("estimate_status columns are not available yet:", error.message);
-      return;
-    }
-    if (error) throw new Error(`견적 상태 업데이트에 실패했습니다. ${error.message}`);
-
-    setRequests((current) =>
-      current.map((item) => (item.id === requestId ? { ...item, ...(data || payload) } : item))
-    );
-    setSelectedRequest((current) =>
-      current?.id === requestId ? { ...current, ...(data || payload) } : current
-    );
-  };
-
-  const getPayoutKey = (requestId, interpreterId) => `${requestId}-${interpreterId}`;
-
-  const loadPayoutDocument = useCallback(async (requestId, interpreterId) => {
-    if (!requestId || !interpreterId || !supabase) return null;
-
-    try {
-      const document = await getLatestDocumentByRequestAndInterpreter(
-        requestId,
-        String(interpreterId),
-        "payout",
-        supabase
-      );
-      setPayoutDocumentsByKey((current) => ({
-        ...current,
-        [getPayoutKey(requestId, interpreterId)]: document,
-      }));
-      return document;
-    } catch (error) {
-      console.error("payout document fetch error:", error);
-      return null;
-    }
-  }, []);
-
-  const openPayoutModal = async (request, assignment, interpreter, latestDocument = null) => {
-    if (!isCompletedRequest(request)) {
-      alert("업무 완료 후 정산 내역서를 생성할 수 있습니다.");
-      return;
-    }
-    if (!assignment?.interpreter_id) {
-      alert("배정된 통역사가 있는 건만 생성할 수 있습니다.");
-      return;
-    }
-
-    const currentDocument =
-      latestDocument ||
-      payoutDocumentsByKey[getPayoutKey(request.id, assignment.interpreter_id)] ||
-      (await loadPayoutDocument(request.id, assignment.interpreter_id));
-    setPayoutModal({
-      requestId: request.id,
-      interpreterId: assignment.interpreter_id,
-      request,
-      assignment,
-      interpreter,
-      latestDocument: currentDocument,
-    });
-    setPayoutDraft(createPayoutDraft(request, assignment, interpreter));
-  };
-
-  const closePayoutModal = () => {
-    setPayoutModal(null);
-    setPayoutDraft(null);
-  };
-
-  const updatePayoutDraft = (name, value) => {
-    setPayoutDraft((current) => ({
-      ...(current || {}),
-      [name]: value,
-    }));
-  };
-
-  const openPayoutPdf = async (document) => {
-    if (!document?.file_path) {
-      alert("정산서 PDF 파일이 아직 저장되지 않았습니다.");
-      return;
-    }
-
-    try {
-      const signedUrl = await getSignedDocumentUrl(document.file_path, supabase);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      console.error("payout signed url error:", error);
-      alert(error.message || "정산서 PDF 보기 링크 생성에 실패했습니다.");
-    }
-  };
-
-  const createPayoutDocument = async () => {
-    if (!supabase) {
-      alert(supabaseConfigError.message);
-      return;
-    }
-    if (!payoutModal || !payoutDraft) {
-      alert("정산서 생성에 필요한 정보를 확인할 수 없습니다.");
-      return;
-    }
-
-    const { request, interpreterId, latestDocument } = payoutModal;
-    const normalizedInterpreterId = String(interpreterId);
-    const version = Number(latestDocument?.version || 0) + 1;
-    const amount = calculatePayoutAmount(payoutDraft);
-
-    setSavingKey(`payout-document-${request.id}-${interpreterId}`);
-    try {
-      const documentNo = latestDocument?.document_no || (await getNextDocumentNo("payout", supabase));
-      const filePath =
-        version === 1
-          ? `payouts/${normalizedInterpreterId}/${documentNo}.pdf`
-          : `payouts/${normalizedInterpreterId}/${documentNo}-v${version}.pdf`;
-      const pdfBlob = await createSimplePdfBlob(
-        buildPayoutPdfPayload({
-          documentNo,
-          draft: payoutDraft,
-          request,
-          version,
-        })
-      );
-
-      await uploadDocumentPdf(pdfBlob, filePath, supabase);
-      const record = await createDocumentRecord(
-        {
-          document_type: "payout",
-          document_no: documentNo,
-          request_id: request.id,
-          company_id: request.company_id || null,
-          interpreter_id: normalizedInterpreterId,
-          settlement_id: request.id,
-          status: "issued",
-          version,
-          title: `정산서 ${documentNo}`,
-          file_path: filePath,
-          amount,
-          metadata: buildPayoutMetadata(payoutDraft, request),
-          created_by: user?.id || null,
-        },
-        supabase
-      );
-
-      setPayoutDocumentsByKey((current) => ({
-        ...current,
-        [getPayoutKey(request.id, normalizedInterpreterId)]: record,
-      }));
-      alert("정산 내역서가 생성되었습니다.");
-      closePayoutModal();
-    } catch (error) {
-      console.error("payout document create error:", error);
-      alert(error.message || "정산 내역서 생성에 실패했습니다.");
-    } finally {
-      setSavingKey("");
-    }
-  };
-
   const confirmNewRequest = async (request) => {
     if (!request?.id) {
       alert("의뢰 정보를 확인할 수 없습니다.");
@@ -1691,12 +2008,10 @@ function Admin({ onBackClick }) {
     const checkedPayload = {
       admin_checked: true,
       checked_at: checkedAt,
-      updated_at: checkedAt,
     };
     const fallbackPayload = {
       status: MATCHING_STATUS.ASSIGNED,
       assignment_status: ASSIGNMENT_STATUS.WAITING,
-      updated_at: checkedAt,
     };
 
     setSavingKey(`new-request-${request.id}`);
@@ -1708,7 +2023,14 @@ function Admin({ onBackClick }) {
       .single();
 
     if (error && isMissingColumnError(error)) {
-      ({ data, error } = await updateRequestWithFallback(request.id, fallbackPayload));
+      const fallbackResult = await supabase
+        .from("requests")
+        .update(fallbackPayload)
+        .eq("id", request.id)
+        .select("*")
+        .single();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
     }
 
     setSavingKey("");
@@ -1722,11 +2044,13 @@ function Admin({ onBackClick }) {
     setRequests((current) =>
       current.map((item) =>
         item.id === request.id
-          ? { ...item, ...(data || checkedPayload) }
+          ? { ...item, ...checkedPayload, ...(data || {}) }
           : item
       )
     );
+    alert("확인 처리되었습니다. 의뢰 관리에서 확인할 수 있습니다.");
     await fetchAdminData();
+    await refreshAdminOperationsData();
     return true;
   };
 
@@ -1748,6 +2072,15 @@ function Admin({ onBackClick }) {
     const currentFlow = getRequestFlowSource(request, linkedJob);
     const nextFlow = { ...currentFlow, ...changes };
     const requestChanges = getRequestStatusPayloadFromFlow(nextFlow);
+    const shouldPrepareSettlement =
+      normalizeOperationStatus(requestChanges) === OPERATION_STATUS.COMPLETED &&
+      normalizeSettlementFlowStatus(requestChanges) === SETTLEMENT_FLOW_STATUS.PENDING;
+    if (shouldPrepareSettlement) {
+      Object.assign(
+        requestChanges,
+        getSettlementSavePayload({ ...request, ...requestChanges })
+      );
+    }
     const jobChanges = getJobStatusPayloadFromFlow(nextFlow);
 
     setSavingKey(`request-${request.id}`);
@@ -1789,6 +2122,7 @@ function Admin({ onBackClick }) {
           ? { ...current, ...requestChanges, ...(updatedRequest || {}) }
           : current
       );
+      await refreshAdminOperationsData();
     } catch (error) {
       console.error("operation flow status update error:", error);
       alert("운영 단계 상태 변경에 실패했습니다.");
@@ -1902,7 +2236,7 @@ function Admin({ onBackClick }) {
       event_name: draft.event_name,
       company_name: draft.company_name,
       request_no: draft.request_no,
-      request_type: draft.request_type,
+      request_type: normalizeRequestType(draft.request_type),
       start_date: draft.start_date,
       end_date: draft.end_date,
       event_date: draft.start_date,
@@ -1918,6 +2252,8 @@ function Admin({ onBackClick }) {
       settlement_status: normalizeSettlementFlowStatus(draft),
       contact_status: draft.contact_status,
       payment_status: draft.payment_status,
+      estimate_status: draft.estimate_status,
+      company_internal_memo: draft.company_internal_memo,
       is_public: draft.is_public === "true",
       is_job_public: draft.is_public === "true",
       client_price: clientPrice,
@@ -1993,6 +2329,7 @@ function Admin({ onBackClick }) {
           : current
       );
       await fetchAdminData();
+      await refreshAdminOperationsData();
       closeRequestModal();
       alert("공고 정보가 저장되었습니다.");
     } catch (error) {
@@ -2116,7 +2453,17 @@ function Admin({ onBackClick }) {
     return { data: fallbackData, error: fallbackError };
   };
 
-  const handlePriceDraft = (requestId, field, value) => {
+  const handlePriceDraft = (requestId, field, value, options = {}) => {
+    if (!options.auto) {
+      setSettlementTouchedByRequest((current) => ({
+        ...current,
+        [requestId]: {
+          ...(current[requestId] || {}),
+          [field]: true,
+        },
+      }));
+    }
+
     const updatePrice = (request) => {
       const numericValue = normalizeMoneyInput(value);
       const mirrorField =
@@ -2146,19 +2493,7 @@ function Admin({ onBackClick }) {
       return;
     }
 
-    const companyAmount = getCompanyAmount(request);
-    const interpreterPayment = getInterpreterPayment(request);
-    const platformProfit = companyAmount - interpreterPayment;
-    const payload = {
-      company_amount: companyAmount,
-      interpreter_payment: interpreterPayment,
-      platform_profit: platformProfit,
-      client_price: companyAmount,
-      interpreter_price: interpreterPayment,
-      profit: platformProfit,
-      payment_status: request.payment_status || "unpaid",
-      settlement_status: normalizeSettlementFlowStatus(request),
-    };
+    const payload = getSettlementSavePayload(request);
 
     setSavingKey(`request-${request.id}`);
     const { data, error } = await updateRequestSettlementRow(request.id, payload);
@@ -2195,8 +2530,12 @@ function Admin({ onBackClick }) {
     if (!window.confirm("정산완료로 변경하시겠습니까?")) return;
 
     const payload = {
-      settlement_status: "정산완료",
-      updated_at: new Date().toISOString(),
+      ...getSettlementSavePayload({
+        ...request,
+        settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
+      }),
+      settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
+      settlement_completed_at: new Date().toISOString(),
     };
 
     setSavingKey(`settlement-pending-${request.id}`);
@@ -2208,7 +2547,7 @@ function Admin({ onBackClick }) {
     if (error && isMissingColumnError(error)) {
       ({ error } = await supabase
         .from("requests")
-        .update({ settlement_status: payload.settlement_status })
+        .update(payload)
         .eq("id", request.id));
     }
 
@@ -2220,6 +2559,7 @@ function Admin({ onBackClick }) {
     }
 
     await fetchAdminData();
+    await refreshAdminOperationsData();
   };
 
   const openRequestDetailFromSettlementPending = (request) => {
@@ -2876,6 +3216,7 @@ function Admin({ onBackClick }) {
       }
 
       await fetchAdminData();
+      await refreshAdminOperationsData();
       return true;
     } finally {
       setSavingKey("");
@@ -2893,9 +3234,19 @@ function Admin({ onBackClick }) {
       return false;
     }
 
+    const requestedStatus = changes.settlement_status
+      ? normalizeSettlementFlowStatus(changes)
+      : normalizeSettlementFlowStatus(request);
     const payload = {
+      ...getSettlementSavePayload({ ...request, ...changes, settlement_status: requestedStatus }),
       ...changes,
-      updated_at: new Date().toISOString(),
+      settlement_status: requestedStatus,
+      ...(requestedStatus === SETTLEMENT_FLOW_STATUS.CONFIRMED
+        ? { settlement_confirmed_at: request.settlement_confirmed_at || new Date().toISOString() }
+        : {}),
+      ...(requestedStatus === SETTLEMENT_FLOW_STATUS.COMPLETED
+        ? { settlement_completed_at: request.settlement_completed_at || new Date().toISOString() }
+        : {}),
     };
 
     setSavingKey(`settlement-request-${request.id}`);
@@ -2906,9 +3257,16 @@ function Admin({ onBackClick }) {
       .select("*");
 
     if (error && isMissingColumnError(error)) {
+      const legacyChanges = {
+        client_price: payload.company_amount,
+        interpreter_price: payload.interpreter_payment,
+        profit: payload.platform_profit,
+        payment_status: payload.payment_status,
+        settlement_status: payload.settlement_status,
+      };
       ({ data, error } = await supabase
         .from("requests")
-        .update(changes)
+        .update(legacyChanges)
         .eq("id", request.id)
         .select("*"));
     }
@@ -2926,6 +3284,7 @@ function Admin({ onBackClick }) {
     }
 
     await fetchAdminData();
+    await refreshAdminOperationsData();
     return true;
   };
 
@@ -3072,11 +3431,9 @@ function Admin({ onBackClick }) {
           </div>
         </header>
 
-        {loading ? (
-          <MessageBox text="관리자 데이터를 불러오는 중입니다..." />
-        ) : errorMessage ? (
-          <MessageBox text={errorMessage} />
-        ) : (
+        {loading && <MessageBox text="관리자 데이터를 불러오는 중입니다..." />}
+        {errorMessage && <MessageBox text={errorMessage} />}
+        {!loading && (
           <>
             <section className="admin-metrics">
               {metricCards.map((card) => (
@@ -3096,25 +3453,64 @@ function Admin({ onBackClick }) {
               todayItems={operationDashboard.todayItems}
               urgentItems={operationDashboard.urgentItems}
               onOpenRequest={(request) => {
-                setActiveTab("requests");
+                switchSubTab("requests");
                 openRequestModal("detail", request);
               }}
             />
 
-            <nav className="admin-tabs" aria-label="관리자 메뉴">
-              {TABS.map((tab) => (
+            <ProcessingQueue
+              items={processingQueueItems}
+              onOpenItem={(item) => switchSubTab(item.targetSubTab)}
+            />
+
+            <NotificationEventSummary
+              events={notificationEvents}
+              requests={requests}
+              interpreters={interpreters}
+              assignmentRows={assignmentRows}
+              jobApplications={jobApplications}
+            />
+
+            <nav className="admin-tabs admin-main-tabs" aria-label="관리자 상위 메뉴">
+              {MAIN_TABS.map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
-                  className={activeTab === tab.id ? "is-active" : ""}
-                  onClick={() => setActiveTab(tab.id)}
+                  className={activeMainTab === tab.id ? "is-active" : ""}
+                  onClick={() => switchMainTab(tab.id)}
                 >
                   {tab.label}
                 </button>
               ))}
             </nav>
+            <nav className="admin-tabs admin-sub-tabs" aria-label="관리자 하위 메뉴">
+              {currentSubTabs.map((tab) => {
+                const count = getSubTabCount(tab.id);
 
-            {activeTab === "requests" && (
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={activeSubTab === tab.id ? "is-active" : ""}
+                    onClick={() => switchSubTab(tab.id)}
+                  >
+                    {tab.label}
+                    {count !== null && <span>{count}</span>}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {activeSubTab === "all_businesses" && (
+              <BusinessManagement
+                businesses={businesses}
+                requests={requests}
+                onUpdateStatus={(bizId, newStatus) => updateBusiness(bizId, { status: newStatus })}
+                onUpdateNotes={(bizId, newNotes) => updateBusiness(bizId, { notes: newNotes })}
+              />
+            )}
+
+            {activeSubTab === "all_requests" && (
               <RequestManagement
                 applicationsRequestId={applicationsRequestId}
                 assignmentDrafts={assignmentDrafts}
@@ -3124,7 +3520,8 @@ function Admin({ onBackClick }) {
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 interpreters={interpreters}
                 requests={filteredRequests}
-                sectionCount={activeRequests.length}
+                sectionCount={requests.length}
+                sectionTitle="전체 의뢰"
                 savingKey={savingKey}
                 jobsById={jobsById}
                 requestsByJobId={requestsByJobId}
@@ -3144,10 +3541,11 @@ function Admin({ onBackClick }) {
                 deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
                 updateRequestFlowStatus={updateRequestFlowStatus}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
-            {activeTab === "newRequests" && (
+            {activeSubTab === "new_requests" && (
               <NewRequestManagement
                 requests={newRequests}
                 savingKey={savingKey}
@@ -3161,18 +3559,20 @@ function Admin({ onBackClick }) {
                     status: "all",
                     public: "all",
                   }));
-                  setActiveTab("requests");
+                  switchSubTab("requests");
                 }}
               />
             )}
 
-            {activeTab === "newApplications" && (
+            {activeSubTab === "new_interpreters" && (
               <NewApplicationManagement
-                applications={newJobApplications}
+                applications={[]}
                 duplicateResult={duplicateApplicationResult}
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
+                hideJobApplications
                 interpreters={pendingInterpreters}
                 jobsById={jobsById}
+                pendingResumeReviewCount={pendingResumeReviewInterpreters.length}
                 savingKey={savingKey}
                 onConfirmApplication={confirmNewJobApplication}
                 onOpenApplicationsTab={() => {
@@ -3180,15 +3580,27 @@ function Admin({ onBackClick }) {
                     status: "all",
                     duplicate: "all",
                   });
-                  setActiveTab("applications");
+                  switchSubTab("applications");
                 }}
                 onOpenInterpreterModal={openInterpreterModal}
+                onOpenResumeReview={() => {
+                  setInterpreterFilters({
+                    search: "",
+                    level: "all",
+                    status: "all",
+                    activity: "all",
+                    approved: "all",
+                    resumeReview: "resume_review_pending",
+                    duplicate: "all",
+                  });
+                  switchSubTab("verification_pending");
+                }}
                 updateInterpreter={updateInterpreter}
                 deleteInterpreter={deleteInterpreter}
               />
             )}
 
-            {activeTab === "completedRequests" && (
+            {activeSubTab === "completed_requests" && (
               <RequestManagement
                 applicationsRequestId={applicationsRequestId}
                 assignmentDrafts={assignmentDrafts}
@@ -3219,14 +3631,20 @@ function Admin({ onBackClick }) {
                 deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
                 updateRequestFlowStatus={updateRequestFlowStatus}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
-            {activeTab === "interpreters" && (
+            {activeSubTab === "registered_interpreters" && (
               <InterpreterManagement
                 filters={interpreterFilters}
                 interpreters={filteredInterpreters}
                 duplicateResult={duplicateInterpreterResult}
+                emptyText={
+                  interpreterFilters.resumeReview === "resume_review_pending"
+                    ? "현재 이력서 심사 대기 중인 통역사가 없습니다."
+                    : undefined
+                }
                 savingKey={savingKey}
                 setFilters={setInterpreterFilters}
                 onOpenModal={openInterpreterModal}
@@ -3235,7 +3653,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeTab === "jobs" && (
+            {activeSubTab === "jobs" && (
               <AdminJobs
                 embedded
                 jobs={jobs}
@@ -3250,7 +3668,7 @@ function Admin({ onBackClick }) {
               />
             )}
 
-            {activeTab === "applications" && (
+            {activeSubTab === "applications" && (
               <ApplicationManagement
                 applications={jobApplications}
                 duplicateResult={duplicateApplicationResult}
@@ -3261,55 +3679,211 @@ function Admin({ onBackClick }) {
                 deleteApplication={deleteJobApplication}
                 filters={applicationFilters}
                 setFilters={setApplicationFilters}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
-            {activeTab === "matching" && (
+            {activeSubTab === "assignments" && (
+              <AssignmentManagement
+                rows={assignmentRows}
+                pendingRequests={pendingAssignmentRequests}
+                onOpenRequest={(request) => openRequestModal("detail", request)}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
+              />
+            )}
+
+            {activeSubTab === "verification_pending" && (
+              <InterpreterManagement
+                filters={interpreterFilters}
+                interpreters={pendingResumeReviewInterpreters}
+                duplicateResult={duplicateInterpreterResult}
+                emptyText="현재 검증 대기 중인 통역사가 없습니다."
+                savingKey={savingKey}
+                setFilters={setInterpreterFilters}
+                onOpenModal={openInterpreterModal}
+                updateInterpreter={updateInterpreter}
+                deleteInterpreter={deleteInterpreter}
+              />
+            )}
+
+            {activeSubTab === "interpreter_activity" && (
+              <InterpreterManagement
+                filters={interpreterFilters}
+                interpreters={filteredInterpreters}
+                duplicateResult={duplicateInterpreterResult}
+                savingKey={savingKey}
+                setFilters={setInterpreterFilters}
+                onOpenModal={openInterpreterModal}
+                updateInterpreter={updateInterpreter}
+                deleteInterpreter={deleteInterpreter}
+              />
+            )}
+
+            {activeSubTab === "settlement_pending" && (
               <SettlementManagement
                 filters={matchingFilters}
-                requests={requests}
+                requests={settlementPendingRequests}
+                sectionTitle="정산 대기"
                 assignmentsByRequest={assignmentsByRequest}
                 interpreters={interpreters}
-                payoutDocumentsByKey={payoutDocumentsByKey}
-                payoutDraft={payoutDraft}
-                payoutModal={payoutModal}
                 savingKey={savingKey}
                 setFilters={setMatchingFilters}
-                loadPayoutDocument={loadPayoutDocument}
-                onClosePayoutModal={closePayoutModal}
-                onCreatePayoutDocument={createPayoutDocument}
-                onOpenPayoutModal={openPayoutModal}
-                onOpenPayoutPdf={openPayoutPdf}
-                onUpdatePayoutDraft={updatePayoutDraft}
                 updateSettlementStatus={updateSettlementManagementStatus}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
               />
             )}
 
-            {activeTab === "documents" && (
-              <DocumentManagement
-                documents={adminDocuments}
-                documentDraft={adminDocumentDraft}
-                filters={adminDocumentFilters}
+            {activeSubTab === "settlement_confirmed" && (
+              <SettlementManagement
+                filters={matchingFilters}
+                requests={settlementConfirmedRequests}
+                sectionTitle="정산 확정"
+                assignmentsByRequest={assignmentsByRequest}
                 interpreters={interpreters}
+                savingKey={savingKey}
+                setFilters={setMatchingFilters}
+                updateSettlementStatus={updateSettlementManagementStatus}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
+              />
+            )}
+
+            {activeSubTab === "settlement_completed" && (
+              <SettlementManagement
+                filters={matchingFilters}
+                requests={settlementCompletedRequests}
+                sectionTitle="정산 완료"
+                assignmentsByRequest={assignmentsByRequest}
+                interpreters={interpreters}
+                savingKey={savingKey}
+                setFilters={setMatchingFilters}
+                updateSettlementStatus={updateSettlementManagementStatus}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
+              />
+            )}
+
+            {activeSubTab === "settlement_on_hold" && (
+              <SettlementManagement
+                filters={matchingFilters}
+                requests={settlementOnHoldRequests}
+                sectionTitle="정산 보류"
+                assignmentsByRequest={assignmentsByRequest}
+                interpreters={interpreters}
+                savingKey={savingKey}
+                setFilters={setMatchingFilters}
+                updateSettlementStatus={updateSettlementManagementStatus}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
+              />
+            )}
+
+            {activeSubTab === "payment_history" && (
+              <PaymentHistoryManagement
+                requests={settlementCompletedRequests}
+                assignmentsByRequest={assignmentsByRequest}
+                interpreters={interpreters}
+              />
+            )}
+
+            {[
+              "all_documents",
+              "estimate_documents",
+              "completion_documents",
+              "payout_documents",
+            ].includes(activeSubTab) && (
+              <DocumentManagement
+                documents={generatedDocuments}
+                interpreters={interpreters}
+                initialType={
+                  activeSubTab === "estimate_documents"
+                    ? "estimate"
+                    : activeSubTab === "completion_documents"
+                      ? "completion"
+                      : activeSubTab === "payout_documents"
+                        ? "payout"
+                        : "all"
+                }
                 requests={requests}
                 savingKey={savingKey}
-                selectedDocument={selectedAdminDocument}
-                versions={documentVersions}
-                onChangeDraft={updateAdminDocumentDraft}
-                onCloseDetail={closeAdminDocumentDetail}
-                onCreateVersion={createAdminDocumentVersion}
-                onOpenDetail={openAdminDocumentDetail}
-                onOpenPdf={openDocumentPdf}
-                onRefresh={loadAdminDocuments}
-                onStartNewVersion={startAdminDocumentNewVersion}
-                onVoidDocument={voidAdminDocument}
-                setFilters={setAdminDocumentFilters}
+                onCreateVersion={async (document, draft) => {
+                  await createDocumentVersionFromExisting(document, draft);
+                }}
+                onOpenPdf={(document, options) => openDocumentSignedUrl(supabase, document, options)}
+                onVoidDocument={voidGeneratedDocument}
+              />
+            )}
+
+            {activeSubTab === "admin_memos" && (
+              <AdminMemoManagement
+                items={adminMemoItems}
+                notes={adminNotes}
+                requests={requests}
+                interpreters={interpreters}
+                assignmentRows={assignmentRows}
+                jobApplications={jobApplications}
+              />
+            )}
+
+            {activeSubTab === "notification_history" && (
+              <NotificationHistoryManagement
+                events={notificationEvents}
+                requests={requests}
+                interpreters={interpreters}
+                assignmentRows={assignmentRows}
+                jobApplications={jobApplications}
+                processing={notificationProcessing}
+                onProcessPending={() => processNotificationEvents()}
+                onProcessEvent={(event) =>
+                  processNotificationEvents({ eventIds: [event.id] })
+                }
+                onRetryEvent={(event) =>
+                  processNotificationEvents({ eventIds: [event.id], retryFailed: true })
+                }
+              />
+            )}
+
+            {activeSubTab === "admin_accounts" && (
+              <AdminAccountsManagement
+                adminProfile={adminProfile}
+                adminUsers={adminUsers}
+                currentUser={user}
+                onOpenAdminAccountModal={openAdminAccountModal}
               />
             )}
 
             <InterpreterModal
+              applications={jobApplications}
               draft={interpreterEditDraft}
               interpreter={selectedInterpreter}
+              matchings={matchings}
+              requestAssignments={assignmentRows}
+              requests={requests}
               duplicateReasons={
                 selectedInterpreter
                   ? duplicateInterpreterResult.reasonMap.get(selectedInterpreter.id) || []
@@ -3330,6 +3904,13 @@ function Admin({ onBackClick }) {
               onClose={closeInterpreterModal}
               onSave={saveInterpreterEditDraft}
               updateInterpreter={updateInterpreter}
+              deleteInterpreter={deleteInterpreter}
+              onOpenModal={openInterpreterModal}
+              adminNotes={adminNotes}
+              adminActivityLogs={adminActivityLogs}
+              noteDrafts={adminNoteDrafts}
+              onChangeNoteDraft={updateAdminNoteDraft}
+              onCreateNote={createAdminNote}
             />
             {isAdminAccountModalOpen && (
               <AdminAccountModal
@@ -3357,6 +3938,15 @@ function Admin({ onBackClick }) {
                 onOpenDetail={openRequestDetailFromSettlementPending}
               />
             )}
+            {documentDraft && (
+              <DocumentPreviewModal
+                draft={documentDraft}
+                saving={savingKey === `document-${documentDraft.documentType}-${documentDraft.request?.id || "new"}`}
+                onChange={updateDocumentDraft}
+                onClose={() => setDocumentDraft(null)}
+                onConfirm={confirmDocumentGeneration}
+              />
+            )}
             {activeRequest && (
               <RequestActionModal
                 activeModal={activeRequestModal}
@@ -3372,21 +3962,15 @@ function Admin({ onBackClick }) {
                 interpreters={interpreters}
                 job={activeRequestJob}
                 request={activeRequest}
-                documents={activeRequestDocuments}
-                documentDraft={documentDraft}
-                documentModal={documentModal}
+                requests={requests}
                 savingKey={savingKey}
                 setAssignmentDrafts={setAssignmentDrafts}
                 assignInterpreter={assignInterpreter}
                 deleteRequest={deleteRequest}
                 handlePriceDraft={handlePriceDraft}
+                settlementTouched={settlementTouchedByRequest[activeRequest.id] || {}}
                 onChangeDraft={updateRequestEditDraft}
                 onClose={closeRequestModal}
-                onCloseDocumentModal={closeDocumentModal}
-                onCreateDocument={createRequestDocument}
-                onOpenDocumentModal={openDocumentModal}
-                onOpenDocumentPdf={openDocumentPdf}
-                onUpdateDocumentDraft={updateDocumentDraft}
                 onRemoveAssignment={removeAssignment}
                 onSaveEdit={saveRequestEditDraft}
                 saveSettlement={saveSettlement}
@@ -3394,6 +3978,14 @@ function Admin({ onBackClick }) {
                 updateApplicationStatus={updateJobApplicationStatus}
                 updateRequest={updateRequest}
                 updateRequestFlowStatus={updateRequestFlowStatus}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={adminNoteDrafts}
+                onChangeNoteDraft={updateAdminNoteDraft}
+                onCreateNote={createAdminNote}
+                setAssignments={setAssignments}
+                onOpenDocumentPreview={openDocumentPreview}
+                generatedDocuments={generatedDocuments}
               />
             )}
           
@@ -3406,29 +3998,25 @@ function Admin({ onBackClick }) {
 
 function RequestActionModal({
   activeModal,
+  adminActivityLogs = [],
+  adminNotes = [],
   applications,
   assignments,
-  documents,
-  documentDraft,
-  documentModal,
   assignmentDrafts,
   draft,
   getInterpreterScheduleConflicts,
   interpreters,
   job,
   request,
+  requests = [],
   savingKey,
   setAssignmentDrafts,
   assignInterpreter,
   deleteRequest,
   handlePriceDraft,
+  settlementTouched,
   onChangeDraft,
   onClose,
-  onCloseDocumentModal,
-  onCreateDocument,
-  onOpenDocumentModal,
-  onOpenDocumentPdf,
-  onUpdateDocumentDraft,
   onRemoveAssignment,
   onSaveEdit,
   saveSettlement,
@@ -3436,6 +4024,12 @@ function RequestActionModal({
   updateApplicationStatus,
   updateRequest,
   updateRequestFlowStatus,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  setAssignments,
+  onOpenDocumentPreview,
+  generatedDocuments = [],
 }) {
   if (!activeModal || !request) return null;
 
@@ -3456,9 +4050,7 @@ function RequestActionModal({
       {activeModal.type === "detail" && (
         <RequestDetailPanel
           request={request}
-          documents={documents}
-          documentDraft={documentDraft}
-          documentModal={documentModal}
+          requests={requests}
           job={job}
           applications={applications}
           assignmentDrafts={assignmentDrafts}
@@ -3469,16 +4061,36 @@ function RequestActionModal({
           setAssignmentDrafts={setAssignmentDrafts}
           assignInterpreter={assignInterpreter}
           handlePriceDraft={handlePriceDraft}
+          settlementTouched={settlementTouched}
           saveSettlement={saveSettlement}
           removeAssignment={onRemoveAssignment}
-          onCloseDocumentModal={onCloseDocumentModal}
-          onCreateDocument={onCreateDocument}
-          onOpenDocumentModal={onOpenDocumentModal}
-          onOpenDocumentPdf={onOpenDocumentPdf}
-          onUpdateDocumentDraft={onUpdateDocumentDraft}
           updateRequest={updateRequest}
           updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
+          adminNotes={adminNotes}
+          adminActivityLogs={adminActivityLogs}
+          noteDrafts={noteDrafts}
+          onChangeNoteDraft={onChangeNoteDraft}
+          onCreateNote={onCreateNote}
+          onOpenDocumentPreview={onOpenDocumentPreview}
+          generatedDocuments={generatedDocuments}
+          toggleContactVisibility={async (assignmentId, currentVal) => {
+            try {
+              const { error } = await supabase
+                .from("request_interpreters")
+                .update({ is_contact_visible: !currentVal })
+                .eq("id", assignmentId);
+              if (error) throw error;
+              setAssignments(current =>
+                current.map(item =>
+                  item.id === assignmentId ? { ...item, is_contact_visible: !currentVal } : item
+                )
+              );
+            } catch (err) {
+              console.error("Error toggling contact visibility:", err);
+              alert("연락처 공개 설정 변경에 실패했습니다.");
+            }
+          }}
         />
       )}
 
@@ -3626,32 +4238,56 @@ function NewApplicationManagement({
   applications,
   duplicateResult,
   getInterpreterScheduleConflicts,
+  hideJobApplications = false,
   interpreters,
   jobsById,
+  pendingResumeReviewCount,
   savingKey,
   onConfirmApplication,
   onOpenApplicationsTab,
   onOpenInterpreterModal,
+  onOpenResumeReview,
   updateInterpreter,
   deleteInterpreter,
 }) {
-  const hasNewItems = interpreters.length > 0 || applications.length > 0;
-
-  if (!hasNewItems) {
-    return (
-      <section className="admin-section">
-        <SectionTitle count="0건" title="신규 지원 관리" />
-        <MessageBox text="새로 들어온 지원이 없습니다." />
-      </section>
-    );
-  }
-
   return (
     <section className="admin-section">
       <SectionTitle
         count={`${interpreters.length + applications.length}건`}
-        title="신규 지원 관리"
+        title={hideJobApplications ? "신규 통역사 관리" : "신규 지원 관리"}
       />
+
+      <div className="admin-subsection">
+        <SectionTitle count={`${pendingResumeReviewCount}건`} title="이력서 심사 대기" />
+        <article
+          className="admin-list-card admin-resume-review-card"
+          role="button"
+          tabIndex={0}
+          onClick={onOpenResumeReview}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onOpenResumeReview();
+            }
+          }}
+        >
+          <div className="admin-list-card-head">
+            <div>
+              <span className="admin-card-meta">이력서 심사 대기</span>
+              <h3>{pendingResumeReviewCount}건</h3>
+            </div>
+            <span className="status-badge pending">심사 대기</span>
+          </div>
+          <p className="admin-card-description">
+            제출된 이력서를 확인하고 검증 여부를 처리하세요.
+          </p>
+          <div className="admin-card-actions">
+            <span className="admin-link-button warning">
+              심사 대기 확인
+            </span>
+          </div>
+        </article>
+      </div>
 
       <div className="admin-subsection">
         <SectionTitle count={`${interpreters.length}명`} title="통역사 신규 등록" />
@@ -3675,6 +4311,7 @@ function NewApplicationManagement({
         )}
       </div>
 
+      {!hideJobApplications && (
       <div className="admin-subsection">
         <SectionTitle count={`${applications.length}건`} title="공고 신규 지원" />
         {applications.length === 0 ? (
@@ -3706,6 +4343,7 @@ function NewApplicationManagement({
           </div>
         )}
       </div>
+      )}
     </section>
   );
 }
@@ -3900,8 +4538,8 @@ function AdminAccountModal({
             관리자 추가
           </h3>
           <p style={{ margin: "0 0 12px", fontSize: "12px", color: "#6b7280" }}>
-            이메일을 등록하면 해당 계정이 로그인 시 관리자 권한을 갖습니다.
-            (상대방이 직접 회원가입 후 로그인 필요)
+            Supabase Auth user id와 이메일을 함께 등록해야 DB 관리자 권한이 적용됩니다.
+            MFA/2FA는 Supabase Auth 설정에서 활성화해 주세요.
           </p>
           <FieldControl label="관리자 이메일">
             <input
@@ -3911,6 +4549,15 @@ function AdminAccountModal({
               disabled={!canManageAdmins || saving}
               onChange={(event) => onChangeDraft("email", event.target.value)}
               placeholder="admin@example.com"
+            />
+          </FieldControl>
+          <FieldControl label="Auth user id">
+            <input
+              value={draft.auth_user_id}
+              autoComplete="off"
+              disabled={!canManageAdmins || saving}
+              onChange={(event) => onChangeDraft("auth_user_id", event.target.value)}
+              placeholder="00000000-0000-0000-0000-000000000000"
             />
           </FieldControl>
           <FieldControl label="권한">
@@ -3942,7 +4589,9 @@ function AdminAccountModal({
             adminUsers.map((adminUser) => {
               const isSelf = adminUser.email?.trim().toLowerCase() === currentEmail;
               const isDbRegistered = !adminUser.isFallback;
-              const loginStatus = isSelf ? "현재 로그인 중" : "가입 후 로그인 필요";
+              const loginStatus = adminUser.auth_user_id
+                ? (isSelf ? "현재 로그인 중" : "권한 연동됨")
+                : "권한 미연동";
               const targetRole = adminUser.role || "staff";
               const canEditAdmin = canManageAdmins;
               const editTitle = canEditAdmin ? undefined : "현재 권한으로는 수정할 수 없습니다";
@@ -3967,6 +4616,7 @@ function AdminAccountModal({
                   <div className="admin-account-row-main">
                     <span>권한: {adminUser.role || "staff"}</span>
                     <span>상태: {adminUser.status || "active"}</span>
+                    <span>Auth ID: {adminUser.auth_user_id || "권한 미연동"}</span>
                     <span>로그인 상태: {loginStatus}</span>
                     <span>등록일: {adminUser.created_at ? formatDate(adminUser.created_at) : "-"}</span>
                   </div>
@@ -4048,6 +4698,329 @@ function AdminModal({ children, className = "", onClose, title, titleId }) {
   );
 }
 
+function DocumentPreviewModal({ draft, saving, onChange, onClose, onConfirm }) {
+  const documentType = draft.documentType;
+  const [isEditing, setIsEditing] = useState(false);
+  const title = `${getDocumentTypeLabel(documentType)} ${
+    documentType === "completion" ? (isEditing ? "정보 수정" : "미리보기") : "미리보기"
+  }`;
+
+  return (
+    <AdminModal title={title} titleId="document-preview-modal-title" onClose={onClose}>
+      <div className="admin-modal-form">
+        {documentType === "completion" && !isEditing ? (
+          <div style={{ display: "grid", gap: "16px" }}>
+            <div
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                padding: "24px",
+                background: "#ffffff",
+                boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "14px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  borderBottom: "2px solid #334155",
+                  paddingBottom: "12px",
+                }}
+              >
+                <span style={{ fontSize: "20px", fontWeight: "900", color: "#1e293b" }}>
+                  업무확인서
+                </span>
+                <span style={{ fontSize: "14px", color: "#64748b", fontWeight: "700" }}>
+                  문서번호: 자동 발급 예정
+                </span>
+              </div>
+              <dl
+                className="admin-detail-list compact"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "10px",
+                  margin: 0,
+                }}
+              >
+                <Info label="기업명" value={draft.companyName} />
+                <Info label="행사명" value={draft.eventName} />
+                <Info label="진행 날짜" value={draft.eventDate} />
+                <Info label="진행 장소" value={draft.location} />
+                <Info label="담당 통역사" value={draft.interpreters} />
+                <Info label="업무 시간" value={draft.workTime} />
+                <Info label="완료 확인일" value={draft.confirmedAt} />
+              </dl>
+              <div
+                style={{
+                  marginTop: "10px",
+                  borderTop: "1px dashed #e2e8f0",
+                  paddingTop: "12px",
+                }}
+              >
+                <dt
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "850",
+                    color: "#64748b",
+                    marginBottom: "4px",
+                  }}
+                >
+                  메모
+                </dt>
+                <dd
+                  style={{
+                    fontSize: "14px",
+                    color: "#1e293b",
+                    margin: 0,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {draft.memo || "-"}
+                </dd>
+              </div>
+            </div>
+
+            <div
+              className="admin-modal-actions"
+              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}
+            >
+              <button
+                type="button"
+                className="admin-link-button"
+                onClick={() => setIsEditing(true)}
+              >
+                수정하기
+              </button>
+              <button
+                type="button"
+                className="admin-save"
+                disabled={saving}
+                onClick={onConfirm}
+              >
+                확정 생성
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <dl className="admin-detail-list compact">
+              <Info label="문서 종류" value={getDocumentTypeLabel(documentType)} />
+              <Info label="의뢰번호" value={formatManagementNumber(draft.request?.request_no)} />
+              <Info label="행사명" value={draft.eventName || "-"} />
+              <Info label="최종 금액" value={formatDocumentAmount(draft.totalAmount)} />
+            </dl>
+
+            {documentType === "estimate" && (
+              <div className="admin-modal-edit-grid">
+                <TextField
+                  label="기업명"
+                  value={draft.companyName}
+                  onChange={(value) => onChange("companyName", value)}
+                />
+                <TextField
+                  label="담당자명"
+                  value={draft.contactName}
+                  onChange={(value) => onChange("contactName", value)}
+                />
+                <TextField
+                  label="행사명"
+                  value={draft.eventName}
+                  onChange={(value) => onChange("eventName", value)}
+                />
+                <TextField
+                  label="일정"
+                  value={draft.eventDate}
+                  onChange={(value) => onChange("eventDate", value)}
+                />
+                <TextField
+                  label="장소"
+                  value={draft.location}
+                  onChange={(value) => onChange("location", value)}
+                />
+                <TextField
+                  label="통역 레벨"
+                  value={draft.level}
+                  onChange={(value) => onChange("level", value)}
+                />
+                <NumberControl
+                  label="단가"
+                  value={draft.unitPrice}
+                  onChange={(value) => onChange("unitPrice", value)}
+                />
+                <NumberControl
+                  label="인원"
+                  value={draft.peopleCount}
+                  onChange={(value) => onChange("peopleCount", value)}
+                />
+                <NumberControl
+                  label="업무 일수"
+                  value={draft.workDays}
+                  onChange={(value) => onChange("workDays", value)}
+                />
+                <NumberControl
+                  label="할인"
+                  value={draft.discountAmount}
+                  onChange={(value) => onChange("discountAmount", value)}
+                />
+                <NumberControl
+                  label="추가 비용"
+                  value={draft.extraAmount}
+                  onChange={(value) => onChange("extraAmount", value)}
+                />
+              </div>
+            )}
+
+            {documentType === "completion" && (
+              <div className="admin-modal-edit-grid">
+                <FieldControl label="기업명">
+                  <input
+                    value={draft.companyName || ""}
+                    disabled
+                    readOnly
+                    style={{ background: "#f3f4f6", color: "#6b7280", cursor: "not-allowed" }}
+                  />
+                </FieldControl>
+                <FieldControl label="행사명">
+                  <input
+                    value={draft.eventName || ""}
+                    disabled
+                    readOnly
+                    style={{ background: "#f3f4f6", color: "#6b7280", cursor: "not-allowed" }}
+                  />
+                </FieldControl>
+                <FieldControl label="진행 날짜">
+                  <input
+                    value={draft.eventDate || ""}
+                    disabled
+                    readOnly
+                    style={{ background: "#f3f4f6", color: "#6b7280", cursor: "not-allowed" }}
+                  />
+                </FieldControl>
+                <FieldControl label="진행 장소">
+                  <input
+                    value={draft.location || ""}
+                    disabled
+                    readOnly
+                    style={{ background: "#f3f4f6", color: "#6b7280", cursor: "not-allowed" }}
+                  />
+                </FieldControl>
+                <TextField
+                  label="담당 통역사"
+                  value={draft.interpreters}
+                  onChange={(value) => onChange("interpreters", value)}
+                />
+                <TextField
+                  label="업무 시간"
+                  value={draft.workTime}
+                  onChange={(value) => onChange("workTime", value)}
+                />
+                <TextField
+                  label="완료 확인일"
+                  value={draft.confirmedAt}
+                  onChange={(value) => onChange("confirmedAt", value)}
+                />
+              </div>
+            )}
+
+            {documentType === "payout" && (
+              <div className="admin-modal-edit-grid">
+                <TextField
+                  label="통역사명"
+                  value={draft.interpreterName}
+                  onChange={(value) => onChange("interpreterName", value)}
+                />
+                <TextField
+                  label="업무명"
+                  value={draft.eventName}
+                  onChange={(value) => onChange("eventName", value)}
+                />
+                <TextField
+                  label="업무 날짜"
+                  value={draft.eventDate}
+                  onChange={(value) => onChange("eventDate", value)}
+                />
+                <TextField
+                  label="적용 레벨"
+                  value={draft.level}
+                  onChange={(value) => onChange("level", value)}
+                />
+                <NumberControl
+                  label="일당"
+                  value={draft.dailyPay}
+                  onChange={(value) => onChange("dailyPay", value)}
+                />
+                <NumberControl
+                  label="근무 일수"
+                  value={draft.workDays}
+                  onChange={(value) => onChange("workDays", value)}
+                />
+                <NumberControl
+                  label="최종 지급 금액"
+                  value={draft.totalAmount}
+                  onChange={(value) => onChange("totalAmount", value)}
+                />
+              </div>
+            )}
+
+            <FieldControl label="메모">
+              <textarea
+                className="admin-textarea"
+                rows={3}
+                value={draft.memo || ""}
+                onChange={(event) => onChange("memo", event.target.value)}
+                placeholder="문서에 표시할 메모"
+              />
+            </FieldControl>
+
+            <div className="admin-modal-actions">
+              {documentType === "completion" ? (
+                <>
+                  <button
+                    type="button"
+                    className="admin-link-button"
+                    onClick={() => setIsEditing(false)}
+                  >
+                    미리보기
+                  </button>
+                  <button type="button" className="admin-save danger" onClick={onClose}>
+                    취소
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="admin-link-button" onClick={onClose}>
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-save"
+                    disabled={saving}
+                    onClick={onConfirm}
+                  >
+                    확정 생성
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </AdminModal>
+  );
+}
+
+function TextField({ label, value, onChange }) {
+  return (
+    <FieldControl label={label}>
+      <input value={value || ""} onChange={(event) => onChange(event.target.value)} />
+    </FieldControl>
+  );
+}
+
 function ConfirmPanel({
   confirmText,
   message,
@@ -4109,10 +5082,12 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
         <FieldControl label="의뢰 유형">
           <InlineSelect
             options={[
-              { label: "일반의뢰", value: "일반의뢰" },
-              { label: "지정의뢰", value: "지정의뢰" },
+              { label: "일반의뢰", value: "general" },
+              { label: "지정의뢰", value: "designated" },
+              { label: "긴급의뢰", value: "urgent" },
+              { label: "비공개의뢰", value: "private" },
             ]}
-            value={form.request_type || "일반의뢰"}
+            value={normalizeRequestType(form.request_type)}
             onChange={(value) => onChange("request_type", value)}
           />
         </FieldControl>
@@ -4201,7 +5176,22 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
             onChange={(value) => onChange("settlement_status", value)}
           />
         </FieldControl>
+        <FieldControl label="견적 상태">
+          <InlineSelect
+            options={ESTIMATE_STATUS_OPTIONS}
+            value={form.estimate_status || "estimate_preparing"}
+            onChange={(value) => onChange("estimate_status", value)}
+          />
+        </FieldControl>
       </div>
+      <FieldControl label="기업 내부 메모">
+        <textarea
+          rows={4}
+          value={form.company_internal_memo || ""}
+          onChange={(event) => onChange("company_internal_memo", event.target.value)}
+          placeholder="담당자 특징, 요청사항, 주의사항, 결제 관련 기록"
+        />
+      </FieldControl>
       <div className="admin-modal-actions">
         <button type="button" className="admin-link-button" onClick={onCancel}>
           취소
@@ -4211,6 +5201,171 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
         </button>
       </div>
     </form>
+  );
+}
+
+function BusinessManagement({
+  businesses,
+  requests,
+  onUpdateStatus,
+  onUpdateNotes,
+}) {
+  const [editingNotesId, setEditingNotesId] = useState(null);
+  const [notesDraft, setNotesDraft] = useState("");
+
+  const getRequestCount = (authUserId) => {
+    return requests.filter((r) => r.company_auth_user_id === authUserId).length;
+  };
+
+  const handleStartEditNotes = (biz) => {
+    setEditingNotesId(biz.id);
+    setNotesDraft(biz.notes || "");
+  };
+
+  const handleSaveNotes = (bizId) => {
+    onUpdateNotes(bizId, notesDraft);
+    setEditingNotesId(null);
+  };
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-header">
+        <h2>전체 기업 관리</h2>
+        <p className="admin-section-desc">등록된 기업 계정의 승인 상태와 관리자 메모를 관리합니다.</p>
+      </div>
+
+      <div className="admin-table-container">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>회사명</th>
+              <th>대표자/담당자</th>
+              <th>연락처 / 이메일</th>
+              <th>국가</th>
+              <th>주요 의뢰 분야</th>
+              <th>의뢰 건수</th>
+              <th>가입일</th>
+              <th>상태</th>
+              <th>관리자 메모</th>
+            </tr>
+          </thead>
+          <tbody>
+            {businesses.length === 0 ? (
+              <tr>
+                <td colSpan="9" style={{ textAlign: "center", padding: "40px 0", color: "#6b7280" }}>
+                  등록된 기업이 없습니다.
+                </td>
+              </tr>
+            ) : (
+              businesses.map((biz) => {
+                const reqCount = getRequestCount(biz.auth_user_id);
+                return (
+                  <tr key={biz.id}>
+                    <td>
+                      <strong style={{ color: "#111827" }}>{biz.company_name}</strong>
+                      <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>
+                        사업자: {biz.business_number}
+                      </div>
+                    </td>
+                    <td>{biz.contact_name}</td>
+                    <td>
+                      <div>{biz.contact_phone}</div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>{biz.contact_email}</div>
+                    </td>
+                    <td>{biz.country}</td>
+                    <td>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                        {biz.primary_fields && biz.primary_fields.length > 0 ? (
+                          biz.primary_fields.map((f) => (
+                            <span key={f} className="admin-badge info-badge" style={{ fontSize: "11px" }}>
+                              {f}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ color: "#9ca3af" }}>없음</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <strong style={{ color: "#4f46e5" }}>{reqCount} 건</strong>
+                    </td>
+                    <td>{new Date(biz.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <select
+                        className="admin-inline-select"
+                        value={biz.status}
+                        onChange={(e) => onUpdateStatus(biz.id, e.target.value)}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid #d1d5db",
+                          fontSize: "12px",
+                          fontWeight: "800",
+                        }}
+                      >
+                        <option value="검토중">검토중</option>
+                        <option value="승인 완료">승인 완료</option>
+                        <option value="이용 제한">이용 제한</option>
+                      </select>
+                    </td>
+                    <td>
+                      {editingNotesId === biz.id ? (
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                          <textarea
+                            value={notesDraft}
+                            onChange={(e) => setNotesDraft(e.target.value)}
+                            style={{
+                              width: "180px",
+                              minHeight: "48px",
+                              padding: "6px",
+                              fontSize: "12px",
+                              border: "1px solid #d1d5db",
+                              borderRadius: "6px",
+                            }}
+                          />
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <button
+                              type="button"
+                              className="admin-save-btn"
+                              onClick={() => handleSaveNotes(biz.id)}
+                              style={{ padding: "4px 8px", fontSize: "11px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                            >
+                              저장
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingNotesId(null)}
+                              style={{ padding: "4px 8px", fontSize: "11px", background: "#f3f4f6", color: "#374151", border: "1px solid #d1d5db", borderRadius: "4px", cursor: "pointer" }}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => handleStartEditNotes(biz)}
+                          style={{
+                            cursor: "pointer",
+                            minWidth: "120px",
+                            minHeight: "24px",
+                            fontSize: "12px",
+                            color: biz.notes ? "#374151" : "#9ca3af",
+                            borderBottom: "1px dashed #d1d5db",
+                            paddingBottom: "2px",
+                          }}
+                        >
+                          {biz.notes || "메모 추가..."}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -4244,6 +5399,7 @@ function RequestManagement({
   deleteRequest,
   toggleRequestJobPublic,
   updateRequestFlowStatus,
+  onOpenDocumentPreview,
 }) {
   const isListView = filters.view === "list";
 
@@ -4356,6 +5512,7 @@ function RequestManagement({
               deleteRequest={deleteRequest}
               toggleRequestJobPublic={toggleRequestJobPublic}
               openRequestModal={openRequestModal}
+              onOpenDocumentPreview={onOpenDocumentPreview}
             
             />
           ))}
@@ -4373,8 +5530,10 @@ function AdminRequestCard({
   requestsByJobId,
   request,
   savingKey,
+  updateRequest,
   updateRequestFlowStatus,
   openRequestModal,
+  onOpenDocumentPreview,
 }) {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const moreMenuRef = useRef(null);
@@ -4421,7 +5580,13 @@ function AdminRequestCard({
           <div>
             <ManagementNumberBadge value={request.request_no} />
             <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
-            <p>{request.company_name || "-"}</p>
+            <button
+              type="button"
+              className="admin-company-history-link"
+              onClick={() => openRequestModal("detail", request)}
+            >
+              {request.company_name || "-"}
+            </button>
           </div>
           <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(headlineStatus.type, headlineStatus.value)}`}>
             {headlineStatus.label}
@@ -4429,6 +5594,11 @@ function AdminRequestCard({
         </div>
 
         <div className="admin-status-badge-row">
+          <FlowStatusBadge
+            type="operation"
+            value={request.estimate_status || "estimate_preparing"}
+            label={getEstimateStatusLabel(request.estimate_status)}
+          />
           <FlowStatusBadge
             type="assignment"
             value={statuses.assignment_status}
@@ -4446,11 +5616,21 @@ function AdminRequestCard({
           />
         </div>
 
+        <div className="admin-flow-status-panel">
+          <h3>견적 상태</h3>
+          <InlineSelect
+            options={ESTIMATE_STATUS_OPTIONS}
+            value={request.estimate_status || "estimate_preparing"}
+            onChange={(value) => updateRequest(request.id, { estimate_status: value })}
+          />
+        </div>
+
         <dl className="admin-request-summary admin-request-summary-clean">
           <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
           <Info label="날짜" value={requestDate} />
           <Info label="장소" value={request.event_location || "-"} />
-          <Info label="배정 통역사" value={assignedInterpreterName || designatedInterpreterName || "-"} />
+          <Info label="지정 요청" value={designatedInterpreterName} />
+          <Info label="배정 통역사" value={assignedInterpreterName || "-"} />
         </dl>
 
         <OperationFlowStatusControls
@@ -4475,6 +5655,22 @@ function AdminRequestCard({
         >
           상세보기
         </button>
+        <button
+          type="button"
+          className="admin-link-button"
+          onClick={() => onOpenDocumentPreview("estimate", request)}
+        >
+          견적서 생성
+        </button>
+        {normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED && (
+          <button
+            type="button"
+            className="admin-link-button"
+            onClick={() => onOpenDocumentPreview("completion", request)}
+          >
+            업무 확인서 생성
+          </button>
+        )}
         <div className="admin-more-menu request-more-wrapper" ref={moreMenuRef}>
           <button
             type="button"
@@ -4527,35 +5723,169 @@ function AdminRequestCard({
   );
 }
 
+const DEFAULT_CHECKLIST_ITEMS = [
+  "기업 자료 수령 확인",
+  "통역사 배정 통보 완료",
+  "연락처 공개 처리",
+  "행사 장소/일정 재확인",
+  "통역 장비 필요 여부 확인",
+  "업무 시작 전 최종 확인",
+];
+
+function PreparationChecklistPanel({ requestId }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.resolve().then(async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("request_preparation_checklist")
+          .select("*")
+          .eq("request_id", requestId)
+          .order("created_at", { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          setItems(data);
+        } else {
+          // If no items yet, show default items as unchecked
+          setItems(
+            DEFAULT_CHECKLIST_ITEMS.map((label, idx) => ({
+              id: `draft-${idx}`,
+              request_id: requestId,
+              item_label: label,
+              is_done: false,
+              done_by: null,
+              done_at: null,
+              isDraft: true,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Error loading preparation checklist:", err);
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [requestId]);
+
+  const handleToggle = async (item) => {
+    setSaving(true);
+    try {
+      if (item.isDraft) {
+        // Insert all draft items first, then toggle this one
+        const allDraftItems = items.filter((i) => i.isDraft);
+        const insertPayload = allDraftItems.map((i) => ({
+          request_id: requestId,
+          item_label: i.item_label,
+          is_done: i.item_label === item.item_label ? !item.is_done : i.is_done,
+        }));
+        const { data, error } = await supabase
+          .from("request_preparation_checklist")
+          .insert(insertPayload)
+          .select("*")
+          .order("created_at", { ascending: true });
+        if (error) throw error;
+        setItems(data || []);
+      } else {
+        const newDone = !item.is_done;
+        const { error } = await supabase
+          .from("request_preparation_checklist")
+          .update({
+            is_done: newDone,
+            done_at: newDone ? new Date().toISOString() : null,
+          })
+          .eq("id", item.id);
+        if (error) throw error;
+        setItems((current) =>
+          current.map((i) =>
+            i.id === item.id ? { ...i, is_done: newDone, done_at: newDone ? new Date().toISOString() : null } : i
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error toggling checklist item:", err);
+      alert("체크리스트 저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="prep-checklist-panel"><p className="prep-loading">불러오는 중...</p></div>;
+  }
+
+  const doneCount = items.filter((i) => i.is_done).length;
+
+  return (
+    <div className="prep-checklist-panel">
+      <div className="prep-checklist-header">
+        <h4>🗒️ 업무 준비 체크리스트</h4>
+        <span className="prep-count">{doneCount} / {items.length} 완료</span>
+      </div>
+      <ul className="prep-checklist-list">
+        {items.map((item) => (
+          <li key={item.id} className={`prep-checklist-item ${item.is_done ? "is-done" : ""}`}>
+            <label>
+              <input
+                type="checkbox"
+                checked={item.is_done}
+                disabled={saving}
+                onChange={() => handleToggle(item)}
+              />
+              <span>{item.item_label}</span>
+              {item.is_done && item.done_at && (
+                <span className="prep-done-time">
+                  {new Date(item.done_at).toLocaleDateString("ko-KR", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function RequestDetailPanel({
+  adminActivityLogs = [],
+  adminNotes = [],
   applications,
   assignmentDrafts,
   assignments,
-  documents = {},
-  documentDraft,
-  documentModal,
   getInterpreterScheduleConflicts,
   interpreters,
   job,
   request,
+  requests = [],
   savingKey,
   setAssignmentDrafts,
   assignInterpreter,
   handlePriceDraft,
+  settlementTouched = {},
   saveSettlement,
   removeAssignment,
-  onCloseDocumentModal,
-  onCreateDocument,
-  onOpenDocumentModal,
-  onOpenDocumentPdf,
-  onUpdateDocumentDraft,
   updateRequest,
   updateApplicationStatus,
   updateRequestFlowStatus,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  toggleContactVisibility,
+  onOpenDocumentPreview,
+  generatedDocuments = [],
 }) {
   const flowSource = getRequestFlowSource(request, job);
   const requestType = getDesignatedRequestType(request);
   const designatedInterpreterName = getDesignatedInterpreterName([request], interpreters);
+  const designatedRequestCheckStatus = getDesignatedRequestCheckStatus(request, assignments);
   const assignedInterpreterName = getAssignedInterpreterName(
     request,
     assignments,
@@ -4571,6 +5901,169 @@ function RequestDetailPanel({
       !assignedInterpreterIds.has(String(interpreter.id))
   );
   const scheduleRange = getAssignmentScheduleRange(request, job);
+  const requestDescription = getRequestDescription(request);
+  const referenceFile = getRequestReferenceFile(request, requestDescription);
+  const visibleRequestDescription = removeRequestReferenceFileMeta(requestDescription);
+  const companyHistory = getCompanyHistory(request, requests, assignments, interpreters);
+
+  const [businessProfile, setBusinessProfile] = useState(null);
+  const [uploadedMaterials, setUploadedMaterials] = useState([]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      if (!request.company_auth_user_id) {
+        setBusinessProfile(null);
+        return;
+      }
+      const fetchBiz = async () => {
+        try {
+          const { data, error } = await supabase
+            .from("businesses")
+            .select("*")
+            .eq("auth_user_id", request.company_auth_user_id)
+            .maybeSingle();
+          if (!error && data) {
+            setBusinessProfile(data);
+          } else {
+            setBusinessProfile(null);
+          }
+        } catch (err) {
+          console.error("Error fetching biz profile in admin request panel:", err);
+          setBusinessProfile(null);
+        }
+      };
+      fetchBiz();
+    });
+  }, [request.company_auth_user_id]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      const fetchMaterials = async () => {
+        try {
+          const { data, error } = await supabase
+            .from("request_materials")
+            .select("*")
+            .eq("request_id", request.id)
+            .order("created_at", { ascending: false });
+          if (!error) {
+            setUploadedMaterials(data || []);
+          }
+        } catch (err) {
+          console.error("Error fetching request materials in admin request panel:", err);
+        }
+      };
+      fetchMaterials();
+    });
+  }, [request.id]);
+
+  const companyPreviousRequests = requests.filter(r => 
+    r.id !== request.id && 
+    ((request.company_auth_user_id && r.company_auth_user_id === request.company_auth_user_id) || 
+     (r.company_name && r.company_name === request.company_name))
+  );
+
+  const handleDownloadMaterial = async (path, name) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("request-files")
+        .createSignedUrl(path, 600, { download: name || true });
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error generating signed URL for admin:", err);
+      alert("자료 파일을 다운로드할 수 없습니다.");
+    }
+  };
+
+  useEffect(() => {
+    const requestWithDefaults = applySettlementDefaults(request, settlementTouched);
+    if (requestWithDefaults === request) return;
+
+    if (getCompanyAmount(requestWithDefaults) !== getCompanyAmount(request)) {
+      handlePriceDraft(request.id, "company_amount", getCompanyAmount(requestWithDefaults), {
+        auto: true,
+      });
+    }
+    if (getInterpreterPayment(requestWithDefaults) !== getInterpreterPayment(request)) {
+      handlePriceDraft(
+        request.id,
+        "interpreter_payment",
+        getInterpreterPayment(requestWithDefaults),
+        { auto: true }
+      );
+    }
+  }, [
+    handlePriceDraft,
+    request,
+    request.id,
+    request.requested_level,
+    request.required_level,
+    settlementTouched,
+  ]);
+
+  const createReferenceFileUrl = async ({ download = false } = {}) => {
+    if (!referenceFile?.path) return;
+
+    if (referenceFile.path.startsWith("http://") || referenceFile.path.startsWith("https://")) {
+      return referenceFile.path;
+    }
+
+    const { data, error } = await supabase.storage
+      .from(REQUEST_REFERENCE_BUCKET)
+      .createSignedUrl(
+        referenceFile.path,
+        60 * 10,
+        download ? { download: referenceFile.name || true } : undefined
+      );
+
+    if (error) throw error;
+    return data.signedUrl;
+  };
+
+  const handleOpenReferenceFile = async () => {
+    try {
+      const fileUrl = await createReferenceFileUrl();
+      if (!fileUrl) return;
+      window.open(fileUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("SIGNED_URL_FAILED", {
+        error,
+        message: error?.message,
+        details: error?.details,
+        statusCode: error?.statusCode,
+        status: error?.status,
+        bucket: REQUEST_REFERENCE_BUCKET,
+        filePath: referenceFile?.path,
+      });
+      alert("참고 자료 파일을 열 수 없습니다. 권한 또는 파일 경로를 확인해주세요.");
+    }
+  };
+
+  const handleDownloadReferenceFile = async () => {
+    try {
+      const fileUrl = await createReferenceFileUrl({ download: true });
+      if (!fileUrl) return;
+      const link = document.createElement("a");
+      link.href = fileUrl;
+      link.download = referenceFile.name || "reference-file";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("SIGNED_URL_FAILED", {
+        error,
+        message: error?.message,
+        details: error?.details,
+        statusCode: error?.statusCode,
+        status: error?.status,
+        bucket: REQUEST_REFERENCE_BUCKET,
+        filePath: referenceFile?.path,
+      });
+      alert("참고 자료 파일을 다운로드할 수 없습니다. 권한 또는 파일 경로를 확인해주세요.");
+    }
+  };
 
   return (
     <div className="admin-detail-panel">
@@ -4591,7 +6084,8 @@ function RequestDetailPanel({
           <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
           <Info label="담당자" value={request.manager_name} />
           <Info label="의뢰 유형" value={requestType.label} />
-          <Info label="지정 통역사" value={designatedInterpreterName} />
+          <Info label="지정 요청 통역사" value={designatedInterpreterName} />
+          <Info label="지정 요청 상태" value={designatedRequestCheckStatus} />
           <Info label="배정 통역사" value={assignedInterpreterName} />
           <Info label="약관 동의" value={getAgreementStatusLabel(request)} />
           <Info label="동의 시간" value={formatDateTime(request.agreed_at)} />
@@ -4619,29 +6113,110 @@ function RequestDetailPanel({
             }
           />
           <Info label="희망 성별" value={request.preferred_gender} />
+          <Info label="언어 방향" value={request.language_direction} />
+          <Info label="진행 시간" value={formatTimeRange(request.event_start_time, request.event_end_time)} />
+          <Info label="견적 상태" value={getEstimateStatusLabel(request.estimate_status)} />
+          <Info label="자료 업로드" value={request.materials_available ? "가능" : "없음/미정"} />
         </dl>
+      </div>
+
+      {businessProfile && (
+        <div>
+          <h3>기업 상세 정보</h3>
+          <dl className="admin-detail-list compact">
+            <Info label="회사명" value={businessProfile.company_name} />
+            <Info label="사업자등록번호" value={businessProfile.business_number} />
+            <Info label="담당자명" value={businessProfile.contact_name} />
+            <Info label="담당자 연락처" value={businessProfile.contact_phone} />
+            <Info label="담당자 이메일" value={businessProfile.contact_email} />
+            <Info label="국가" value={businessProfile.country} />
+            <Info label="주요 분야" value={businessProfile.primary_fields?.join(", ") || "-"} />
+            <Info label="세금계산서" value={businessProfile.tax_invoice_required ? "필요" : "불필요"} />
+            <Info label="기타 메모" value={businessProfile.notes || "-"} />
+          </dl>
+        </div>
+      )}
+
+      <div>
+        <h3>기업 히스토리</h3>
+        <dl className="admin-detail-list compact">
+          <Info label="과거 의뢰 횟수" value={`${companyHistory.requestCount}건`} />
+          <Info label="진행한 행사" value={companyHistory.events || "-"} />
+          <Info label="이용 통역사" value={companyHistory.interpreters || "-"} />
+          <Info label="총 이용 금액" value={formatJPY(companyHistory.totalAmount)} />
+          <Info label="관리자 메모" value={companyHistory.memo || "-"} />
+        </dl>
+      </div>
+
+      {companyPreviousRequests.length > 0 && (
+        <div>
+          <h3>이전 의뢰 기록</h3>
+          <div className="admin-previous-requests-list" style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px", background: "#f8fafc" }}>
+            {companyPreviousRequests.map(prev => (
+              <div key={prev.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", borderBottom: "1px solid #f1f5f9", fontSize: "12px" }}>
+                <span style={{ fontWeight: "700" }}>{prev.event_name || prev.title || `REQ-${prev.id}`} ({prev.start_date})</span>
+                <span className="badge-gray" style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+                  {prev.status || prev.matching_status || "접수"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <h3>기업 내부 메모</h3>
+        <textarea
+          className="admin-textarea"
+          rows={4}
+          defaultValue={request.company_internal_memo || ""}
+          onBlur={(event) => {
+            if (event.target.value !== (request.company_internal_memo || "")) {
+              updateRequest(request.id, { company_internal_memo: event.target.value });
+            }
+          }}
+          placeholder="담당자 특징, 요청사항, 주의사항, 결제 관련 기록"
+        />
       </div>
 
       <div>
         <h3>업무 내용</h3>
-        <p>{request.job_description || request.request_detail || "-"}</p>
+        <p>{visibleRequestDescription || "-"}</p>
+        <RequestReferenceFileBlock
+          file={referenceFile}
+          onOpen={handleOpenReferenceFile}
+          onDownload={handleDownloadReferenceFile}
+        />
+        
+        <div style={{ marginTop: "16px" }}>
+          <h4 style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: "850", color: "#334155" }}>업로드 행사 자료</h4>
+          {uploadedMaterials.length === 0 ? (
+            <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>업로드된 행사 자료가 없습니다.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {uploadedMaterials.map(mat => (
+                <div key={mat.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", background: "#f8fafc", fontSize: "12px" }}>
+                  <div>
+                    <span className="badge-green" style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", marginRight: "8px" }}>{mat.file_type}</span>
+                    <strong style={{ color: "#334155" }}>{mat.file_name}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadMaterial(mat.file_path, mat.file_name)}
+                    className="admin-link-button"
+                    style={{ fontSize: "11px", color: "#5b5cf0", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    다운로드
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <h3>복장/주의사항</h3>
         <p>{request.dress_code || "추후 안내"}</p>
       </div>
-
-      <DocumentManagementPanel
-        assignedInterpreterName={assignedInterpreterName}
-        documents={documents}
-        documentDraft={documentDraft}
-        documentModal={documentModal}
-        request={request}
-        savingKey={savingKey}
-        onCloseDocumentModal={onCloseDocumentModal}
-        onCreateDocument={onCreateDocument}
-        onOpenDocumentModal={onOpenDocumentModal}
-        onOpenDocumentPdf={onOpenDocumentPdf}
-        onUpdateDocumentDraft={onUpdateDocumentDraft}
-      />
 
       <div>
         <h3>행사 기간 수정</h3>
@@ -4669,6 +6244,9 @@ function RequestDetailPanel({
       <div>
         <h3>정산 관리</h3>
         <div className="admin-settlement">
+          <p className="admin-settlement-note">
+            희망 통역 레벨 기준 금액이 자동 입력됩니다. 필요 시 직접 수정할 수 있습니다.
+          </p>
           <NumberControl
             label="기업 금액"
             value={getCompanyAmount(request)}
@@ -4683,7 +6261,9 @@ function RequestDetailPanel({
           />
           <div className="admin-profit">
             <span>플랫폼 수익</span>
-            <strong>{formatJPY(getPlatformProfit(request))}</strong>
+            <strong className={getPlatformProfit(request) < 0 ? "is-negative" : ""}>
+              {formatJPY(getPlatformProfit(request))}
+            </strong>
           </div>
           <button
             type="button"
@@ -4708,6 +6288,7 @@ function RequestDetailPanel({
             ),
           }))}
           onRemove={removeAssignment}
+          onToggleContactVisibility={toggleContactVisibility}
         />
         <div className="admin-assign-row">
           <select
@@ -4751,281 +6332,93 @@ function RequestDetailPanel({
           onStatusChange={updateApplicationStatus}
         />
       </div>
-    </div>
-  );
-}
 
-function DocumentManagementPanel({
-  assignedInterpreterName,
-  documents = {},
-  documentDraft,
-  documentModal,
-  request,
-  savingKey,
-  onCloseDocumentModal,
-  onCreateDocument,
-  onOpenDocumentModal,
-  onOpenDocumentPdf,
-  onUpdateDocumentDraft,
-}) {
-  const estimateDocument = documents.estimate;
-  const completionDocument = documents.completion;
-  const isCompletionReady = isCompletedRequest(request);
-  const activeType = documentModal?.documentType;
-  const isSaving = activeType
-    ? savingKey === `document-${activeType}-${request.id}`
-    : false;
+      {["assigned", "preparing", "ready"].includes(request.assignment_status) && (
+        <PreparationChecklistPanel requestId={request.id} />
+      )}
 
-  return (
-    <div>
-      <h3>문서 관리</h3>
-      <div className="admin-document-panel">
-        <DocumentStatusRow
-          amount={estimateDocument?.amount}
-          document={estimateDocument}
-          label="견적서"
-          status={getDocumentStatusLabel(estimateDocument)}
-          onOpen={() => onOpenDocumentPdf(estimateDocument)}
-        />
-        <DocumentStatusRow
-          document={completionDocument}
-          label="업무확인서"
-          status={getDocumentStatusLabel(completionDocument)}
-          onOpen={() => onOpenDocumentPdf(completionDocument)}
-        />
-        <div className="admin-card-actions">
-          <button
-            type="button"
-            className="admin-save"
-            disabled={savingKey === `document-estimate-${request.id}`}
-            onClick={() => onOpenDocumentModal("estimate", request, assignedInterpreterName)}
-          >
-            견적서 생성
-          </button>
-          <button
-            type="button"
-            className="admin-save"
-            disabled={
-              !isCompletionReady || savingKey === `document-completion-${request.id}`
-            }
-            title={isCompletionReady ? undefined : "업무 완료 후 생성 가능"}
-            onClick={() => onOpenDocumentModal("completion", request, assignedInterpreterName)}
-          >
-            업무확인서 생성
-          </button>
+      <div>
+        <h3>업무확인서 관리</h3>
+        <div className="admin-settlement" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <p className="admin-settlement-note">
+            의뢰 상태가 '완료'일 때만 업무확인서 발급이 가능합니다.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              type="button"
+              className="admin-save"
+              disabled={normalizeOperationStatus(request) !== OPERATION_STATUS.COMPLETED}
+              onClick={() => onOpenDocumentPreview("completion", request)}
+              style={{ width: "auto", minWidth: "150px" }}
+            >
+              업무확인서 생성
+            </button>
+            {normalizeOperationStatus(request) !== OPERATION_STATUS.COMPLETED && (
+              <span style={{ fontSize: "13px", fontWeight: "700", color: "#dc2626" }}>
+                ⚠️ 업무 완료 후 생성 가능
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {documentModal && documentDraft ? (
-        <DocumentCreateDialog
-          draft={documentDraft}
-          documentType={documentModal.documentType}
-          saving={isSaving}
-          onCancel={onCloseDocumentModal}
-          onChange={onUpdateDocumentDraft}
-          onCreate={onCreateDocument}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function DocumentStatusRow({ amount, document, label, onOpen, status }) {
-  return (
-    <div className="admin-document-row">
       <div>
-        <strong>{label}</strong>
-        <span>{status}</span>
-        {amount ? <span>{formatJPY(amount)}</span> : null}
-      </div>
-      <button
-        type="button"
-        className="admin-link-button"
-        disabled={!document?.file_path}
-        onClick={onOpen}
-      >
-        PDF 보기
-      </button>
-    </div>
-  );
-}
-
-function DocumentCreateDialog({
-  draft,
-  documentType,
-  onCancel,
-  onChange,
-  onCreate,
-  saving,
-}) {
-  const isEstimate = documentType === "estimate";
-  const amount = isEstimate ? calculateEstimateAmount(draft) : null;
-
-  return (
-    <div className="admin-document-dialog">
-      <div className="admin-document-dialog-head">
-        <strong>{DOCUMENT_TYPE_LABELS[documentType]} 생성</strong>
-        <button type="button" className="admin-link-button" onClick={onCancel}>
-          닫기
-        </button>
-      </div>
-
-      <div className="admin-modal-edit-grid">
-        {isEstimate ? (
-          <>
-            <NumberControl
-              label="단가"
-              value={draft.unit_price}
-              onChange={(value) => onChange("unit_price", value)}
-            />
-            <NumberControl
-              label="할인 금액"
-              value={draft.discount_amount}
-              onChange={(value) => onChange("discount_amount", value)}
-            />
-            <NumberControl
-              label="추가 비용"
-              value={draft.extra_amount}
-              onChange={(value) => onChange("extra_amount", value)}
-            />
-          </>
-        ) : (
-          <>
-            <FieldControl label="업무 시간">
-              <input
-                value={draft.work_hours || ""}
-                onChange={(event) => onChange("work_hours", event.target.value)}
-              />
-            </FieldControl>
-            <FieldControl label="완료 확인일">
-              <input
-                type="date"
-                value={draft.completed_at || ""}
-                onChange={(event) => onChange("completed_at", event.target.value)}
-              />
-            </FieldControl>
-            <FieldControl label="담당 통역사 표시명">
-              <input
-                value={draft.interpreter_display_name || ""}
-                onChange={(event) =>
-                  onChange("interpreter_display_name", event.target.value)
-                }
-              />
-            </FieldControl>
-          </>
-        )}
-        <FieldControl label="메모">
-          <textarea
-            value={draft.memo || ""}
-            onChange={(event) => onChange("memo", event.target.value)}
-            rows={3}
-          />
-        </FieldControl>
+        <h3>발급 문서 이력</h3>
+        <div className="admin-settlement">
+          {(() => {
+            const requestDocs = generatedDocuments.filter((doc) => doc.request_id === request.id);
+            if (requestDocs.length === 0) {
+              return <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>발급된 문서가 없습니다.</p>;
+            }
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {requestDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "8px 12px",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "8px",
+                      background: "#ffffff",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <div>
+                      <strong style={{ marginRight: "6px", color: "#111827" }}>
+                        [{getDocumentTypeLabel(doc.document_type)}]
+                      </strong>
+                      <span style={{ marginRight: "6px", color: "#4b5563" }}>{doc.document_no}</span>
+                      <span style={{ fontSize: "11px", color: "#9ca3af" }}>v{doc.version}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-link-button"
+                      onClick={() => openDocumentSignedUrl(supabase, doc)}
+                      style={{ fontSize: "12px", color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                    >
+                      보기
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
       </div>
 
-      <div className="admin-document-preview">
-        <strong>미리보기</strong>
-        <Info label="기업명" value={draft.company_name} />
-        <Info label="행사명" value={draft.event_name} />
-        <Info label="행사 기간" value={draft.date_label} />
-        <Info label="필요 인원" value={`${draft.people_count || 1}명`} />
-        {isEstimate ? (
-          <>
-            <Info label="기본 금액" value={formatJPY(calculateEstimateBaseAmount(draft))} />
-            <Info label="최종 금액" value={formatJPY(amount)} />
-          </>
-        ) : (
-          <>
-            <Info label="업무 시간" value={draft.work_hours} />
-            <Info label="완료 확인일" value={draft.completed_at} />
-            <Info label="담당 통역사" value={draft.interpreter_display_name} />
-          </>
-        )}
-        <Info label="메모" value={draft.memo || "-"} />
-      </div>
-
-      <div className="admin-modal-actions">
-        <button type="button" className="admin-link-button" onClick={onCancel}>
-          취소
-        </button>
-        <button type="button" className="admin-save" disabled={saving} onClick={onCreate}>
-          {saving ? "생성 중..." : "확정 생성"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function PayoutCreateDialog({
-  draft,
-  latestDocument,
-  onCancel,
-  onChange,
-  onCreate,
-  saving,
-}) {
-  const baseAmount = calculatePayoutBaseAmount(draft);
-  const finalAmount = calculatePayoutAmount(draft);
-  const nextVersion = Number(latestDocument?.version || 0) + 1;
-
-  return (
-    <div className="admin-document-dialog">
-      <div className="admin-document-dialog-head">
-        <strong>정산 내역서 생성 {latestDocument ? `v${nextVersion}` : ""}</strong>
-        <button type="button" className="admin-link-button" onClick={onCancel}>
-          닫기
-        </button>
-      </div>
-
-      <div className="admin-modal-edit-grid">
-        <NumberControl
-          label="일당"
-          value={draft.daily_rate}
-          onChange={(value) => onChange("daily_rate", value)}
-        />
-        <NumberControl
-          label="근무 일수"
-          value={draft.work_days}
-          onChange={(value) => onChange("work_days", value)}
-        />
-        <NumberControl
-          label="추가 지급"
-          value={draft.extra_amount}
-          onChange={(value) => onChange("extra_amount", value)}
-        />
-        <NumberControl
-          label="공제 금액"
-          value={draft.deduction_amount}
-          onChange={(value) => onChange("deduction_amount", value)}
-        />
-        <FieldControl label="메모">
-          <textarea
-            value={draft.memo || ""}
-            onChange={(event) => onChange("memo", event.target.value)}
-            rows={3}
-          />
-        </FieldControl>
-      </div>
-
-      <div className="admin-document-preview">
-        <strong>미리보기</strong>
-        <Info label="통역사명" value={draft.interpreter_name} />
-        <Info label="업무명" value={draft.event_name} />
-        <Info label="업무 날짜" value={draft.date_label} />
-        <Info label="적용 레벨" value={draft.level} />
-        <Info label="기본 지급액" value={formatJPY(baseAmount)} />
-        <Info label="최종 지급액" value={formatJPY(finalAmount)} />
-        <Info label="메모" value={draft.memo || "-"} />
-      </div>
-
-      <div className="admin-modal-actions">
-        <button type="button" className="admin-link-button" onClick={onCancel}>
-          취소
-        </button>
-        <button type="button" className="admin-save" disabled={saving} onClick={onCreate}>
-          {saving ? "생성 중..." : "확정 생성"}
-        </button>
-      </div>
+      <AdminOperationsPanel
+        activityLogs={adminActivityLogs}
+        notes={adminNotes}
+        noteDrafts={noteDrafts}
+        saving={savingKey === `admin-note-request:${request.id}`}
+        targetId={request.id}
+        targetType="request"
+        onChangeNoteDraft={onChangeNoteDraft}
+        onCreateNote={onCreateNote}
+      />
     </div>
   );
 }
@@ -5044,7 +6437,9 @@ function JobApplicationsPanel({
     () => getDuplicateApplicationIdSet(applications),
     [applications]
   );
-  const rows = buildApplicationAssignmentRows(applications, assignments, interpreters);
+  const rows = buildApplicationAssignmentRows(applications, assignments, interpreters).filter(
+    isApplicantManagementApplication
+  );
   const toggleRow = (rowId) => {
     setOpenApplicantId((current) => (current === rowId ? null : rowId));
   };
@@ -5234,6 +6629,7 @@ function ApplicantDetailItem({ full = false, label, multiline = false, value }) 
 
 function InterpreterManagement({
   duplicateResult,
+  emptyText,
   filters,
   interpreters,
   savingKey,
@@ -5272,13 +6668,10 @@ function InterpreterManagement({
             setFilters((current) => ({ ...current, status: event.target.value }))
           }
         >
-          <option value="all">전체 상태</option>
-          <option value="pending">신규 통역사 지원</option>
-          <option value="active">승인 완료</option>
-          <option value="inactive">비활성</option>
-          <option value="rejected">반려</option>
-          <option value="warning">경고</option>
-          <option value="suspended">정지</option>
+          <option value="all">전체</option>
+          <option value="active">활동중</option>
+          <option value="pending">승인대기</option>
+          <option value="withdrawn">탈퇴회원</option>
         </select>
         <select
           value={filters.activity}
@@ -5299,9 +6692,18 @@ function InterpreterManagement({
             setFilters((current) => ({ ...current, approved: event.target.value }))
           }
         >
-          <option value="all">전체 뱃지</option>
-          <option value="false">뱃지 미노출</option>
-          <option value="true">검증 뱃지 노출</option>
+          <option value="all">전체 인증</option>
+          <option value="false">일반 등록</option>
+          <option value="true">ON-LI 인증 완료</option>
+        </select>
+        <select
+          value={filters.resumeReview}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, resumeReview: event.target.value }))
+          }
+        >
+          <option value="all">전체 이력서</option>
+          <option value="resume_review_pending">이력서 심사 대기</option>
         </select>
         <select
           value={filters.duplicate}
@@ -5315,7 +6717,7 @@ function InterpreterManagement({
       </div>
 
       {interpreters.length === 0 ? (
-        <MessageBox text="조건에 맞는 통역사가 없습니다." />
+        <MessageBox text={emptyText || "조건에 맞는 통역사가 없습니다."} />
       ) : (
         <div className="admin-management-card-grid admin-interpreter-grid">
           {interpreters.map((interpreter) => (
@@ -5340,18 +6742,121 @@ function InterpreterCard({
   duplicateReasons,
   duplicateSuspected,
   interpreter,
-  savingKey,
   onOpenModal,
-  updateInterpreter,
-  deleteInterpreter,
 }) {
   const approvalLabel = getInterpreterStatusLabel(interpreter);
   const activityStatus = getInterpreterActivityStatus(interpreter);
   const activityLabel = getInterpreterActivityStatusLabel(activityStatus);
-  const isSaving = savingKey === `interpreter-${interpreter.id}`;
   const duplicateTitle = duplicateReasons.join(", ");
 
-  const handleDownloadFile = async (filePath, fileName) => {
+  return (
+    <article
+      className="admin-list-card admin-interpreter-card"
+      style={{
+        cursor: "pointer",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        height: "100%",
+        padding: "16px",
+        gap: "12px",
+        minHeight: "170px"
+      }}
+      onClick={() => onOpenModal(interpreter, "detail")}
+    >
+      <div>
+        <div className="admin-list-card-head" style={{ marginBottom: "8px" }}>
+          <div>
+            <span className="admin-card-meta">통역사</span>
+            <h3 style={{ fontSize: "16px", margin: 0 }}>{interpreter.name || "이름 미입력"}</h3>
+          </div>
+        </div>
+
+        {/* 배지 표시 영역 */}
+        <div className="admin-card-chip-row" style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
+          {interpreter.approved && (
+            <span className="status-badge verified" style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", fontSize: "11px", padding: "2px 6px", borderRadius: "4px", fontWeight: "bold" }}>
+              ⭐ ON-LI 인증
+            </span>
+          )}
+          <span className="status-badge" style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+            {approvalLabel}
+          </span>
+          <span className={`status-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`} style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+            {activityLabel}
+          </span>
+          {(interpreter.resume_url || interpreter.resume_file_url) ? (
+            <span className="status-badge" style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+              📄 이력서 제출
+            </span>
+          ) : (
+            <span className="status-badge" style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb", fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+              미제출
+            </span>
+          )}
+          <span className="status-badge" style={{ background: (interpreter.warning_count || 0) > 0 ? "#fee2e2" : "#f3f4f6", color: (interpreter.warning_count || 0) > 0 ? "#991b1b" : "#6b7280", border: (interpreter.warning_count || 0) > 0 ? "1px solid #fca5a5" : "1px solid #e5e7eb", fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+            경고 {interpreter.warning_count || 0}회
+          </span>
+          {duplicateSuspected && (
+            <DuplicateBadge title={duplicateTitle} />
+          )}
+        </div>
+
+        <dl className="admin-card-summary" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "4px", margin: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "none", padding: "2px 0" }}>
+            <span style={{ color: "#6b7280", fontSize: "12px", fontWeight: "900" }}>통역사번호</span>
+            <span style={{ color: "#111827", fontSize: "13px", fontWeight: "800" }}>{formatManagementNumber(interpreter.interpreter_no)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "none", padding: "2px 0" }}>
+            <span style={{ color: "#6b7280", fontSize: "12px", fontWeight: "900" }}>레벨</span>
+            <span style={{ color: "#111827", fontSize: "13px", fontWeight: "800" }}>{normalizeLevel(interpreter.level)}</span>
+          </div>
+        </dl>
+      </div>
+
+      <div className="admin-card-actions admin-interpreter-actions" style={{ display: "block", paddingTop: 0 }}>
+        <button
+          type="button"
+          className="admin-link-button admin-detail-action"
+          style={{ width: "100%", justifyContent: "center", minHeight: "36px", fontSize: "12px" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenModal(interpreter, "detail");
+          }}
+        >
+          상세보기
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function InterpreterModal({
+  adminActivityLogs = [],
+  adminNotes = [],
+  applications = [],
+  draft,
+  duplicateReasons = [],
+  duplicateSuspected = false,
+  interpreter,
+  matchings = [],
+  modalType,
+  requestAssignments = [],
+  requests = [],
+  saving,
+  noteDrafts = {},
+  onChangeDraft,
+  onChangeNoteDraft,
+  onClose,
+  onCreateNote,
+  onSave,
+  updateInterpreter,
+  deleteInterpreter,
+  onOpenModal,
+}) {
+  if (!interpreter || !modalType) return null;
+
+  const handleDownloadFile = async (filePath) => {
     if (!supabase || !filePath) return;
     try {
       let resolvedPath = filePath;
@@ -5374,191 +6879,21 @@ function InterpreterCard({
     }
   };
 
-  return (
-    <article className="admin-list-card admin-interpreter-card">
-      <div className="admin-list-card-head">
-        <div>
-          <span className="admin-card-meta">통역사</span>
-          <h3>{interpreter.name || "이름 미입력"}</h3>
-        </div>
-        <div className="admin-card-chip-row">
-          {interpreter.approved && (
-            <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              ✨ 검증 완료
-            </span>
-          )}
-          {!interpreter.approved && (interpreter.resume_url || interpreter.resume_file_url) && (
-            <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a' }}>
-              ⏳ 심사 대기
-            </span>
-          )}
-          {duplicateSuspected && (
-            <DuplicateBadge title={duplicateTitle} />
-          )}
-          <StatusBadge status={approvalLabel} />
-          <span className={`status-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}>
-            {activityLabel}
-          </span>
-        </div>
-      </div>
-
-      <dl className="admin-card-summary">
-        <Info label="통역사번호" value={formatManagementNumber(interpreter.interpreter_no)} />
-        <Info label="레벨" value={normalizeLevel(interpreter.level)} />
-        <Info label="승인 상태" value={approvalLabel} />
-        <Info label="활동 상태" value={activityLabel} />
-        <Info
-          label="이력서 제출"
-          value={
-            interpreter.approved ? (
-              <span style={{ color: "#15803d", fontWeight: "bold" }}>✨ 검증 완료</span>
-            ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ color: "#a16207", fontWeight: "bold" }}>
-                  ⏳ 심사 대기 (
-                  {interpreter.resume_url && interpreter.resume_file_url ? "링크+파일" : interpreter.resume_file_url ? "파일" : "링크"}
-                  )
-                </span>
-                {interpreter.resume_url && (
-                  <a href={interpreter.resume_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#3b82f6", textDecoration: "underline", wordBreak: "break-all" }}>
-                    🔗 포트폴리오 링크
-                  </a>
-                )}
-                {interpreter.resume_file_url && (
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadFile(interpreter.resume_file_url, interpreter.resume_file_name)}
-                    style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#5b5cf0", color: "#ffffff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer", marginTop: "2px", width: "fit-content" }}
-                  >
-                    📥 파일 다운로드
-                  </button>
-                )}
-              </div>
-            ) : (
-              <span style={{ color: "#6b7280" }}>미제출</span>
-            )
-          }
-        />
-        {interpreter.resume_submitted_at && (
-          <Info
-            label="제출일"
-            value={new Date(interpreter.resume_submitted_at).toLocaleDateString()}
-          />
-        )}
-        <Info label="활동 지역" value={formatListOrMissing(interpreter.available_regions)} />
-        <Info label="전문 분야" value={formatListOrMissing(interpreter.specialties)} />
-        <Info label="통역 경험" value={getExperienceLabel(interpreter)} />
-        <Info label="경고" value={`${interpreter.warning_count || 0}회`} />
-      </dl>
-
-      <div className="admin-card-controls-grid single">
-        <FieldControl label="공개 활동 상태">
-          <select
-            className="admin-inline-select"
-            value={activityStatus}
-            disabled={isSaving}
-            onChange={(event) =>
-              updateInterpreter(interpreter.id, {
-                activity_status: event.target.value,
-              })
-            }
-          >
-            {INTERPRETER_ACTIVITY_STATUS_OPTIONS.map((status) => (
-              <option key={status.value} value={status.value}>
-                {status.label}
-              </option>
-            ))}
-          </select>
-        </FieldControl>
-      </div>
-
-      <div className="admin-card-actions admin-interpreter-actions">
-        <button
-          type="button"
-          className="admin-link-button admin-detail-action"
-          onClick={() => onOpenModal(interpreter, "detail")}
-        >
-          상세보기
-        </button>
-        <button
-          type="button"
-          className="admin-link-button admin-edit-action"
-          onClick={() => onOpenModal(interpreter, "edit")}
-        >
-          수정
-        </button>
-        <button
-          type="button"
-          className="admin-save admin-approve-action"
-          disabled={isSaving}
-          onClick={() =>
-            updateInterpreter(interpreter.id, {
-              status: "active",
-              activity_status: INTERPRETER_ACTIVITY_STATUS.ACTIVE,
-            })
-          }
-        >
-          승인
-        </button>
-        <button
-          type="button"
-          className="admin-save orange admin-reject-action"
-          disabled={isSaving}
-          onClick={() =>
-            updateInterpreter(interpreter.id, {
-              status: "rejected",
-            })
-          }
-        >
-          반려
-        </button>
-        <button
-          type="button"
-          className="admin-save danger admin-delete-action"
-          disabled={isSaving}
-          onClick={() => deleteInterpreter(interpreter.id)}
-        >
-          삭제
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function InterpreterModal({
-  draft,
-  duplicateReasons = [],
-  duplicateSuspected = false,
-  interpreter,
-  modalType,
-  saving,
-  onChangeDraft,
-  onClose,
-  onSave,
-  updateInterpreter,
-}) {
-  if (!interpreter || !modalType) return null;
-
-  const handleDownloadFile = async (filePath, fileName) => {
+  const handleOpenInterpreterDocument = async (filePath) => {
     if (!supabase || !filePath) return;
     try {
-      let resolvedPath = filePath;
-      if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-        const parts = filePath.split("/resume-files/");
-        if (parts.length > 1) {
-          resolvedPath = parts[1].split("?")[0];
-        }
-      }
+      const resolvedPath = getStoragePathFromUrl(filePath, INTERPRETER_DOCUMENT_BUCKET);
+      if (!resolvedPath) throw new Error("Interpreter document storage path is empty");
 
       const { data, error } = await supabase.storage
-        .from("resume-files")
+        .from(INTERPRETER_DOCUMENT_BUCKET)
         .createSignedUrl(resolvedPath, 60);
 
       if (error) throw error;
       window.open(data.signedUrl, "_blank");
     } catch (err) {
-      console.error("Failed to generate signed URL", err);
-      alert("이력서 파일을 다운로드할 수 없습니다. 권한이 없거나 링크가 만료되었습니다.");
+      console.error("Failed to generate interpreter document signed URL", err);
+      alert("정산 서류 파일을 열 수 없습니다. 권한이 없거나 링크가 만료되었습니다.");
     }
   };
 
@@ -5570,17 +6905,38 @@ function InterpreterModal({
   const duplicateTitle = duplicateReasons.join(", ");
   const adminMemo =
     draft?.admin_memo ??
-    interpreter.admin_memo ??
-    interpreter.management_memo ??
-    interpreter.memo ??
-    interpreter.note ??
+    interpreter?.admin_memo ??
+    interpreter?.management_memo ??
+    interpreter?.memo ??
+    interpreter?.note ??
     "";
   const managementMemo =
-    interpreter.admin_memo ||
-    interpreter.management_memo ||
-    interpreter.memo ||
-    interpreter.note ||
+    interpreter?.admin_memo ||
+    interpreter?.management_memo ||
+    interpreter?.memo ||
+    interpreter?.note ||
     "";
+  const relatedApplications = applications.filter((application) => {
+    return (
+      String(application.interpreter_id || "") === String(interpreter.id) ||
+      (application.email &&
+        interpreter.email &&
+        String(application.email).toLowerCase().trim() ===
+          String(interpreter.email).toLowerCase().trim())
+    );
+  });
+  const relatedSettlements = matchings.filter(
+    (matching) => String(matching.interpreter_id || "") === String(interpreter.id)
+  );
+  const onliPerformanceCount = getOnliPerformanceCount({
+    interpreter,
+    matchings,
+    requestAssignments,
+    requests,
+  });
+  const certificationRequirementMet = onliPerformanceCount >= 5;
+  const certificationRequirementLabel = certificationRequirementMet ? "충족" : "미충족";
+  const certificationStateLabel = interpreter.approved ? "ON-LI 인증 통역사" : "등록 통역사";
 
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
@@ -5636,8 +6992,11 @@ function InterpreterModal({
                 </div>
               </div>
               <div className="admin-interpreter-contact-grid">
-                <InterpreterQuickInfo icon={Phone} label="전화번호" value={interpreter.phone} />
                 <InterpreterQuickInfo icon={Mail} label="이메일" value={interpreter.email} />
+                <InterpreterQuickInfo icon={Phone} label="카카오톡 ID" value={interpreter.kakao_or_line} />
+                {interpreter.phone && (
+                  <InterpreterQuickInfo icon={Phone} label="기존 전화번호" value={interpreter.phone} />
+                )}
                 <InterpreterQuickInfo
                   icon={MapPin}
                   label="활동 지역"
@@ -5658,6 +7017,12 @@ function InterpreterModal({
                 <InterpreterDetailItem label="나이" value={interpreter.age} />
                 <InterpreterDetailItem label="레벨" value={levelLabel} />
                 <InterpreterDetailItem label="승인 상태" value={approvalLabel} />
+                {isWithdrawnInterpreter(interpreter) && (
+                  <InterpreterDetailItem
+                    label="탈퇴일"
+                    value={formatDateTime(interpreter.withdrawn_at)}
+                  />
+                )}
                 <InterpreterDetailItem
                   label="제출된 이력서"
                   value={
@@ -5704,14 +7069,45 @@ function InterpreterModal({
                     value={formatDateTime(interpreter.resume_submitted_at)}
                   />
                 )}
-                <InterpreterDetailItem label="검증된 통역사 뱃지" value={interpreter.approved ? "검증 완료" : "미검증"} />
+                <InterpreterDetailItem
+                  label="통장 사본"
+                  value={
+                    interpreter.bankbook_file_url ? (
+                      <InterpreterDocumentLink
+                        fileName={interpreter.bankbook_file_name}
+                        fallbackLabel="통장 사본"
+                        onClick={() => handleOpenInterpreterDocument(interpreter.bankbook_file_url)}
+                      />
+                    ) : (
+                      "미등록"
+                    )
+                  }
+                />
+                <InterpreterDetailItem
+                  label="사업자등록증"
+                  value={
+                    interpreter.business_license_file_url ? (
+                      <InterpreterDocumentLink
+                        fileName={interpreter.business_license_file_name}
+                        fallbackLabel="사업자등록증"
+                        onClick={() => handleOpenInterpreterDocument(interpreter.business_license_file_url)}
+                      />
+                    ) : (
+                      "미등록"
+                    )
+                  }
+                />
+                <InterpreterDetailItem label="ON-LI 인증 상태" value={interpreter.approved ? "ON-LI 인증 완료" : "일반 등록"} />
                 <InterpreterDetailItem label="공개 활동 상태" value={activityLabel} />
               </InterpreterDetailSection>
 
               <InterpreterDetailSection icon={Languages} title="활동 정보">
-                <InterpreterDetailItem label="언어 수준" value={interpreter.language_level || interpreter.level} />
+                <InterpreterDetailItem label="가능 언어" value={interpreter.language_level || interpreter.level} />
                 <InterpreterDetailItem label="JLPT 여부" value={interpreter.jlpt} />
                 <InterpreterDetailItem label="통역 경험" value={getExperienceLabel(interpreter)} />
+                <InterpreterDetailItem label="ON-LI 수행 횟수" value={`${onliPerformanceCount}회`} />
+                <InterpreterDetailItem label="인증 조건" value={certificationRequirementLabel} />
+                <InterpreterDetailItem label="현재 인증 상태" value={certificationStateLabel} />
                 <InterpreterDetailItem
                   label="통역 횟수"
                   value={
@@ -5734,7 +7130,10 @@ function InterpreterModal({
                 />
                 <InterpreterDetailItem label="일본 체류 기간" value={interpreter.stay_period} />
                 <InterpreterDetailItem label="학교/전공" value={interpreter.school} />
-                <InterpreterDetailItem label="Kakao/LINE" value={interpreter.kakao_or_line} />
+                <InterpreterDetailItem label="카카오톡 ID" value={interpreter.kakao_or_line} />
+                {interpreter.phone && (
+                  <InterpreterDetailItem label="기존 전화번호" value={interpreter.phone} />
+                )}
                 <InterpreterDetailItem label="약관 동의" value={getAgreementStatusLabel(interpreter)} />
                 <InterpreterDetailItem label="동의 시간" value={formatDateTime(interpreter.agreed_at)} />
               </InterpreterDetailSection>
@@ -5756,6 +7155,38 @@ function InterpreterModal({
               </InterpreterDetailSection>
             </div>
 
+            {isWithdrawnInterpreter(interpreter) && (
+              <div className="admin-interpreter-detail-grid admin-interpreter-history-grid">
+                <InterpreterDetailSection icon={FileText} title="지원 내역">
+                  {relatedApplications.length === 0 ? (
+                    <InterpreterDetailItem label="지원 내역" value="지원 내역 없음" />
+                  ) : (
+                    relatedApplications.slice(0, 5).map((application) => (
+                      <InterpreterDetailItem
+                        key={application.id}
+                        label={formatManagementNumber(application.application_no) || `지원 ${application.id}`}
+                        value={`${getApplicationStatusLabel(application.status)} · ${formatDate(application.created_at)}`}
+                      />
+                    ))
+                  )}
+                </InterpreterDetailSection>
+
+                <InterpreterDetailSection icon={Briefcase} title="정산 내역">
+                  {relatedSettlements.length === 0 ? (
+                    <InterpreterDetailItem label="정산 내역" value="정산 내역 없음" />
+                  ) : (
+                    relatedSettlements.slice(0, 5).map((matching) => (
+                      <InterpreterDetailItem
+                        key={matching.id}
+                        label={formatManagementNumber(matching.matching_no) || `매칭 ${matching.id}`}
+                        value={`${getMatchingStatusLabel(matching.status)} · ${formatDateRange(matching.start_date, matching.end_date)}`}
+                      />
+                    ))
+                  )}
+                </InterpreterDetailSection>
+              </div>
+            )}
+
             <section className="admin-interpreter-verification-card" style={{
               background: "var(--bg)",
               border: "1px solid var(--border)",
@@ -5774,7 +7205,7 @@ function InterpreterModal({
                 paddingBottom: "12px"
               }}>
                 <CheckCircle2 size={20} color="#aa3bff" aria-hidden="true" />
-                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "600", color: "var(--text-h)" }}>검증 통역사 뱃지 및 이력서 관리</h3>
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "600", color: "var(--text-h)" }}>ON-LI 인증 통역사 관리</h3>
               </div>
               
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -5829,15 +7260,11 @@ function InterpreterModal({
                       <span style={{ fontSize: "0.85rem", color: "var(--text)", display: "block", marginBottom: "4px" }}>현재 상태</span>
                       {interpreter.approved ? (
                         <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
-                          ✨ 검증 완료
-                        </span>
-                      ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
-                        <span className="status-badge pending" style={{ background: '#fef9c3', color: '#a16207', border: '1px solid #fef08a', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
-                          ⏳ 심사 대기중
+                          ⭐ ON-LI 인증 완료
                         </span>
                       ) : (
                         <span className="status-badge unsubmitted" style={{ background: '#f3f4f6', color: '#6b7280', border: '1px solid #e5e7eb', padding: "6px 12px", borderRadius: "20px", display: "inline-block" }}>
-                          미제출
+                          ○ 일반 등록
                         </span>
                       )}
                     </div>
@@ -5855,17 +7282,30 @@ function InterpreterModal({
                   marginTop: "8px"
                 }}>
                   <div style={{ flex: 1, paddingRight: "16px" }}>
-                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-h)", fontWeight: "600" }}>검증 통역사 권한 제어</p>
+                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-h)", fontWeight: "600" }}>ON-LI 인증 권한 제어</p>
                     <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: "var(--text)" }}>
-                      승인 시 해당 통역사의 프로필에 <strong>✨ ON-LI 검증 통역사</strong> 뱃지가 노출되며 신뢰도를 높여줍니다.
+                      ON-LI에서 5회 이상 통역 업무를 수행하고 운영자가 신뢰도를 확인한 통역사에게 인증 뱃지를 부여합니다.
                     </p>
+                    <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
+                      <strong style={{ color: "var(--text-h)" }}>현재 판단:</strong>
+                      <div>ON-LI 수행 횟수: {onliPerformanceCount}회</div>
+                      <div>인증 조건: {certificationRequirementLabel}</div>
+                      <div>ON-LI 인증 상태: {certificationStateLabel}</div>
+                    </div>
+                    <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
+                      <strong style={{ color: "var(--text-h)" }}>인증 기준:</strong>
+                      <div>✓ ON-LI 업무 수행 5회 이상</div>
+                      <div>✓ 관리자 활동 이력 확인 완료</div>
+                      <div>✓ 관리자 내부 품질 메모 확인 완료</div>
+                      <div>※ 조건 충족 시에도 자동 인증되지 않으며, 관리자가 수동으로 부여합니다.</div>
+                    </div>
                   </div>
                   <div>
                     {interpreter.approved ? (
                       <button
                         type="button"
                         onClick={async () => {
-                          if (window.confirm("이 통역사의 검증 완료 뱃지를 취소하시겠습니까?")) {
+                          if (window.confirm("이 통역사의 ON-LI 인증을 해제하시겠습니까?")) {
                             await updateInterpreter(interpreter.id, { approved: false }, { showSuccess: true });
                           }
                         }}
@@ -5881,13 +7321,13 @@ function InterpreterModal({
                           transition: "all 0.2s"
                         }}
                       >
-                        검증 배지 회수하기
+                        ON-LI 인증 해제하기
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={async () => {
-                          if (window.confirm("이 통역사의 이력서를 승인하고 검증 완료 뱃지를 부여하시겠습니까?")) {
+                          if (window.confirm("이 통역사에게 ON-LI 인증을 부여하시겠습니까?")) {
                             await updateInterpreter(interpreter.id, { approved: true }, { showSuccess: true });
                           }
                         }}
@@ -5903,7 +7343,7 @@ function InterpreterModal({
                           transition: "all 0.2s"
                         }}
                       >
-                        검증 배지 승인하기
+                        ON-LI 인증 부여하기
                       </button>
                     )}
                   </div>
@@ -5920,7 +7360,7 @@ function InterpreterModal({
                 rows={5}
                 value={adminMemo}
                 onChange={(event) => onChangeDraft("admin_memo", event.target.value)}
-                placeholder="운영팀 내부에서만 확인하는 메모를 입력하세요."
+                placeholder="시간 준수 문제 여부, 현장 대응 특이사항, 기업 재요청 여부, 주의사항, 내부 메모"
               />
               <div className="admin-interpreter-memo-actions">
                 <span>공개 페이지에는 노출되지 않습니다.</span>
@@ -5929,6 +7369,106 @@ function InterpreterModal({
                 </button>
               </div>
             </section>
+
+            <AdminOperationsPanel
+              activityLogs={adminActivityLogs}
+              notes={adminNotes}
+              noteDrafts={noteDrafts}
+              saving={false}
+              targetId={interpreter.id}
+              targetType="interpreter"
+              onChangeNoteDraft={onChangeNoteDraft}
+              onCreateNote={onCreateNote}
+            />
+
+            <div
+              className="admin-modal-actions admin-interpreter-detail-actions"
+              style={{
+                marginTop: "24px",
+                paddingTop: "16px",
+                borderTop: "1px solid var(--border, #e5e7eb)",
+                display: "flex",
+                gap: "10px",
+                justifyContent: "flex-end",
+                flexWrap: "wrap",
+                alignItems: "center"
+              }}
+            >
+              <div style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "13px", fontWeight: "900", color: "var(--text-h, #111827)" }}>공개 활동 상태</span>
+                <select
+                  className="admin-inline-select"
+                  value={activityStatus}
+                  disabled={saving}
+                  style={{ minHeight: "36px", fontSize: "13px", padding: "6px 12px", border: "1px solid #d1d5db", borderRadius: "8px" }}
+                  onChange={(event) =>
+                    updateInterpreter(interpreter.id, {
+                      activity_status: event.target.value,
+                    }, { showSuccess: true })
+                  }
+                >
+                  {INTERPRETER_ACTIVITY_STATUS_OPTIONS.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                className="admin-link-button admin-edit-action"
+                style={{ minHeight: "36px", fontSize: "13px", padding: "8px 16px" }}
+                onClick={() => onOpenModal(interpreter, "edit")}
+              >
+                수정
+              </button>
+              <button
+                type="button"
+                className="admin-save admin-approve-action"
+                disabled={saving}
+                style={{ minHeight: "36px", fontSize: "13px", padding: "8px 16px" }}
+                onClick={async () => {
+                  await updateInterpreter(interpreter.id, {
+                    status: "active",
+                    activity_status: INTERPRETER_ACTIVITY_STATUS.ACTIVE,
+                    is_public: true,
+                    withdrawn_at: null,
+                  }, { showSuccess: true });
+                  onClose();
+                }}
+              >
+                {isWithdrawnInterpreter(interpreter) ? "계정 복구" : "승인"}
+              </button>
+              <button
+                type="button"
+                className="admin-save orange admin-reject-action"
+                disabled={saving}
+                style={{ minHeight: "36px", fontSize: "13px", padding: "8px 16px" }}
+                onClick={async () => {
+                  await updateInterpreter(interpreter.id, {
+                    status: "rejected",
+                  }, { showSuccess: true });
+                  onClose();
+                }}
+              >
+                반려
+              </button>
+              <button
+                type="button"
+                className="admin-save danger admin-delete-action"
+                disabled={saving}
+                style={{ minHeight: "36px", fontSize: "13px", padding: "8px 16px" }}
+                onClick={async () => {
+                  if (window.confirm("이 통역사를 정말 삭제하시겠습니까?")) {
+                    await deleteInterpreter(interpreter.id);
+                    onClose();
+                  }
+                }}
+              >
+                삭제
+              </button>
+            </div>
           </>
         ) : (
           <>
@@ -6011,11 +7551,11 @@ function InterpreterModal({
                   placeholder="전화번호를 입력해주세요"
                 />
               </FieldControl>
-              <FieldControl label="카카오/라인 ID">
+              <FieldControl label="카카오톡 ID">
                 <input
                   value={draft?.kakao_or_line || ""}
                   onChange={(event) => onChangeDraft("kakao_or_line", event.target.value)}
-                  placeholder="카카오톡 또는 라인 ID를 입력해주세요"
+                  placeholder="카카오톡 ID를 입력해주세요"
                 />
               </FieldControl>
 
@@ -6101,11 +7641,11 @@ function InterpreterModal({
                   onChange={(value) => onChangeDraft("status", value)}
                 />
               </FieldControl>
-              <FieldControl label="검증된 통역사 뱃지">
+              <FieldControl label="ON-LI 인증 통역사">
                 <InlineSelect
                   options={[
-                    { label: "일반 통역사 (뱃지 미노출)", value: "false" },
-                    { label: "검증 완료 (뱃지 노출)", value: "true" },
+                    { label: "일반 등록", value: "false" },
+                    { label: "ON-LI 인증 완료", value: "true" },
                   ]}
                   value={draft?.approved || "false"}
                   onChange={(value) => onChangeDraft("approved", value)}
@@ -6183,18 +7723,172 @@ function InterpreterDetailItem({ label, value }) {
   );
 }
 
-function ModalInfoSection({ children, title, twoColumn = false }) {
+function InterpreterDocumentLink({ fallbackLabel, fileName, onClick }) {
   return (
-    <section className="admin-info-block">
-      <h3>{title}</h3>
-      <dl className={`admin-info-section${twoColumn ? " two-column" : ""}`}>
-        {children}
-      </dl>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+      <span style={{ fontSize: "13px", color: "#4b5563", fontWeight: "700", wordBreak: "break-all" }}>
+        📎 {fileName || fallbackLabel}
+      </span>
+      <button
+        type="button"
+        onClick={onClick}
+        style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#5b5cf0", color: "#ffffff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
+      >
+        보기
+      </button>
+    </div>
+  );
+}
+
+function AdminOperationsPanel({
+  activityLogs = [],
+  compactModal = false,
+  notes = [],
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  saving = false,
+  targetId,
+  targetType,
+}) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  if (!targetId || !targetType) return null;
+
+  const targetKey = `${targetType}:${String(targetId)}`;
+  const allTargetNotes = notes.filter(
+    (note) =>
+      note.target_type === targetType &&
+      String(note.target_id) === String(targetId)
+  );
+  const allTargetLogs = activityLogs.filter(
+    (log) =>
+      log.target_type === targetType &&
+      String(log.target_id) === String(targetId)
+  );
+  const targetNotes = compactModal ? allTargetNotes : allTargetNotes.slice(0, 3);
+  const targetLogs = compactModal ? allTargetLogs : allTargetLogs.slice(0, 5);
+  const content = (
+    <>
+      <div className="admin-operations-column">
+        <h3>내부 메모</h3>
+        {targetNotes.length === 0 ? (
+          <p className="admin-empty-text">아직 등록된 내부 메모가 없습니다.</p>
+        ) : (
+          <div className="admin-operations-list">
+            {targetNotes.map((note) => (
+              <article className="admin-operation-log-item" key={note.id}>
+                <p>{note.note}</p>
+                <span>{formatDateTime(note.created_at)}</span>
+              </article>
+            ))}
+          </div>
+        )}
+        <label className="admin-field-control admin-note-input">
+          <span>새 메모</span>
+          <textarea
+            rows={3}
+            value={noteDrafts[targetKey] || ""}
+            onChange={(event) =>
+              onChangeNoteDraft?.(targetType, targetId, event.target.value)
+            }
+            placeholder="운영팀 내부 확인 내용을 남겨주세요."
+          />
+        </label>
+        <button
+          type="button"
+          className="admin-save"
+          disabled={saving}
+          onClick={() => onCreateNote?.(targetType, targetId)}
+        >
+          {saving ? "저장 중..." : "메모 저장"}
+        </button>
+      </div>
+
+      <div className="admin-operations-column">
+        <h3>처리 이력</h3>
+        {targetLogs.length === 0 ? (
+          <p className="admin-empty-text">아직 처리 이력이 없습니다.</p>
+        ) : (
+          <div className="admin-operations-list">
+            {targetLogs.map((log) => (
+              <article className="admin-operation-log-item" key={log.id}>
+                <strong>{getAdminActionTypeLabel(log.action_type)}</strong>
+                <p>{formatAdminActivityLog(log)}</p>
+                <span>{formatDateTime(log.created_at)}</span>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  if (compactModal) {
+    return (
+      <>
+        <div className="admin-operations-card-actions">
+          <button
+            type="button"
+            className="admin-link-button"
+            onClick={() => setIsModalOpen(true)}
+          >
+            메모/이력 보기
+            <span>
+              메모 {allTargetNotes.length} · 이력 {allTargetLogs.length}
+            </span>
+          </button>
+        </div>
+
+        {isModalOpen && (
+          <div
+            className="admin-modal-overlay"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setIsModalOpen(false);
+            }}
+          >
+            <section
+              className="admin-modal-card admin-operations-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`admin-operations-modal-${targetType}-${targetId}`}
+            >
+              <div className="admin-modal-head">
+                <div>
+                  <p className="admin-card-meta">운영 관리</p>
+                  <h2 id={`admin-operations-modal-${targetType}-${targetId}`}>
+                    내부 메모 및 처리 이력
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  className="admin-modal-close"
+                  onClick={() => setIsModalOpen(false)}
+                >
+                  닫기
+                </button>
+              </div>
+              <div className="admin-operations-modal-grid">
+                {content}
+              </div>
+            </section>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <section className="admin-operations-panel">
+      {content}
     </section>
   );
 }
 
 function ApplicationManagement({
+  adminActivityLogs = [],
+  adminNotes = [],
   applications,
   duplicateResult,
   getInterpreterScheduleConflicts,
@@ -6204,14 +7898,21 @@ function ApplicationManagement({
   deleteApplication,
   filters,
   setFilters,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
 }) {
   const duplicateData = useMemo(
     () => duplicateResult || getDuplicateApplicationIdSet(applications),
     [applications, duplicateResult]
   );
+  const managementApplications = useMemo(
+    () => applications.filter(isApplicantManagementApplication),
+    [applications]
+  );
   const visibleApplications = useMemo(
     () =>
-      applications.filter((application) => {
+      managementApplications.filter((application) => {
         const matchesDuplicate =
           filters.duplicate === "all" ||
           (filters.duplicate === "suspected" && duplicateData.duplicateIds.has(application.id));
@@ -6224,7 +7925,7 @@ function ApplicationManagement({
 
         return matchesDuplicate && matchesStatus;
       }),
-    [applications, duplicateData, filters.duplicate, filters.status]
+    [duplicateData, filters.duplicate, filters.status, managementApplications]
   );
 
   return (
@@ -6281,6 +7982,11 @@ function ApplicationManagement({
                 deleteApplication={deleteApplication}
                 duplicateReasons={duplicateReasons}
                 duplicateSuspected={duplicateData.duplicateIds.has(application.id)}
+                adminNotes={adminNotes}
+                adminActivityLogs={adminActivityLogs}
+                noteDrafts={noteDrafts}
+                onChangeNoteDraft={onChangeNoteDraft}
+                onCreateNote={onCreateNote}
               />
             );
           })}
@@ -6291,6 +7997,8 @@ function ApplicationManagement({
 }
 
 function ApplicationCard({
+  adminActivityLogs = [],
+  adminNotes = [],
   application,
   job,
   scheduleConflict,
@@ -6299,6 +8007,9 @@ function ApplicationCard({
   deleteApplication,
   duplicateReasons,
   duplicateSuspected,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
 }) {
   const duplicateTitle = duplicateReasons.join(", ");
 
@@ -6372,29 +8083,224 @@ function ApplicationCard({
           삭제
         </button>
       </div>
+
+      <AdminOperationsPanel
+        activityLogs={adminActivityLogs}
+        compactModal
+        notes={adminNotes}
+        noteDrafts={noteDrafts}
+        saving={savingKey === `admin-note-application:${application.id}`}
+        targetId={application.id}
+        targetType="application"
+        onChangeNoteDraft={onChangeNoteDraft}
+        onCreateNote={onCreateNote}
+      />
     </article>
   );
 }
 
-function DocumentManagement({
-  documents,
-  documentDraft,
-  filters,
-  interpreters,
-  requests,
-  savingKey,
-  selectedDocument,
-  setFilters,
-  versions,
-  onChangeDraft,
-  onCloseDetail,
-  onCreateVersion,
-  onOpenDetail,
-  onOpenPdf,
-  onRefresh,
-  onStartNewVersion,
-  onVoidDocument,
+function AssignmentManagement({
+  adminActivityLogs = [],
+  adminNotes = [],
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  rows = [],
+  pendingRequests = [],
+  onOpenRequest,
 }) {
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "all",
+  });
+  const [collapsedSections, setCollapsedSections] = useState({
+    allAssignments: false,
+    pendingRequests: false,
+  });
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((row) =>
+        doesAssignmentManagementItemMatchFilters(row, filters)
+      ),
+    [filters, rows]
+  );
+  const filteredPendingRequests = useMemo(
+    () =>
+      pendingRequests.filter((request) =>
+        doesAssignmentManagementItemMatchFilters(request, filters)
+      ),
+    [filters, pendingRequests]
+  );
+  const updateFilter = (name, value) => {
+    setFilters((current) => ({ ...current, [name]: value }));
+  };
+  const toggleSection = (sectionId) => {
+    setCollapsedSections((current) => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
+  };
+  const totalCount = rows.length + pendingRequests.length;
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${totalCount}건`} title="배정 관리" />
+      <div className="admin-filters admin-assignment-filters">
+        <label className="admin-search-control">
+          <Search size={16} aria-hidden="true" />
+          <input
+            value={filters.search}
+            onChange={(event) => updateFilter("search", event.target.value)}
+            placeholder="관리번호, 기업명, 행사명으로 검색"
+          />
+        </label>
+        <select
+          value={filters.status}
+          onChange={(event) => updateFilter("status", event.target.value)}
+        >
+          <option value="all">전체</option>
+          <option value="waiting">배정 대기</option>
+          <option value="assigning">배정중</option>
+          <option value="assigned">배정 완료</option>
+          <option value="completed">완료</option>
+          <option value="cancelled">취소</option>
+        </select>
+      </div>
+
+      <div className="admin-subsection">
+        <SectionTitle
+          collapsible
+          collapsed={collapsedSections.allAssignments}
+          count={`${filteredRows.length}건`}
+          title="전체 배정"
+          onToggle={() => toggleSection("allAssignments")}
+        />
+        {!collapsedSections.allAssignments &&
+          (filteredRows.length === 0 ? (
+            <MessageBox text="검색 조건에 맞는 배정 의뢰가 없습니다." />
+          ) : (
+            <div className="admin-management-card-grid">
+              {filteredRows.map((row) => (
+                <article className="admin-list-card" key={row.rowId}>
+                  <div className="admin-list-card-head">
+                    <div>
+                      <span className="admin-card-meta">배정</span>
+                      <ManagementNumberBadge value={row.assignmentNo} />
+                      <h3>{row.interpreterName || "-"}</h3>
+                    </div>
+                    <StatusBadge status={row.assignmentStatusLabel} />
+                  </div>
+                  <dl className="admin-card-summary">
+                    <Info label="배정번호" value={formatManagementNumber(row.assignmentNo)} />
+                    <Info label="의뢰번호" value={formatManagementNumber(row.requestNo)} />
+                    <Info label="지원번호" value={formatManagementNumber(row.applicationNo)} />
+                    <Info label="통역사명" value={row.interpreterName || "-"} />
+                    <Info label="행사명" value={row.eventName || "-"} />
+                    <Info label="일정" value={row.dateLabel || "-"} />
+                    <Info label="장소" value={row.location || "-"} />
+                    <Info label="배정 상태" value={row.assignmentStatusLabel} />
+                    <Info label="정산 상태" value={row.settlementStatusLabel} />
+                  </dl>
+                  {row.request && (
+                    <div className="admin-card-actions">
+                      <button
+                        type="button"
+                        className="admin-link-button primary"
+                        onClick={() => onOpenRequest(row.request)}
+                      >
+                        상세보기
+                      </button>
+                    </div>
+                  )}
+                  <AdminOperationsPanel
+                    activityLogs={adminActivityLogs}
+                    compactModal
+                    notes={adminNotes}
+                    noteDrafts={noteDrafts}
+                    targetId={row.assignment?.id || row.rowId}
+                    targetType="assignment"
+                    onChangeNoteDraft={onChangeNoteDraft}
+                    onCreateNote={onCreateNote}
+                  />
+                </article>
+              ))}
+            </div>
+          ))}
+      </div>
+
+      {filteredPendingRequests.length > 0 && (
+        <div className="admin-subsection">
+          <SectionTitle
+            collapsible
+            collapsed={collapsedSections.pendingRequests}
+            count={`${filteredPendingRequests.length}건`}
+            title="배정 대기 상태 의뢰"
+            onToggle={() => toggleSection("pendingRequests")}
+          />
+          {!collapsedSections.pendingRequests && (
+            <div className="admin-management-card-grid">
+              {filteredPendingRequests.map((request) => (
+                <article className="admin-list-card" key={`pending-assignment-${request.id}`}>
+                  <div className="admin-list-card-head">
+                    <div>
+                      <span className="admin-card-meta">배정 대기</span>
+                      <ManagementNumberBadge value={request.request_no} />
+                      <h3>{request.event_name || request.title || "-"}</h3>
+                    </div>
+                    <StatusBadge status={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
+                  </div>
+                  <dl className="admin-card-summary">
+                    <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+                    <Info label="기업명" value={request.company_name || "-"} />
+                    <Info
+                      label="일정"
+                      value={formatDateRange(
+                        request.start_date,
+                        request.end_date,
+                        request.event_date || request.date
+                      )}
+                    />
+                    <Info label="장소" value={request.event_location || request.location || "-"} />
+                    <Info label="배정 상태" value={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
+                  </dl>
+                  <div className="admin-card-actions">
+                    <button
+                      type="button"
+                      className="admin-link-button primary"
+                      onClick={() => onOpenRequest(request)}
+                    >
+                      상세보기
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DocumentManagement({
+  documents = [],
+  initialType = "all",
+  interpreters = [],
+  onCreateVersion,
+  onOpenPdf,
+  onVoidDocument,
+  requests = [],
+  savingKey,
+}) {
+  const [filters, setFilters] = useState({
+    search: "",
+    documentType: initialType,
+    status: "all",
+    startDate: "",
+    endDate: "",
+  });
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
+  const [versionDraft, setVersionDraft] = useState(null);
   const requestMap = useMemo(
     () => new Map(requests.map((request) => [String(request.id), request])),
     [requests]
@@ -6403,13 +8309,37 @@ function DocumentManagement({
     () => new Map(interpreters.map((interpreter) => [String(interpreter.id), interpreter])),
     [interpreters]
   );
+
+  useEffect(() => {
+    setFilters((current) => ({ ...current, documentType: initialType }));
+    setSelectedDocumentId(null);
+    setVersionDraft(null);
+  }, [initialType]);
+
   const filteredDocuments = useMemo(
     () =>
       documents.filter((document) =>
-        doesDocumentMatchFilters(document, filters, requestMap, interpreterMap)
+        doesAdminDocumentMatchFilters(document, filters, requestMap, interpreterMap)
       ),
     [documents, filters, interpreterMap, requestMap]
   );
+  const selectedDocument =
+    documents.find((document) => document.id === selectedDocumentId) || null;
+  const versionRows = selectedDocument
+    ? documents
+        .filter((document) => document.document_no === selectedDocument.document_no)
+        .sort((a, b) => Number(b.version || 1) - Number(a.version || 1))
+    : [];
+  const latestVersion = versionRows[0]?.version || selectedDocument?.version || 1;
+
+  const startVersionDraft = () => {
+    if (!selectedDocument) return;
+    setVersionDraft({
+      amount: selectedDocument.amount || selectedDocument.metadata?.totalAmount || 0,
+      revisionNote: "",
+      adminNote: selectedDocument.metadata?.admin_note || "",
+    });
+  };
 
   return (
     <section className="admin-section">
@@ -6467,9 +8397,6 @@ function DocumentManagement({
           }
           aria-label="생성일 종료"
         />
-        <button type="button" className="admin-link-button" onClick={onRefresh}>
-          새로고침
-        </button>
       </div>
 
       {filteredDocuments.length === 0 ? (
@@ -6491,18 +8418,19 @@ function DocumentManagement({
             </thead>
             <tbody>
               {filteredDocuments.map((document) => {
-                const request = getDocumentRequest(document, requestMap);
-                const interpreter = getDocumentInterpreter(document, interpreterMap);
+                const request = getAdminDocumentRequest(document, requestMap);
+                const interpreter = getAdminDocumentInterpreter(document, interpreterMap);
+
                 return (
-                  <tr key={document.id} onClick={() => onOpenDetail(document)}>
+                  <tr key={document.id} onClick={() => setSelectedDocumentId(document.id)}>
                     <td>{document.document_no}</td>
                     <td>{getDocumentTypeLabel(document.document_type)}</td>
-                    <td>{getDocumentEventName(document, request)}</td>
-                    <td>{getDocumentCompanyName(document, request)}</td>
-                    <td>{getDocumentInterpreterName(document, interpreter)}</td>
+                    <td>{getAdminDocumentEventName(document, request)}</td>
+                    <td>{getAdminDocumentCompanyName(document, request)}</td>
+                    <td>{getAdminDocumentInterpreterName(document, interpreter)}</td>
                     <td>{formatDate(document.created_at)}</td>
                     <td>v{document.version || 1}</td>
-                    <td>{getDocumentStatusText(document.status)}</td>
+                    <td>{getAdminDocumentStatusLabel(document.status)}</td>
                   </tr>
                 );
               })}
@@ -6511,199 +8439,610 @@ function DocumentManagement({
         </div>
       )}
 
-      {selectedDocument ? (
-        <AdminDocumentDetailModal
-          document={selectedDocument}
-          draft={documentDraft}
-          interpreter={getDocumentInterpreter(selectedDocument, interpreterMap)}
-          request={getDocumentRequest(selectedDocument, requestMap)}
-          savingKey={savingKey}
-          versions={versions}
-          onChangeDraft={onChangeDraft}
-          onClose={onCloseDetail}
-          onCreateVersion={onCreateVersion}
-          onOpenPdf={onOpenPdf}
-          onStartNewVersion={onStartNewVersion}
-          onVoidDocument={onVoidDocument}
-        />
-      ) : null}
+      {selectedDocument && (
+        <AdminModal
+          className="admin-document-detail-modal"
+          title="문서 상세"
+          titleId="admin-document-detail-title"
+          onClose={() => {
+            setSelectedDocumentId(null);
+            setVersionDraft(null);
+          }}
+        >
+          <div className="admin-document-detail">
+            <section>
+              <h3>기본 정보</h3>
+              <dl className="admin-detail-list compact">
+                <Info label="문서번호" value={selectedDocument.document_no} />
+                <Info label="문서 종류" value={getDocumentTypeLabel(selectedDocument.document_type)} />
+                <Info label="버전" value={`v${selectedDocument.version || 1}`} />
+                <Info label="생성일" value={formatDateTime(selectedDocument.created_at)} />
+                <Info label="생성 관리자" value={selectedDocument.created_by || "-"} />
+                <Info label="상태" value={getAdminDocumentStatusLabel(selectedDocument.status)} />
+              </dl>
+            </section>
+
+            <section>
+              <h3>연결 정보</h3>
+              <dl className="admin-detail-list compact">
+                <Info
+                  label="의뢰 정보"
+                  value={getAdminDocumentEventName(
+                    selectedDocument,
+                    getAdminDocumentRequest(selectedDocument, requestMap)
+                  )}
+                />
+                <Info
+                  label="기업 정보"
+                  value={getAdminDocumentCompanyName(
+                    selectedDocument,
+                    getAdminDocumentRequest(selectedDocument, requestMap)
+                  )}
+                />
+                <Info
+                  label="통역사 정보"
+                  value={getAdminDocumentInterpreterName(
+                    selectedDocument,
+                    getAdminDocumentInterpreter(selectedDocument, interpreterMap)
+                  )}
+                />
+                <Info label="금액" value={formatDocumentAmount(selectedDocument.amount)} />
+              </dl>
+            </section>
+
+            <section>
+              <h3>파일</h3>
+              <div className="admin-card-actions">
+                <button
+                  type="button"
+                  className="admin-save"
+                  disabled={!selectedDocument.file_path}
+                  onClick={() => onOpenPdf(selectedDocument)}
+                >
+                  PDF 보기
+                </button>
+                <button
+                  type="button"
+                  className="admin-link-button"
+                  disabled={!selectedDocument.file_path}
+                  onClick={() => onOpenPdf(selectedDocument, { download: true })}
+                >
+                  다운로드
+                </button>
+              </div>
+            </section>
+
+            <section>
+              <h3>관리 기능</h3>
+              <div className="admin-card-actions">
+                <button type="button" className="admin-save" onClick={startVersionDraft}>
+                  새 버전 생성
+                </button>
+                <button
+                  type="button"
+                  className="admin-save danger"
+                  disabled={
+                    selectedDocument.status === "voided" ||
+                    savingKey === `document-void-${selectedDocument.id}`
+                  }
+                  onClick={() => onVoidDocument(selectedDocument)}
+                >
+                  폐기 처리
+                </button>
+              </div>
+            </section>
+
+            {versionDraft && (
+              <section>
+                <h3>새 버전 수정</h3>
+                <div className="admin-modal-edit-grid">
+                  <NumberControl
+                    label="금액"
+                    value={versionDraft.amount}
+                    onChange={(value) =>
+                      setVersionDraft((current) => ({ ...current, amount: value }))
+                    }
+                  />
+                  <FieldControl label="수정 메모">
+                    <textarea
+                      rows={3}
+                      value={versionDraft.revisionNote}
+                      onChange={(event) =>
+                        setVersionDraft((current) => ({
+                          ...current,
+                          revisionNote: event.target.value,
+                        }))
+                      }
+                    />
+                  </FieldControl>
+                  <FieldControl label="관리자 메모">
+                    <textarea
+                      rows={3}
+                      value={versionDraft.adminNote}
+                      onChange={(event) =>
+                        setVersionDraft((current) => ({
+                          ...current,
+                          adminNote: event.target.value,
+                        }))
+                      }
+                    />
+                  </FieldControl>
+                </div>
+                <div className="admin-modal-actions">
+                  <button type="button" className="admin-link-button" onClick={startVersionDraft}>
+                    초기화
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-save"
+                    disabled={savingKey === `document-version-${selectedDocument.id}`}
+                    onClick={async () => {
+                      await onCreateVersion(selectedDocument, versionDraft);
+                      setVersionDraft(null);
+                    }}
+                  >
+                    새 PDF 생성
+                  </button>
+                </div>
+              </section>
+            )}
+
+            <section>
+              <h3>버전 기록</h3>
+              <div className="admin-version-list">
+                {versionRows.map((version) => (
+                  <article className="admin-version-row" key={version.id}>
+                    <div>
+                      <strong>
+                        v{version.version || 1}
+                        {Number(version.version || 1) === Number(latestVersion) ? " (최신)" : ""}
+                      </strong>
+                      <span>{formatDate(version.created_at)}</span>
+                      <span>{version.created_by || "-"}</span>
+                      <span>{getAdminDocumentStatusLabel(version.status)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-link-button"
+                      disabled={!version.file_path}
+                      onClick={() => onOpenPdf(version)}
+                    >
+                      보기
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+        </AdminModal>
+      )}
     </section>
   );
 }
 
-function AdminDocumentDetailModal({
-  document,
-  draft,
-  interpreter,
-  onChangeDraft,
-  onClose,
-  onCreateVersion,
-  onOpenPdf,
-  onStartNewVersion,
-  onVoidDocument,
-  request,
-  savingKey,
-  versions,
-}) {
-  const metadata = document.metadata || {};
-  const latestVersion = Math.max(...versions.map((item) => Number(item.version || 1)), document.version || 1);
-  const isLatest = Number(document.version || 1) === latestVersion;
+function PaymentHistoryManagement({ assignmentsByRequest, interpreters, requests }) {
+  const rows = requests.flatMap((request) => {
+    const assignments = assignmentsByRequest.get(request.id) || [];
+    if (assignments.length === 0) {
+      return [
+        {
+          id: `request-${request.id}`,
+          request,
+          interpreterName: getAssignedInterpreterName(request, [], interpreters) || "-",
+        },
+      ];
+    }
+    return assignments.map((assignment) => ({
+      id: `assignment-${assignment.id}`,
+      request,
+      interpreterName:
+        assignment.interpreter?.name ||
+        getAssignedInterpreterName(request, [assignment], interpreters) ||
+        "-",
+    }));
+  });
 
   return (
-    <AdminModal title="문서 상세" titleId="admin-document-detail-title" onClose={onClose}>
-      <div className="admin-document-detail">
-        <section>
-          <h3>기본 정보</h3>
-          <dl className="admin-detail-list compact">
-            <Info label="문서번호" value={document.document_no} />
-            <Info label="문서 종류" value={getDocumentTypeLabel(document.document_type)} />
-            <Info label="버전" value={`v${document.version || 1}${isLatest ? " (최신)" : ""}`} />
-            <Info label="생성일" value={formatDateTime(document.created_at)} />
-            <Info label="생성 관리자" value={document.created_by || "-"} />
-            <Info label="상태" value={getDocumentStatusText(document.status)} />
-          </dl>
-        </section>
+    <section className="admin-section">
+      <SectionTitle count={`${rows.length}건`} title="지급 기록" />
+      {rows.length === 0 ? (
+        <MessageBox text="현재 DB에 별도 지급 기록 테이블이 없어 정산 완료 건 기준으로 표시합니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {rows.map((row) => (
+            <article className="admin-list-card" key={row.id}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">지급 기록</span>
+                  <ManagementNumberBadge value={row.request.request_no} />
+                  <h3>{row.interpreterName}</h3>
+                </div>
+                <StatusBadge status={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(row.request))} />
+              </div>
+              <dl className="admin-card-summary">
+                <Info label="통역사" value={row.interpreterName} />
+                <Info label="행사명" value={row.request.event_name || row.request.title || "-"} />
+                <Info label="지급일" value={formatDate(row.request.updated_at || row.request.created_at)} />
+                <Info label="지급 금액" value={formatJPY(getInterpreterPayment(row.request))} />
+                <Info label="지급 상태" value={getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(row.request))} />
+                <Info label="메모" value={row.request?.admin_memo || row.request?.memo || "-"} />
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 
-        <section>
-          <h3>연결 정보</h3>
-          <dl className="admin-detail-list compact">
-            <Info label="의뢰 정보" value={getDocumentEventName(document, request)} />
-            <Info label="기업 정보" value={getDocumentCompanyName(document, request)} />
-            <Info label="통역사 정보" value={getDocumentInterpreterName(document, interpreter)} />
-            <Info label="금액" value={formatJPY(document.amount || metadata.final_amount)} />
-          </dl>
-        </section>
+function AdminMemoManagement({
+  items,
+  notes = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
+  const noteItems = buildAdminNoteDisplayItems({
+    notes,
+    requests,
+    interpreters,
+    assignmentRows,
+    jobApplications,
+  });
+  const combinedItems = uniqueById([...noteItems, ...items]);
 
-        <section>
-          <h3>파일</h3>
-          <div className="admin-card-actions">
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${combinedItems.length}건`} title="관리자 메모" />
+      {combinedItems.length === 0 ? (
+        <MessageBox text="현재 저장된 관리자 메모가 없습니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {combinedItems.map((item) => (
+            <article className="admin-list-card" key={item.id}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">{item.typeLabel}</span>
+                  <ManagementNumberBadge value={item.number} />
+                  <h3>{item.title}</h3>
+                </div>
+              </div>
+              <dl className="admin-card-summary">
+                {item.details.map((detail) => (
+                  <Info key={detail.label} label={detail.label} value={detail.value} />
+                ))}
+                <Info label="메모" value={item.memo} />
+                {item.createdAt && <Info label="작성일" value={formatDateTime(item.createdAt)} />}
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AdminAccountsManagement({
+  adminProfile,
+  adminUsers,
+  currentUser,
+  onOpenAdminAccountModal,
+}) {
+  const currentEmail = currentUser?.email?.trim().toLowerCase() || "";
+  const currentRole =
+    currentEmail === "onlinkwith@gmail.com" ? "owner" : adminProfile?.role || "staff";
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${adminUsers.length}명`} title="관리자 계정 관리" />
+      <div className="admin-section-toolbar">
+        <button type="button" className="admin-save" onClick={onOpenAdminAccountModal}>
+          관리자 추가/수정
+        </button>
+      </div>
+      {adminUsers.length === 0 ? (
+        <MessageBox text="관리자 계정 목록을 불러오는 중이거나 등록된 관리자가 없습니다." />
+      ) : (
+        <div className="admin-management-card-grid">
+          {adminUsers.map((adminUser) => (
+            <article className="admin-list-card" key={adminUser.id || adminUser.email}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">관리자</span>
+                  <h3>{adminUser.email || "-"}</h3>
+                </div>
+                <StatusBadge status={adminUser.status || "active"} />
+              </div>
+              <dl className="admin-card-summary">
+                <Info label="권한" value={adminUser.role || "-"} />
+                <Info
+                  label="Auth 매핑"
+                  value={adminUser.auth_user_id ? "연동됨" : "권한 미연동"}
+                />
+                <Info label="Auth user id" value={adminUser.auth_user_id || "-"} />
+                <Info label="현재 계정 권한" value={currentRole} />
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ProcessingQueue({ items = [], onOpenItem }) {
+  return (
+    <section className="admin-processing-queue" aria-label="오늘 처리할 일">
+      <div className="admin-panel-head">
+        <div>
+          <p className="admin-kicker">QUEUE</p>
+          <h2>오늘 처리할 일</h2>
+        </div>
+        <span>{items.reduce((sum, item) => sum + item.count, 0)}건</span>
+      </div>
+      <div className="admin-processing-queue-grid">
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`admin-processing-queue-item priority-${item.priority}`}
+            onClick={() => onOpenItem(item)}
+          >
+            <span className="admin-processing-queue-label">{item.label}</span>
+            <strong>{item.count}</strong>
+            <span>{item.description}</span>
+            <em>{getQueuePriorityLabel(item.priority)}</em>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NotificationEventSummary({
+  events = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
+  const pendingCount = events.filter((event) => event.status === "pending").length;
+  const failedCount = events.filter((event) => event.status === "failed").length;
+  const recentEvents = buildNotificationDisplayItems({
+    events,
+    requests,
+    interpreters,
+    assignmentRows,
+    jobApplications,
+  }).slice(0, 3);
+
+  return (
+    <section className="admin-notification-summary" aria-label="알림 이벤트 대기 현황">
+      <div>
+        <p className="admin-kicker">NOTIFICATION READY</p>
+        <h2>알림 이벤트</h2>
+      </div>
+      <div className="admin-notification-summary-counts">
+        <span>대기 {pendingCount}건</span>
+        <span>실패 {failedCount}건</span>
+      </div>
+      <div className="admin-notification-summary-list">
+        {recentEvents.length === 0 ? (
+          <span>최근 알림 이벤트가 없습니다.</span>
+        ) : (
+          recentEvents.map((event) => (
+            <span key={event.id}>
+              {event.eventLabel} · {event.targetLabel} · {event.statusLabel}
+            </span>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function NotificationHistoryManagement({
+  events = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+  processing = false,
+  onProcessPending,
+  onProcessEvent,
+  onRetryEvent,
+}) {
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const notificationItems = buildNotificationDisplayItems({
+    events,
+    requests,
+    interpreters,
+    assignmentRows,
+    jobApplications,
+  });
+  const visibleEvents =
+    statusFilter === "all"
+      ? notificationItems
+      : notificationItems.filter((event) => event.status === statusFilter);
+  const pendingCount = events.filter((event) => event.status === "pending").length;
+  const failedCount = events.filter((event) => event.status === "failed").length;
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${visibleEvents.length}건`} title="알림 이력" />
+      <div className="admin-section-toolbar admin-notification-toolbar">
+        <div className="admin-filter-bar admin-filters">
+          <select
+            className="admin-filter-select"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="all">전체</option>
+            <option value="pending">발송 대기</option>
+            <option value="processing">발송 처리 중</option>
+            <option value="sent">발송 완료</option>
+            <option value="failed">발송 실패</option>
+            <option value="skipped">발송 제외</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          className="admin-save"
+          disabled={processing || pendingCount === 0}
+          onClick={onProcessPending}
+        >
+          {processing ? "처리 중..." : `대기 알림 처리 (${pendingCount})`}
+        </button>
+      </div>
+      {visibleEvents.length === 0 ? (
+        <MessageBox text="조건에 맞는 알림 이벤트가 없습니다." />
+      ) : (
+        <div className="admin-notification-history-list">
+          {visibleEvents.map((event) => (
+            <article className="admin-list-card" key={event.id}>
+              <div className="admin-list-card-head">
+                <div>
+                  <span className="admin-card-meta">알림</span>
+                  <h3>{event.eventLabel}</h3>
+                </div>
+                <span className={`status-badge ${getStatusBadgeClass(event.status)}`}>
+                  {event.statusLabel}
+                </span>
+              </div>
+              <dl className="admin-card-summary">
+                <Info label="알림 종류" value={event.eventLabel} />
+                <Info label="대상" value={event.targetLabel} />
+                <Info label="관련" value={event.relatedLabel} />
+                <Info label="발송 상태" value={event.statusLabel} />
+                <Info label="생성일" value={formatDateTime(event.created_at)} />
+              </dl>
+              <div className="admin-button-row">
+                <button
+                  type="button"
+                  className="admin-secondary"
+                  onClick={() => setSelectedEvent(event)}
+                >
+                  상세보기
+                </button>
+                {event.status !== "pending" && event.status !== "processing" && (
+                  <button
+                    type="button"
+                    className="admin-save"
+                    style={{ marginLeft: "8px" }}
+                    onClick={() => onRetryEvent(event)}
+                    disabled={processing}
+                  >
+                    재발송
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      {failedCount > 0 && (
+        <p className="admin-empty-text">실패 {failedCount}건은 상세보기에서 다시 처리할 수 있습니다.</p>
+      )}
+      {selectedEvent && (
+        <NotificationEventDetailModal
+          event={selectedEvent}
+          processing={processing}
+          onClose={() => setSelectedEvent(null)}
+          onProcessEvent={onProcessEvent}
+          onRetryEvent={onRetryEvent}
+        />
+      )}
+    </section>
+  );
+}
+
+function NotificationEventDetailModal({
+  event,
+  processing = false,
+  onClose,
+  onProcessEvent,
+  onRetryEvent,
+}) {
+  const payloadText = getNotificationPayloadSummary(event);
+
+  return (
+    <div className="admin-modal-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="admin-modal-card admin-notification-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notification-detail-title"
+        onClick={(clickEvent) => clickEvent.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <div>
+            <span className="admin-card-meta">알림 상세</span>
+            <h2 id="notification-detail-title">{event.eventLabel || "운영 알림"}</h2>
+          </div>
+          <button type="button" className="admin-modal-close" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+        <dl className="admin-card-summary admin-notification-detail-list">
+          <Info label="알림 종류" value={event.eventLabel} />
+          <Info label="대상자" value={event.targetLabel} />
+          <Info label="관련 번호" value={event.relatedLabel} />
+          <Info label="수신 이메일" value={event.recipient_email || "-"} />
+          <Info label="상태" value={event.statusLabel} />
+          <Info label="생성일" value={formatDateTime(event.created_at)} />
+          <Info label="처리일" value={formatDateTime(event.processed_at)} />
+          <Info label="발송일" value={formatDateTime(event.sent_at)} />
+          <Info label="재시도 횟수" value={`${event.retry_count || 0}회`} />
+          <Info label="실패 사유" value={event.error_message || "-"} />
+          <Info label="알림 내용/메모" value={payloadText} />
+        </dl>
+        <div className="admin-modal-actions admin-notification-modal-actions">
+          <button type="button" className="admin-secondary" onClick={onClose}>
+            닫기
+          </button>
+          {event.status === "failed" && (
             <button
               type="button"
               className="admin-save"
-              disabled={!document.file_path}
-              onClick={() => onOpenPdf(document)}
+              disabled={processing}
+              onClick={() => onRetryEvent?.(event)}
             >
-              PDF 보기
+              재발송
             </button>
+          )}
+          {event.status === "pending" && (
             <button
               type="button"
-              className="admin-link-button"
-              disabled={!document.file_path}
-              onClick={() => onOpenPdf(document)}
+              className="admin-save"
+              disabled={processing}
+              onClick={() => onProcessEvent?.(event)}
             >
-              다운로드
+              발송 처리
             </button>
-          </div>
-        </section>
-
-        <section>
-          <h3>관리 기능</h3>
-          <div className="admin-card-actions">
-            <button type="button" className="admin-save" onClick={onStartNewVersion}>
-              새 버전 생성
-            </button>
-            <button
-              type="button"
-              className="admin-save danger"
-              disabled={
-                document.status === "voided" ||
-                savingKey === `admin-document-void-${document.id}`
-              }
-              onClick={() => onVoidDocument(document)}
-            >
-              폐기 처리
-            </button>
-          </div>
-        </section>
-
-        {draft ? (
-          <section className="admin-document-version-form">
-            <h3>새 버전 수정</h3>
-            <div className="admin-modal-edit-grid">
-              <NumberControl
-                label="금액"
-                value={draft.amount}
-                onChange={(value) => onChangeDraft("amount", value)}
-              />
-              <FieldControl label="수정 메모">
-                <textarea
-                  rows={3}
-                  value={draft.revision_note || ""}
-                  onChange={(event) => onChangeDraft("revision_note", event.target.value)}
-                />
-              </FieldControl>
-              <FieldControl label="관리자 메모">
-                <textarea
-                  rows={3}
-                  value={draft.admin_note || ""}
-                  onChange={(event) => onChangeDraft("admin_note", event.target.value)}
-                />
-              </FieldControl>
-            </div>
-            <div className="admin-modal-actions">
-              <button type="button" className="admin-link-button" onClick={onStartNewVersion}>
-                초기화
-              </button>
-              <button
-                type="button"
-                className="admin-save"
-                disabled={savingKey === `admin-document-version-${document.id}`}
-                onClick={onCreateVersion}
-              >
-                새 PDF 생성
-              </button>
-            </div>
-          </section>
-        ) : null}
-
-        <section>
-          <h3>버전 기록</h3>
-          <div className="admin-version-list">
-            {versions.map((version) => (
-              <article className="admin-version-row" key={version.id}>
-                <div>
-                  <strong>
-                    v{version.version || 1}
-                    {Number(version.version || 1) === latestVersion ? " (최신)" : ""}
-                  </strong>
-                  <span>{formatDate(version.created_at)}</span>
-                  <span>{version.created_by || "-"}</span>
-                  <span>{getDocumentStatusText(version.status)}</span>
-                </div>
-                <button
-                  type="button"
-                  className="admin-link-button"
-                  disabled={!version.file_path}
-                  onClick={() => onOpenPdf(version)}
-                >
-                  보기
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
+          )}
+        </div>
       </div>
-    </AdminModal>
+    </div>
   );
 }
 
 function SettlementManagement({
+  adminActivityLogs = [],
+  adminNotes = [],
   requests,
   filters,
   setFilters,
   assignmentsByRequest,
   interpreters,
-  payoutDocumentsByKey,
-  payoutDraft,
-  payoutModal,
   savingKey,
-  loadPayoutDocument,
-  onClosePayoutModal,
-  onCreatePayoutDocument,
-  onOpenPayoutModal,
-  onOpenPayoutPdf,
-  onUpdatePayoutDraft,
+  sectionTitle = "정산 관리",
   updateSettlementStatus,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  onOpenDocumentPreview,
 }) {
   const filteredRequests = requests.filter((request) => {
     const matchesMonth =
@@ -6722,7 +9061,7 @@ function SettlementManagement({
 
   return (
     <section className="admin-section">
-      <SectionTitle count={`${filteredRequests.length}건`} title="정산 관리" />
+      <SectionTitle count={`${filteredRequests.length}건`} title={sectionTitle} />
       <div className="admin-filter-bar admin-filters admin-matching-filters">
         <MonthFilterInput
           value={filters.month}
@@ -6752,17 +9091,14 @@ function SettlementManagement({
               request={request}
               assignments={assignmentsByRequest.get(request.id) || []}
               interpreters={interpreters}
-              payoutDocumentsByKey={payoutDocumentsByKey}
-              payoutDraft={payoutDraft}
-              payoutModal={payoutModal}
               savingKey={savingKey}
-              loadPayoutDocument={loadPayoutDocument}
-              onClosePayoutModal={onClosePayoutModal}
-              onCreatePayoutDocument={onCreatePayoutDocument}
-              onOpenPayoutModal={onOpenPayoutModal}
-              onOpenPayoutPdf={onOpenPayoutPdf}
-              onUpdatePayoutDraft={onUpdatePayoutDraft}
               updateSettlementStatus={updateSettlementStatus}
+              adminNotes={adminNotes}
+              adminActivityLogs={adminActivityLogs}
+              noteDrafts={noteDrafts}
+              onChangeNoteDraft={onChangeNoteDraft}
+              onCreateNote={onCreateNote}
+              onOpenDocumentPreview={onOpenDocumentPreview}
             />
           ))}
         </div>
@@ -6772,52 +9108,72 @@ function SettlementManagement({
 }
 
 function SettlementRequestCard({
+  adminActivityLogs = [],
+  adminNotes = [],
   request,
   assignments,
   interpreters,
-  payoutDocumentsByKey,
-  payoutDraft,
-  payoutModal,
   savingKey,
-  loadPayoutDocument,
-  onClosePayoutModal,
-  onCreatePayoutDocument,
-  onOpenPayoutModal,
-  onOpenPayoutPdf,
-  onUpdatePayoutDraft,
   updateSettlementStatus,
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  onOpenDocumentPreview,
 }) {
-  const primaryAssignment = assignments[0] || null;
-  const primaryInterpreter =
-    primaryAssignment?.interpreter ||
-    interpreters.find(
-      (interpreter) => String(interpreter.id) === String(primaryAssignment?.interpreter_id)
-    ) ||
-    null;
-  const payoutKey = primaryAssignment?.interpreter_id
-    ? `${request.id}-${primaryAssignment.interpreter_id}`
-    : "";
-  const latestPayoutDocument = payoutKey ? payoutDocumentsByKey[payoutKey] : null;
-  const isPayoutModalOpen =
-    payoutModal?.requestId === request.id &&
-    String(payoutModal?.interpreterId) === String(primaryAssignment?.interpreter_id);
   const assignedInterpreterNames = getAssignedInterpreterName(
     request,
     assignments,
     interpreters
   );
-  const clientPrice = getCompanyAmount(request);
-  const interpreterPrice = getInterpreterPayment(request);
-  const platformProfit = getPlatformProfit(request);
-  const paymentStatus = normalizePaymentStatus(request.payment_status);
-  const settlementStatus = normalizeSettlementFlowStatus(request);
-  const canCreatePayout = isCompletedRequest(request) && Boolean(primaryAssignment?.interpreter_id);
+  const [draft, setDraft] = useState(() => createSettlementDraft(request));
+  const [isFinalAmountTouched, setIsFinalAmountTouched] = useState(false);
 
   useEffect(() => {
-    if (primaryAssignment?.interpreter_id) {
-      queueMicrotask(() => loadPayoutDocument(request.id, primaryAssignment.interpreter_id));
+    setDraft(createSettlementDraft(request));
+    setIsFinalAmountTouched(false);
+  }, [request]);
+
+  const updateDraft = (field, value) => {
+    setDraft((current) => {
+      const next = { ...current, [field]: value };
+      const shouldRecalculateFinal = field !== "settlement_final_amount" && !isFinalAmountTouched;
+      const calculated = calculateSettlementAmounts(next);
+      return {
+        ...next,
+        settlement_base_amount: calculated.settlement_base_amount,
+        settlement_final_amount: shouldRecalculateFinal
+          ? calculated.settlement_final_amount
+          : next.settlement_final_amount,
+      };
+    });
+    if (field === "settlement_final_amount") {
+      setIsFinalAmountTouched(true);
     }
-  }, [loadPayoutDocument, primaryAssignment?.interpreter_id, request.id]);
+  };
+
+  const clientPrice = getCompanyAmount(request);
+  const settlementAmounts = calculateSettlementAmounts(draft);
+  const interpreterPrice = settlementAmounts.settlement_final_amount;
+  const platformProfit = clientPrice - interpreterPrice;
+  const paymentStatus = normalizePaymentStatus(request.payment_status);
+  const settlementStatus = normalizeSettlementFlowStatus(request);
+  const eventDate = formatDateRange(request.start_date, request.end_date, request.event_date);
+
+  const saveDraft = () => {
+    updateSettlementStatus(request, getSettlementSavePayload({ ...request, ...draft }));
+  };
+
+  const completeSettlement = () => {
+    updateSettlementStatus(request, {
+      ...getSettlementSavePayload({
+        ...request,
+        ...draft,
+        settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
+      }),
+      settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
+      settlement_completed_at: new Date().toISOString(),
+    });
+  };
 
   return (
     <article className="admin-list-card">
@@ -6834,26 +9190,49 @@ function SettlementRequestCard({
         <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
         <Info label="기업명" value={request.company_name || "-"} />
         <Info label="행사명" value={request.event_name || "-"} />
-        <Info
-          label="행사 기간"
-          value={formatDateRange(
-            request.start_date,
-            request.end_date,
-            request.event_date
-          )}
-        />
-        <Info label="배정 통역사" value={assignedInterpreterNames || "-"} />
+        <Info label="업무일" value={eventDate} />
+        <Info label="통역사명" value={assignedInterpreterNames || "-"} />
+        <Info label="적용 레벨" value={draft.settlement_level || "-"} />
+        <Info label="자동 계산 금액" value={formatJPY(settlementAmounts.settlement_base_amount)} />
+        <Info label="최종 정산 금액" value={formatJPY(interpreterPrice)} />
+        <Info label="정산 상태" value={getSettlementFlowStatusLabel(settlementStatus)} />
         <Info label="기업 청구액" value={formatJPY(clientPrice)} />
-        <Info label="통역사 지급액" value={formatJPY(interpreterPrice)} />
         <Info label="플랫폼 수익" value={formatJPY(platformProfit)} />
         <Info label="기업 결제 상태" value={getStatusLabel(paymentStatus)} />
-        <Info
-          label="통역사 정산 상태"
-          value={getSettlementFlowStatusLabel(settlementStatus)}
-        />
       </dl>
 
       <div className="admin-card-controls-grid">
+        <FieldControl label="업무 일수">
+          <input
+            type="number"
+            min="1"
+            value={draft.settlement_work_days}
+            onChange={(event) => updateDraft("settlement_work_days", event.target.value)}
+          />
+        </FieldControl>
+        <FieldControl label="적용 레벨">
+          <InlineSelect
+            options={SETTLEMENT_LEVEL_OPTIONS}
+            value={draft.settlement_level}
+            disabled={savingKey === `settlement-request-${request.id}`}
+            onChange={(value) => updateDraft("settlement_level", value)}
+          />
+        </FieldControl>
+        <NumberControl
+          label="정산 금액"
+          value={draft.settlement_final_amount}
+          onChange={(value) => updateDraft("settlement_final_amount", value)}
+        />
+        <NumberControl
+          label="추가 지급"
+          value={draft.settlement_extra_amount}
+          onChange={(value) => updateDraft("settlement_extra_amount", value)}
+        />
+        <NumberControl
+          label="차감 금액"
+          value={draft.settlement_deduction_amount}
+          onChange={(value) => updateDraft("settlement_deduction_amount", value)}
+        />
         <FieldControl label="기업 결제 상태">
           <InlineSelect
             options={[
@@ -6869,80 +9248,83 @@ function SettlementRequestCard({
         </FieldControl>
         <FieldControl label="통역사 정산 상태">
           <InlineSelect
-            options={[
-              { label: "정산대기", value: SETTLEMENT_FLOW_STATUS.PENDING },
-              { label: "정산완료", value: SETTLEMENT_FLOW_STATUS.COMPLETED },
-            ]}
-            value={settlementStatus}
+            options={SETTLEMENT_FLOW_STATUS_OPTIONS.filter(
+              (option) => option.value !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
+            )}
+            value={draft.settlement_status}
             disabled={savingKey === `settlement-request-${request.id}`}
             onChange={(value) =>
-              updateSettlementStatus(request, { settlement_status: value })
+              updateDraft("settlement_status", value)
             }
           />
         </FieldControl>
       </div>
 
-      <div className="admin-payout-document-panel">
-        <div className="admin-document-row">
-          <div>
-            <strong>정산 내역서</strong>
-            <span>{getDocumentStatusLabel(latestPayoutDocument)}</span>
-            {latestPayoutDocument?.amount ? (
-              <span>{formatJPY(latestPayoutDocument.amount)}</span>
-            ) : null}
-          </div>
-          <div className="admin-payout-actions">
-            {latestPayoutDocument?.file_path ? (
-              <button
-                type="button"
-                className="admin-link-button"
-                onClick={() => onOpenPayoutPdf(latestPayoutDocument)}
-              >
-                최신 정산서 보기
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="admin-save"
-              disabled={
-                !canCreatePayout ||
-                savingKey === `payout-document-${request.id}-${primaryAssignment?.interpreter_id}`
-              }
-              title={
-                canCreatePayout
-                  ? undefined
-                  : "완료 업무이며 배정된 통역사가 있어야 생성할 수 있습니다."
-              }
-              onClick={() =>
-                onOpenPayoutModal(
-                  request,
-                  primaryAssignment,
-                  primaryInterpreter,
-                  latestPayoutDocument
-                )
-              }
-            >
-              {latestPayoutDocument ? "새 버전 생성" : "정산 내역서 생성"}
-            </button>
-          </div>
-        </div>
+      <FieldControl label="정산 메모">
+        <textarea
+          className="admin-textarea"
+          rows={3}
+          value={draft.settlement_memo}
+          onChange={(event) => updateDraft("settlement_memo", event.target.value)}
+          placeholder="정산 메모"
+        />
+      </FieldControl>
 
-        {isPayoutModalOpen && payoutDraft ? (
-          <PayoutCreateDialog
-            draft={payoutDraft}
-            latestDocument={latestPayoutDocument}
-            saving={savingKey === `payout-document-${request.id}-${primaryAssignment?.interpreter_id}`}
-            onCancel={onClosePayoutModal}
-            onChange={onUpdatePayoutDraft}
-            onCreate={onCreatePayoutDocument}
-          />
-        ) : null}
+      <div className="admin-card-actions">
+        <button
+          type="button"
+          className="admin-link-button primary"
+          disabled={savingKey === `settlement-request-${request.id}`}
+          onClick={saveDraft}
+        >
+          수정 저장
+        </button>
+        <button
+          type="button"
+          className="admin-save"
+          disabled={savingKey === `settlement-request-${request.id}`}
+          onClick={completeSettlement}
+        >
+          정산 완료 처리
+        </button>
+        <button
+          type="button"
+          className="admin-link-button"
+          onClick={() => onOpenDocumentPreview("payout", request)}
+        >
+          정산 내역서 생성
+        </button>
       </div>
+
+      <AdminOperationsPanel
+        activityLogs={adminActivityLogs}
+        compactModal
+        notes={adminNotes}
+        noteDrafts={noteDrafts}
+        saving={savingKey === `admin-note-settlement:${request.id}`}
+        targetId={request.id}
+        targetType="settlement"
+        onChangeNoteDraft={onChangeNoteDraft}
+        onCreateNote={onCreateNote}
+      />
     </article>
   );
 }
 
 function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
+  const [selectedUrgentItem, setSelectedUrgentItem] = useState(null);
+
+  const handleOpenUrgentDetail = (item) => {
+    setSelectedUrgentItem(item);
+  };
+
+  const handleMoveToRequest = () => {
+    if (!selectedUrgentItem) return;
+    const request = selectedUrgentItem.request;
+    setSelectedUrgentItem(null);
+    onOpenRequest(request);
+  };
+
   return (
     <section className="admin-operation-overview" aria-label="오늘 운영과 긴급 요청">
       <div className="admin-operation-panel admin-today-panel">
@@ -6992,26 +9374,170 @@ function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
           {urgentItems.length === 0 ? (
             <p className="admin-empty-text">긴급 확인이 필요한 의뢰가 없습니다.</p>
           ) : (
-            urgentItems.slice(0, 4).map((item) => (
-              <article className="admin-urgent-item" key={`urgent-${item.request.id}`}>
-                <div className="admin-urgent-topline">
-                  <span>{item.dDayLabel}</span>
-                  <small>{item.reason}</small>
-                </div>
-                <h3>{item.request.event_name || "-"}</h3>
-                <p>{item.dateLabel}</p>
-                <p>{item.request.event_location || "-"}</p>
-                <p>{item.interpreters || "통역사 미배정"}</p>
-                <button type="button" onClick={() => onOpenRequest(item.request)}>
-                  바로 확인
-                </button>
-              </article>
-            ))
+            <div className="admin-urgent-list" role="list">
+              <div className="admin-urgent-list-head" aria-hidden="true">
+                <span>상태</span>
+                <span>행사명</span>
+                <span>날짜</span>
+                <span>관리</span>
+              </div>
+              <div className="admin-urgent-list-scroll">
+                {urgentItems.map((item) => (
+                  <button
+                    type="button"
+                    className="admin-urgent-row"
+                    key={`urgent-${item.request.id}`}
+                    onClick={() => handleOpenUrgentDetail(item)}
+                    role="listitem"
+                  >
+                    <span className={`admin-urgent-dday ${getUrgentDdayTone(item)}`}>
+                      {item.dDayLabel}
+                    </span>
+                    <span className="admin-urgent-event">
+                      <strong>{item.request.event_name || "-"}</strong>
+                      <small>{item.reason}</small>
+                    </span>
+                    <span className="admin-urgent-date">
+                      {formatUrgentShortDate(item.request)}
+                    </span>
+                    <span className="admin-urgent-manage">확인</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
+
+      {selectedUrgentItem && (
+        <UrgentRequestDetailModal
+          item={selectedUrgentItem}
+          onClose={() => setSelectedUrgentItem(null)}
+          onMoveToRequest={handleMoveToRequest}
+        />
+      )}
     </section>
   );
+}
+
+function UrgentRequestDetailModal({ item, onClose, onMoveToRequest }) {
+  const request = item.request || {};
+
+  return (
+    <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
+      <section
+        className="admin-modal-card admin-urgent-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="urgent-request-detail-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <div>
+            <p className="admin-kicker">URGENT</p>
+            <h2 id="urgent-request-detail-title">긴급 요청 상세</h2>
+          </div>
+          <button
+            type="button"
+            className="admin-modal-icon-close"
+            onClick={onClose}
+            aria-label="닫기"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        <dl className="admin-urgent-detail-list">
+          <div>
+            <dt>의뢰번호</dt>
+            <dd>{getRequestDisplayNumber(request)}</dd>
+          </div>
+          <div>
+            <dt>기업명</dt>
+            <dd>{request.company_name || request.companyName || "-"}</dd>
+          </div>
+          <div>
+            <dt>행사명</dt>
+            <dd>{request.event_name || "-"}</dd>
+          </div>
+          <div>
+            <dt>행사 날짜</dt>
+            <dd>{item.dateLabel || formatDateRange(request.start_date, request.end_date, request.event_date)}</dd>
+          </div>
+          <div>
+            <dt>장소</dt>
+            <dd>{request.event_location || "-"}</dd>
+          </div>
+          <div>
+            <dt>필요 인원</dt>
+            <dd>{getRequestPeopleCountLabel(request)}</dd>
+          </div>
+          <div>
+            <dt>현재 지원자</dt>
+            <dd>{getRequestApplicantCountLabel(request)}</dd>
+          </div>
+          <div>
+            <dt>매칭 상태</dt>
+            <dd>{item.reason || getMatchingStatusLabel(request.matching_status || request.status)}</dd>
+          </div>
+        </dl>
+
+        <div className="admin-urgent-detail-actions">
+          <button type="button" className="admin-auth-primary" onClick={onMoveToRequest}>
+            의뢰 관리로 이동
+          </button>
+          <button type="button" className="admin-auth-secondary" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function getUrgentDdayTone(item = {}) {
+  const dDay = Number(item.priority);
+  if (Number.isFinite(dDay) && dDay <= 3) return "is-red";
+  return "is-orange";
+}
+
+function formatUrgentShortDate(request = {}) {
+  const date = getRequestPrimaryDate(request);
+  if (!date) return "-";
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${month}.${day}`;
+}
+
+function getRequestDisplayNumber(request = {}) {
+  return (
+    formatManagementNumber(request.management_number) ||
+    request.request_no ||
+    request.request_number ||
+    request.id ||
+    "-"
+  );
+}
+
+function getRequestPeopleCountLabel(request = {}) {
+  const count =
+    request.requested_people_count ??
+    request.people_count ??
+    request.required_people_count ??
+    request.interpreter_count;
+  return count || count === 0 ? `${count}명` : "-";
+}
+
+function getRequestApplicantCountLabel(request = {}) {
+  const count =
+    request.applicant_count ??
+    request.application_count ??
+    request.applications_count ??
+    request.request_applications_count ??
+    request.current_applicant_count;
+  return count || count === 0 ? `${count}명` : "확인 필요";
 }
 
 function MetricCard({ label, value, description, icon: Icon, tone = "purple", onClick }) {
@@ -7027,16 +9553,38 @@ function MetricCard({ label, value, description, icon: Icon, tone = "purple", on
   );
 }
 
-function SectionTitle({ count, title }) {
-  return (
-    <div className="admin-section-title">
+function SectionTitle({ collapsible = false, collapsed = false, count, title, onToggle }) {
+  const content = (
+    <>
       <div>
         <p className="admin-kicker">MANAGE</p>
         <h2>{title}</h2>
       </div>
-      <span className="admin-count">{count}</span>
-    </div>
+      <span className="admin-count">
+        {count}
+        {collapsible && (
+          <span className="admin-section-toggle-icon" aria-hidden="true">
+            {collapsed ? "▼" : "▲"}
+          </span>
+        )}
+      </span>
+    </>
   );
+
+  if (collapsible) {
+    return (
+      <button
+        type="button"
+        className="admin-section-title admin-section-title-button"
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className="admin-section-title">{content}</div>;
 }
 
 function InlineSelect({ options, value, onChange, disabled = false }) {
@@ -7161,7 +9709,58 @@ function ManagementNumberBlock({ label = "관리번호", value }) {
 }
 
 function formatManagementNumber(value) {
-  return value || "번호 미생성";
+  const normalized = String(value || "").trim();
+  return normalized && normalized !== "번호 미생성" ? normalized : "번호 생성 필요";
+}
+
+function getAdminActionTypeLabel(actionType) {
+  const labels = {
+    status_changed: "상태 변경",
+    memo_created: "내부 메모 추가",
+    assignment_created: "배정 생성",
+    settlement_updated: "정산 수정",
+    schedule_conflict_override: "일정 충돌 강제 배정",
+  };
+  return labels[actionType] || actionType || "처리 이력";
+}
+
+function formatAdminActivityLog(log = {}) {
+  if (log.action_type === "memo_created") return "관리자가 내부 메모를 추가했습니다.";
+
+  const beforeValue = summarizeAdminLogValue(log.before_value);
+  const afterValue = summarizeAdminLogValue(log.after_value);
+
+  if (beforeValue || afterValue) {
+    return `${beforeValue || "이전 값 없음"} → ${afterValue || "변경 값 없음"}`;
+  }
+
+  return "운영 정보가 변경되었습니다.";
+}
+
+function summarizeAdminLogValue(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value !== "object") return String(value);
+
+  return Object.entries(value)
+    .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined && entryValue !== "")
+    .map(([key, entryValue]) => `${getAdminLogFieldLabel(key)}: ${entryValue}`)
+    .join(", ");
+}
+
+function getAdminLogFieldLabel(key) {
+  const labels = {
+    status: "상태",
+    assignment_status: "배정",
+    operation_status: "운영",
+    settlement_status: "정산",
+    payment_status: "결제",
+    activity_status: "활동",
+    approved: "검증",
+    note: "메모",
+  };
+  return labels[key] || key;
 }
 
 function formatRequestListNumber(request = {}) {
@@ -7198,6 +9797,33 @@ function FieldControl({ label, children }) {
   );
 }
 
+function RequestReferenceFileBlock({ file, onOpen, onDownload }) {
+  if (!file) return null;
+
+  return (
+    <div className="admin-reference-file-block">
+      <span className="admin-reference-file-label">참고 자료</span>
+      <div className="admin-reference-file-row">
+        <span className="admin-reference-file-name">📎 {file.name || "첨부 파일"}</span>
+        {file.path ? (
+          <div className="admin-reference-file-actions">
+            <button type="button" onClick={onOpen}>
+              보기
+            </button>
+            <button type="button" onClick={onDownload}>
+              다운로드
+            </button>
+          </div>
+        ) : (
+          <span className="admin-reference-file-empty">
+            기존 업로드 파일 경로가 저장되지 않아 열람할 수 없습니다. 다시 업로드가 필요합니다.
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Info({ label, value }) {
   return (
     <div>
@@ -7207,25 +9833,39 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove }) {
+function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
 
   return (
     <div className="admin-assignment-list">
-      {items.map((item) => (
-        <div key={item.id} className="admin-assignment-row">
-          <span>{item.label}</span>
-          <button
-            type="button"
-            className="admin-link-button danger"
-            onClick={() => onRemove(item.assignment || item.id)}
-          >
-            매칭 취소
-          </button>
-        </div>
-      ))}
+      {items.map((item) => {
+        const isVisible = item.assignment?.is_contact_visible || false;
+        return (
+          <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+            <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
+            {onToggleContactVisibility && (
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
+                <input
+                  type="checkbox"
+                  checked={isVisible}
+                  onChange={() => onToggleContactVisibility(item.id, isVisible)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>연락처 공개</span>
+              </label>
+            )}
+            <button
+              type="button"
+              className="admin-link-button danger"
+              onClick={() => onRemove(item.assignment || item.id)}
+            >
+              매칭 취소
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -7353,6 +9993,8 @@ function createRequestEditDraft(request = {}, job = null) {
     settlement_status: normalizeSettlementFlowStatus(flowSource),
     contact_status: request.contact_status || "not_contacted",
     payment_status: request.payment_status || "unpaid",
+    estimate_status: request.estimate_status || "estimate_preparing",
+    company_internal_memo: request.company_internal_memo || "",
   };
 }
 
@@ -7416,6 +10058,7 @@ function isCompletedRequest(request = {}) {
   ).trim();
   const normalizedStatus = operationStatus.toLowerCase();
   const completedStatuses = new Set([
+    "업무완료",
     "운영완료",
     "운영종료",
     "completed",
@@ -7446,6 +10089,830 @@ function isSettlementPendingRequest(request = {}) {
     ["settlement_pending", "pending"].includes(normalizedStatus) ||
     normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.PENDING
   );
+}
+
+function isSettlementCompletedRequest(request = {}) {
+  const status = String(request.settlement_status || request.payment_status || "")
+    .trim()
+    .toLowerCase();
+  return (
+    ["정산완료", "settlement_completed", "completed", "paid", "settled"].includes(status) ||
+    normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.COMPLETED
+  );
+}
+
+function getApplicationStatusValues(application = {}) {
+  return [
+    application.status,
+    application.matching_status,
+    application.assignment_status,
+  ]
+    .filter((status) => status !== undefined && status !== null)
+    .map((status) => String(status).trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isPostAcceptanceApplication(application = {}) {
+  const normalizedStatus = normalizeApplicationStatus(application.status);
+  if (normalizedStatus === APPLICATION_STATUS.ACCEPTED) return true;
+  return getApplicationStatusValues(application).some((status) =>
+    POST_ACCEPTANCE_STATUS_VALUES.has(status)
+  );
+}
+
+function isApplicantManagementApplication(application = {}) {
+  if (isPostAcceptanceApplication(application)) return false;
+  return APPLICANT_MANAGEMENT_STATUSES.has(
+    normalizeApplicationStatus(application.status)
+  );
+}
+
+function getApplicationAssignmentStatus(application = {}) {
+  const statuses = getApplicationStatusValues(application);
+  if (
+    statuses.some((status) =>
+      ["assigned", "confirmed", "배정", "배정완료", "확정"].includes(status)
+    )
+  ) {
+    return ASSIGNMENT_STATUS.ASSIGNED;
+  }
+  if (
+    statuses.some((status) =>
+      ["assigning", "matching", "배정중", "매칭중", "진행중"].includes(status)
+    )
+  ) {
+    return ASSIGNMENT_STATUS.ASSIGNING;
+  }
+  return ASSIGNMENT_STATUS.WAITING;
+}
+
+function buildAssignmentManagementRows({
+  assignments = [],
+  jobApplications = [],
+  matchings = [],
+  requests = [],
+  interpreters = [],
+}) {
+  const safeAssignments = compactAdminRows(assignments);
+  const safeJobApplications = compactAdminRows(jobApplications);
+  const safeMatchings = compactAdminRows(matchings);
+  const safeRequests = compactAdminRows(requests);
+  const safeInterpreters = compactAdminRows(interpreters);
+  const requestsById = new Map(safeRequests.map((request) => [String(request.id), request]));
+  const requestsByJobId = safeRequests.reduce((map, request) => {
+    if (request.job_id) map.set(String(request.job_id), request);
+    return map;
+  }, new Map());
+  const usedApplicationIds = new Set();
+  const applicationsByInterpreterAndJob = safeJobApplications.reduce((map, application) => {
+    const key = `${application.interpreter_id || ""}:${application.job_id || ""}`;
+    if (!map.has(key)) map.set(key, application);
+    return map;
+  }, new Map());
+  const matchingsByRequestInterpreter = safeMatchings.reduce((map, matching) => {
+    const key = `${matching.request_id || ""}:${matching.interpreter_id || ""}`;
+    if (!map.has(key)) map.set(key, matching);
+    return map;
+  }, new Map());
+  const interpretersById = new Map(
+    safeInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
+  );
+
+  const assignmentRows = safeAssignments.map((assignment) => {
+    const request = requestsById.get(String(assignment.request_id)) || null;
+    const matching =
+      matchingsByRequestInterpreter.get(
+        `${assignment.request_id || ""}:${assignment.interpreter_id || ""}`
+      ) || {};
+    const application =
+      request?.job_id
+        ? applicationsByInterpreterAndJob.get(
+            `${assignment.interpreter_id || ""}:${request.job_id || ""}`
+          )
+        : null;
+    if (application?.id) usedApplicationIds.add(application.id);
+    const interpreter =
+      assignment.interpreter || interpretersById.get(String(assignment.interpreter_id)) || {};
+    const flowSource = getRequestFlowSource(request || {}, {});
+    const assignmentStatus = normalizeAssignmentStatus(flowSource);
+    const settlementStatus = normalizeSettlementFlowStatus(flowSource);
+
+    return {
+      rowId: `assignment-${assignment.id}`,
+      assignment,
+      request,
+      assignmentNo: matching.matching_no || `ONLI-MAT-${String(assignment.id).padStart(4, "0")}`,
+      requestNo: request?.request_no || request?.request_number || "",
+      applicationNo: application?.application_no || "",
+      interpreterName: interpreter.name || "",
+      eventName: request?.event_name || request?.title || "",
+      dateLabel: request
+        ? formatDateRange(request.start_date, request.end_date, request.event_date || request.date)
+        : "-",
+      location: request?.event_location || request?.location || "",
+      assignmentStatusValue: assignmentStatus,
+      assignmentStatusLabel: getAssignmentStatusLabel(assignmentStatus),
+      settlementStatusLabel: getSettlementFlowStatusLabel(settlementStatus),
+    };
+  });
+
+  const acceptedApplicationRows = safeJobApplications
+    .filter(
+      (application) =>
+        !usedApplicationIds.has(application.id) &&
+        isPostAcceptanceApplication(application)
+    )
+    .map((application) => {
+      const request = requestsByJobId.get(String(application.job_id)) || null;
+      const assignmentStatus = getApplicationAssignmentStatus(application);
+
+      return {
+        rowId: `application-assignment-${application.id}`,
+        assignment: null,
+        request,
+        application,
+        assignmentNo: application.matching_no || "",
+        requestNo: request?.request_no || request?.request_number || "",
+        applicationNo: application.application_no || "",
+        interpreterName: application.applicant_name || application.name || "",
+        eventName:
+          request?.event_name ||
+          request?.title ||
+          application.jobs?.event_name ||
+          application.jobs?.title ||
+          "",
+        dateLabel: request
+          ? formatDateRange(request.start_date, request.end_date, request.event_date || request.date)
+          : "-",
+        location: request?.event_location || request?.location || "",
+        assignmentStatusValue: assignmentStatus,
+        assignmentStatusLabel: getAssignmentStatusLabel(assignmentStatus),
+        settlementStatusLabel: getSettlementFlowStatusLabel(
+          request ? normalizeSettlementFlowStatus(request) : SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
+        ),
+      };
+    });
+
+  return [...assignmentRows, ...acceptedApplicationRows];
+}
+
+function normalizeAssignmentManagementSearchText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]/g, "");
+}
+
+function getAssignmentManagementSearchValues(item = {}) {
+  const request = item.request || item;
+  return [
+    item.assignmentNo,
+    item.requestNo,
+    item.applicationNo,
+    request.request_no,
+    request.request_number,
+    request.management_no,
+    request.company_name,
+    item.interpreterName,
+    item.eventName,
+    request.event_name,
+    request.title,
+    item.location,
+    request.event_location,
+    request.location,
+  ];
+}
+
+function getAssignmentManagementStatusValue(item = {}) {
+  if (item.assignmentStatusValue) return item.assignmentStatusValue;
+
+  const source = item.request || item.assignment || item;
+  const rawStatuses = [
+    source.status,
+    source.matching_status,
+    source.assignment_status,
+    source.operation_status,
+  ].map((status) => String(status || "").trim().toLowerCase());
+
+  if (
+    rawStatuses.some((status) =>
+      ["cancelled", "canceled", "cancel", "취소", "취소됨"].includes(status)
+    )
+  ) {
+    return "cancelled";
+  }
+
+  if (
+    normalizeOperationStatus(source) === OPERATION_STATUS.COMPLETED ||
+    rawStatuses.some((status) =>
+      ["completed", "complete", "finished", "done", "업무완료", "운영완료", "완료"].includes(status)
+    )
+  ) {
+    return "completed";
+  }
+
+  return normalizeAssignmentStatus(source);
+}
+
+function doesAssignmentManagementItemMatchFilters(item = {}, filters = {}) {
+  const search = normalizeAssignmentManagementSearchText(filters.search);
+  const matchesSearch =
+    !search ||
+    getAssignmentManagementSearchValues(item).some((value) =>
+      normalizeAssignmentManagementSearchText(value).includes(search)
+    );
+  const matchesStatus =
+    !filters.status ||
+    filters.status === "all" ||
+    getAssignmentManagementStatusValue(item) === filters.status;
+
+  return matchesSearch && matchesStatus;
+}
+
+function buildAdminMemoItems({ requests = [], interpreters = [], assignmentRows = [] }) {
+  const requestMemos = compactAdminRows(requests)
+    .filter((request) => hasAdminMemo(request))
+    .map((request) => ({
+      id: `request-${request.id}`,
+      typeLabel: "의뢰 메모",
+      number: request.request_no || request.request_number || "",
+      title: request.event_name || request.title || request.company_name || "-",
+      memo: getAdminMemo(request),
+      details: [
+        { label: "의뢰번호", value: formatManagementNumber(request.request_no || request.request_number) },
+        { label: "기업명", value: request.company_name || "-" },
+        { label: "행사명", value: request.event_name || request.title || "-" },
+      ],
+    }));
+  const interpreterMemos = compactAdminRows(interpreters)
+    .filter((interpreter) => hasAdminMemo(interpreter))
+    .map((interpreter) => ({
+      id: `interpreter-${interpreter.id}`,
+      typeLabel: "통역사 메모",
+      number: interpreter.interpreter_no || "",
+      title: interpreter.name || "-",
+      memo: getAdminMemo(interpreter),
+      details: [
+        { label: "통역사 번호", value: formatManagementNumber(interpreter.interpreter_no) },
+        { label: "이름", value: interpreter.name || "-" },
+      ],
+    }));
+  const assignmentMemos = compactAdminRows(assignmentRows)
+    .filter((row) => row?.assignment && hasAdminMemo(row.assignment))
+    .map((row) => ({
+      id: `assignment-${row.assignment.id}`,
+      typeLabel: "배정 메모",
+      number: row.assignmentNo,
+      title: row.interpreterName || row.eventName || "-",
+      memo: getAdminMemo(row.assignment),
+      details: [
+        { label: "배정번호", value: formatManagementNumber(row.assignmentNo) },
+        { label: "통역사명", value: row.interpreterName || "-" },
+        { label: "행사명", value: row.eventName || "-" },
+      ],
+    }));
+
+  return [...requestMemos, ...interpreterMemos, ...assignmentMemos];
+}
+
+function buildAdminNoteDisplayItems({
+  notes = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
+  const safeRequests = compactAdminRows(requests);
+  const safeInterpreters = compactAdminRows(interpreters);
+  const safeAssignmentRows = compactAdminRows(assignmentRows);
+  const safeJobApplications = compactAdminRows(jobApplications);
+  const requestsById = new Map(safeRequests.map((request) => [String(request.id), request]));
+  const requestsByJobId = new Map(
+    safeRequests
+      .filter((request) => request.job_id)
+      .map((request) => [String(request.job_id), request])
+  );
+  const interpretersById = new Map(
+    safeInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
+  );
+  const applicationsById = new Map(
+    safeJobApplications.map((application) => [String(application.id), application])
+  );
+  const assignmentRowsById = new Map(
+    safeAssignmentRows
+      .filter((row) => row?.assignment?.id)
+      .map((row) => [String(row.assignment.id), row])
+  );
+
+  return uniqueById(notes).map((note) => {
+    const targetType = normalizeAdminTargetType(note.target_type);
+    const targetId = String(note.target_id || "");
+    const application = targetType === "application" ? applicationsById.get(targetId) : null;
+    const applicationRequest = application?.job_id
+      ? requestsByJobId.get(String(application.job_id))
+      : null;
+    const request = targetType === "request" ? requestsById.get(targetId) : applicationRequest;
+    const interpreter =
+      targetType === "interpreter"
+        ? interpretersById.get(targetId)
+        : application?.interpreter_id
+          ? interpretersById.get(String(application.interpreter_id))
+          : null;
+    const assignmentRow = targetType === "assignment" ? assignmentRowsById.get(targetId) : null;
+
+    return {
+      id: `note-${note.id}`,
+      typeLabel: getAdminNoteTypeLabel(targetType),
+      number: getAdminNoteNumber({ targetType, request, interpreter, application, assignmentRow }),
+      title: getAdminNoteTitle({ targetType, request, interpreter, application, assignmentRow }),
+      memo: note.note,
+      createdAt: note.created_at,
+      details: getAdminNoteDetails({ targetType, request, interpreter, application, assignmentRow }),
+    };
+  });
+}
+
+function getAdminNoteTypeLabel(targetType) {
+  const labels = {
+    application: "지원 메모",
+    request: "의뢰 메모",
+    interpreter: "통역사 메모",
+    assignment: "배정 메모",
+  };
+  return labels[targetType] || "운영 메모";
+}
+
+function getAdminNoteNumber({ targetType, request, interpreter, application, assignmentRow }) {
+  if (targetType === "application") return application?.application_no || "";
+  if (targetType === "request") return request?.request_no || request?.request_number || "";
+  if (targetType === "interpreter") return interpreter?.interpreter_no || "";
+  if (targetType === "assignment") return assignmentRow?.assignmentNo || "";
+  return "";
+}
+
+function getAdminNoteTitle({ targetType, request, interpreter, application, assignmentRow }) {
+  if (targetType === "application") return application?.applicant_name || interpreter?.name || "-";
+  if (targetType === "request") return request?.event_name || request?.title || request?.company_name || "-";
+  if (targetType === "interpreter") return interpreter?.name || "-";
+  if (targetType === "assignment") return assignmentRow?.interpreterName || assignmentRow?.eventName || "-";
+  return "-";
+}
+
+function getAdminNoteDetails({ targetType, request, interpreter, application, assignmentRow }) {
+  if (targetType === "application") {
+    return [
+      { label: "지원번호", value: formatManagementNumber(application?.application_no) },
+      { label: "지원자 이름", value: application?.applicant_name || interpreter?.name || "-" },
+      {
+        label: "연결 의뢰번호",
+        value: formatManagementNumber(request?.request_no || request?.request_number),
+      },
+      { label: "행사명", value: request?.event_name || application?.jobs?.event_name || application?.jobs?.title || "-" },
+    ];
+  }
+
+  if (targetType === "request") {
+    return [
+      { label: "의뢰번호", value: formatManagementNumber(request?.request_no || request?.request_number) },
+      { label: "기업명", value: request?.company_name || "-" },
+      { label: "행사명", value: request?.event_name || request?.title || "-" },
+    ];
+  }
+
+  if (targetType === "interpreter") {
+    return [
+      { label: "통역사 번호", value: formatManagementNumber(interpreter?.interpreter_no) },
+      { label: "이름", value: interpreter?.name || "-" },
+    ];
+  }
+
+  if (targetType === "assignment") {
+    return [
+      { label: "배정번호", value: formatManagementNumber(assignmentRow?.assignmentNo) },
+      { label: "통역사명", value: assignmentRow?.interpreterName || "-" },
+      { label: "행사명", value: assignmentRow?.eventName || "-" },
+    ];
+  }
+
+  return [{ label: "대상", value: "운영 관리 항목" }];
+}
+
+function hasAdminMemo(item = {}) {
+  return Boolean(getAdminMemo(item));
+}
+
+function getAdminMemo(item = {}) {
+  return String(item?.admin_memo ?? "").trim();
+}
+
+function getEstimateStatusLabel(value) {
+  const normalized = String(value || "estimate_preparing").trim();
+  const legacyLabels = {
+    estimate_pending: "견적 준비중",
+    estimate_sent: "견적 확인 필요",
+    company_approved: "견적 승인 완료",
+  };
+  return (
+    ESTIMATE_STATUS_OPTIONS.find((option) => option.value === normalized)?.label ||
+    legacyLabels[normalized] ||
+    "견적 준비중"
+  );
+}
+
+function formatTimeRange(startTime, endTime) {
+  if (startTime && endTime) return `${startTime} ~ ${endTime}`;
+  if (startTime) return `${startTime} 시작`;
+  if (endTime) return `${endTime} 종료`;
+  return "-";
+}
+
+function getCompanyHistory(request = {}, requests = [], assignments = [], interpreters = []) {
+  const companyName = String(request.company_name || "").trim();
+  const relatedRequests = companyName
+    ? requests.filter((item) => String(item.company_name || "").trim() === companyName)
+    : [];
+  const events = relatedRequests
+    .map((item) => item.event_name || item.title)
+    .filter(Boolean)
+    .slice(0, 5)
+    .join(" / ");
+  const totalAmount = relatedRequests.reduce(
+    (sum, item) => sum + Number(getCompanyAmount(item) || 0),
+    0
+  );
+  const interpreterNames = Array.from(new Set([
+    ...relatedRequests
+      .map((item) => item.assigned_interpreter || item.assigned_interpreter_name || item.interpreter_name)
+      .filter(Boolean),
+    ...assignments
+      .map((assignment) => getAssignedInterpreterLabel(getAssignmentInterpreter(assignment, interpreters)))
+      .filter((name) => name && name !== "-"),
+  ])).slice(0, 5).join(" / ");
+  const memo = relatedRequests
+    .map((item) => item.company_internal_memo || item.admin_memo)
+    .filter(Boolean)
+    .at(0);
+
+  return {
+    requestCount: relatedRequests.length,
+    events,
+    interpreters: interpreterNames,
+    totalAmount,
+    memo,
+  };
+}
+
+function getOnliPerformanceCount({ interpreter = {}, matchings = [], requestAssignments = [], requests = [] } = {}) {
+  const interpreterId = String(interpreter.id || "");
+  if (!interpreterId) return 0;
+
+  const completedKeys = new Set();
+
+  matchings.forEach((matching) => {
+    if (String(matching.interpreter_id || "") !== interpreterId) return;
+    if (!isCompletedOnliPerformanceRecord(matching)) return;
+    const key = matching.request_id
+      ? `request:${matching.request_id}`
+      : `matching:${matching.id || matching.job_id || ""}`;
+    completedKeys.add(key);
+  });
+
+  requestAssignments.forEach((assignment) => {
+    if (String(assignment.interpreter_id || "") !== interpreterId) return;
+    const request = requests.find((item) => String(item.id || "") === String(assignment.request_id || ""));
+    if (!request || !isCompletedOnliPerformanceRecord(request)) return;
+    completedKeys.add(`request:${request.id}`);
+  });
+
+  requests.forEach((request) => {
+    const assignedId = request.assigned_interpreter_id || request.matched_interpreter_id;
+    if (String(assignedId || "") !== interpreterId) return;
+    if (!isCompletedOnliPerformanceRecord(request)) return;
+    completedKeys.add(`request:${request.id}`);
+  });
+
+  return completedKeys.size;
+}
+
+function isCompletedOnliPerformanceRecord(item = {}) {
+  if (isExcludedOnliPerformanceRecord(item)) return false;
+  const operationStatus = normalizeOperationStatus(item);
+  const settlementStatus = normalizeSettlementFlowStatus(item);
+  const status = String(item.status || item.matching_status || "").trim().toLowerCase();
+  return (
+    operationStatus === OPERATION_STATUS.COMPLETED ||
+    settlementStatus === SETTLEMENT_FLOW_STATUS.PENDING ||
+    settlementStatus === SETTLEMENT_FLOW_STATUS.COMPLETED ||
+    ["completed", "settlement_pending", "settled", "업무완료", "운영완료", "정산대기", "정산완료"].includes(status)
+  );
+}
+
+function isExcludedOnliPerformanceRecord(item = {}) {
+  const statusText = [
+    item.status,
+    item.matching_status,
+    item.assignment_status,
+    item.operation_status,
+    item.settlement_status,
+    item.cancel_reason,
+    item.event_name,
+    item.title,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    item.is_test === true ||
+    item.test_data === true ||
+    item.is_test_data === true ||
+    statusText.includes("test") ||
+    statusText.includes("테스트") ||
+    statusText.includes("cancel") ||
+    statusText.includes("취소") ||
+    statusText.includes("no_show") ||
+    statusText.includes("noshow") ||
+    statusText.includes("노쇼")
+  );
+}
+
+function normalizeAdminTargetType(targetType) {
+  const normalized = String(targetType || "").trim().toLowerCase();
+  if (["job_application", "job_applications", "application", "applications"].includes(normalized)) {
+    return "application";
+  }
+  if (["request", "requests"].includes(normalized)) return "request";
+  if (["interpreter", "interpreters"].includes(normalized)) return "interpreter";
+  if (["assignment", "assignments", "matching", "matchings", "request_interpreter"].includes(normalized)) {
+    return "assignment";
+  }
+  return normalized || "operation";
+}
+
+function compactAdminRows(items = []) {
+  return Array.isArray(items) ? items.filter(Boolean) : [];
+}
+
+function uniqueById(items = []) {
+  const seen = new Set();
+  return compactAdminRows(items).filter((item) => {
+    const id = String(item?.id || "");
+    if (!id) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+function buildNotificationDisplayItems({
+  events = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
+  const safeRequests = compactAdminRows(requests);
+  const safeInterpreters = compactAdminRows(interpreters);
+  const safeAssignmentRows = compactAdminRows(assignmentRows);
+  const safeJobApplications = compactAdminRows(jobApplications);
+  const requestsById = new Map(safeRequests.map((request) => [String(request.id), request]));
+  const requestsByJobId = new Map(
+    safeRequests
+      .filter((request) => request.job_id)
+      .map((request) => [String(request.job_id), request])
+  );
+  const interpretersById = new Map(
+    safeInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
+  );
+  const applicationsById = new Map(
+    safeJobApplications.map((application) => [String(application.id), application])
+  );
+  const assignmentRowsById = new Map(
+    safeAssignmentRows
+      .filter((row) => row?.assignment?.id)
+      .map((row) => [String(row.assignment.id), row])
+  );
+
+  return uniqueById(events).map((event) => {
+    const payload = getNotificationPayload(event);
+    const targetType = normalizeAdminTargetType(event.target_type);
+    const targetId = String(event.target_id || "");
+    const application =
+      targetType === "application"
+        ? applicationsById.get(targetId) || applicationsById.get(String(payload.application_id || ""))
+        : null;
+    const assignmentRow =
+      targetType === "assignment"
+        ? assignmentRowsById.get(targetId) || assignmentRowsById.get(String(payload.assignment_id || ""))
+        : null;
+    const request =
+      (targetType === "request" ? requestsById.get(targetId) : null) ||
+      (payload.request_id ? requestsById.get(String(payload.request_id)) : null) ||
+      (application?.job_id ? requestsByJobId.get(String(application.job_id)) : null) ||
+      assignmentRow?.request ||
+      null;
+    const interpreter =
+      (targetType === "interpreter" ? interpretersById.get(targetId) : null) ||
+      (payload.interpreter_id ? interpretersById.get(String(payload.interpreter_id)) : null) ||
+      (application?.interpreter_id ? interpretersById.get(String(application.interpreter_id)) : null) ||
+      null;
+
+    return {
+      ...event,
+      eventLabel: getNotificationEventTypeLabel(event.event_type),
+      statusLabel: getNotificationStatusLabel(event.status),
+      targetLabel: getNotificationTargetLabel({
+        targetType,
+        payload,
+        request,
+        interpreter,
+        application,
+        assignmentRow,
+      }),
+      relatedLabel: getNotificationRelatedLabel({
+        targetType,
+        request,
+        interpreter,
+        application,
+        assignmentRow,
+      }),
+    };
+  });
+}
+
+function getNotificationPayload(event = {}) {
+  if (!event.payload || typeof event.payload !== "string") return event.payload || {};
+  try {
+    return JSON.parse(event.payload);
+  } catch {
+    return {};
+  }
+}
+
+function getNotificationPayloadSummary(event = {}) {
+  const payload = getNotificationPayload(event);
+  const directText =
+    payload.message ||
+    payload.memo ||
+    payload.note ||
+    payload.content ||
+    payload.description ||
+    payload.title ||
+    "";
+
+  if (directText) return String(directText);
+
+  const summaryItems = [
+    payload.company_name,
+    payload.event_name,
+    payload.applicant_name,
+    payload.interpreter_name,
+    payload.status_label,
+    payload.status,
+  ].filter(Boolean);
+
+  if (summaryItems.length > 0) return summaryItems.join(" / ");
+  if (event.error_message) return event.error_message;
+
+  return "-";
+}
+
+function getNotificationEventTypeLabel(eventType) {
+  const labels = {
+    assignment_created: "배정 완료 알림",
+    application_created: "신규 지원 알림",
+    new_request: "신규 의뢰 알림",
+    status_changed: "상태 변경 알림",
+    settlement_ready: "정산 대기 알림",
+    application_status_changed: "지원 상태 변경 알림",
+    settlement_status_changed: "정산 상태 변경 알림",
+    memo_created: "내부 메모 알림",
+    new_interpreter: "신규 통역사 알림",
+    request_created_client: "의뢰 접수 완료 알림",
+    client_review_started: "의뢰 검토 시작 알림",
+    client_estimate_ready: "견적 안내 알림",
+    client_recruiting_started: "통역사 모집 시작 알림",
+    assignment_confirmed_client: "배정 완료 알림",
+    client_work_completed: "업무 완료 알림",
+    client_settlement_ready: "정산/결제 안내 알림",
+  };
+  return labels[String(eventType || "").trim()] || "운영 알림";
+}
+
+function getNotificationStatusLabel(status) {
+  const labels = {
+    pending: "발송 대기",
+    processing: "발송 처리 중",
+    sent: "발송 완료",
+    failed: "발송 실패",
+    skipped: "발송 제외",
+  };
+  return labels[String(status || "").trim().toLowerCase()] || "상태 확인 필요";
+}
+
+function getNotificationTargetLabel({
+  targetType,
+  payload = {},
+  request,
+  interpreter,
+  application,
+  assignmentRow,
+}) {
+  if (targetType === "assignment") {
+    return assignmentRow?.interpreterName || interpreter?.name || "배정 대상 통역사";
+  }
+  if (targetType === "application") {
+    return application?.applicant_name || payload.applicant_name || "지원자";
+  }
+  if (targetType === "request") {
+    return request?.company_name || payload.company_name || "의뢰 기업";
+  }
+  if (targetType === "interpreter") {
+    return interpreter?.name || payload.name || "통역사";
+  }
+  return "운영 담당자 확인";
+}
+
+function getNotificationRelatedLabel({ targetType, request, interpreter, application, assignmentRow }) {
+  if (targetType === "assignment") return formatManagementNumber(assignmentRow?.assignmentNo);
+  if (targetType === "application") return formatManagementNumber(application?.application_no);
+  if (targetType === "request") return formatManagementNumber(request?.request_no || request?.request_number);
+  if (targetType === "interpreter") return formatManagementNumber(interpreter?.interpreter_no);
+  return "-";
+}
+
+function buildProcessingQueueItems({
+  newRequests = [],
+  pendingResumeReviewInterpreters = [],
+  uncheckedApplications = [],
+  pendingAssignmentRequests = [],
+  settlementPendingRequests = [],
+}) {
+  return [
+    {
+      id: "new-requests",
+      label: "신규 의뢰",
+      count: newRequests.length,
+      description: "접수 확인 및 공고 전환",
+      priority: getQueuePriority(newRequests, "new_request"),
+      targetSubTab: "new_requests",
+    },
+    {
+      id: "pending-interpreters",
+      label: "검증 대기 통역사",
+      count: pendingResumeReviewInterpreters.length,
+      description: "이력서 검토 및 활동 승인",
+      priority: pendingResumeReviewInterpreters.length > 0 ? "today" : "general",
+      targetSubTab: "verification_pending",
+    },
+    {
+      id: "unchecked-applications",
+      label: "신규 지원자",
+      count: uncheckedApplications.length,
+      description: "검토중/합격/불합격 처리",
+      priority: uncheckedApplications.length > 0 ? "urgent" : "general",
+      targetSubTab: "applications",
+    },
+    {
+      id: "pending-assignments",
+      label: "배정 대기 의뢰",
+      count: pendingAssignmentRequests.length,
+      description: "행사일 임박 건 우선 배정",
+      priority: getQueuePriority(pendingAssignmentRequests, "assignment"),
+      targetSubTab: "assignments",
+    },
+    {
+      id: "pending-settlements",
+      label: "정산 대기",
+      count: settlementPendingRequests.length,
+      description: "진행 완료 후 지급 확인",
+      priority: settlementPendingRequests.length > 0 ? "urgent" : "general",
+      targetSubTab: "settlement_pending",
+    },
+  ];
+}
+
+function getQueuePriority(items = [], type) {
+  if (items.length === 0) return "general";
+  if (type === "new_request") {
+    return items.some((item) => isOlderThanHours(item.created_at, 24)) ? "urgent" : "today";
+  }
+  if (type === "assignment") {
+    return items.some((item) => isRequestWithinDays(item, 3)) ? "urgent" : "today";
+  }
+  return "today";
+}
+
+function getQueuePriorityLabel(priority) {
+  if (priority === "urgent") return "긴급";
+  if (priority === "today") return "오늘 처리";
+  return "일반";
+}
+
+function isOlderThanHours(value, hours) {
+  const createdAt = value ? new Date(value) : null;
+  if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+  return Date.now() - createdAt.getTime() >= hours * 60 * 60 * 1000;
 }
 
 function parseRequestDateOnly(value) {
@@ -7598,6 +11065,7 @@ function isUrgentOperationRequest(request = {}) {
     "cancelled",
     "closed",
     "deleted",
+    "업무완료",
     "운영완료",
     "정산완료",
     "취소",
@@ -7680,62 +11148,6 @@ function buildOperationDashboard(
   return { todayItems, urgentItems };
 }
 
-function getScheduleConflictRequestIds(requests = [], assignmentsByRequest = new Map()) {
-  const conflictIds = new Set();
-
-  requests.forEach((request, index) => {
-    const requestInterpreterIds = getRequestAssignedInterpreterIds(
-      request,
-      assignmentsByRequest.get(request.id) || []
-    );
-    if (requestInterpreterIds.length === 0) return;
-
-    requests.slice(index + 1).forEach((otherRequest) => {
-      if (!doRequestDatesOverlap(request, otherRequest)) return;
-
-      const otherInterpreterIds = getRequestAssignedInterpreterIds(
-        otherRequest,
-        assignmentsByRequest.get(otherRequest.id) || []
-      );
-      const hasSharedInterpreter = requestInterpreterIds.some((id) =>
-        otherInterpreterIds.includes(id)
-      );
-      if (!hasSharedInterpreter) return;
-
-      conflictIds.add(String(request.id));
-      conflictIds.add(String(otherRequest.id));
-    });
-  });
-
-  return conflictIds;
-}
-
-function getRequestAssignedInterpreterIds(request = {}, assignments = []) {
-  const ids = assignments
-    .map((assignment) => assignment.interpreter_id)
-    .filter(Boolean)
-    .map(String);
-
-  [
-    request.assigned_interpreter_id,
-    request.matched_interpreter_id,
-    request.interpreter_id,
-  ].forEach((id) => {
-    if (id) ids.push(String(id));
-  });
-
-  return [...new Set(ids)];
-}
-
-function doRequestDatesOverlap(a = {}, b = {}) {
-  const aStart = a.start_date || a.event_date;
-  const aEnd = a.end_date || a.event_date || aStart;
-  const bStart = b.start_date || b.event_date;
-  const bEnd = b.end_date || b.event_date || bStart;
-  if (!aStart || !aEnd || !bStart || !bEnd) return false;
-  return aStart <= bEnd && bStart <= aEnd;
-}
-
 function getAssignedInterpreterName(request = {}, assignments = [], interpreters = []) {
   if (assignments.length > 0) {
     return assignments
@@ -7760,14 +11172,90 @@ function getAssignedInterpreterName(request = {}, assignments = [], interpreters
   return assignment?.interpreter?.name || "";
 }
 
+function getAdminDocumentRequest(document = {}, requestMap = new Map()) {
+  return document.request_id ? requestMap.get(String(document.request_id)) || null : null;
+}
+
+function getAdminDocumentInterpreter(document = {}, interpreterMap = new Map()) {
+  return document.interpreter_id
+    ? interpreterMap.get(String(document.interpreter_id)) || null
+    : null;
+}
+
+function getAdminDocumentEventName(document = {}, request = null) {
+  const metadata = document.metadata || {};
+  return (
+    metadata.eventName ||
+    metadata.event_name ||
+    request?.event_name ||
+    request?.title ||
+    document.title ||
+    "-"
+  );
+}
+
+function getAdminDocumentCompanyName(document = {}, request = null) {
+  const metadata = document.metadata || {};
+  return metadata.companyName || metadata.company_name || request?.company_name || "-";
+}
+
+function getAdminDocumentInterpreterName(document = {}, interpreter = null) {
+  const metadata = document.metadata || {};
+  return (
+    metadata.interpreterName ||
+    metadata.interpreter_name ||
+    metadata.interpreters ||
+    interpreter?.name ||
+    "-"
+  );
+}
+
+function getAdminDocumentStatusLabel(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "draft") return "임시저장";
+  if (normalized === "issued") return "발급완료";
+  if (normalized === "voided") return "폐기";
+  return status || "-";
+}
+
+function doesAdminDocumentMatchFilters(document, filters, requestMap, interpreterMap) {
+  if (filters.documentType !== "all" && document.document_type !== filters.documentType) {
+    return false;
+  }
+  if (filters.status !== "all" && document.status !== filters.status) return false;
+
+  const createdDate = String(document.created_at || "").slice(0, 10);
+  if (filters.startDate && createdDate < filters.startDate) return false;
+  if (filters.endDate && createdDate > filters.endDate) return false;
+
+  const request = getAdminDocumentRequest(document, requestMap);
+  const interpreter = getAdminDocumentInterpreter(document, interpreterMap);
+  const search = String(filters.search || "").trim().toLowerCase();
+  if (!search) return true;
+
+  return [
+    document.document_no,
+    getAdminDocumentCompanyName(document, request),
+    getAdminDocumentInterpreterName(document, interpreter),
+    getAdminDocumentEventName(document, request),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(search);
+}
+
 function buildApplicationAssignmentRows(applications = [], assignments = [], interpreters = []) {
+  const safeApplications = compactAdminRows(applications);
+  const safeAssignments = compactAdminRows(assignments);
+  const safeInterpreters = compactAdminRows(interpreters);
   const usedApplicationIds = new Set();
   const assignmentRows = [];
 
-  assignments.forEach((assignment) => {
-    const interpreter = getAssignmentInterpreter(assignment, interpreters);
+  safeAssignments.forEach((assignment) => {
+    const interpreter = getAssignmentInterpreter(assignment, safeInterpreters);
     const matchedApplication = interpreter
-      ? applications.find(
+      ? safeApplications.find(
           (application) =>
             !usedApplicationIds.has(application.id) &&
             applicationMatchesInterpreter(application, interpreter)
@@ -7805,7 +11293,7 @@ function buildApplicationAssignmentRows(applications = [], assignments = [], int
     });
   });
 
-  const applicationRows = applications
+  const applicationRows = safeApplications
     .filter((application) => !usedApplicationIds.has(application.id))
     .map((application) => ({
       ...application,
@@ -7939,360 +11427,6 @@ function getRequestRequiredCount(request = {}) {
   );
 }
 
-function createDocumentDraft(documentType, request = {}, assignedInterpreterName = "") {
-  const peopleCount = getRequestRequiredCount(request);
-  const workDays = getRequestWorkDays(request);
-  const baseAmount = getCompanyAmount(request) || normalizeMoneyInput(request.estimated_price);
-  const unitPrice = baseAmount && peopleCount && workDays
-    ? Math.round(baseAmount / peopleCount / workDays)
-    : 0;
-
-  return {
-    document_type: documentType,
-    request_id: request.id,
-    company_id: request.company_id || null,
-    interpreter_id: request.assigned_interpreter_id || request.matched_interpreter_id || null,
-    company_name: request.company_name || "-",
-    event_name: request.event_name || request.title || "-",
-    date_label: formatDateRange(request.start_date, request.end_date, request.event_date),
-    location: request.event_location || request.location || "-",
-    people_count: peopleCount,
-    work_days: workDays,
-    unit_price: unitPrice,
-    discount_amount: 0,
-    extra_amount: 0,
-    work_hours: request.work_hours || "",
-    completed_at: new Date().toISOString().slice(0, 10),
-    interpreter_display_name: assignedInterpreterName || request.assigned_interpreter_name || "-",
-    memo: "",
-  };
-}
-
-function getRequestWorkDays(request = {}) {
-  const startValue = getDateRangeStart(request.start_date, request.event_date);
-  const endValue = getDateRangeEnd(request.end_date, request.event_date);
-  const startDate = parseRequestDateOnly(startValue);
-  const endDate = parseRequestDateOnly(endValue || startValue);
-  if (!startDate || !endDate) return 1;
-  const diff = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
-  return Math.max(1, diff + 1);
-}
-
-function calculateEstimateBaseAmount(draft = {}) {
-  return (
-    normalizeMoneyInput(draft.unit_price) *
-    getPositiveInteger(draft.people_count, 1) *
-    getPositiveInteger(draft.work_days, 1)
-  );
-}
-
-function calculateEstimateAmount(draft = {}) {
-  return Math.max(
-    0,
-    calculateEstimateBaseAmount(draft) -
-      normalizeMoneyInput(draft.discount_amount) +
-      normalizeMoneyInput(draft.extra_amount)
-  );
-}
-
-function buildDocumentMetadata(documentType, draft = {}, request = {}) {
-  const metadata = {
-    request_no: request.request_no || null,
-    company_name: draft.company_name,
-    event_name: draft.event_name,
-    date_label: draft.date_label,
-    location: draft.location,
-    people_count: getPositiveInteger(draft.people_count, 1),
-    memo: draft.memo || "",
-  };
-
-  if (documentType === "estimate") {
-    return {
-      ...metadata,
-      unit_price: normalizeMoneyInput(draft.unit_price),
-      work_days: getPositiveInteger(draft.work_days, 1),
-      discount_amount: normalizeMoneyInput(draft.discount_amount),
-      extra_amount: normalizeMoneyInput(draft.extra_amount),
-      base_amount: calculateEstimateBaseAmount(draft),
-      final_amount: calculateEstimateAmount(draft),
-    };
-  }
-
-  return {
-    ...metadata,
-    work_hours: draft.work_hours || "",
-    completed_at: draft.completed_at || "",
-    interpreter_display_name: draft.interpreter_display_name || "",
-  };
-}
-
-function buildRequestDocumentPdfPayload({
-  documentNo,
-  documentType,
-  draft = {},
-  request = {},
-  version = 1,
-}) {
-  const isEstimate = documentType === "estimate";
-  const issuedAt = new Date().toLocaleDateString("ko-KR");
-
-  return {
-    title: DOCUMENT_TYPE_LABELS[documentType] || "문서",
-    subtitle: `${documentNo} / v${version} / 발급일 ${issuedAt}`,
-    sections: [
-      {
-        heading: "의뢰 정보",
-        rows: [
-          ["의뢰번호", formatManagementNumber(request.request_no)],
-          ["기업명", draft.company_name],
-          ["행사명", draft.event_name],
-          ["행사 기간", draft.date_label],
-          ["장소", draft.location],
-          ["필요 인원", `${draft.people_count || 1}명`],
-        ],
-      },
-      isEstimate
-        ? {
-            heading: "견적 정보",
-            rows: [
-              ["단가", formatJPY(draft.unit_price)],
-              ["업무 일수", `${draft.work_days || 1}일`],
-              ["기본 금액", formatJPY(calculateEstimateBaseAmount(draft))],
-              ["할인 금액", formatJPY(draft.discount_amount)],
-              ["추가 비용", formatJPY(draft.extra_amount)],
-              ["최종 금액", formatJPY(calculateEstimateAmount(draft))],
-            ],
-          }
-        : {
-            heading: "업무 확인 정보",
-            rows: [
-              ["업무 시간", draft.work_hours || "-"],
-              ["완료 확인일", draft.completed_at || "-"],
-              ["담당 통역사", draft.interpreter_display_name || "-"],
-            ],
-          },
-      {
-        heading: "메모",
-        rows: [["비고", draft.memo || "-"]],
-      },
-    ],
-  };
-}
-
-function getDocumentStatusLabel(document = null) {
-  if (!document) return "미발급";
-  return `${document.document_no} / v${document.version || 1}`;
-}
-
-function getDocumentTypeLabel(documentType) {
-  return DOCUMENT_TYPE_LABELS[documentType] || documentType || "-";
-}
-
-function getDocumentStatusText(status) {
-  const value = String(status || "").trim().toLowerCase();
-  if (value === "draft") return "임시저장";
-  if (value === "issued") return "발급완료";
-  if (value === "voided") return "폐기";
-  return status || "-";
-}
-
-function getDocumentRequest(document = {}, requestMap = new Map()) {
-  return document.request_id ? requestMap.get(String(document.request_id)) || null : null;
-}
-
-function getDocumentInterpreter(document = {}, interpreterMap = new Map()) {
-  return document.interpreter_id
-    ? interpreterMap.get(String(document.interpreter_id)) || null
-    : null;
-}
-
-function getDocumentEventName(document = {}, request = null) {
-  const metadata = document.metadata || {};
-  return metadata.event_name || request?.event_name || request?.title || document.title || "-";
-}
-
-function getDocumentCompanyName(document = {}, request = null) {
-  const metadata = document.metadata || {};
-  return metadata.company_name || request?.company_name || (document.document_type === "payout" ? "-" : "-");
-}
-
-function getDocumentInterpreterName(document = {}, interpreter = null) {
-  const metadata = document.metadata || {};
-  return metadata.interpreter_name || metadata.interpreter_display_name || interpreter?.name || "-";
-}
-
-function doesDocumentMatchFilters(document, filters, requestMap, interpreterMap) {
-  if (filters.documentType !== "all" && document.document_type !== filters.documentType) {
-    return false;
-  }
-  if (filters.status !== "all" && document.status !== filters.status) {
-    return false;
-  }
-
-  const createdDate = String(document.created_at || "").slice(0, 10);
-  if (filters.startDate && createdDate < filters.startDate) return false;
-  if (filters.endDate && createdDate > filters.endDate) return false;
-
-  const request = getDocumentRequest(document, requestMap);
-  const interpreter = getDocumentInterpreter(document, interpreterMap);
-  const search = String(filters.search || "").trim().toLowerCase();
-  if (!search) return true;
-
-  return [
-    document.document_no,
-    getDocumentCompanyName(document, request),
-    getDocumentInterpreterName(document, interpreter),
-    getDocumentEventName(document, request),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .includes(search);
-}
-
-function createAdminDocumentDraft(document = {}) {
-  const metadata = document.metadata || {};
-  return {
-    amount: document.amount || metadata.final_amount || 0,
-    admin_note: metadata.admin_note || "",
-    revision_note: "",
-  };
-}
-
-function copyDocumentForNewVersion(document = {}) {
-  return {
-    document_type: document.document_type,
-    document_no: document.document_no,
-    request_id: document.request_id || null,
-    company_id: document.company_id || null,
-    interpreter_id: document.interpreter_id || null,
-    settlement_id: document.settlement_id || null,
-    title: document.title,
-  };
-}
-
-function buildAdminDocumentVersionPdfPayload({ document, metadata = {}, amount, version }) {
-  return {
-    title: getDocumentTypeLabel(document.document_type),
-    subtitle: `${document.document_no} / v${version} / 발급일 ${new Date().toLocaleDateString("ko-KR")}`,
-    sections: [
-      {
-        heading: "문서 정보",
-        rows: [
-          ["문서번호", document.document_no],
-          ["문서 종류", getDocumentTypeLabel(document.document_type)],
-          ["버전", `v${version}`],
-          ["상태", "발급완료"],
-        ],
-      },
-      {
-        heading: "연결 정보",
-        rows: [
-          ["행사명", metadata.event_name || document.title || "-"],
-          ["기업명", metadata.company_name || "-"],
-          ["통역사명", metadata.interpreter_name || metadata.interpreter_display_name || "-"],
-          ["금액", formatJPY(amount)],
-        ],
-      },
-      {
-        heading: "수정 내용",
-        rows: [
-          ["수정 메모", metadata.revision_note || "-"],
-          ["관리자 메모", metadata.admin_note || "-"],
-        ],
-      },
-    ],
-  };
-}
-
-function createPayoutDraft(request = {}, assignment = {}, interpreter = {}) {
-  const workDays = getRequestWorkDays(request);
-  const totalPayment = getInterpreterPayment(request);
-  const dailyRate = totalPayment && workDays ? Math.round(totalPayment / workDays) : 0;
-
-  return {
-    request_id: request.id,
-    interpreter_id: assignment.interpreter_id || interpreter?.id || null,
-    interpreter_name: interpreter?.name || assignment.interpreter?.name || request.assigned_interpreter_name || "-",
-    event_name: request.event_name || request.title || "-",
-    date_label: formatDateRange(request.start_date, request.end_date, request.event_date),
-    level: normalizeLevel(interpreter?.level || request.requested_level || request.required_level || "Lv1"),
-    daily_rate: dailyRate,
-    work_days: workDays,
-    extra_amount: 0,
-    deduction_amount: 0,
-    memo: "",
-  };
-}
-
-function calculatePayoutBaseAmount(draft = {}) {
-  return normalizeMoneyInput(draft.daily_rate) * getPositiveInteger(draft.work_days, 1);
-}
-
-function calculatePayoutAmount(draft = {}) {
-  return Math.max(
-    0,
-    calculatePayoutBaseAmount(draft) +
-      normalizeMoneyInput(draft.extra_amount) -
-      normalizeMoneyInput(draft.deduction_amount)
-  );
-}
-
-function buildPayoutMetadata(draft = {}, request = {}) {
-  return {
-    request_no: request.request_no || null,
-    interpreter_name: draft.interpreter_name,
-    event_name: draft.event_name,
-    date_label: draft.date_label,
-    level: draft.level,
-    daily_rate: normalizeMoneyInput(draft.daily_rate),
-    work_days: getPositiveInteger(draft.work_days, 1),
-    base_amount: calculatePayoutBaseAmount(draft),
-    extra_amount: normalizeMoneyInput(draft.extra_amount),
-    deduction_amount: normalizeMoneyInput(draft.deduction_amount),
-    final_amount: calculatePayoutAmount(draft),
-    settlement_status: normalizeSettlementFlowStatus(request),
-    memo: draft.memo || "",
-  };
-}
-
-function buildPayoutPdfPayload({ documentNo, draft = {}, request = {}, version = 1 }) {
-  const issuedAt = new Date().toLocaleDateString("ko-KR");
-
-  return {
-    title: "정산 내역서",
-    subtitle: `${documentNo} / v${version} / 발급일 ${issuedAt}`,
-    sections: [
-      {
-        heading: "업무 정보",
-        rows: [
-          ["의뢰번호", formatManagementNumber(request.request_no)],
-          ["통역사명", draft.interpreter_name],
-          ["업무명", draft.event_name],
-          ["업무 날짜", draft.date_label],
-          ["적용 레벨", draft.level],
-          ["정산 상태", getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request))],
-        ],
-      },
-      {
-        heading: "지급 정보",
-        rows: [
-          ["일당", formatJPY(draft.daily_rate)],
-          ["근무 일수", `${draft.work_days || 1}일`],
-          ["기본 지급액", formatJPY(calculatePayoutBaseAmount(draft))],
-          ["추가 지급", formatJPY(draft.extra_amount)],
-          ["공제 금액", formatJPY(draft.deduction_amount)],
-          ["최종 지급액", formatJPY(calculatePayoutAmount(draft))],
-        ],
-      },
-      {
-        heading: "메모",
-        rows: [["비고", draft.memo || "-"]],
-      },
-    ],
-  };
-}
-
 function buildAssignmentRequestChanges(assignments = [], requiredCount = 1) {
   const primaryAssignment = assignments[assignments.length - 1] || null;
   const interpreterId = primaryAssignment?.interpreter_id || null;
@@ -8329,6 +11463,143 @@ function normalizeMoneyInput(value) {
   return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
+const SETTLEMENT_LEVEL_DEFAULTS = {
+  LV1: { company_amount: 220000, interpreter_payment: 180000 },
+  LV2: { company_amount: 245000, interpreter_payment: 200000 },
+  LV3: { company_amount: 280000, interpreter_payment: 230000 },
+  LV4: { company_amount: 300000, interpreter_payment: 245000 },
+};
+
+const SETTLEMENT_LEVEL_OPTIONS = Object.keys(SETTLEMENT_LEVEL_DEFAULTS).map((level) => ({
+  label: level,
+  value: level,
+}));
+
+function getSettlementLevel(request = {}) {
+  const level = String(request.settlement_level || request.requested_level || request.required_level || "")
+    .trim()
+    .toUpperCase()
+    .replace(/^LV\s*/, "LV");
+  return Object.prototype.hasOwnProperty.call(SETTLEMENT_LEVEL_DEFAULTS, level)
+    ? level
+    : "";
+}
+
+function getSettlementWorkDays(request = {}) {
+  const savedDays = Number(request.settlement_work_days);
+  if (Number.isFinite(savedDays) && savedDays > 0) return Math.max(1, Math.round(savedDays));
+
+  const start = getDateRangeStart(request.start_date || request.event_date, request.date);
+  const end = getDateRangeEnd(request.end_date || request.event_date, request.date);
+  const startDate = start ? new Date(`${start}T00:00:00`) : null;
+  const endDate = end ? new Date(`${end}T00:00:00`) : startDate;
+
+  if (!startDate || Number.isNaN(startDate.getTime())) return 1;
+  if (!endDate || Number.isNaN(endDate.getTime())) return 1;
+
+  const diffDays = Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+  return Math.max(1, diffDays);
+}
+
+function calculateSettlementAmounts(request = {}) {
+  const level = getSettlementLevel(request) || "LV1";
+  const workDays = getSettlementWorkDays({ ...request, settlement_level: level });
+  const extraAmount = normalizeMoneyInput(request.settlement_extra_amount);
+  const deductionAmount = normalizeMoneyInput(request.settlement_deduction_amount);
+  const baseAmount = SETTLEMENT_LEVEL_DEFAULTS[level].interpreter_payment * workDays;
+  const finalAmount =
+    request.settlement_final_amount !== undefined &&
+    request.settlement_final_amount !== null &&
+    String(request.settlement_final_amount).trim() !== ""
+      ? normalizeMoneyInput(request.settlement_final_amount)
+      : Math.max(0, baseAmount + extraAmount - deductionAmount);
+
+  return {
+    settlement_work_days: workDays,
+    settlement_level: level,
+    settlement_base_amount: baseAmount,
+    settlement_extra_amount: extraAmount,
+    settlement_deduction_amount: deductionAmount,
+    settlement_final_amount: finalAmount,
+    interpreter_payment: finalAmount,
+    interpreter_price: finalAmount,
+  };
+}
+
+function getSettlementSavePayload(request = {}) {
+  const calculated = calculateSettlementAmounts(request);
+  const companyAmount = getCompanyAmount(request);
+  const finalAmount = calculated.settlement_final_amount;
+  return {
+    ...calculated,
+    company_amount: companyAmount,
+    client_price: companyAmount,
+    platform_profit: companyAmount - finalAmount,
+    profit: companyAmount - finalAmount,
+    settlement_memo: request.settlement_memo || "",
+    settlement_status: normalizeSettlementFlowStatus(request),
+    payment_status: request.payment_status || "unpaid",
+  };
+}
+
+function createSettlementDraft(request = {}) {
+  const calculated = calculateSettlementAmounts(request);
+  return {
+    settlement_work_days: calculated.settlement_work_days,
+    settlement_level: calculated.settlement_level,
+    settlement_base_amount: calculated.settlement_base_amount,
+    settlement_extra_amount: calculated.settlement_extra_amount,
+    settlement_deduction_amount: calculated.settlement_deduction_amount,
+    settlement_final_amount: calculated.settlement_final_amount,
+    settlement_status: normalizeSettlementFlowStatus(request),
+    settlement_memo: request.settlement_memo || "",
+    payment_status: request.payment_status || "unpaid",
+  };
+}
+
+function applySettlementDefaults(request = {}, touched = {}) {
+  const level = getSettlementLevel(request);
+  if (!level) return request;
+
+  const defaults = SETTLEMENT_LEVEL_DEFAULTS[level];
+  const calculated = calculateSettlementAmounts(request);
+  const currentCompanyAmount = getCompanyAmount(request);
+  const currentInterpreterPayment = getInterpreterPayment(request);
+  const nextCompanyAmount =
+    !touched.company_amount && currentCompanyAmount === 0
+      ? defaults.company_amount
+      : currentCompanyAmount;
+  const nextInterpreterPayment =
+    !touched.interpreter_payment && currentInterpreterPayment === 0
+      ? calculated.settlement_final_amount
+      : currentInterpreterPayment;
+
+  if (
+    nextCompanyAmount === currentCompanyAmount &&
+    nextInterpreterPayment === currentInterpreterPayment &&
+    request.settlement_base_amount
+  ) {
+    return request;
+  }
+
+  const platformProfit = nextCompanyAmount - nextInterpreterPayment;
+  return {
+    ...request,
+    company_amount: nextCompanyAmount,
+    client_price: nextCompanyAmount,
+    interpreter_payment: nextInterpreterPayment,
+    interpreter_price: nextInterpreterPayment,
+    settlement_work_days: calculated.settlement_work_days,
+    settlement_level: calculated.settlement_level,
+    settlement_base_amount: calculated.settlement_base_amount,
+    settlement_extra_amount: calculated.settlement_extra_amount,
+    settlement_deduction_amount: calculated.settlement_deduction_amount,
+    settlement_final_amount: nextInterpreterPayment,
+    platform_profit: platformProfit,
+    profit: platformProfit,
+  };
+}
+
 function normalizePaymentStatus(status) {
   const value = String(status || "").trim().toLowerCase();
   if (["paid", "결제완료", "결제 완료"].includes(value)) return "paid";
@@ -8337,15 +11608,19 @@ function normalizePaymentStatus(status) {
 
 function doesRequestMatchSettlementManagementFilter(request = {}, filter = "all") {
   if (filter === "all") return true;
-  const paymentStatus = normalizePaymentStatus(request.payment_status);
   const settlementStatus = normalizeSettlementFlowStatus(request);
 
-  if (filter === "unpaid" || filter === "paid") return paymentStatus === filter;
   if (filter === "settlement_pending") {
     return settlementStatus === SETTLEMENT_FLOW_STATUS.PENDING;
   }
+  if (filter === "settlement_confirmed") {
+    return settlementStatus === SETTLEMENT_FLOW_STATUS.CONFIRMED;
+  }
   if (filter === "settlement_completed") {
     return settlementStatus === SETTLEMENT_FLOW_STATUS.COMPLETED;
+  }
+  if (filter === "settlement_on_hold") {
+    return settlementStatus === SETTLEMENT_FLOW_STATUS.ON_HOLD;
   }
   return true;
 }
@@ -8396,11 +11671,17 @@ function getRequestHeadlineStatus(item = {}) {
   if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.COMPLETED) {
     return { type: "settlement", value: statuses.settlement_status, label: "정산완료" };
   }
+  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.CONFIRMED) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산확정" };
+  }
+  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.ON_HOLD) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산보류" };
+  }
   if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.PENDING) {
     return { type: "settlement", value: statuses.settlement_status, label: "정산대기" };
   }
   if (statuses.operation_status === OPERATION_STATUS.COMPLETED) {
-    return { type: "operation", value: statuses.operation_status, label: "운영완료" };
+    return { type: "operation", value: statuses.operation_status, label: "업무완료" };
   }
   if (statuses.operation_status === OPERATION_STATUS.IN_PROGRESS) {
     return { type: "operation", value: statuses.operation_status, label: "운영중" };
@@ -8409,7 +11690,11 @@ function getRequestHeadlineStatus(item = {}) {
     return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
   }
   if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNING) {
-    return { type: "assignment", value: statuses.assignment_status, label: "배정중" };
+    return {
+      type: "assignment",
+      value: statuses.assignment_status,
+      label: isDesignatedRequest(item) ? "통역사 확인중" : "배정중",
+    };
   }
   return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
 }
@@ -8424,6 +11709,17 @@ function getRequestFlowSource(request = {}, job = null) {
     settlement_status: job.settlement_status,
     status: job.status || request.status,
   };
+}
+
+function getDesignatedRequestCheckStatus(request = {}, assignments = []) {
+  if (!isDesignatedRequest(request)) return "-";
+  if (assignments.length > 0 || normalizeAssignmentStatus(request) === ASSIGNMENT_STATUS.ASSIGNED) {
+    return "가능";
+  }
+  if (normalizeMatchingStatus(request.status || request.matching_status) === MATCHING_STATUS.CANCELLED) {
+    return "불가";
+  }
+  return "확인중";
 }
 
 function getAssignmentStatusChanges(item = {}) {
@@ -8476,7 +11772,9 @@ function getLegacyRequestStatusFromFlow(item = {}) {
   const assignmentStatus = normalizeAssignmentStatus(item);
 
   if (settlementStatus === SETTLEMENT_FLOW_STATUS.COMPLETED) return MATCHING_STATUS.SETTLED;
+  if (settlementStatus === SETTLEMENT_FLOW_STATUS.CONFIRMED) return MATCHING_STATUS.SETTLEMENT_PENDING;
   if (settlementStatus === SETTLEMENT_FLOW_STATUS.PENDING) return MATCHING_STATUS.SETTLEMENT_PENDING;
+  if (settlementStatus === SETTLEMENT_FLOW_STATUS.ON_HOLD) return MATCHING_STATUS.COMPLETED;
   if (operationStatus === OPERATION_STATUS.COMPLETED) return MATCHING_STATUS.COMPLETED;
   if (operationStatus === OPERATION_STATUS.IN_PROGRESS) return MATCHING_STATUS.IN_PROGRESS;
   if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNED) return MATCHING_STATUS.ASSIGNED;
@@ -8601,7 +11899,24 @@ function cleanPayload(payload) {
 }
 
 function prepareInterpreterUpdatePayload(changes = {}) {
-  const payload = cleanPayload(changes);
+  const normalizedChanges = { ...changes };
+
+  if (isResumeVerificationStatusValue(normalizedChanges.status)) {
+    if (!("approved" in normalizedChanges)) {
+      normalizedChanges.approved = true;
+    }
+    delete normalizedChanges.status;
+  }
+
+  if (!("approved" in normalizedChanges)) {
+    if ("resume_verified" in normalizedChanges) {
+      normalizedChanges.approved = normalizedChanges.resume_verified;
+    } else if ("verified" in normalizedChanges) {
+      normalizedChanges.approved = normalizedChanges.verified;
+    }
+  }
+
+  const payload = cleanPayload(normalizedChanges);
 
   if ("age" in payload && String(payload.age || "").trim() !== "") {
     const age = toNonNegativeInteger(payload.age);
@@ -8634,6 +11949,10 @@ function prepareInterpreterUpdatePayload(changes = {}) {
     payload.approved = normalizeBoolean(payload.approved);
   }
 
+  if ("is_public" in payload) {
+    payload.is_public = normalizeBoolean(payload.is_public);
+  }
+
   if ("status" in payload) {
     payload.status = normalizeInterpreterStatus(payload.status);
   }
@@ -8643,6 +11962,72 @@ function prepareInterpreterUpdatePayload(changes = {}) {
   }
 
   return { payload, errorMessage: "" };
+}
+
+function isResumeVerificationStatusValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return [
+    "이력서 검증 완료",
+    "검증 완료",
+    "verified",
+    "resume_verified",
+  ].includes(normalized);
+}
+
+function isResumeReviewPending(interpreter = {}) {
+  const hasResume =
+    Boolean(interpreter.resume_url) ||
+    Boolean(interpreter.resume_file_url) ||
+    Boolean(interpreter.resume_path) ||
+    interpreter.resume_uploaded === true ||
+    interpreter.resume_submitted === true ||
+    Boolean(interpreter.resume_submitted_at);
+  const verificationStatus = String(interpreter.verification_status || "")
+    .trim()
+    .toLowerCase();
+  const isVerified =
+    interpreter.resume_verified === true ||
+    interpreter.verified === true ||
+    interpreter.approved === true ||
+    verificationStatus === "verified";
+
+  return hasResume && !isVerified;
+}
+
+function isInterpreterResumeVerificationComplete(interpreter = {}) {
+  return Boolean(
+    interpreter.resume_verified ?? interpreter.verified ?? interpreter.approved
+  );
+}
+
+function getResumeVerifiedEmailSentAt(interpreter = {}) {
+  return interpreter.resume_verified_email_sent_at || "";
+}
+
+function getInterpreterVerificationEmail(interpreter = {}) {
+  return getEmailRecipient(
+    interpreter.email,
+    interpreter.contact_email,
+    interpreter.applicant_email
+  );
+}
+
+async function updateInterpreterResumeVerifiedEmailSentAt(interpreterId, sentAt) {
+  const { data, error } = await supabase
+    .from("interpreters")
+    .update({ resume_verified_email_sent_at: sentAt })
+    .eq("id", interpreterId)
+    .select("id, resume_verified_email_sent_at")
+    .single();
+
+  if (!error) return { data, error: null };
+
+  if (isMissingColumnError(error)) {
+    console.warn("resume_verified_email_sent_at 컬럼이 없어 발송 시각 저장을 건너뜁니다.", error);
+    return { data: null, error: null, skipped: true };
+  }
+
+  return { data: null, error };
 }
 
 function toNonNegativeInteger(value) {
@@ -8658,6 +12043,7 @@ function normalizeBoolean(value) {
 
 function normalizeInterpreterStatus(status) {
   const normalized = String(status || "").trim().toLowerCase();
+  if (["withdrawn", "탈퇴", "탈퇴 회원", "탈퇴회원"].includes(normalized)) return WITHDRAWN_STATUS;
   if (["승인 대기", "대기", "pending"].includes(normalized)) return "pending";
   if (["승인 완료", "승인", "활동중", "approved", "active"].includes(normalized)) return "active";
   if (["거절", "반려", "rejected"].includes(normalized)) return "rejected";
@@ -8720,12 +12106,113 @@ function upsertById(items, nextItem) {
   return [nextItem, ...items];
 }
 
-function formatKRW(value) {
-  return `₩${Number(value || 0).toLocaleString()}`;
-}
-
 function formatJPY(value) {
   return `¥${Number(value || 0).toLocaleString()}`;
+}
+
+async function createAdminDocumentPdfBlob({ title, rows = [] }) {
+  const width = 1240;
+  const height = 1754;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.fillStyle = "#111827";
+  context.font = "700 48px system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif";
+  context.fillText(title || "ON-LI 문서", 80, 120);
+  context.font = "400 24px system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif";
+  context.fillStyle = "#4b5563";
+  context.fillText(`발급일 ${new Date().toLocaleDateString("ko-KR")}`, 80, 162);
+  context.strokeStyle = "#111827";
+  context.lineWidth = 3;
+  context.beginPath();
+  context.moveTo(80, 195);
+  context.lineTo(width - 80, 195);
+  context.stroke();
+
+  let y = 270;
+  rows.forEach(([label, value]) => {
+    context.fillStyle = "#6b7280";
+    context.font = "700 22px system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif";
+    context.fillText(label, 80, y);
+    context.fillStyle = "#111827";
+    context.font = "400 26px system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif";
+    wrapPdfCanvasText(context, String(value || "-"), 260, y, width - 340, 34);
+    y += 58;
+  });
+
+  const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  const jpegBytes = dataUrlToBytes(jpegDataUrl);
+  return buildImagePdfBlob(jpegBytes, width, height);
+}
+
+function wrapPdfCanvasText(context, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(/\s+/);
+  let line = "";
+  let lineY = y;
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (context.measureText(testLine).width > maxWidth && line) {
+      context.fillText(line, x, lineY);
+      line = word;
+      lineY += lineHeight;
+      return;
+    }
+    line = testLine;
+  });
+  if (line) context.fillText(line, x, lineY);
+}
+
+function dataUrlToBytes(dataUrl) {
+  const binary = atob(dataUrl.split(",")[1] || "");
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function buildImagePdfBlob(imageBytes, width, height) {
+  const encoder = new TextEncoder();
+  const parts = [];
+  const offsets = [];
+  let position = 0;
+  const append = (part) => {
+    const bytes = typeof part === "string" ? encoder.encode(part) : part;
+    parts.push(bytes);
+    position += bytes.length;
+  };
+  const object = (id, objectParts) => {
+    offsets[id] = position;
+    append(`${id} 0 obj\n`);
+    objectParts.forEach(append);
+    append("\nendobj\n");
+  };
+
+  append("%PDF-1.4\n");
+  object(1, ["<< /Type /Catalog /Pages 2 0 R >>"]);
+  object(2, ["<< /Type /Pages /Kids [3 0 R] /Count 1 >>"]);
+  object(3, [
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] `,
+    "/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>",
+  ]);
+  object(4, [
+    `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} `,
+    `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
+    imageBytes,
+    "\nendstream",
+  ]);
+  const content = `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ\n`;
+  object(5, [`<< /Length ${content.length} >>\nstream\n${content}endstream`]);
+  const xrefStart = position;
+  append("xref\n0 6\n0000000000 65535 f \n");
+  for (let id = 1; id <= 5; id += 1) {
+    append(`${String(offsets[id]).padStart(10, "0")} 00000 n \n`);
+  }
+  append(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
+  return new Blob(parts, { type: "application/pdf" });
 }
 
 function formatDate(value) {
@@ -8788,10 +12275,10 @@ function createInterpreterEditDraft(interpreter = {}) {
     specialties: listToDraftText(interpreter.specialties),
     available_regions: listToDraftText(interpreter.available_regions),
     admin_memo:
-      interpreter.admin_memo ||
-      interpreter.management_memo ||
-      interpreter.memo ||
-      interpreter.note ||
+      interpreter?.admin_memo ||
+      interpreter?.management_memo ||
+      interpreter?.memo ||
+      interpreter?.note ||
       "",
   };
 }
@@ -8800,7 +12287,6 @@ function getInterpreterChangesFromDraft(draft = {}) {
   return {
     name: draft.name,
     email: draft.email,
-    phone: draft.phone,
     kakao_or_line: draft.kakao_or_line,
     gender: draft.gender,
     age: draft.age,
@@ -8851,6 +12337,7 @@ function getExperienceLabel(interpreter) {
 }
 
 function getInterpreterFilterStatus(interpreter = {}) {
+  if (isWithdrawnInterpreter(interpreter)) return WITHDRAWN_STATUS;
   const status = String(interpreter.status || "").toLowerCase().trim();
   if (status === "rejected" || status === "반려") return "rejected";
   if (status === "active" || status === "활동중" || status === "승인 완료") return "active";
@@ -8874,8 +12361,16 @@ function isNewRequest(request = {}) {
   const hasAdminChecked = Object.prototype.hasOwnProperty.call(request, "admin_checked");
   const hasCheckedAt = Object.prototype.hasOwnProperty.call(request, "checked_at");
 
-  if (hasAdminChecked || hasCheckedAt) {
-    return request.admin_checked === false || (hasCheckedAt && !request.checked_at);
+  if (hasAdminChecked && request.admin_checked === true) {
+    return false;
+  }
+
+  if (hasCheckedAt && request.checked_at) {
+    return false;
+  }
+
+  if (hasAdminChecked && request.admin_checked === false) {
+    return true;
   }
 
   const statusValues = [
@@ -8886,18 +12381,6 @@ function isNewRequest(request = {}) {
   ].map((status) => String(status || "").trim().toLowerCase());
 
   return statusValues.some((status) => NEW_REQUEST_STATUSES.includes(status));
-}
-
-function isNewJobApplication(application = {}) {
-  const hasAdminChecked = Object.prototype.hasOwnProperty.call(application, "admin_checked");
-  const hasCheckedAt = Object.prototype.hasOwnProperty.call(application, "checked_at");
-
-  if (hasAdminChecked || hasCheckedAt) {
-    return application.admin_checked === false || (hasCheckedAt && !application.checked_at);
-  }
-
-  const status = String(application.status || "").trim().toLowerCase();
-  return NEW_APPLICATION_STATUSES.includes(status);
 }
 
 function doesRequestMatchManagementStatusFilter(request = {}, filter = "all") {
@@ -8917,6 +12400,7 @@ function doesRequestMatchManagementStatusFilter(request = {}, filter = "all") {
 }
 
 function getInterpreterStatusLabel(interpreter = {}) {
+  if (isWithdrawnInterpreter(interpreter)) return "탈퇴 회원";
   const status = String(interpreter.status || "").toLowerCase().trim();
   if (status === "rejected" || status === "반려") return "반려";
   if (status === "active" || status === "활동중" || status === "승인 완료") return "승인 완료";
@@ -8949,6 +12433,65 @@ function groupByStringKey(items, key) {
   }, new Map());
 }
 
+function getStoragePathFromUrl(filePath, bucketName) {
+  if (!filePath) return "";
+  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+    const parts = filePath.split(`/${bucketName}/`);
+    if (parts.length > 1) {
+      return decodeURIComponent(parts[1].split("?")[0]);
+    }
+    return "";
+  }
+  return filePath;
+}
+
+function getRequestDescription(request = {}) {
+  return (
+    request.job_description ||
+    request.request_detail ||
+    request.request_details ||
+    ""
+  );
+}
+
+function getRequestReferenceFile(requestOrDescription = {}, maybeDescription = "") {
+  const request =
+    typeof requestOrDescription === "string" ? {} : requestOrDescription || {};
+  const description =
+    typeof requestOrDescription === "string" ? requestOrDescription : maybeDescription;
+  const fileName =
+    request.reference_file_name ||
+    description.match(/^참고 자료 파일명:\s*(.+)$/m)?.[1]?.trim() ||
+    description.match(/^참고 자료:\s*있음\s*\((.+)\)$/m)?.[1]?.trim() ||
+    "";
+  const filePath =
+    request.reference_file_path ||
+    request.reference_file_url ||
+    description.match(/^참고 자료 파일 경로:\s*(.+)$/m)?.[1]?.trim() ||
+    description.match(/^참고 자료 파일 URL:\s*(.+)$/m)?.[1]?.trim() ||
+    "";
+
+  if (!fileName && !filePath) return null;
+
+  return {
+    name: fileName || filePath.split("/").pop() || "첨부 파일",
+    path: getStoragePathFromUrl(filePath, REQUEST_REFERENCE_BUCKET) || filePath,
+  };
+}
+
+function removeRequestReferenceFileMeta(description = "") {
+  return description
+    .split("\n")
+    .filter(
+      (line) =>
+        !/^참고 자료 파일명:\s*/.test(line) &&
+        !/^참고 자료 파일 경로:\s*/.test(line) &&
+        !/^참고 자료 파일 URL:\s*/.test(line)
+    )
+    .join("\n")
+    .trim();
+}
+
 function getStatusLabel(status) {
   const normalizedApplication = normalizeApplicationStatus(status);
   if (
@@ -8961,7 +12504,7 @@ function getStatusLabel(status) {
   const normalizedMatching = normalizeMatchingStatus(status);
   if (
     Object.values(MATCHING_STATUS).includes(status) ||
-    ["임시배정", "배정", "배정완료", "확정", "운영중", "진행중", "운영완료", "정산대기"].includes(status)
+    ["임시배정", "배정", "배정완료", "확정", "운영중", "진행중", "업무완료", "운영완료", "정산대기"].includes(status)
   ) {
     return getMatchingStatusLabel(normalizedMatching);
   }

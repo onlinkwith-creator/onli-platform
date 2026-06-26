@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import {
   INTERPRETER_ACTIVITY_STATUS,
@@ -11,7 +11,6 @@ import {
 import { normalizeLevel } from "../utils/levelBadge";
 import {
   getJobLevelSummary,
-  getJobPayDisplay,
   getJobSpecialty,
 } from "../utils/jobDisplay";
 import { formatDateRange } from "../utils/dateRange";
@@ -22,9 +21,10 @@ import {
   withdrawOwnJobApplication,
 } from "../utils/applicationContact";
 import {
-  getLatestPayoutDocumentsByInterpreter,
-  getSignedDocumentUrl,
-} from "../lib/documents";
+  WITHDRAWN_ACCOUNT_MESSAGE,
+  WITHDRAWN_STATUS,
+  isWithdrawnInterpreter,
+} from "../utils/accountStatus";
 import "./InterpreterAuth.css";
 import {
   Award,
@@ -33,16 +33,39 @@ import {
   FileText,
   X,
 } from "lucide-react";
-import TakeHomeCalculator from "../components/TakeHomeCalculator";
+import {
+  DOCUMENT_BUCKET,
+  formatDocumentAmount,
+} from "../utils/documents";
 
 const TABS = [
   { id: "profile", label: "프로필 정보", icon: "👤" },
   { id: "applications", label: "지원 내역", icon: "📄" },
   { id: "assignments", label: "배정 내역", icon: "💼" },
-  { id: "settlements", label: "정산 문서", icon: "💴" },
+  { id: "preparation", label: "업무 준비", icon: "🗂️" },
+  { id: "settlements", label: "정산", icon: "💰" },
   { id: "schedule", label: "일정 및 캘린더", icon: "📅" },
-  { id: "takeHome", label: "예상 실수령액 계산", icon: "🧮" },
 ];
+
+
+const SETTLEMENT_DOCUMENT_BUCKET = "resume-files";
+const SETTLEMENT_DOCUMENT_MAX_SIZE = 10 * 1024 * 1024;
+const SETTLEMENT_DOCUMENT_TYPES = {
+  bankbook: {
+    label: "통장 사본",
+    description: "정산 받을 계좌 확인을 위해 등록해주세요.",
+    filePrefix: "bankbook",
+    urlField: "bankbook_file_url",
+    nameField: "bankbook_file_name",
+  },
+  businessLicense: {
+    label: "사업자등록증",
+    description: "사업자 정산 대상인 경우 등록해주세요.",
+    filePrefix: "business_license",
+    urlField: "business_license_file_url",
+    nameField: "business_license_file_name",
+  },
+};
 
 function InterpreterMypage({
   authLoading,
@@ -61,7 +84,8 @@ function InterpreterMypage({
   // Dynamic dashboard states
   const [applications, setApplications] = useState([]);
   const [matchings, setMatchings] = useState([]);
-  const [payoutDocuments, setPayoutDocuments] = useState([]);
+  const [settlements, setSettlements] = useState([]);
+  const [paymentDocuments, setPaymentDocuments] = useState([]);
   const [activeTab, setActiveTab] = useState("profile");
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -69,6 +93,9 @@ function InterpreterMypage({
   const [isWithdrawingApplication, setIsWithdrawingApplication] = useState(false);
   const [withdrawalMessage, setWithdrawalMessage] = useState("");
   const [withdrawalError, setWithdrawalError] = useState("");
+  const [isAccountWithdrawalOpen, setIsAccountWithdrawalOpen] = useState(false);
+  const [accountWithdrawalText, setAccountWithdrawalText] = useState("");
+  const [isWithdrawingAccount, setIsWithdrawingAccount] = useState(false);
   const [expandedApplicationIds, setExpandedApplicationIds] = useState(
     () => new Set()
   );
@@ -94,6 +121,24 @@ function InterpreterMypage({
     };
   }, [withdrawalTarget, isWithdrawingApplication]);
 
+  useEffect(() => {
+    if (!isAccountWithdrawalOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !isWithdrawingAccount) {
+        setIsAccountWithdrawalOpen(false);
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isAccountWithdrawalOpen, isWithdrawingAccount]);
+
   // Collapsible sections for mobile view
   const [showIntro, setShowIntro] = useState(false);
   const [showCareer, setShowCareer] = useState(false);
@@ -104,7 +149,7 @@ function InterpreterMypage({
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
-    phone: "",
+    kakao_or_line: "",
     gender: "",
     level: "Lv1",
     intro: "",
@@ -119,6 +164,11 @@ function InterpreterMypage({
   const [isSubmittingResume, setIsSubmittingResume] = useState(false);
   const [resumeFile, setResumeFile] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [resumeActionMode, setResumeActionMode] = useState("");
+  const resumeActionInputRef = useRef(null);
+  const [uploadingSettlementDocType, setUploadingSettlementDocType] = useState("");
+  const [settlementDocActionType, setSettlementDocActionType] = useState("");
+  const settlementDocInputRef = useRef(null);
 
   const fetchInterpreterProfile = async () => {
     if (authLoading) return;
@@ -191,8 +241,15 @@ function InterpreterMypage({
       });
     }
 
-    const nextInterpreter = matches[0] || null;
+    const nextInterpreter =
+      matches.find((item) => !isWithdrawnInterpreter(item)) || matches[0] || null;
     setInterpreter(nextInterpreter);
+    if (isWithdrawnInterpreter(nextInterpreter)) {
+      setStatus("withdrawn");
+      setLoading(false);
+      return;
+    }
+
     setStatus(nextInterpreter ? "ready" : "notRegistered");
 
     if (nextInterpreter) {
@@ -218,14 +275,16 @@ function InterpreterMypage({
       // Fetch applications and matchings dynamically
       setLoadingData(true);
       try {
-        const [apps, mats] = await Promise.all([
+        const [apps, mats, settlementRows, documentRows] = await Promise.all([
           fetchApplicationsData(nextInterpreter.id),
           fetchMatchingsData(nextInterpreter.id),
+          fetchSettlementsData(),
+          fetchPaymentDocumentsData(),
         ]);
-        const payouts = await fetchPayoutDocuments(nextInterpreter.id);
         setApplications(apps);
         setMatchings(mats);
-        setPayoutDocuments(payouts);
+        setSettlements(settlementRows);
+        setPaymentDocuments(documentRows);
       } catch (err) {
         console.error("Failed to load applications/matchings", err);
       } finally {
@@ -240,7 +299,7 @@ function InterpreterMypage({
     if (!interpreter) return;
     setEditForm({
       name: interpreter.name || "",
-      phone: interpreter.phone || "",
+      kakao_or_line: interpreter.kakao_or_line || "",
       gender: interpreter.gender || "",
       level: interpreter.level || "Lv1",
       intro: interpreter.short_intro || interpreter.intro || interpreter.self_intro || interpreter.introduction || "",
@@ -288,7 +347,7 @@ function InterpreterMypage({
 
     const payload = {
       name: editForm.name,
-      phone: editForm.phone,
+      kakao_or_line: editForm.kakao_or_line,
       gender: editForm.gender,
       specialties,
       available_regions,
@@ -329,10 +388,9 @@ function InterpreterMypage({
       return;
     }
 
-    const allowedExtensions = ["pdf", "doc", "docx", "png", "jpg", "jpeg"];
     const fileExtension = file.name.split(".").pop().toLowerCase();
-    if (!allowedExtensions.includes(fileExtension)) {
-      alert("허용되지 않는 파일 형식입니다. (PDF, DOC, DOCX, PNG, JPG 파일만 가능)");
+    if (fileExtension !== "pdf" && file.type !== "application/pdf") {
+      alert("PDF 파일만 업로드할 수 있습니다.");
       return;
     }
 
@@ -342,13 +400,8 @@ function InterpreterMypage({
   const handleDownloadResume = async (filePath, fileName) => {
     if (!supabase || !filePath) return;
     try {
-      let resolvedPath = filePath;
-      if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-        const parts = filePath.split("/resume-files/");
-        if (parts.length > 1) {
-          resolvedPath = parts[1].split("?")[0];
-        }
-      }
+      const resolvedPath = getResumeStoragePath(filePath);
+      if (!resolvedPath) throw new Error("Resume storage path is empty");
 
       const { data, error } = await supabase.storage
         .from("resume-files")
@@ -362,22 +415,27 @@ function InterpreterMypage({
     }
   };
 
-  const handleUpdateResume = async (e) => {
-    e.preventDefault();
-    if (isSubmittingResume || !supabase || !interpreter || !user) return;
+  const removeResumeFileFromStorage = async (fileUrl) => {
+    const filePath = getResumeStoragePath(fileUrl);
+    if (!supabase || !filePath) return;
 
-    if (!resumeFile) {
-      alert("업로드할 이력서 파일을 선택해주세요.");
-      return;
+    const { error } = await supabase.storage
+      .from("resume-files")
+      .remove([filePath]);
+
+    if (error) {
+      console.warn("Resume storage delete skipped", error);
     }
+  };
 
-    setIsSubmittingResume(true);
+  const uploadResumeFile = async (file, { failureMessage = "이력서 파일 업로드에 실패했습니다. 다시 시도해주세요." } = {}) => {
+    if (!file || !supabase || !interpreter || !user) return null;
 
-    // 1. Supabase Storage bucket 존재 여부 확인
+    // Supabase Storage bucket 존재 여부 확인
     try {
       const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
       if (bucketsError) throw bucketsError;
-      
+
       const bucketExists = buckets?.some(b => b.id === "resume-files");
       if (!bucketExists) {
         console.error("resume-files bucket not found");
@@ -386,26 +444,15 @@ function InterpreterMypage({
       console.error("Failed to check storage buckets:", err);
     }
 
-    let filePath = "";
-    let fileUrl = "";
-    let fileName = "";
-
-    // 4. safe filename 처리
-    const safeFileName = resumeFile.name
+    const safeFileName = file.name
       .replace(/\s+/g, "_")
       .replace(/[^\w.-]/g, "");
+    const filePath = `${user.id}/${Date.now()}_${safeFileName}`;
 
-    // 5. 업로드 경로 수정
-    filePath = `${user.id}/${Date.now()}_${safeFileName}`;
-    fileName = resumeFile.name;
-
-    // 3. Storage upload 실행
-    // authenticated user upload 허용 필요
-    // Supabase Storage에서 resume-files bucket 생성 필요
     try {
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from("resume-files")
-        .upload(filePath, resumeFile, {
+        .upload(filePath, file, {
           upsert: true,
         });
 
@@ -414,14 +461,11 @@ function InterpreterMypage({
         throw error;
       }
 
-      // 8. public URL 생성 수정
-      const {
-        data: { publicUrl },
-      } = supabase.storage
-        .from("resume-files")
-        .getPublicUrl(filePath);
-
-      fileUrl = publicUrl;
+      return {
+        fileName: file.name,
+        filePath,
+        fileUrl: filePath,
+      };
     } catch (uploadError) {
       console.error("Resume upload error:", uploadError);
       console.error("Details: ", {
@@ -429,19 +473,35 @@ function InterpreterMypage({
         filePath,
         userId: user.id,
       });
-      alert("이력서 파일 업로드에 실패했습니다. 다시 시도해주세요.");
+      alert(failureMessage);
+      return null;
+    }
+  };
+
+  const saveResumeUpload = async (file, { successMessage = "이력서가 정상 제출되었습니다.", failureMessage = "이력서 제출에 실패했습니다. 다시 시도해주세요.", deletePrevious = false } = {}) => {
+    if (isSubmittingResume || !supabase || !interpreter || !user) return;
+
+    if (!file) {
+      alert("업로드할 이력서 파일을 선택해주세요.");
+      return;
+    }
+
+    setIsSubmittingResume(true);
+
+    const previousFileUrl = interpreter.resume_file_url || interpreter.resume_url || "";
+    const uploadResult = await uploadResumeFile(file, { failureMessage });
+    if (!uploadResult) {
       setIsSubmittingResume(false);
       return;
     }
 
-    // 7. DB 저장은 업로드 성공 후만 실행
     const payload = {
-      resume_file_url: fileUrl,
-      resume_file_name: fileName,
+      resume_url: null,
+      resume_file_url: uploadResult.fileUrl,
+      resume_file_name: uploadResult.fileName,
       resume_uploaded_at: new Date().toISOString(),
       resume_submitted_at: new Date().toISOString(),
-      badge_review_status: "review_pending",
-      status: "pending",
+      approved: false,
     };
 
     const { data: dbData, error: dbError } = await supabase
@@ -458,156 +518,389 @@ function InterpreterMypage({
         payload,
         userId: user.id,
       });
-      alert("이력서 제출에 실패했습니다. 다시 시도해주세요.");
+      alert(failureMessage);
     } else {
       setInterpreter(dbData);
-      alert("이력서가 정상 제출되었습니다.");
+      if (deletePrevious && previousFileUrl && previousFileUrl !== uploadResult.fileUrl) {
+        await removeResumeFileFromStorage(previousFileUrl);
+      }
+      alert(successMessage);
       setResumeFile(null);
     }
     setIsSubmittingResume(false);
   };
 
-  const fetchApplicationsData = async (interpreterId) => {
-    if (!supabase) return [];
-    
-    // Attempt joined query
-    const { data, error } = await supabase
-      .from("job_applications")
-      .select(`
-        id,
-        application_no,
-        job_id,
-        applicant_name,
-        phone,
-        email,
-        message,
-        status,
-        created_at,
-        jobs (*)
-      `)
-      .eq("interpreter_id", interpreterId);
+  const handleUpdateResume = async (e) => {
+    e.preventDefault();
+    await saveResumeUpload(resumeFile);
+  };
 
-    if (error) {
-      console.warn("Direct job_applications join failed, attempting fallback", error);
-      // Fallback: fetch job_applications then fetch jobs separately
-      const { data: apps, error: appsErr } = await supabase
-        .from("job_applications")
-        .select("*")
-        .eq("interpreter_id", interpreterId);
+  const openResumeFilePicker = (mode) => {
+    if (isSubmittingResume) return;
+    setResumeActionMode(mode);
+    if (resumeActionInputRef.current) {
+      resumeActionInputRef.current.value = "";
+      resumeActionInputRef.current.click();
+    }
+  };
 
-      if (appsErr) {
-        console.error("Fallback job_applications fetch failed", appsErr);
-        return [];
-      }
+  const handleResumeActionFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
 
-      if (!apps || apps.length === 0) return [];
-
-      const jobIds = [...new Set(apps.map((a) => a.job_id).filter(Boolean))];
-      if (jobIds.length === 0) {
-        return apps.map((a) => ({ ...a, jobs: null }));
-      }
-
-      const { data: jobsList, error: jobsErr } = await supabase
-        .from("jobs")
-        .select("*")
-        .in("id", jobIds);
-
-      if (jobsErr) {
-        console.error("Fallback jobs fetch failed", jobsErr);
-        return apps.map((a) => ({ ...a, jobs: null }));
-      }
-
-      const jobsMap = new Map(jobsList.map((j) => [String(j.id), j]));
-      return apps.map((a) => ({
-        ...a,
-        jobs: jobsMap.get(String(a.job_id)) || null,
-      }));
+    const maxSize = 10 * 1024 * 1024;
+    const fileExtension = file.name.split(".").pop().toLowerCase();
+    if (file.size > maxSize) {
+      alert("파일 크기는 최대 10MB까지 가능합니다.");
+      setResumeActionMode("");
+      return;
+    }
+    if (fileExtension !== "pdf" && file.type !== "application/pdf") {
+      alert("PDF 파일만 업로드할 수 있습니다.");
+      setResumeActionMode("");
+      return;
     }
 
-    return data || [];
+    const mode = resumeActionMode || (interpreter?.resume_file_url || interpreter?.resume_url ? "edit" : "register");
+    await saveResumeUpload(file, {
+      successMessage: mode === "edit" ? "이력서가 수정되었습니다." : "이력서가 등록되었습니다.",
+      failureMessage: mode === "edit" ? "이력서 수정에 실패했습니다." : "이력서 등록에 실패했습니다.",
+      deletePrevious: mode === "edit",
+    });
+    setResumeActionMode("");
+  };
+
+  const handleDeleteResume = async () => {
+    if (isSubmittingResume || !supabase || !interpreter) return;
+    if (!window.confirm("등록된 이력서를 삭제하시겠습니까?")) return;
+
+    setIsSubmittingResume(true);
+    const previousFileUrl = interpreter.resume_file_url || interpreter.resume_url || "";
+    const payload = {
+      resume_url: null,
+      resume_file_url: null,
+      resume_file_name: null,
+      resume_uploaded_at: null,
+      resume_submitted_at: null,
+      approved: false,
+    };
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Failed to delete resume from DB", error);
+      alert("이력서 삭제에 실패했습니다.");
+      setIsSubmittingResume(false);
+      return;
+    }
+
+    setInterpreter(data || { ...interpreter, ...payload });
+    setResumeFile(null);
+    await removeResumeFileFromStorage(previousFileUrl);
+    setIsSubmittingResume(false);
+  };
+
+  const validateSettlementDocumentFile = (file) => {
+    if (!file) return false;
+
+    const fileExtension = String(file.name.split(".").pop() || "").toLowerCase();
+    const allowedExtensions = ["pdf", "jpg", "jpeg", "png"];
+    if (!allowedExtensions.includes(fileExtension)) {
+      alert("PDF, JPG, PNG 파일만 업로드할 수 있습니다.");
+      return false;
+    }
+
+    if (file.size > SETTLEMENT_DOCUMENT_MAX_SIZE) {
+      alert("파일 용량은 10MB 이하만 업로드할 수 있습니다.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const uploadSettlementDocumentFile = async (file, docConfig) => {
+    if (!file || !supabase || !interpreter || !user || !docConfig) return null;
+
+    const fileExtension = String(file.name.split(".").pop() || "").toLowerCase();
+    const filePath = `interpreter-documents/${user.id}/settlement/${docConfig.filePrefix}_${Date.now()}.${fileExtension}`;
+
+    try {
+      const { error } = await supabase.storage
+        .from(SETTLEMENT_DOCUMENT_BUCKET)
+        .upload(filePath, file, { upsert: true });
+
+      if (error) {
+        console.error("Storage upload error:", error);
+        throw error;
+      }
+
+      return {
+        fileName: file.name,
+        filePath,
+        fileUrl: filePath,
+      };
+    } catch (error) {
+      console.error("Storage upload error:", error);
+      alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
+      return null;
+    }
+  };
+
+  const updateSettlementDocumentMetadata = async (payload) => {
+    if (!supabase || !interpreter || !user) {
+      return { data: null, error: new Error("Missing Supabase, interpreter, or user") };
+    }
+
+    const normalizedUserEmail = normalizeEmail(user.email);
+    const canMatchUserId =
+      Object.prototype.hasOwnProperty.call(interpreter, "user_id") &&
+      interpreter.user_id === user.id;
+    const canMatchAuthUser =
+      Object.prototype.hasOwnProperty.call(interpreter, "auth_user_id") &&
+      interpreter.auth_user_id === user.id;
+
+    const updateByColumn = async (column, value) => {
+      const result = await supabase
+        .from("interpreters")
+        .update(payload)
+        .eq(column, value)
+        .select("*")
+        .single();
+
+      if (result.error) {
+        console.error("DB update error:", result.error);
+      }
+
+      return result;
+    };
+
+    if (canMatchUserId) {
+      const result = await updateByColumn("user_id", user.id);
+      if (!result.error) return result;
+    }
+
+    if (canMatchAuthUser) {
+      const result = await updateByColumn("auth_user_id", user.id);
+      if (!result.error) return result;
+    }
+
+    if (normalizedUserEmail) {
+      const result = await supabase
+        .from("interpreters")
+        .update(payload)
+        .eq("id", interpreter.id)
+        .ilike("email", normalizedUserEmail)
+        .select("*")
+        .single();
+
+      if (result.error) {
+        console.error("DB update error:", result.error);
+      } else {
+        return result;
+      }
+    }
+
+    const result = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (result.error) {
+      console.error("DB update error:", result.error);
+    }
+
+    return result;
+  };
+
+  const removeSettlementDocumentFromStorage = async (fileUrl) => {
+    const filePath = getStoragePathFromUrl(fileUrl, SETTLEMENT_DOCUMENT_BUCKET);
+    if (!supabase || !filePath) return;
+
+    const { error } = await supabase.storage
+      .from(SETTLEMENT_DOCUMENT_BUCKET)
+      .remove([filePath]);
+
+    if (error) {
+      console.warn("Settlement document storage delete skipped", error);
+    }
+  };
+
+  const openSettlementDocument = async (fileUrl) => {
+    if (!supabase || !fileUrl) return;
+
+    try {
+      const resolvedPath = getStoragePathFromUrl(fileUrl, SETTLEMENT_DOCUMENT_BUCKET);
+      if (!resolvedPath) throw new Error("Settlement document storage path is empty");
+
+      const { data, error } = await supabase.storage
+        .from(SETTLEMENT_DOCUMENT_BUCKET)
+        .createSignedUrl(resolvedPath, 60);
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank");
+    } catch (error) {
+      console.error("Failed to generate settlement document signed URL", error);
+      alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
+    }
+  };
+
+  const openSettlementDocumentPicker = (docType) => {
+    if (uploadingSettlementDocType) return;
+    setSettlementDocActionType(docType);
+    if (settlementDocInputRef.current) {
+      settlementDocInputRef.current.value = "";
+      settlementDocInputRef.current.click();
+    }
+  };
+
+  const handleSettlementDocumentFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const docType = settlementDocActionType;
+    const docConfig = SETTLEMENT_DOCUMENT_TYPES[docType];
+    if (!docConfig || !validateSettlementDocumentFile(file)) {
+      setSettlementDocActionType("");
+      return;
+    }
+
+    setUploadingSettlementDocType(docType);
+
+    const previousFileUrl = interpreter?.[docConfig.urlField] || "";
+    const uploadResult = await uploadSettlementDocumentFile(file, docConfig);
+    if (!uploadResult) {
+      setUploadingSettlementDocType("");
+      setSettlementDocActionType("");
+      return;
+    }
+
+    const payload = {
+      [docConfig.urlField]: uploadResult.fileUrl,
+      [docConfig.nameField]: uploadResult.fileName,
+    };
+
+    const { data, error } = await updateSettlementDocumentMetadata(payload);
+
+    if (error) {
+      console.error("DB update error:", error);
+      await removeSettlementDocumentFromStorage(uploadResult.fileUrl);
+      alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
+    } else {
+      setInterpreter(data || { ...interpreter, ...payload });
+      if (previousFileUrl && previousFileUrl !== uploadResult.fileUrl) {
+        await removeSettlementDocumentFromStorage(previousFileUrl);
+      }
+      alert("정산 서류가 등록되었습니다.");
+    }
+
+    setUploadingSettlementDocType("");
+    setSettlementDocActionType("");
+  };
+
+  const handleDeleteSettlementDocument = async (docType) => {
+    const docConfig = SETTLEMENT_DOCUMENT_TYPES[docType];
+    if (!docConfig || uploadingSettlementDocType || !supabase || !interpreter) return;
+    if (!window.confirm(`${docConfig.label} 파일을 삭제하시겠습니까?`)) return;
+
+    setUploadingSettlementDocType(docType);
+    const previousFileUrl = interpreter?.[docConfig.urlField] || "";
+    const payload = {
+      [docConfig.urlField]: null,
+      [docConfig.nameField]: null,
+    };
+
+    const { data, error } = await updateSettlementDocumentMetadata(payload);
+
+    if (error) {
+      console.error("DB update error:", error);
+      alert("파일 업로드에 실패했습니다. 다시 시도해주세요.");
+      setUploadingSettlementDocType("");
+      return;
+    }
+
+    setInterpreter(data || { ...interpreter, ...payload });
+    await removeSettlementDocumentFromStorage(previousFileUrl);
+    setUploadingSettlementDocType("");
+  };
+
+  const fetchApplicationsData = async (interpreterId) => {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase.rpc("get_my_job_applications");
+
+    if (error) {
+      console.error("get_my_job_applications RPC failed", error);
+      return [];
+    }
+
+    return (data || []).map(mapMyApplicationRow);
   };
 
   const fetchMatchingsData = async (interpreterId) => {
     if (!supabase) return [];
 
-    // Attempt joined query
-    const { data, error } = await supabase
-      .from("matchings")
-      .select(`
-        id,
-        matching_no,
-        job_id,
-        start_date,
-        end_date,
-        status,
-        created_at,
-        jobs (*)
-      `)
-      .eq("interpreter_id", interpreterId);
+    const { data, error } = await supabase.rpc("get_my_assignments");
 
     if (error) {
-      console.warn("Direct matchings join failed, attempting fallback", error);
-      // Fallback
-      const { data: mats, error: matsErr } = await supabase
-        .from("matchings")
-        .select("*")
-        .eq("interpreter_id", interpreterId);
+      console.error("get_my_assignments RPC failed", error);
+      return [];
+    }
 
-      if (matsErr) {
-        console.error("Fallback matchings fetch failed", matsErr);
-        return [];
-      }
+    return (data || []).map(mapMyAssignmentRow);
+  };
 
-      if (!mats || mats.length === 0) return [];
+  const fetchSettlementsData = async () => {
+    if (!supabase) return [];
 
-      const jobIds = [...new Set(mats.map((m) => m.job_id).filter(Boolean))];
-      if (jobIds.length === 0) {
-        return mats.map((m) => ({ ...m, jobs: null }));
-      }
+    const { data, error } = await supabase.rpc("get_my_settlements");
 
-      const { data: jobsList, error: jobsErr } = await supabase
-        .from("jobs")
-        .select("*")
-        .in("id", jobIds);
+    if (error) {
+      console.error("get_my_settlements RPC failed", error);
+      return [];
+    }
 
-      if (jobsErr) {
-        console.error("Fallback jobs fetch failed for matchings", jobsErr);
-        return mats.map((m) => ({ ...m, jobs: null }));
-      }
+    return (data || []).map(mapMySettlementRow);
+  };
 
-      const jobsMap = new Map(jobsList.map((j) => [String(j.id), j]));
-      return mats.map((m) => ({
-        ...m,
-        jobs: jobsMap.get(String(m.job_id)) || null,
-      }));
+  const fetchPaymentDocumentsData = async () => {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from("documents")
+      .select("id, document_type, document_no, status, version, request_id, title, amount, storage_bucket, file_path, created_at")
+      .eq("document_type", "payout")
+      .eq("status", "issued")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.warn("Payment documents fetch skipped", error);
+      return [];
     }
 
     return data || [];
   };
 
-  const fetchPayoutDocuments = async (interpreterId) => {
-    if (!supabase) return [];
-
+  const openPaymentDocument = async (documentRow) => {
     try {
-      return await getLatestPayoutDocumentsByInterpreter(String(interpreterId), supabase);
+      const { data, error } = await supabase.storage
+        .from(documentRow.storage_bucket || DOCUMENT_BUCKET)
+        .createSignedUrl(documentRow.file_path, 600, {
+          download: `${documentRow.document_no || "ONLI-PAY"}.pdf`,
+        });
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
-      console.error("Payout documents fetch failed", error);
-      return [];
-    }
-  };
-
-  const handleOpenPayoutPdf = async (document) => {
-    if (!document?.file_path) {
-      alert("정산서 PDF 파일을 확인할 수 없습니다.");
-      return;
-    }
-
-    try {
-      const signedUrl = await getSignedDocumentUrl(document.file_path, supabase);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      console.error("Payout signed URL failed", error);
-      alert(error.message || "정산서 PDF를 열 수 없습니다.");
+      console.error("Payment document signed URL failed", error);
+      alert("정산 내역서를 열 수 없습니다. 권한 또는 파일 상태를 확인해주세요.");
     }
   };
 
@@ -664,25 +957,13 @@ function InterpreterMypage({
 
   const toggleApplicationDetails = (applicationId) => {
     setExpandedApplicationIds((current) => {
-      const next = new Set(current);
-      if (next.has(applicationId)) {
-        next.delete(applicationId);
-      } else {
-        next.add(applicationId);
-      }
-      return next;
+      return current.has(applicationId) ? new Set() : new Set([applicationId]);
     });
   };
 
   const toggleAssignmentDetails = (matchingId) => {
     setExpandedAssignmentIds((current) => {
-      const next = new Set(current);
-      if (next.has(matchingId)) {
-        next.delete(matchingId);
-      } else {
-        next.add(matchingId);
-      }
-      return next;
+      return current.has(matchingId) ? new Set() : new Set([matchingId]);
     });
   };
 
@@ -708,6 +989,56 @@ function InterpreterMypage({
       setInterpreter(data || { ...interpreter, activity_status: newStatus });
     }
     setIsUpdatingStatus(false);
+  };
+
+  const closeAccountWithdrawalModal = () => {
+    if (isWithdrawingAccount) return;
+    setIsAccountWithdrawalOpen(false);
+    setAccountWithdrawalText("");
+  };
+
+  const handleWithdrawAccount = async () => {
+    if (
+      isWithdrawingAccount ||
+      accountWithdrawalText !== "탈퇴합니다" ||
+      !supabase ||
+      !interpreter?.id ||
+      !user
+    ) {
+      return;
+    }
+
+    const withdrawnAt = new Date().toISOString();
+    const payload = {
+      status: WITHDRAWN_STATUS,
+      is_public: false,
+      withdrawn_at: withdrawnAt,
+    };
+
+    setIsWithdrawingAccount(true);
+
+    const { data, error } = await supabase
+      .from("interpreters")
+      .update(payload)
+      .eq("id", interpreter.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Account withdrawal failed", error);
+      alert(`회원 탈퇴 신청에 실패했습니다. (${error.message})`);
+      setIsWithdrawingAccount(false);
+      return;
+    }
+
+    await updateOptionalUserWithdrawalTables(user, withdrawnAt);
+
+    setInterpreter(data || { ...interpreter, ...payload });
+    setStatus("withdrawn");
+    setIsAccountWithdrawalOpen(false);
+    setAccountWithdrawalText("");
+    setIsWithdrawingAccount(false);
+    alert("회원 탈퇴 신청이 완료되었습니다.");
   };
 
   if (authLoading || loading) {
@@ -742,7 +1073,31 @@ function InterpreterMypage({
     );
   }
 
+  if (status === "withdrawn") {
+    return (
+      <main className="interpreter-auth-page">
+        <section className="interpreter-auth-card">
+          <p className="interpreter-auth-kicker">ON-LI INTERPRETER</p>
+          <h1>탈퇴 처리된 계정입니다</h1>
+          <p>{WITHDRAWN_ACCOUNT_MESSAGE}</p>
+          <div className="interpreter-auth-form">
+            <button type="button" className="interpreter-auth-secondary" onClick={onHomeClick}>
+              메인으로 돌아가기
+            </button>
+            <button type="button" className="interpreter-auth-primary" onClick={onSignOut}>
+              로그아웃
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   const activityStatus = getActivityStatus(interpreter);
+  const resumeFileUrl = interpreter?.resume_file_url || interpreter?.resume_url || "";
+  const resumeFileName = interpreter?.resume_file_name || (resumeFileUrl ? "이력서 파일" : "");
+  const hasResume = Boolean(String(resumeFileUrl || "").trim());
+  const isVerifiedWithResume = interpreter?.approved === true && hasResume;
 
   // DB-driven recent events from matchings
   const recentAssignedEvents = (matchings || [])
@@ -975,13 +1330,14 @@ function InterpreterMypage({
                             />
                           </label>
                           <label className="edit-form-label" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
-                            <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>연락처</span>
+                            <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>카카오톡 ID</span>
                             <input
                                type="text"
-                               name="phone"
-                               value={editForm.phone}
+                               name="kakao_or_line"
+                               value={editForm.kakao_or_line}
                                onChange={handleEditFormChange}
                                required
+                               placeholder="카카오톡 ID를 입력해주세요"
                                style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
                             />
                           </label>
@@ -1105,6 +1461,20 @@ function InterpreterMypage({
                             {isUpdatingProfile ? "저장 중..." : "변경사항 저장"}
                           </button>
                         </div>
+                        <section className="profile-edit-account-management">
+                          <h3>계정 관리</h3>
+                          <p>
+                            회원 탈퇴 시 프로필은 공개 목록에서 표시되지 않으며, 진행 중인 의뢰,
+                            지원, 정산 기록은 운영 및 법적 보관 목적에 따라 보관될 수 있습니다.
+                          </p>
+                          <button
+                            type="button"
+                            className="interpreter-danger-outline-button"
+                            onClick={() => setIsAccountWithdrawalOpen(true)}
+                          >
+                            회원 탈퇴
+                          </button>
+                        </section>
                       </form>
                     ) : (
                       <>
@@ -1113,7 +1483,7 @@ function InterpreterMypage({
                           <dl className="interpreter-profile-list">
                             <ProfileRow label="이름" value={interpreter.name || "미입력"} />
                             <ProfileRow label="이메일" value={interpreter.email || user.email} />
-                            <ProfileRow label="연락처" value={interpreter.phone || "미입력"} />
+                            <ProfileRow label="카카오톡 ID" value={interpreter.kakao_or_line || "미입력"} />
                             <ProfileRow label="성별" value={interpreter.gender || "미입력"} />
                             <ProfileRow
                               label="승인 상태"
@@ -1256,8 +1626,8 @@ function InterpreterMypage({
                               <strong className="profile-value">{interpreter.gender || "미입력"}</strong>
                             </div>
                             <div className="profile-grid-item">
-                              <span className="profile-label">연락처</span>
-                              <strong className="profile-value">{interpreter.phone || "미입력"}</strong>
+                              <span className="profile-label">카카오톡 ID</span>
+                              <strong className="profile-value">{interpreter.kakao_or_line || "미입력"}</strong>
                             </div>
                             <div className="profile-grid-item">
                               <span className="profile-label">레벨</span>
@@ -1411,48 +1781,77 @@ function InterpreterMypage({
                   {/* Verification Badge & Resume Card */}
                   <article className="mypage-verification-card animate-fade-in">
                     <h3>통역사 검증 & 배지 신청</h3>
+                    <p className="verification-status-desc resume-required-note">
+                      통역 공고 지원을 위해 이력서 등록은 필수입니다. ON-LI 운영팀 검토 후 ON-LI 인증 배지가 표시될 수 있습니다.
+                    </p>
+                    <input
+                      ref={resumeActionInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={handleResumeActionFileChange}
+                      style={{ display: "none" }}
+                    />
                     
-                    {interpreter.approved ? (
+                    {isVerifiedWithResume ? (
                       <div className="verification-status-box verified">
-                        <span className="verification-status-badge verified">✨ 검증 완료</span>
+                        <span className="verification-status-badge verified">⭐ ON-LI 인증 완료</span>
                         <div className="verification-status-details">
-                          <h4 className="verification-status-title">ON-LI 공식 검증 통역사</h4>
+                          <h4 className="verification-status-title">ON-LI 인증 통역사</h4>
                           <p className="verification-status-desc">
                             귀하는 ON-LI 공식 인증을 받은 신뢰할 수 있는 통역사입니다. 
-                            프로필에 검증 완료 배지가 표시되며 공고 추천 및 매칭에서 우선 순위를 얻게 됩니다.
+                            프로필에 ON-LI 인증 배지가 표시되며 공고 추천 및 매칭에서 우선 순위를 얻게 됩니다.
                           </p>
-                          {interpreter.resume_file_name && (
-                            <div className="verification-status-file-link" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer", marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "6px", color: "#d97706", fontWeight: "700", fontSize: "13px" }}>
-                              📎 {interpreter.resume_file_name} (이력서 보기)
-                            </div>
-                          )}
+                          <ResumeFileActions
+                            fileName={resumeFileName}
+                            fileUrl={resumeFileUrl}
+                            isBusy={isSubmittingResume}
+                            mode={resumeActionMode}
+                            onView={() => handleDownloadResume(resumeFileUrl, resumeFileName)}
+                            onEdit={() => openResumeFilePicker("edit")}
+                            onDelete={handleDeleteResume}
+                            onRegister={() => openResumeFilePicker("register")}
+                          />
                         </div>
                       </div>
-                    ) : (interpreter.resume_url || interpreter.resume_file_url) ? (
+                    ) : hasResume ? (
                       <div className="verification-status-box pending">
-                        <span className="verification-status-badge pending">⏳ 검토 대기</span>
+                        <span className="verification-status-badge pending">○ 일반 등록</span>
                         <div className="verification-status-details">
                           <h4 className="verification-status-title">이력서 검토 중</h4>
                           <p className="verification-status-desc">
                             제출하신 이력서를 바탕으로 운영팀에서 검증 절차를 진행 중입니다. 
                             심사는 영업일 기준 1~3일 소요됩니다.
                           </p>
-                          {interpreter.resume_file_name && (
-                            <div className="verification-status-file-link" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer", marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "6px", color: "#5b5cf0", fontWeight: "700", fontSize: "13px" }}>
-                              📎 {interpreter.resume_file_name} (이력서 다운로드)
-                            </div>
-                          )}
+                          <ResumeFileActions
+                            fileName={resumeFileName}
+                            fileUrl={resumeFileUrl}
+                            isBusy={isSubmittingResume}
+                            mode={resumeActionMode}
+                            onView={() => handleDownloadResume(resumeFileUrl, resumeFileName)}
+                            onEdit={() => openResumeFilePicker("edit")}
+                            onDelete={handleDeleteResume}
+                            onRegister={() => openResumeFilePicker("register")}
+                          />
                         </div>
                       </div>
                     ) : (
                       <div className="verification-status-box unsubmitted">
-                        <span className="verification-status-badge unsubmitted">📄 이력서 미제출</span>
+                        <span className="verification-status-badge unsubmitted">📄 이력서 등록 필요</span>
                         <div className="verification-status-details">
-                          <h4 className="verification-status-title">검증 배지 미보유</h4>
+                          <h4 className="verification-status-title">이력서 등록 필요</h4>
                           <p className="verification-status-desc">
-                            검증된 통역사 배지를 획득하려면 아래에서 이력서(경력 소개서) 파일을 업로드해주세요. 
-                            운영팀의 심사를 거쳐 배지가 수여됩니다.
+                            아래에서 이력서(경력 소개서) 파일을 업로드해주세요.
                           </p>
+                          <ResumeFileActions
+                            fileName={resumeFileName}
+                            fileUrl={resumeFileUrl}
+                            isBusy={isSubmittingResume}
+                            mode={resumeActionMode}
+                            onView={() => handleDownloadResume(resumeFileUrl, resumeFileName)}
+                            onEdit={() => openResumeFilePicker("edit")}
+                            onDelete={handleDeleteResume}
+                            onRegister={() => openResumeFilePicker("register")}
+                          />
                         </div>
                       </div>
                     )}
@@ -1477,7 +1876,7 @@ function InterpreterMypage({
                             <input
                               id="resume-file-input"
                               type="file"
-                              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                              accept="application/pdf,.pdf"
                               onChange={(e) => {
                                 const file = e.target.files[0];
                                 if (file) handleFileSelection(file);
@@ -1487,8 +1886,8 @@ function InterpreterMypage({
                             
                             <label htmlFor="resume-file-input" className="resume-upload-label">
                               <span className="upload-icon">📤</span>
-                              <strong>PDF / DOCX / 포트폴리오 파일 업로드</strong>
-                              <span className="upload-tip">허용 형식: PDF, DOC, DOCX, PNG, JPG (최대 10MB)</span>
+                              <strong>PDF 이력서 파일 업로드</strong>
+                              <span className="upload-tip">허용 형식: PDF (최대 10MB)</span>
                             </label>
                           </div>
                         </div>
@@ -1515,14 +1914,14 @@ function InterpreterMypage({
                         {!resumeFile && interpreter.resume_file_name && (
                           <div className="resume-selected-file-card uploaded">
                             <span className="file-icon">✅</span>
-                            <div className="file-details" onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)} style={{ cursor: "pointer" }}>
+                            <div className="file-details" onClick={() => handleDownloadResume(resumeFileUrl, resumeFileName)} style={{ cursor: "pointer" }}>
                               <span className="file-name">{interpreter.resume_file_name}</span>
                               <span className="file-uploaded-at">제출일: {interpreter.resume_uploaded_at ? new Date(interpreter.resume_uploaded_at).toLocaleDateString() : "확인 불가"}</span>
                             </div>
                             <button 
                               type="button" 
                               className="file-download-btn"
-                              onClick={() => handleDownloadResume(interpreter.resume_file_url, interpreter.resume_file_name)}
+                              onClick={() => handleDownloadResume(resumeFileUrl, resumeFileName)}
                               title="다운로드"
                             >
                               📥
@@ -1539,6 +1938,35 @@ function InterpreterMypage({
                         </button>
                       </form>
                     )}
+                  </article>
+
+                  <article className="mypage-verification-card settlement-documents-card animate-fade-in">
+                    <h3>정산 서류 등록</h3>
+                    <p className="verification-status-desc resume-required-note">
+                      정산 진행을 위해 필요한 서류를 등록해주세요. 등록된 서류는 ON-LI 운영팀의 정산 확인 용도로만 사용됩니다.
+                    </p>
+                    <input
+                      ref={settlementDocInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
+                      onChange={handleSettlementDocumentFileChange}
+                      style={{ display: "none" }}
+                    />
+                    <div className="settlement-document-grid">
+                      {Object.entries(SETTLEMENT_DOCUMENT_TYPES).map(([docType, docConfig]) => (
+                        <SettlementDocumentCard
+                          key={docType}
+                          label={docConfig.label}
+                          description={docConfig.description}
+                          fileName={interpreter?.[docConfig.nameField]}
+                          fileUrl={interpreter?.[docConfig.urlField]}
+                          isBusy={uploadingSettlementDocType === docType}
+                          onUpload={() => openSettlementDocumentPicker(docType)}
+                          onView={() => openSettlementDocument(interpreter?.[docConfig.urlField])}
+                          onDelete={() => handleDeleteSettlementDocument(docType)}
+                        />
+                      ))}
+                    </div>
                   </article>
                 </>
               )}
@@ -1562,6 +1990,9 @@ function InterpreterMypage({
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">📄</span>
                         <p>아직 지원한 통역 공고가 없습니다.</p>
+                        <p className="empty-sub">
+                          관심 있는 공고에 지원하면 이곳에서 확인할 수 있습니다.
+                        </p>
                         <button
                           type="button"
                           className="interpreter-auth-primary"
@@ -1586,87 +2017,77 @@ function InterpreterMypage({
                           const hasLinkedJob =
                             job?.id &&
                             String(app.job_id) === String(job.id);
+                          const applicationNo = app.application_no || `No.${app.id}`;
+                          const scheduleText = formatDateRange(
+                            job?.start_date,
+                            job?.end_date,
+                            job?.event_date || job?.date
+                          );
+                          const locationText =
+                            job?.location || job?.event_location || "장소 미등록";
 
                           return (
                             <div key={app.id} className="interpreter-application-card">
                               <div className="card-top-row">
-                                <span className="app-no">{app.application_no || `No.${app.id}`}</span>
+                                <span className="app-no">{applicationNo}</span>
                                 <span className={`status-badge ${badgeClass}`}>{statusLabel}</span>
                               </div>
-                              <h3>{jobTitle}</h3>
-
-                              {job ? (
-                                <>
-                                  <JobInformationSection
-                                    job={job}
-                                    countLabel="모집 인원"
-                                    isExpanded={isExpanded}
-                                    onToggle={() => toggleApplicationDetails(app.id)}
-                                  />
-
-                                  <section className="application-info-section is-personal">
-                                    <h4>내 지원 정보</h4>
-                                    <div className="application-personal-info">
-                                      <div className="app-message-box">
-                                        <span>지원 메시지</span>
-                                        <p>{app.message || "작성한 지원 메시지가 없습니다."}</p>
-                                      </div>
-                                      <div className="application-personal-meta">
-                                        <ApplicationInfo
-                                          label="지원일"
-                                          value={formatDate(app.created_at)}
-                                        />
-                                        <ApplicationInfo
-                                          label="지원 상태"
-                                          value={statusLabel}
-                                        />
-                                        <ApplicationInfo
-                                          label="지원 철회"
-                                          value={canWithdraw ? "가능" : "불가"}
-                                        />
-                                      </div>
-                                    </div>
-                                  </section>
-                                </>
-                              ) : (
-                                <p className="application-job-unavailable">
-                                  현재 공고 정보를 불러올 수 없습니다.
+                              <div
+                                className="application-list-summary"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => toggleApplicationDetails(app.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    toggleApplicationDetails(app.id);
+                                  }
+                                }}
+                              >
+                                <h3>{jobTitle}</h3>
+                                <p className="application-company">
+                                  {job?.job_no || "공고번호 미등록"}
                                 </p>
+                                <p className="application-primary-meta">
+                                  {scheduleText} / {locationText}
+                                </p>
+                                <p className="application-secondary-meta">
+                                  {getJobLevelSummary(job || {})} · {getJobSpecialty(job || {})}
+                                </p>
+                                <p className="application-language">
+                                  {job?.language || "통역 언어 미등록"}
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                className="application-detail-toggle"
+                                onClick={() => toggleApplicationDetails(app.id)}
+                                aria-expanded={isExpanded}
+                              >
+                                {isExpanded ? "접기" : "상세 보기"}
+                              </button>
+
+                              {isExpanded && job && (
+                                <ApplicationDetailPanel
+                                  application={app}
+                                  job={job}
+                                  statusLabel={statusLabel}
+                                  canWithdraw={canWithdraw}
+                                  isMatched={isMatched}
+                                  hasLinkedJob={hasLinkedJob}
+                                  onJobDetailClick={onJobDetailClick}
+                                  onWithdraw={() => {
+                                    setWithdrawalMessage("");
+                                    setWithdrawalError("");
+                                    setWithdrawalTarget(app);
+                                  }}
+                                />
                               )}
 
-                              <div className="application-card-footer">
-                                <div className="app-date-row">
-                                  지원 일시: {formatDate(app.created_at)}
-                                </div>
-                                <div className="application-card-actions">
-                                  {hasLinkedJob && (
-                                    <button
-                                      type="button"
-                                      className="application-job-detail-button"
-                                      onClick={() => onJobDetailClick?.(app.job_id)}
-                                    >
-                                      공고 상세 보기
-                                    </button>
-                                  )}
-                                  {canWithdraw && (
-                                    <button
-                                      type="button"
-                                      className="application-withdraw-button"
-                                      onClick={() => {
-                                        setWithdrawalMessage("");
-                                        setWithdrawalError("");
-                                        setWithdrawalTarget(app);
-                                      }}
-                                    >
-                                      지원 철회
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              {isMatched && (
-                                <p className="application-withdrawal-note">
-                                  매칭이 완료된 지원은 직접 철회할 수 없습니다. 변경이
-                                  필요한 경우 ON-LI에 문의해 주세요.
+                              {isExpanded && !job && (
+                                <p className="application-job-unavailable">
+                                  현재 공고 정보를 불러올 수 없습니다.
                                 </p>
                               )}
                             </div>
@@ -1685,10 +2106,9 @@ function InterpreterMypage({
                     ) : matchings.length === 0 ? (
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">💼</span>
-                        <p>아직 배정 완료된 통역 일정이 없습니다.</p>
+                        <p>아직 배정된 통역 업무가 없습니다.</p>
                         <p className="empty-sub">
-                          프로필 정보와 활동 가능 지역을 최신화해두시면 더 활발하게 매칭 제안을
-                          받으실 수 있습니다.
+                          지원한 공고가 배정 확정되면 이곳에서 확인할 수 있습니다.
                         </p>
                       </div>
                     ) : (
@@ -1705,81 +2125,74 @@ function InterpreterMypage({
                           const hasLinkedJob =
                             job?.id &&
                             String(mat.job_id) === String(job.id);
+                          const matchingNo = mat.matching_no || `Matching No.${mat.id}`;
+                          const scheduleText = formatDateRange(
+                            start,
+                            end,
+                            job?.event_date || job?.date
+                          );
+                          const locationText =
+                            job?.location || job?.event_location || "장소 미등록";
 
                           return (
                             <div key={mat.id} className="interpreter-assignment-card">
                               <div className="card-top-row">
-                                <span className="matching-no">
-                                  {mat.matching_no || `Matching No.${mat.id}`}
-                                </span>
+                                <span className="matching-no">{matchingNo}</span>
                                 <span className={`status-badge ${badgeClass}`}>{statusLabel}</span>
                               </div>
-                              <h3>{jobTitle}</h3>
+                              <div
+                                className="assignment-list-summary"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => toggleAssignmentDetails(mat.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    toggleAssignmentDetails(mat.id);
+                                  }
+                                }}
+                              >
+                                <h3>{jobTitle}</h3>
+                                <p className="assignment-company">
+                                  {job?.job_no || "공고번호 미등록"}
+                                </p>
+                                <p className="assignment-primary-meta">
+                                  {scheduleText} / {locationText}
+                                </p>
+                                <p className="assignment-secondary-meta">
+                                  {getJobLevelSummary(job || {})} · {getJobSpecialty(job || {})}
+                                </p>
+                                <p className="assignment-language">
+                                  {job?.language || "통역 언어 미등록"}
+                                </p>
+                              </div>
 
-                              {job ? (
-                                <>
-                                  <JobInformationSection
-                                    job={job}
-                                    startDate={start}
-                                    endDate={end}
-                                    countLabel="모집 인원"
-                                    isExpanded={isExpanded}
-                                    onToggle={() => toggleAssignmentDetails(mat.id)}
-                                  />
+                              <button
+                                type="button"
+                                className="application-detail-toggle assignment-detail-toggle"
+                                onClick={() => toggleAssignmentDetails(mat.id)}
+                                aria-expanded={isExpanded}
+                              >
+                                {isExpanded ? "상세 닫기" : "상세 보기"}
+                              </button>
 
-                                  <section className="application-info-section is-personal">
-                                    <h4>내 배정 정보</h4>
-                                    <div className="application-personal-meta">
-                                      <ApplicationInfo
-                                        label="배정 상태"
-                                        value={statusLabel}
-                                      />
-                                      <ApplicationInfo
-                                        label="배정 등록일"
-                                        value={formatDate(mat.created_at)}
-                                      />
-                                      <ApplicationInfo
-                                        label="업무 예정일"
-                                        value={formatDateRange(
-                                          start,
-                                          end,
-                                          job.event_date || job.date
-                                        )}
-                                      />
-                                      <ApplicationInfo
-                                        label="담당 기업"
-                                        value={job.company_name || "미등록"}
-                                      />
-                                      <ApplicationInfo
-                                        label="현재 진행 상태"
-                                        value={statusLabel}
-                                      />
-                                    </div>
-                                  </section>
-                                </>
-                              ) : (
+                              {isExpanded && job && (
+                                <AssignmentDetailPanel
+                                  job={job}
+                                  matching={mat}
+                                  startDate={start}
+                                  endDate={end}
+                                  statusLabel={statusLabel}
+                                  hasLinkedJob={hasLinkedJob}
+                                  onJobDetailClick={onJobDetailClick}
+                                />
+                              )}
+
+                              {isExpanded && !job && (
                                 <p className="application-job-unavailable">
                                   현재 공고 정보를 불러올 수 없습니다.
                                 </p>
                               )}
-
-                              <div className="application-card-footer assignment-card-footer">
-                                <p className="assignment-change-note">
-                                  배정이 완료된 업무의 변경 또는 취소가 필요한 경우 ON-LI에
-                                  문의해 주세요.
-                                </p>
-                                {hasLinkedJob && (
-                                  <div className="application-card-actions">
-                                    <button
-                                      type="button"
-                                      className="application-job-detail-button"
-                                      onClick={() => onJobDetailClick?.(mat.job_id)}
-                                    >
-                                      공고 상세 보기
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
                             </div>
                           );
                         })}
@@ -1788,78 +2201,128 @@ function InterpreterMypage({
                   </article>
                 )}
 
+                {activeTab === "preparation" && (
+                  <article className="interpreter-mypage-card animate-fade-in">
+                    <h2>업무 준비</h2>
+                    <p style={{ margin: "0 0 16px", color: "#6b7280", fontSize: "13px" }}>
+                      배정 확정 후 업무 준비 단계의 통역 일정입니다. 기업 자료를 확인하고 업무를 준비해 주세요.
+                    </p>
+                    {loadingData ? (
+                      <p className="loading-text">업무 준비 정보를 불러오는 중...</p>
+                    ) : (() => {
+                      const prepItems = matchings.filter(
+                        (m) =>
+                          m.request_assignment_status === "preparing" ||
+                          m.request_assignment_status === "ready" ||
+                          m.request_assignment_status === "assigned"
+                      );
+                      if (prepItems.length === 0) {
+                        return (
+                          <div className="interpreter-empty-state">
+                            <span className="empty-icon">🗂️</span>
+                            <p>현재 업무 준비 단계의 배정 건이 없습니다.</p>
+                            <p className="empty-sub">
+                              통역 배정이 완료되면 이곳에서 행사 자료와 연락처를 확인할 수 있습니다.
+                            </p>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="interpreter-prep-list">
+                          {prepItems.map((mat) => {
+                            const job = mat.jobs;
+                            const title = job?.event_name || job?.title || "배정된 통역";
+                            const start = mat.start_date || job?.start_date;
+                            const end = mat.end_date || job?.end_date;
+                            const location = job?.location || job?.event_location || "장소 미등록";
+                            const prepStatus = mat.request_assignment_status;
+                            const prepStatusLabel =
+                              prepStatus === "ready" ? "진행 예정" :
+                              prepStatus === "preparing" ? "업무 준비중" :
+                              "배정 완료";
+                            const prepBadgeStyle =
+                              prepStatus === "ready"
+                                ? { background: "#cffafe", color: "#0e7490" }
+                                : prepStatus === "preparing"
+                                ? { background: "#ccfbf1", color: "#0f766e" }
+                                : { background: "#e0e7ff", color: "#4338ca" };
+
+                            return (
+                              <InterpreterPrepCard
+                                key={mat.id}
+                                mat={mat}
+                                title={title}
+                                start={start}
+                                end={end}
+                                location={location}
+                                prepStatusLabel={prepStatusLabel}
+                                prepBadgeStyle={prepBadgeStyle}
+                              />
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </article>
+                )}
+
                 {activeTab === "settlements" && (
+
                   <article className="interpreter-mypage-card animate-fade-in">
                     <h2>정산 내역</h2>
                     {loadingData ? (
                       <p className="loading-text">정산 내역을 불러오고 있습니다...</p>
-                    ) : payoutDocuments.length === 0 ? (
+                    ) : settlements.length === 0 ? (
                       <div className="interpreter-empty-state">
-                        <span className="empty-icon">💴</span>
-                        <p>아직 발급된 정산 내역서가 없습니다.</p>
+                        <span className="empty-icon">💰</span>
+                        <p>아직 정산 내역이 없습니다.</p>
                         <p className="empty-sub">
-                          업무 완료 후 ON-LI 운영팀이 정산서를 발급하면 이곳에서 확인할 수
-                          있습니다.
+                          업무 완료 후 정산 예정 금액과 상태가 이곳에 표시됩니다.
                         </p>
                       </div>
                     ) : (
                       <div className="interpreter-assignment-list">
-                        {payoutDocuments.map((document) => {
-                          const metadata = document.metadata || {};
+                        {settlements.map((settlement) => {
+                          const documentRow = paymentDocuments.find(
+                            (doc) => doc.request_id === settlement.requestId
+                          );
+
                           return (
-                            <div key={document.id} className="interpreter-assignment-card">
-                              <div className="card-top-row">
-                                <span className="matching-no">
-                                  {document.document_no || `Payout No.${document.id}`}
-                                </span>
-                                <span className="status-badge settled">
-                                  {getPayoutStatusLabel(document.status)}
-                                </span>
-                              </div>
-                              <h3>{metadata.event_name || document.title || "정산 내역"}</h3>
-
-                              <section className="application-info-section is-personal">
-                                <h4>정산 정보</h4>
-                                <div className="application-personal-meta">
-                                  <ApplicationInfo
-                                    label="업무명"
-                                    value={metadata.event_name || document.title || "-"}
-                                  />
-                                  <ApplicationInfo
-                                    label="업무 날짜"
-                                    value={metadata.date_label || "-"}
-                                  />
-                                  <ApplicationInfo
-                                    label="지급 예정 금액"
-                                    value={formatJPY(document.amount || metadata.final_amount)}
-                                  />
-                                  <ApplicationInfo
-                                    label="정산 상태"
-                                    value={getPayoutStatusLabel(document.status)}
-                                  />
-                                  <ApplicationInfo
-                                    label="버전"
-                                    value={`v${document.version || 1}`}
-                                  />
-                                </div>
-                              </section>
-
-                              <div className="application-card-footer assignment-card-footer">
-                                <p className="assignment-change-note">
-                                  정산서 PDF는 보안 링크로 열리며 일정 시간이 지나면 만료됩니다.
-                                </p>
-                                <div className="application-card-actions">
+                          <div key={settlement.id} className="interpreter-assignment-card">
+                            <div className="card-top-row">
+                              <span className="matching-no">{settlement.publicJobCode || "정산"}</span>
+                              <span className={`status-badge ${getStatusBadgeClass(settlement.settlementStatus)}`}>
+                                {getSettlementStatusLabel(settlement.settlementStatus)}
+                              </span>
+                            </div>
+                            <div className="assignment-list-summary">
+                              <h3>{settlement.eventName || settlement.title || "배정된 통역"}</h3>
+                              <p className="assignment-primary-meta">
+                                업무일: {formatDateRange(settlement.startDate, settlement.endDate)}
+                              </p>
+                              <p className="assignment-secondary-meta">
+                                정산 예정 금액: {formatKRW(settlement.amount)}
+                              </p>
+                              <p className="assignment-language">
+                                정산 완료일: {formatDate(settlement.completedAt)}
+                              </p>
+                              {documentRow && (
+                                <>
+                                  <p className="assignment-secondary-meta">
+                                    정산 내역서 금액: {formatDocumentAmount(documentRow.amount)}
+                                  </p>
                                   <button
                                     type="button"
-                                    className="application-job-detail-button"
-                                    onClick={() => handleOpenPayoutPdf(document)}
+                                    className="file-download-btn"
+                                    onClick={() => openPaymentDocument(documentRow)}
                                   >
-                                    정산서 PDF 보기
+                                    정산 내역서 PDF
                                   </button>
-                                </div>
-                              </div>
+                                </>
+                              )}
                             </div>
-                          );
+                          </div>
+                        );
                         })}
                       </div>
                     )}
@@ -1936,15 +2399,73 @@ function InterpreterMypage({
                     )}
                   </article>
                 )}
-
-                {activeTab === "takeHome" && (
-                  <TakeHomeCalculator className="animate-fade-in" />
-                )}
               </div>
             </section>
           </>
         )}
       </div>
+      {isAccountWithdrawalOpen && (
+        <div
+          className="application-withdrawal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeAccountWithdrawalModal();
+            }
+          }}
+        >
+          <section
+            className="application-withdrawal-modal account-withdrawal-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="account-withdrawal-title"
+          >
+            <button
+              type="button"
+              className="application-withdrawal-close"
+              onClick={closeAccountWithdrawalModal}
+              disabled={isWithdrawingAccount}
+              aria-label="회원 탈퇴 확인창 닫기"
+            >
+              <X size={19} />
+            </button>
+            <h2 id="account-withdrawal-title">회원 탈퇴</h2>
+            <p>
+              회원 탈퇴 시 ON-LI 이용이 제한되며, 등록된 프로필은 공개 목록에서 표시되지 않습니다.
+              <br />
+              진행 중인 의뢰, 지원, 정산 기록은 운영 및 법적 보관 목적에 따라 일정 기간 보관될 수 있습니다.
+            </p>
+            <label className="account-withdrawal-confirm-field">
+              <span>탈퇴를 진행하려면 아래 문구를 입력해주세요.</span>
+              <strong>탈퇴합니다</strong>
+              <input
+                value={accountWithdrawalText}
+                onChange={(event) => setAccountWithdrawalText(event.target.value)}
+                disabled={isWithdrawingAccount}
+                autoFocus
+              />
+            </label>
+            <div className="application-withdrawal-actions">
+              <button
+                type="button"
+                className="application-withdrawal-cancel"
+                onClick={closeAccountWithdrawalModal}
+                disabled={isWithdrawingAccount}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="application-withdrawal-confirm"
+                onClick={handleWithdrawAccount}
+                disabled={isWithdrawingAccount || accountWithdrawalText !== "탈퇴합니다"}
+              >
+                {isWithdrawingAccount ? "처리 중..." : "탈퇴 신청"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {withdrawalTarget && (
         <div
           className="application-withdrawal-backdrop"
@@ -2004,11 +2525,138 @@ function InterpreterMypage({
   );
 }
 
+async function updateOptionalUserWithdrawalTables(user, withdrawnAt) {
+  if (!supabase || !user?.id) return;
+
+  const payload = {
+    status: WITHDRAWN_STATUS,
+    withdrawn_at: withdrawnAt,
+  };
+
+  await Promise.all(
+    ["profiles", "users"].map(async (table) => {
+      const { error } = await supabase
+        .from(table)
+        .update(payload)
+        .eq("id", user.id);
+
+      if (error && !isMissingTableOrColumnError(error)) {
+        console.warn(`${table} withdrawal update skipped`, error);
+      }
+    })
+  );
+}
+
+function isMissingTableOrColumnError(error) {
+  return (
+    error?.code === "42P01" ||
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    error?.code === "PGRST205" ||
+    /schema cache|does not exist|column|table/i.test(error?.message || "")
+  );
+}
+
 function ApplicationInfo({ label, value }) {
   return (
     <div className="application-info-item">
       <span>{label}</span>
       <strong>{value || "미등록"}</strong>
+    </div>
+  );
+}
+
+function ApplicationDetailPanel({
+  application,
+  job,
+  statusLabel,
+  canWithdraw,
+  isMatched,
+  hasLinkedJob,
+  onJobDetailClick,
+  onWithdraw,
+}) {
+  return (
+    <div className="application-expanded-panel">
+      <section className="application-info-section">
+        <h4>공고 정보</h4>
+        <div className="application-info-grid">
+          <ApplicationInfo label="공고번호" value={job.job_no || "미등록"} />
+          <ApplicationInfo label="통역 언어" value={job.language || "별도 안내"} />
+          <ApplicationInfo label="통역 레벨" value={getJobLevelSummary(job)} />
+          <ApplicationInfo label="전문 분야" value={getJobSpecialty(job)} />
+          <ApplicationInfo
+            label="근무 장소"
+            value={job.location || job.event_location || "미등록"}
+          />
+          <ApplicationInfo
+            label="근무 일정"
+            value={formatDateRange(job.start_date, job.end_date, job.event_date || job.date)}
+          />
+          <ApplicationInfo label="근무 시간" value="별도 안내" />
+          <ApplicationInfo
+            label="모집 인원"
+            value={`${getRecruitmentCountDisplay(job)}명`}
+          />
+          <ApplicationInfo
+            label="성별 조건"
+            value={job.preferred_gender || "성별 무관"}
+          />
+          <ApplicationInfo
+            label="현재 공고 상태"
+            value={getJobStatusLabel(job.status)}
+          />
+        </div>
+      </section>
+
+      <section className="application-info-section is-personal">
+        <h4>내 지원 정보</h4>
+        <div className="application-personal-info">
+          {application.message && (
+            <div className="app-message-box">
+              <span>지원 메모</span>
+              <p>{application.message}</p>
+            </div>
+          )}
+          <div className="application-personal-meta">
+            <ApplicationInfo label="지원 상태" value={statusLabel} />
+            <ApplicationInfo label="지원 등록일" value={formatDate(application.created_at)} />
+            <ApplicationInfo label="지원 철회" value={canWithdraw ? "가능" : "불가"} />
+          </div>
+        </div>
+      </section>
+
+      <div className="application-card-footer">
+        <div className="app-date-row">
+          지원 일시: {formatDate(application.created_at)}
+        </div>
+        <div className="application-card-actions">
+          {hasLinkedJob && (
+            <button
+              type="button"
+              className="application-job-detail-button"
+              onClick={() => onJobDetailClick?.(application.job_id)}
+            >
+              공고 상세 보기
+            </button>
+          )}
+          {canWithdraw && (
+            <button
+              type="button"
+              className="application-withdraw-button"
+              onClick={onWithdraw}
+            >
+              지원 철회
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isMatched && (
+        <p className="application-withdrawal-note">
+          매칭이 완료된 지원은 직접 철회할 수 없습니다. 변경이 필요한 경우 ON-LI에 문의해 주세요.
+        </p>
+      )}
     </div>
   );
 }
@@ -2025,7 +2673,7 @@ function JobInformationSection({
     <section className="application-info-section">
       <h4>공고 정보</h4>
       <div className="application-info-grid">
-        <ApplicationInfo label="기업명" value={job.company_name || "미등록"} />
+        <ApplicationInfo label="공고번호" value={job.job_no || "미등록"} />
         <ApplicationInfo label="통역 언어" value={job.language || "별도 안내"} />
         <ApplicationInfo label="통역 레벨" value={getJobLevelSummary(job)} />
         <ApplicationInfo label="전문 분야" value={getJobSpecialty(job)} />
@@ -2050,7 +2698,6 @@ function JobInformationSection({
           label="성별 조건"
           value={job.preferred_gender || "성별 무관"}
         />
-        <ApplicationInfo label="지급/단가 기준" value={getJobPayDisplay(job)} />
         <ApplicationInfo
           label="현재 공고 상태"
           value={getJobStatusLabel(job.status)}
@@ -2090,7 +2737,7 @@ function JobInformationSection({
           <div className="application-detail-block">
             <strong>추가 안내사항</strong>
             <ul>
-              <li>요구 레벨에 맞는 일급 기준이 적용됩니다.</li>
+              <li>레벨 기준 통역 단가가 적용됩니다.</li>
               <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
               <li>운영팀 확인 후 최종 연락드립니다.</li>
             </ul>
@@ -2098,6 +2745,120 @@ function JobInformationSection({
         </div>
       )}
     </section>
+  );
+}
+
+function AssignmentDetailPanel({
+  job,
+  matching,
+  startDate,
+  endDate,
+  statusLabel,
+  hasLinkedJob,
+  onJobDetailClick,
+}) {
+  return (
+    <div className="assignment-expanded-panel">
+      <section className="application-info-section">
+        <h4>공고 정보</h4>
+        <div className="application-info-grid">
+          <ApplicationInfo label="공고번호" value={job.job_no || "미등록"} />
+          <ApplicationInfo label="통역 언어" value={job.language || "별도 안내"} />
+          <ApplicationInfo label="통역 레벨" value={getJobLevelSummary(job)} />
+          <ApplicationInfo label="전문 분야" value={getJobSpecialty(job)} />
+          <ApplicationInfo
+            label="근무 장소"
+            value={job.location || job.event_location || "미등록"}
+          />
+          <ApplicationInfo
+            label="근무 일정"
+            value={formatDateRange(
+              startDate || job.start_date,
+              endDate || job.end_date,
+              job.event_date || job.date
+            )}
+          />
+          <ApplicationInfo label="근무 시간" value="별도 안내" />
+          <ApplicationInfo
+            label="모집 인원"
+            value={`${getRecruitmentCountDisplay(job)}명`}
+          />
+          <ApplicationInfo
+            label="성별 조건"
+            value={job.preferred_gender || "성별 무관"}
+          />
+          <ApplicationInfo
+            label="현재 공고 상태"
+            value={getJobStatusLabel(job.status)}
+          />
+        </div>
+
+        <div className="application-expanded-details assignment-detail-descriptions">
+          <ApplicationDetail
+            label="공고 소개"
+            value={
+              job.description ||
+              job.job_description ||
+              "등록된 공고 소개가 없습니다."
+            }
+          />
+          <ApplicationDetail
+            label="원하는 통역사"
+            value={
+              job.preference ||
+              `${getJobLevelSummary(job)} 역량을 갖춘 통역사를 찾고 있습니다.`
+            }
+          />
+          <ApplicationDetail
+            label="우대사항 및 안내"
+            value={job.dress_code || job.preferred_gender || "별도 안내"}
+          />
+          <div className="application-detail-block">
+            <strong>추가 안내사항</strong>
+            <ul>
+              <li>레벨 기준 통역 단가가 적용됩니다.</li>
+              <li>배정 완료 시 지원이 제한될 수 있습니다.</li>
+              <li>운영팀 확인 후 최종 연락드립니다.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="application-info-section is-personal">
+        <h4>내 배정 정보</h4>
+        <div className="application-personal-meta">
+          <ApplicationInfo label="배정 상태" value={statusLabel} />
+          <ApplicationInfo label="배정 등록일" value={formatDate(matching.created_at)} />
+          <ApplicationInfo
+            label="업무 예정일"
+            value={formatDateRange(
+              startDate,
+              endDate,
+              job.event_date || job.date
+            )}
+          />
+          <ApplicationInfo label="공고번호" value={job.job_no || "미등록"} />
+          <ApplicationInfo label="현재 진행 상태" value={statusLabel} />
+        </div>
+      </section>
+
+      <div className="application-card-footer assignment-card-footer">
+        <p className="assignment-change-note">
+          배정이 완료된 업무의 변경 또는 취소가 필요한 경우 ON-LI에 문의해 주세요.
+        </p>
+        {hasLinkedJob && (
+          <div className="application-card-actions">
+            <button
+              type="button"
+              className="application-job-detail-button"
+              onClick={() => onJobDetailClick?.(matching.job_id)}
+            >
+              공고 상세 보기
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -2119,6 +2880,116 @@ function ProfileRow({ label, value }) {
   );
 }
 
+function ResumeFileActions({
+  fileName,
+  fileUrl,
+  isBusy,
+  mode,
+  onView,
+  onEdit,
+  onDelete,
+  onRegister,
+}) {
+  const hasResume = Boolean(fileName || fileUrl);
+
+  if (!hasResume) {
+    return (
+      <div className="resume-file-actions is-empty">
+        <span>등록된 이력서가 없습니다.</span>
+        <button
+          type="button"
+          className="resume-inline-action"
+          onClick={onRegister}
+          disabled={isBusy}
+        >
+          {isBusy && mode === "register" ? "업로드 중..." : "이력서 등록"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="resume-file-actions">
+      <button
+        type="button"
+        className="resume-file-view-link"
+        onClick={onView}
+        disabled={!fileUrl || isBusy}
+      >
+        📎 {fileName || "이력서 파일"} (이력서 보기)
+      </button>
+      <div className="resume-file-action-buttons">
+        <button
+          type="button"
+          className="resume-inline-action"
+          onClick={onEdit}
+          disabled={isBusy}
+        >
+          {isBusy && mode === "edit" ? "업로드 중..." : "수정"}
+        </button>
+        <button
+          type="button"
+          className="resume-inline-action danger"
+          onClick={onDelete}
+          disabled={isBusy}
+        >
+          삭제
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SettlementDocumentCard({
+  label,
+  description,
+  fileName,
+  fileUrl,
+  isBusy,
+  onUpload,
+  onView,
+  onDelete,
+}) {
+  const hasFile = Boolean(fileName || fileUrl);
+
+  return (
+    <section className="settlement-document-box">
+      <div>
+        <h4>{label}</h4>
+        <p>{description}</p>
+        <span>업로드 가능 형식: PDF, JPG, PNG</span>
+      </div>
+
+      {hasFile ? (
+        <div className="settlement-document-file">
+          <span className="file-icon">📎</span>
+          <strong>{fileName || label}</strong>
+          <div className="settlement-document-actions">
+            <button type="button" onClick={onView} disabled={!fileUrl || isBusy}>
+              보기
+            </button>
+            <button type="button" onClick={onUpload} disabled={isBusy}>
+              {isBusy ? "업로드 중..." : "수정"}
+            </button>
+            <button type="button" className="danger" onClick={onDelete} disabled={isBusy}>
+              삭제
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="settlement-document-upload-button"
+          onClick={onUpload}
+          disabled={isBusy}
+        >
+          {isBusy ? "업로드 중..." : "파일 업로드"}
+        </button>
+      )}
+    </section>
+  );
+}
+
 function formatDate(dateString) {
   if (!dateString) return "-";
   const date = new Date(dateString);
@@ -2130,16 +3001,19 @@ function formatDate(dateString) {
   });
 }
 
-function formatJPY(value) {
-  return `¥${Number(value || 0).toLocaleString()}`;
+function formatKRW(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return "-";
+  return `${amount.toLocaleString("ko-KR")}원`;
 }
 
-function getPayoutStatusLabel(status) {
-  const value = String(status || "").trim().toLowerCase();
-  if (value === "issued") return "발급완료";
-  if (value === "draft") return "임시저장";
-  if (value === "voided") return "무효";
-  return status || "발급완료";
+function getSettlementStatusLabel(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (["pending", "settlement_pending", "정산대기"].includes(normalized)) return "정산대기";
+  if (["confirmed", "settlement_confirmed", "정산확정"].includes(normalized)) return "정산확정";
+  if (["completed", "settled", "정산완료"].includes(normalized)) return "정산완료";
+  if (["on_hold", "hold", "settlement_on_hold", "정산보류"].includes(normalized)) return "정산보류";
+  return "정산대기";
 }
 
 function getDaysRemaining(startDateStr) {
@@ -2159,10 +3033,202 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function getResumeStoragePath(filePath) {
+  return getStoragePathFromUrl(filePath, "resume-files");
+}
+
+function getStoragePathFromUrl(filePath, bucketName) {
+  if (!filePath) return "";
+  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+    const parts = filePath.split(`/${bucketName}/`);
+    if (parts.length > 1) {
+      return decodeURIComponent(parts[1].split("?")[0]);
+    }
+    return "";
+  }
+  return filePath;
+}
+
 function getActivityStatus(interpreter) {
   const status = String(interpreter?.activity_status || "").trim().toLowerCase();
   if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(status)) return status;
   return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
+}
+
+function mapPublicJobFromMypageRow(row = {}) {
+  return {
+    id: row.job_id,
+    job_no: row.public_job_code,
+    title: row.title,
+    event_name: row.event_name,
+    date: row.work_date,
+    event_date: row.start_date || row.work_date,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    location: row.location,
+    event_location: row.location,
+    language: row.language_pair,
+    requested_level: row.level_required,
+    level: row.level_required,
+    field: row.field,
+    people_count: row.number_of_interpreters,
+    people: row.number_of_interpreters ? `${row.number_of_interpreters}명` : "",
+    status: "recruiting",
+  };
+}
+
+function mapMyApplicationRow(row = {}) {
+  return {
+    id: row.application_id,
+    application_no: row.application_code,
+    job_id: row.job_id,
+    request_id: row.request_id,
+    status: row.application_status,
+    created_at: row.applied_at,
+    jobs: mapPublicJobFromMypageRow(row),
+  };
+}
+
+function mapMyAssignmentRow(row = {}) {
+  return {
+    id: row.assignment_id,
+    matching_no: row.assignment_code,
+    job_id: row.job_id,
+    request_id: row.request_id,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    status: row.public_status,
+    created_at: row.assigned_at,
+    request_assignment_status: row.request_assignment_status || "assigned",
+    is_contact_visible: row.is_contact_visible || false,
+    jobs: mapPublicJobFromMypageRow(row),
+  };
+}
+
+
+function mapMySettlementRow(row = {}) {
+  return {
+    id: row.settlement_id,
+    publicJobCode: row.public_job_code,
+    requestId: row.request_id,
+    title: row.title,
+    eventName: row.event_name,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    amount: row.settlement_final_amount ?? row.amount,
+    settlementStatus: row.settlement_status,
+    completedAt: row.settlement_completed_at,
+  };
+}
+
+function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
+  const [materials, setMaterials] = useState([]);
+  const [loadingMats, setLoadingMats] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+
+  // Fetch materials when expanded
+  useEffect(() => {
+    if (!expanded || !mat.request_id) return;
+    Promise.resolve().then(async () => {
+      setLoadingMats(true);
+      try {
+        const { data, error } = await supabase
+          .from("request_materials")
+          .select("*")
+          .eq("request_id", mat.request_id)
+          .order("created_at", { ascending: false });
+        if (!error) setMaterials(data || []);
+      } catch (err) {
+        console.error("Error fetching prep materials:", err);
+      } finally {
+        setLoadingMats(false);
+      }
+    });
+  }, [expanded, mat.request_id]);
+
+
+  const handleDownload = async (filePath, fileName) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("request-files")
+        .createSignedUrl(filePath, 600, { download: fileName || true });
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Material download error:", err);
+      alert("파일을 다운로드할 수 없습니다.");
+    }
+  };
+
+  const scheduleText = (() => {
+    if (!start && !end) return "일정 미등록";
+    if (!end || start === end) return start;
+    return `${start} ~ ${end}`;
+  })();
+
+  return (
+    <div className="interpreter-prep-card">
+      <div className="prep-card-header" onClick={() => setExpanded((v) => !v)}>
+        <div className="prep-card-info">
+          <strong className="prep-card-title">{title}</strong>
+          <span className="prep-card-meta">📅 {scheduleText}</span>
+          <span className="prep-card-meta">📍 {location}</span>
+        </div>
+        <div className="prep-card-right">
+          <span
+            className="prep-status-badge"
+            style={{ ...prepBadgeStyle, padding: "4px 10px", borderRadius: "999px", fontSize: "12px", fontWeight: 900 }}
+          >
+            {prepStatusLabel}
+          </span>
+          <span className="prep-expand-toggle">{expanded ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="prep-card-detail">
+          {/* Contact info if visible */}
+          {mat.is_contact_visible ? (
+            <div className="prep-contact-section">
+              <span className="prep-section-label">📞 기업 연락처</span>
+              <p className="prep-contact-note">관리자가 연락처 공개를 승인했습니다. 의뢰 정보를 통해 기업 담당자에게 연락해 주세요.</p>
+            </div>
+          ) : (
+            <div className="prep-contact-section muted">
+              <span className="prep-section-label">📞 기업 연락처</span>
+              <p className="prep-contact-note muted">아직 연락처가 공개되지 않았습니다. 관리자 확인 후 공개됩니다.</p>
+            </div>
+          )}
+
+          {/* Materials */}
+          <div className="prep-materials-section">
+            <span className="prep-section-label">📂 행사 자료</span>
+            {loadingMats ? (
+              <p className="prep-mat-empty">자료를 불러오는 중...</p>
+            ) : materials.length === 0 ? (
+              <p className="prep-mat-empty">아직 업로드된 자료가 없습니다.</p>
+            ) : (
+              <ul className="prep-mat-list">
+                {materials.map((mat) => (
+                  <li key={mat.id} className="prep-mat-item">
+                    <span className="prep-mat-type">{mat.file_type || "자료"}</span>
+                    <button
+                      type="button"
+                      className="prep-mat-download"
+                      onClick={() => handleDownload(mat.file_path, mat.file_name)}
+                    >
+                      {mat.file_name} ↓
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default InterpreterMypage;

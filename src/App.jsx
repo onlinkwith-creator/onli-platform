@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState } from "react";
 import Home from "./pages/Home";
 import About from "./pages/About";
+import Business from "./pages/Business";
 import InterpreterList from "./pages/InterpreterList";
 import InterpreterDetail from "./pages/InterpreterDetail";
 import RegisterInterpreter from "./pages/RegisterInterpreter";
@@ -14,22 +15,77 @@ import InterpreterMypage from "./pages/InterpreterMypage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
-import { useAuth } from "./hooks/useAuth";
+import { useAuth, ADMIN_EMAILS } from "./hooks/useAuth";
 import { supabase } from "./supabase";
-import { PUBLIC_INTERPRETER_SELECT } from "./utils/publicInterpreter";
+import BusinessRegister from "./pages/BusinessRegister";
+import BusinessMypage from "./pages/BusinessMypage";
+import RoleSelection from "./pages/RoleSelection";
+import {
+  PUBLIC_INTERPRETER_SELECT,
+  PUBLIC_INTERPRETER_SELECT_FALLBACK,
+  isMissingColumnError,
+} from "./utils/publicInterpreter";
+import { isPublicInterpreterVisible } from "./utils/accountStatus";
+import { applySeo } from "./utils/seo";
 
 const POLICY_PATH_TO_KEY = Object.fromEntries(
   Object.entries(POLICY_PAGES).map(([key, policy]) => [policy.path, key])
 );
+
+class AdminErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Admin render failed:", error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <RouteMessage
+          title="관리자 화면을 불러오지 못했습니다."
+          description="일시적인 화면 오류가 발생했습니다. 새로고침 후에도 반복되면 브라우저 콘솔 오류를 확인해주세요."
+          primaryText="새로고침"
+          onPrimaryClick={() => window.location.reload()}
+          onHomeClick={this.props.onHomeClick}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function getInitialPage() {
   const path = window.location.pathname;
 
   if (POLICY_PATH_TO_KEY[path]) return "policy";
   if (path === "/about") return "about";
+  if (path === "/business") return "business";
+  if (path === "/company-register") return "businessRegister";
+  if (path === "/business/mypage") return "businessMypage";
+  if (path === "/role-selection") return "roleSelection";
   if (path === "/register") return "register";
-  if (path === "/admin/jobs") return "admin";
-  if (path === "/admin") return "admin";
+  if (
+    path === "/admin" ||
+    path === "/admin/jobs" ||
+    path === "/admin/applications" ||
+    path === "/admin/settings" ||
+    path === "/admin/new" ||
+    path === "/admin/requests" ||
+    path === "/admin/interpreters" ||
+    path === "/admin/settlements" ||
+    path === "/admin/internal"
+  ) {
+    return "admin";
+  }
   if (path === "/request") return "jobCreate";
   if (path === "/jobs") return "jobs";
   if (path === "/jobs/create") return "jobCreate";
@@ -76,6 +132,10 @@ function getPath(page, interpreter, jobId, policyKey) {
     return POLICY_PAGES[policyKey]?.path || "/";
   }
   if (page === "about") return "/about";
+  if (page === "business") return "/business";
+  if (page === "businessRegister") return "/company-register";
+  if (page === "businessMypage") return "/business/mypage";
+  if (page === "roleSelection") return "/role-selection";
   if (page === "register") return "/register";
   if (page === "admin") return "/admin";
   if (page === "jobs") return "/jobs";
@@ -103,6 +163,204 @@ function App() {
   const [selectedJobId, setSelectedJobId] = useState(getInitialJobId);
   const [selectedPolicyKey, setSelectedPolicyKey] = useState(getInitialPolicyKey);
   const { user, loading: authLoading, signOut, isAdmin } = useAuth();
+  
+  const [businessProfile, setBusinessProfile] = useState(null);
+  const [fetchingBusiness, setFetchingBusiness] = useState(true);
+  const [duplicateRequestTemplate, setDuplicateRequestTemplate] = useState(null);
+
+  useEffect(() => {
+    if (!user) {
+      setBusinessProfile(null);
+      setFetchingBusiness(false);
+      return;
+    }
+
+    const fetchBizProfile = async () => {
+      setFetchingBusiness(true);
+      try {
+        const { data, error } = await supabase
+          .from("businesses")
+          .select("*")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
+        if (!error && data) {
+          setBusinessProfile(data);
+        } else {
+          setBusinessProfile(null);
+        }
+      } catch (err) {
+        console.error("Error fetching biz profile in App:", err);
+        setBusinessProfile(null);
+      } finally {
+        setFetchingBusiness(false);
+      }
+    };
+    fetchBizProfile();
+  }, [user]);
+
+  const handleBusinessRegisterSuccess = async () => {
+    if (user) {
+      try {
+        const { data } = await supabase
+          .from("businesses")
+          .select("*")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
+        setBusinessProfile(data || null);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    navigate("businessMypage", null, null);
+  };
+
+  const handleMypageClick = async () => {
+    if (authLoading) return;
+    if (!user) {
+      alert("로그인 후 마이페이지를 이용할 수 있습니다.");
+      navigate("login", null, null);
+      return;
+    }
+
+    try {
+      const normalizedEmail = user.email.toLowerCase().trim();
+
+      // A. Check interpreter profile
+      const { data: interpreterData } = await supabase
+        .from("interpreters")
+        .select("id")
+        .or(`email.ilike."${normalizedEmail}",auth_user_id.eq.${user.id}`)
+        .maybeSingle();
+
+      // B. Check business profile
+      const { data: bizData } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      const hasInterpreter = !!interpreterData;
+      const hasBusiness = !!bizData;
+
+      if (hasInterpreter && hasBusiness) {
+        alert("계정 유형이 중복 등록되어 있습니다. 관리자에게 문의해주세요.");
+        navigate("home", null, null);
+        return;
+      }
+
+      if (hasInterpreter) {
+        navigate("interpreterMypage", null, null);
+        return;
+      }
+
+      if (hasBusiness) {
+        navigate("businessMypage", null, null);
+        return;
+      }
+
+      // C. Neither: Go to role selection page
+      navigate("roleSelection", null, null);
+    } catch (err) {
+      console.error("Error in handleMypageClick:", err);
+      navigate("home", null, null);
+    }
+  };
+
+  const openBusinessRegister = async () => {
+    if (authLoading) return;
+    if (!user) {
+      alert("로그인 후 이용 가능합니다.");
+      navigate("login", null, null);
+      return;
+    }
+    try {
+      const normalizedEmail = user.email.toLowerCase().trim();
+      const { data } = await supabase
+        .from("interpreters")
+        .select("id")
+        .or(`email.ilike."${normalizedEmail}",auth_user_id.eq.${user.id}`)
+        .maybeSingle();
+
+      if (data) {
+        alert("이미 통역사로 등록된 계정은 기업 등록을 할 수 없습니다. 기업 이용은 별도 계정으로 가입해주세요.");
+        return;
+      }
+    } catch (err) {
+      console.error("Error checking interpreter profile before business registration:", err);
+    }
+    navigate("businessRegister", null, null);
+  };
+
+  const handleLoginSuccess = async () => {
+    if (!supabase) {
+      navigate("home", null, null);
+      return;
+    }
+
+    try {
+      const currentUser = (await supabase.auth.getUser()).data.user;
+      if (!currentUser) {
+        navigate("home", null, null);
+        return;
+      }
+
+      const email = currentUser.email.toLowerCase();
+      const isAdminEmail = ADMIN_EMAILS.includes(email);
+      let isDbAdmin = false;
+      const { data: adminData } = await supabase
+        .from("admin_users")
+        .select("status")
+        .ilike("email", email)
+        .maybeSingle();
+      if (adminData && adminData.status === "active") {
+        isDbAdmin = true;
+      }
+
+      if (isAdminEmail || isDbAdmin) {
+        navigateAdminJobs();
+        return;
+      }
+
+      // Check if business profile exists
+      const { data: bizData } = await supabase
+        .from("businesses")
+        .select("*")
+        .eq("auth_user_id", currentUser.id)
+        .maybeSingle();
+
+      // Check if interpreter profile exists
+      const { data: interpreterData } = await supabase
+        .from("interpreters")
+        .select("id")
+        .or(`email.ilike."${email}",auth_user_id.eq.${currentUser.id}`)
+        .maybeSingle();
+
+      const hasInterpreter = !!interpreterData;
+      const hasBusiness = !!bizData;
+
+      if (hasInterpreter && hasBusiness) {
+        alert("계정 유형이 중복 등록되어 있습니다. 관리자에게 문의해주세요.");
+        navigate("home", null, null);
+        return;
+      }
+
+      if (hasInterpreter) {
+        navigate("interpreterMypage", null, null);
+        return;
+      }
+
+      if (hasBusiness) {
+        setBusinessProfile(bizData);
+        navigate("businessMypage", null, null);
+        return;
+      }
+
+      navigate("roleSelection", null, null);
+    } catch (err) {
+      console.error("Redirection logic error after login:", err);
+      navigate("home", null, null);
+    }
+  };
 
   const navigate = (
     nextPage,
@@ -143,15 +401,37 @@ function App() {
     navigate("home", null, null);
   };
 
-  const openInterpreterRegister = () => {
+  const openInterpreterRegister = async () => {
     if (authLoading) return;
     if (!user) {
       alert("로그인 후 이용 가능합니다.");
       navigate("login", null, null);
       return;
     }
+    try {
+      const { data } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (data) {
+        alert("이미 기업으로 등록된 계정은 통역사 등록을 할 수 없습니다. 통역사 이용은 별도 계정으로 가입해주세요.");
+        return;
+      }
+    } catch (err) {
+      console.error("Error checking business profile before interpreter registration:", err);
+    }
     navigate("register", null, null);
   };
+
+  useEffect(() => {
+    applySeo(
+      page,
+      getPath(page, selectedInterpreter, selectedJobId, selectedPolicyKey),
+      selectedPolicyKey
+    );
+  }, [page, selectedInterpreter, selectedJobId, selectedPolicyKey]);
 
   useEffect(() => {
     const handlePopState = (event) => {
@@ -182,13 +462,25 @@ function App() {
         } else if (page === "interpreterMypage") {
           alert("로그인 후 이용 가능합니다.");
           navigate("interpreterLogin", null, null);
+        } else if (page === "businessRegister" || page === "businessMypage" || page === "roleSelection") {
+          alert("로그인 후 이용 가능합니다.");
+          navigate("login", null, null);
+        } else if (page === "jobCreate") {
+          alert("로그인 후 통역 의뢰가 가능합니다.");
+          navigate("login", null, null);
         }
       } else if (!isAdmin && page === "admin") {
         alert("관리자 권한이 없습니다.");
-        navigate("interpreterMypage", null, null);
+        handleMypageClick();
+      } else if (user && page === "businessMypage" && !fetchingBusiness && !businessProfile) {
+        alert("기업 등록이 필요합니다.");
+        navigate("businessRegister", null, null);
+      } else if (user && page === "jobCreate" && !fetchingBusiness && !businessProfile && !isAdmin) {
+        alert("기업 등록 후 통역 의뢰가 가능합니다.");
+        navigate("businessRegister", null, null);
       }
     }
-  }, [user, authLoading, page, isAdmin]);
+  }, [user, authLoading, page, isAdmin, fetchingBusiness, businessProfile]);
 
   useEffect(() => {
     const fetchInterpreter = async () => {
@@ -196,20 +488,31 @@ function App() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("interpreters")
-        .select(PUBLIC_INTERPRETER_SELECT)
+      let selectString = PUBLIC_INTERPRETER_SELECT;
+      let { data, error } = await supabase
+        .from("public_interpreters")
+        .select(selectString)
         .eq("id", selectedInterpreterId)
-        .eq("approved", true)
-        .in("status", ["active", "warning"])
         .single();
+
+      if (error && isMissingColumnError(error)) {
+        console.warn("Retrying public_interpreters query without verified column...");
+        selectString = PUBLIC_INTERPRETER_SELECT_FALLBACK;
+        const fallbackResult = await supabase
+          .from("public_interpreters")
+          .select(selectString)
+          .eq("id", selectedInterpreterId)
+          .single();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) {
         console.error(error);
         return;
       }
 
-      setSelectedInterpreter(data || null);
+      setSelectedInterpreter(isPublicInterpreterVisible(data) ? data : null);
     };
 
     queueMicrotask(fetchInterpreter);
@@ -240,13 +543,16 @@ function App() {
           onRequestClick={() => navigate("jobCreate", null, null)}
           onInterpreterLoginClick={() => navigate("login", null, null)}
           onInterpreterSignupClick={() => navigate("login", null, null)}
-          onMypageClick={() => navigate("interpreterMypage", null, null)}
+          onMypageClick={handleMypageClick}
+          onBusinessRegisterClick={openBusinessRegister}
+          onBusinessMypageClick={() => navigate("businessMypage", null, null)}
+          hasBusinessProfile={Boolean(businessProfile)}
           onAdminClick={() => {
             if (isAdmin) {
               navigateAdminJobs();
               return;
             }
-            navigate("interpreterMypage", null, null);
+            handleMypageClick();
           }}
         />
       )}
@@ -256,6 +562,51 @@ function App() {
           onBackClick={() => navigate("home", null, null)}
           onRequestClick={() => navigate("jobCreate", null, null)}
           onListClick={() => navigate("list", null, null)}
+        />
+      )}
+
+      {page === "business" && (
+        <Business
+          onBackClick={() => navigate("home", null, null)}
+          onRequestClick={() => navigate("jobCreate", null, null)}
+          onRegisterClick={() => navigate("businessRegister", null, null)}
+          onMypageClick={handleMypageClick}
+          hasBusinessProfile={Boolean(businessProfile)}
+        />
+      )}
+
+      {page === "businessRegister" && (
+        <BusinessRegister
+          user={user}
+          onRegisterSuccess={handleBusinessRegisterSuccess}
+          onBackClick={() => navigate("home", null, null)}
+        />
+      )}
+
+      {page === "businessMypage" && (
+        <BusinessMypage
+          user={user}
+          authLoading={authLoading}
+          onLoginClick={() => navigate("login", null, null)}
+          onRegisterClick={() => navigate("businessRegister", null, null)}
+          onHomeClick={() => navigate("home", null, null)}
+          onSignOut={handleLogout}
+          onNewRequestClick={() => {
+            setDuplicateRequestTemplate(null);
+            navigate("jobCreate", null, null);
+          }}
+          onDuplicateRequest={(req) => {
+            setDuplicateRequestTemplate(req);
+            navigate("jobCreate", null, null);
+          }}
+        />
+      )}
+
+      {page === "roleSelection" && (
+        <RoleSelection
+          onRegisterInterpreter={() => navigate("register", null, null)}
+          onRegisterBusiness={() => navigate("businessRegister", null, null)}
+          onBackClick={() => navigate("home", null, null)}
         />
       )}
 
@@ -292,7 +643,7 @@ function App() {
       {page === "login" && (
         <Login
           onBackClick={() => navigate("home", null, null)}
-          onLoginSuccess={() => navigate("home", null, null)}
+          onLoginSuccess={handleLoginSuccess}
         />
       )}
 
@@ -363,7 +714,7 @@ function App() {
       {page === "admin" && !authLoading && !user && (
         <Login
           onBackClick={() => navigate("home", null, null)}
-          onLoginSuccess={() => {}}
+          onLoginSuccess={handleLoginSuccess}
           isAdminMode={true}
         />
       )}
@@ -373,13 +724,15 @@ function App() {
           title="관리자 권한이 필요합니다."
           description="관리자 권한이 없는 계정은 마이페이지로 이동합니다."
           primaryText="마이페이지로 이동"
-          onPrimaryClick={() => navigate("interpreterMypage", null, null)}
+          onPrimaryClick={handleMypageClick}
           onHomeClick={() => navigate("home", null, null)}
         />
       )}
 
       {page === "admin" && !authLoading && user && isAdmin && (
-        <Admin onBackClick={() => navigate("home", null)} />
+        <AdminErrorBoundary onHomeClick={() => navigate("home", null, null)}>
+          <Admin onBackClick={() => navigate("home", null)} />
+        </AdminErrorBoundary>
       )}
 
       {page === "policy" && selectedPolicyKey && (
@@ -391,8 +744,10 @@ function App() {
 
       {page === "jobs" && (
         <JobList
+          isAuthenticated={Boolean(user)}
           onBackClick={() => navigate("home", null, null)}
-          onCreateJobClick={navigateAdminJobs}
+          onCreateJobClick={() => navigate("jobCreate", null, null)}
+          onLoginClick={() => navigate("login", null, null)}
           onDetailClick={(job) => navigate("jobDetail", null, job.id)}
           onApplyClick={(job) => {
             navigate("jobDetail", null, job.id);
@@ -408,9 +763,17 @@ function App() {
 
       {page === "jobCreate" && (
         <RequestForm
+          user={user}
           interpreter={null}
-          onBackClick={() => navigate("home", null, null)}
-          onSubmitSuccess={() => navigate("home", null, null)}
+          duplicateTemplate={duplicateRequestTemplate}
+          onBackClick={() => {
+            setDuplicateRequestTemplate(null);
+            navigate("home", null, null);
+          }}
+          onSubmitSuccess={() => {
+            setDuplicateRequestTemplate(null);
+            navigate("home", null, null);
+          }}
         />
       )}
 
@@ -422,13 +785,16 @@ function App() {
           onHomeClick={() => navigate("home", null, null)}
           onLoginClick={() => navigate("login", null, null)}
           onRegisterClick={openInterpreterRegister}
+          onMypageClick={handleMypageClick}
         />
       )}
 
       {page === "list" && (
         <InterpreterList
+          isAuthenticated={Boolean(user)}
           onBackClick={() => navigate("home", null)}
           onRegisterClick={openInterpreterRegister}
+          onLoginClick={() => navigate("login", null, null)}
           onDetailClick={(person) => {
             navigate("detail", person);
           }}

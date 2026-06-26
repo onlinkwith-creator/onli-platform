@@ -2,6 +2,8 @@ export const ASSIGNMENT_STATUS = {
   WAITING: "waiting",
   ASSIGNING: "assigning",
   ASSIGNED: "assigned",
+  PREPARING: "preparing",
+  READY: "ready",
 };
 
 export const OPERATION_STATUS = {
@@ -13,25 +15,31 @@ export const OPERATION_STATUS = {
 export const SETTLEMENT_FLOW_STATUS = {
   NOT_REQUIRED: "not_required",
   PENDING: "pending",
+  CONFIRMED: "confirmed",
   COMPLETED: "completed",
+  ON_HOLD: "on_hold",
 };
 
 export const ASSIGNMENT_STATUS_OPTIONS = [
   { value: ASSIGNMENT_STATUS.WAITING, label: "배정대기" },
   { value: ASSIGNMENT_STATUS.ASSIGNING, label: "배정중" },
   { value: ASSIGNMENT_STATUS.ASSIGNED, label: "배정완료" },
+  { value: ASSIGNMENT_STATUS.PREPARING, label: "업무준비중" },
+  { value: ASSIGNMENT_STATUS.READY, label: "진행예정" },
 ];
 
 export const OPERATION_STATUS_OPTIONS = [
   { value: OPERATION_STATUS.BEFORE_OPERATION, label: "운영전" },
   { value: OPERATION_STATUS.IN_PROGRESS, label: "운영중" },
-  { value: OPERATION_STATUS.COMPLETED, label: "운영완료" },
+  { value: OPERATION_STATUS.COMPLETED, label: "업무완료" },
 ];
 
 export const SETTLEMENT_FLOW_STATUS_OPTIONS = [
   { value: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED, label: "정산없음" },
   { value: SETTLEMENT_FLOW_STATUS.PENDING, label: "정산대기" },
+  { value: SETTLEMENT_FLOW_STATUS.CONFIRMED, label: "정산확정" },
   { value: SETTLEMENT_FLOW_STATUS.COMPLETED, label: "정산완료" },
+  { value: SETTLEMENT_FLOW_STATUS.ON_HOLD, label: "정산보류" },
 ];
 
 export function normalizeAssignmentStatus(item = {}) {
@@ -39,7 +47,13 @@ export function normalizeAssignmentStatus(item = {}) {
   if (["assigned", "confirmed", "배정완료", "배정", "매칭완료"].includes(value)) {
     return ASSIGNMENT_STATUS.ASSIGNED;
   }
-  if (["assigning", "in_progress", "matching", "배정중", "매칭중", "진행중"].includes(value)) {
+  if (["preparing", "업무준비중", "업무 준비중"].includes(value)) {
+    return ASSIGNMENT_STATUS.PREPARING;
+  }
+  if (["ready", "진행예정", "진행 예정"].includes(value)) {
+    return ASSIGNMENT_STATUS.READY;
+  }
+  if (["assigning", "in_progress", "matching", "배정중", "매칭중", "진행중", "통역사 확인중", "확인중", "지정 요청중"].includes(value)) {
     return ASSIGNMENT_STATUS.ASSIGNING;
   }
   return ASSIGNMENT_STATUS.WAITING;
@@ -47,7 +61,7 @@ export function normalizeAssignmentStatus(item = {}) {
 
 export function normalizeOperationStatus(item = {}) {
   const value = getStatusValue(item.operation_status || item.status || item.matching_status);
-  if (["completed", "settled", "운영완료", "완료", "정산완료"].includes(value)) {
+  if (["completed", "settled", "운영완료", "업무완료", "완료", "정산완료"].includes(value)) {
     return OPERATION_STATUS.COMPLETED;
   }
   if (["in_progress", "matching", "운영중", "진행중"].includes(value)) {
@@ -60,6 +74,12 @@ export function normalizeSettlementFlowStatus(item = {}) {
   const value = getStatusValue(item.settlement_status || item.status || item.matching_status);
   if (["completed", "settled", "정산완료"].includes(value)) {
     return SETTLEMENT_FLOW_STATUS.COMPLETED;
+  }
+  if (["confirmed", "settlement_confirmed", "정산확정"].includes(value)) {
+    return SETTLEMENT_FLOW_STATUS.CONFIRMED;
+  }
+  if (["on_hold", "hold", "settlement_on_hold", "보류", "정산보류"].includes(value)) {
+    return SETTLEMENT_FLOW_STATUS.ON_HOLD;
   }
   if (["pending", "settlement_pending", "unsettled", "정산대기", "미정산"].includes(value)) {
     return SETTLEMENT_FLOW_STATUS.PENDING;
@@ -84,6 +104,8 @@ export function getAssignmentStatusBadgeClass(status) {
     [ASSIGNMENT_STATUS.WAITING]: "flow-badge-gray",
     [ASSIGNMENT_STATUS.ASSIGNING]: "flow-badge-blue",
     [ASSIGNMENT_STATUS.ASSIGNED]: "flow-badge-indigo",
+    [ASSIGNMENT_STATUS.PREPARING]: "flow-badge-teal",
+    [ASSIGNMENT_STATUS.READY]: "flow-badge-cyan",
   }[status] || "flow-badge-gray";
 }
 
@@ -99,7 +121,9 @@ export function getSettlementFlowStatusBadgeClass(status) {
   return {
     [SETTLEMENT_FLOW_STATUS.NOT_REQUIRED]: "flow-badge-gray",
     [SETTLEMENT_FLOW_STATUS.PENDING]: "flow-badge-purple",
+    [SETTLEMENT_FLOW_STATUS.CONFIRMED]: "flow-badge-blue",
     [SETTLEMENT_FLOW_STATUS.COMPLETED]: "flow-badge-emerald",
+    [SETTLEMENT_FLOW_STATUS.ON_HOLD]: "flow-badge-orange",
   }[status] || "flow-badge-gray";
 }
 

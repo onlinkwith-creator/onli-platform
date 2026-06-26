@@ -83,6 +83,15 @@ Current automatic send points:
 
 Schedule reminders are template-ready through `interpreter_schedule_reminder`; actual scheduled sending should be added later with Supabase Scheduled Functions or cron.
 
+Notification event sending:
+
+- Admins can process `notification_events` from **Admin > Internal > Notification History**.
+- The button calls the `send-email` Supabase Edge Function with `action: "process_notification_events"`.
+- Pending events are locked as `processing`, then updated to `sent`, `failed`, or `skipped`.
+- Failed events keep `error_message`, increment `retry_count`, and can be retried one by one from the admin screen.
+- Required server-only secrets: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `GMAIL_USER` or `EMAIL_USER`, `GMAIL_APP_PASSWORD` or `EMAIL_API_KEY`.
+- Optional server-only secrets: `EMAIL_PROVIDER=gmail`, `EMAIL_FROM`, `ADMIN_NOTIFICATION_EMAIL`, `APP_URL`.
+
 Security notes:
 
 - Do not expose Gmail SMTP credentials or a mail API key as `VITE_` frontend variables.

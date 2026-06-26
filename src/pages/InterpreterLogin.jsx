@@ -1,5 +1,9 @@
 import { useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
+import {
+  WITHDRAWN_ACCOUNT_MESSAGE,
+  isWithdrawnInterpreter,
+} from "../utils/accountStatus";
 import "./InterpreterAuth.css";
 
 function InterpreterLogin({ onBackClick, onSignupClick, onLoginSuccess }) {
@@ -22,18 +26,43 @@ function InterpreterLogin({ onBackClick, onSignupClick, onLoginSuccess }) {
     }
 
     setIsSubmitting(true);
+    const email = form.email.trim();
     const { error } = await supabase.auth.signInWithPassword({
-      email: form.email.trim(),
+      email,
       password: form.password,
     });
-    setIsSubmitting(false);
 
     if (error) {
       console.error("Interpreter login failed", error);
       setMessage("이메일 또는 비밀번호를 확인해주세요.");
+      setIsSubmitting(false);
       return;
     }
 
+    const { data: profiles, error: profileError } = await supabase
+      .from("interpreters")
+      .select("id, email, status, withdrawn_at")
+      .ilike("email", email);
+
+    if (profileError) {
+      console.warn("Interpreter withdrawal check skipped", profileError);
+    }
+
+    const withdrawnProfile = (profiles || []).find((profile) => {
+      return (
+        String(profile.email || "").toLowerCase().trim() === email.toLowerCase() &&
+        isWithdrawnInterpreter(profile)
+      );
+    });
+
+    if (withdrawnProfile) {
+      await supabase.auth.signOut();
+      setMessage(WITHDRAWN_ACCOUNT_MESSAGE);
+      setIsSubmitting(false);
+      return;
+    }
+
+    setIsSubmitting(false);
     onLoginSuccess?.();
   };
 
