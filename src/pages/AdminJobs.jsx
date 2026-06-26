@@ -6,7 +6,6 @@ import {
   JOB_VISIBILITY_OPTIONS,
   JOB_STATUS_OPTIONS,
   JOB_STATUS,
-  getJobVisibilityLabel,
   normalizeJobStatus,
   normalizeJobVisibility,
 } from "../utils/jobStatus";
@@ -126,9 +125,9 @@ function AdminJobs({
     status: "all",
     visibility: "all",
   });
-  const [selectedJob, setSelectedJob] = useState(null);
   const [isJobEditModalOpen, setIsJobEditModalOpen] = useState(false);
   const [isJobCreateModalOpen, setIsJobCreateModalOpen] = useState(false);
+  const [localExpandedJobId, setLocalExpandedJobId] = useState(null);
   const visibleJobs = isControlled ? controlledJobs : jobs;
   const visibleApplications = isControlled
     ? controlledApplications || []
@@ -314,7 +313,6 @@ function AdminJobs({
   };
 
   const startEdit = (job) => {
-    setSelectedJob(job);
     setEditingId(job.id);
     setForm({
       title: job.title || "",
@@ -340,7 +338,6 @@ function AdminJobs({
   const openCreateModal = () => {
     setForm(emptyForm);
     setEditingId(null);
-    setSelectedJob(null);
     setIsJobCreateModalOpen(true);
   };
 
@@ -348,7 +345,6 @@ function AdminJobs({
     resetForm();
     setIsJobEditModalOpen(false);
     setIsJobCreateModalOpen(false);
-    setSelectedJob(null);
   };
 
   const handleModalChange = (event) => {
@@ -679,6 +675,9 @@ function AdminJobs({
                     openApplicantsModal={setActiveApplicantsJobId}
                     startEdit={startEdit}
                     updateJob={updateJob}
+                    request={request}
+                    expanded={localExpandedJobId === job.id}
+                    setExpandedJobId={setLocalExpandedJobId}
                   />
                 );
               })}
@@ -759,109 +758,285 @@ function JobManagementCard({
   openApplicantsModal,
   startEdit,
   updateJob,
+  request,
+  expanded,
+  setExpandedJobId,
 }) {
   const statuses = getOperationFlowStatuses(job);
+  const headlineStatus = getRequestHeadlineStatus(job);
+  const estimateStatus = request?.estimate_status || "estimate_preparing";
 
   return (
-    <article className="admin-list-card">
-      <div className="job-card-header">
-        <div className="job-card-top-row">
-          <span className="job-type-label">통역 공고</span>
-          <div className="job-status-group">
-            <OperationFlowSelect
-              options={ASSIGNMENT_STATUS_OPTIONS}
-              type="assignment"
-              value={statuses.assignment_status}
-              onChange={(value) => updateJob(job, getAssignmentStatusChanges({ ...job, assignment_status: value }))}
-            />
-            <OperationFlowSelect
-              options={OPERATION_STATUS_OPTIONS}
-              type="operation"
-              value={statuses.operation_status}
-              onChange={(value) => updateJob(job, getOperationStatusChanges({ ...job, operation_status: value }))}
-            />
+    <article
+      className={`admin-list-card accordion-card ${expanded ? "is-expanded" : ""}`}
+      onClick={(e) => {
+        // Only expand/collapse if clicking general areas, not controls or buttons
+        if (
+          e.target.closest("button") ||
+          e.target.closest("select") ||
+          e.target.closest("a") ||
+          e.target.closest("input") ||
+          e.target.closest("textarea") ||
+          e.target.closest(".admin-more-menu") ||
+          e.target.closest(".admin-flow-status-panel")
+        ) {
+          return;
+        }
+        setExpandedJobId(expanded ? null : job.id);
+      }}
+      style={{
+        cursor: "pointer",
+        transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+        borderColor: expanded ? "#c084fc" : "#e5e7eb",
+        boxShadow: expanded ? "0 4px 20px rgba(192, 132, 252, 0.15)" : "",
+      }}
+    >
+      <div className="request-card-body" style={{ gap: "8px" }}>
+        <div className="admin-request-card-head">
+          <div>
+            <ManagementNumberBadge value={job.job_no} />
+            <h3 className="job-card-title" title={job.event_name || job.title || ""}>
+              {job.event_name || job.title || "-"}
+            </h3>
+            <div className="admin-company-history-link" style={{ fontSize: "12px", color: "#6b7280" }}>
+              {job.company_name || "-"}
+            </div>
+          </div>
+          <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(headlineStatus.type, headlineStatus.value)}`}>
+            {headlineStatus.label}
+          </span>
+        </div>
+
+        <div className="admin-status-badge-row" style={{ marginBottom: expanded ? "6px" : "0" }}>
+          <FlowStatusBadge
+            type="operation"
+            value={estimateStatus}
+            label={getEstimateStatusLabel(estimateStatus)}
+          />
+          <FlowStatusBadge
+            type="assignment"
+            value={statuses.assignment_status}
+            label={getOperationStatusOptionLabel(ASSIGNMENT_STATUS_OPTIONS, statuses.assignment_status)}
+          />
+          <FlowStatusBadge
+            type="operation"
+            value={statuses.operation_status}
+            label={getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, statuses.operation_status)}
+          />
+          <FlowStatusBadge
+            type="settlement"
+            value={statuses.settlement_status}
+            label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
+          />
+        </div>
+
+        {/* Expandable Details Container */}
+        <div className={`admin-card-expandable-content ${expanded ? "is-expanded" : ""}`}>
+          <div className="admin-card-expandable-content-inner">
+            <div className="admin-flow-status-panel" onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px" }}>
+                <JobField label="공개 상태">
+                  <select
+                    className="admin-inline-select"
+                    value={normalizeJobVisibility(job)}
+                    onChange={(event) => updateJob(job, { visibility: event.target.value })}
+                  >
+                    {JOB_VISIBILITY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </JobField>
+                <JobField label="배정 상태">
+                  <select
+                    className="admin-inline-select"
+                    value={statuses.assignment_status}
+                    onChange={(event) => updateJob(job, getAssignmentStatusChanges({ ...job, assignment_status: event.target.value }))}
+                  >
+                    {ASSIGNMENT_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </JobField>
+                <JobField label="운영 상태">
+                  <select
+                    className="admin-inline-select"
+                    value={statuses.operation_status}
+                    onChange={(event) => updateJob(job, getOperationStatusChanges({ ...job, operation_status: event.target.value }))}
+                  >
+                    {OPERATION_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </JobField>
+                <JobField label="정산 상태">
+                  <select
+                    className="admin-inline-select"
+                    value={statuses.settlement_status}
+                    onChange={(event) => updateJob(job, getSettlementFlowStatusChanges({ ...job, settlement_status: event.target.value }))}
+                  >
+                    {SETTLEMENT_FLOW_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </JobField>
+              </div>
+            </div>
+
+            <dl className="admin-request-summary admin-request-summary-clean">
+              <JobInfo label="공고번호" value={formatManagementNumber(job.job_no)} />
+              <JobInfo label="날짜" value={formatDateRange(job.start_date, job.end_date, job.event_date || job.date)} />
+              <JobInfo label="장소" value={job.location || job.event_location || "-"} />
+              <JobInfo label="언어" value={job.language || "-"} />
+              <JobInfo label="지원자 수" value={`${jobApplications.length}명`} />
+              <JobInfo label="합격자 수" value={`${matchedCount}명`} />
+              <JobInfo label="지정 요청" value={requestType.isDesignated ? `지정: ${interpreterName}` : "-"} />
+              <JobInfo label="배정 통역사" value={assignedInterpreterName || "-"} />
+            </dl>
+
+            <div className="admin-card-primary-actions">
+              <button
+                type="button"
+                className="admin-link-button primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openApplicantsModal(job.id);
+                }}
+              >
+                지원자 확인 ({jobApplications.length}명)
+              </button>
+              <button
+                type="button"
+                className="admin-link-button primary subtle"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startEdit(job);
+                }}
+              >
+                수정
+              </button>
+            </div>
+
+            <div className="admin-card-secondary-area">
+              <div className="admin-card-secondary-actions" style={{ justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  className="admin-link-button danger"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteJob(job);
+                  }}
+                >
+                  삭제
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="job-card-code-row">
-          <span className="job-code-badge">{formatManagementNumber(job.job_no)}</span>
-          <div className="job-sub-status-group">
-            <OperationFlowSelect
-              options={SETTLEMENT_FLOW_STATUS_OPTIONS}
-              type="settlement"
-              value={statuses.settlement_status}
-              onChange={(value) => updateJob(job, getSettlementFlowStatusChanges({ ...job, settlement_status: value }))}
-            />
-          </div>
-        </div>
-
-        <h3 className="job-card-title" title={job.title || ""}>
-          {job.event_name || job.title || "-"}
-        </h3>
-      </div>
-
-      <dl className="admin-card-summary">
-        <JobInfo label="공고번호" value={formatManagementNumber(job.job_no)} />
-        <JobInfo label="기업명" value={job.company_name || "-"} />
-        <JobInfo
-          label="날짜"
-          value={formatDateRange(job.start_date, job.end_date, job.event_date || job.date)}
-        />
-        <JobInfo label="장소" value={job.location || job.event_location || "-"} />
-        <JobInfo label="언어" value={job.language || "-"} />
-        <JobInfo label="지원자 수" value={`${jobApplications.length}명`} />
-        <JobInfo label="합격" value={`${matchedCount}명`} />
-      </dl>
-
-      <div className="admin-card-chip-row">
-        <span className={`status-badge ${requestType.isDesignated ? "badge-purple" : "badge-gray"}`}>
-          {requestType.label}
-        </span>
-        <span className={`status-badge ${getVisibilityBadgeClass(normalizeJobVisibility(job))}`}>
-          {getJobVisibilityLabel(job)}
-        </span>
-        {requestType.isDesignated && (
-          <span className="admin-empty-chip">지정: {interpreterName}</span>
-        )}
-        {assignedInterpreterName && (
-          <span className="admin-empty-chip">배정: {assignedInterpreterName}</span>
-        )}
-      </div>
-
-      <div className="admin-card-controls-grid single">
-        <JobField label="공개 상태">
-          <select
-            className="admin-inline-select"
-            value={normalizeJobVisibility(job)}
-            onChange={(event) => updateJob(job, { visibility: event.target.value })}
+        {/* Expand / Collapse Indicator Button */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedJobId(expanded ? null : job.id);
+            }}
+            style={{
+              fontSize: "11px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 8px",
+              background: "none",
+              border: "none",
+              color: "#6b7280",
+              cursor: "pointer",
+              fontWeight: "800",
+              transition: "color 0.2s ease"
+            }}
+            onMouseEnter={(e) => e.target.style.color = "#4f46e5"}
+            onMouseLeave={(e) => e.target.style.color = "#6b7280"}
           >
-            {JOB_VISIBILITY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </JobField>
+            {expanded ? "▲ 접기" : "▼ 펼치기"}
+          </button>
+        </div>
       </div>
-
-      <div className="admin-card-actions">
-        <button
-          type="button"
-          className="admin-link-button primary"
-          onClick={() => openApplicantsModal(job.id)}
-        >
-          지원자 {jobApplications.length}명
-        </button>
-        <button type="button" className="admin-link-button" onClick={() => startEdit(job)}>
-          수정
-        </button>
-        <button type="button" className="admin-link-button danger" onClick={() => deleteJob(job)}>
-          삭제
-        </button>
-      </div>
-
     </article>
   );
+}
+
+const ESTIMATE_STATUS_OPTIONS = [
+  { value: "estimate_preparing", label: "견적 준비중" },
+  { value: "estimate_required", label: "견적 확인 필요" },
+  { value: "estimate_approved", label: "견적 승인 완료" },
+];
+
+function getEstimateStatusLabel(value) {
+  const normalized = String(value || "estimate_preparing").trim();
+  const legacyLabels = {
+    estimate_pending: "견적 준비중",
+    estimate_sent: "견적 확인 필요",
+    company_approved: "견적 승인 완료",
+  };
+  return (
+    ESTIMATE_STATUS_OPTIONS.find((option) => option.value === normalized)?.label ||
+    legacyLabels[normalized] ||
+    "견적 준비중"
+  );
+}
+
+function getRequestHeadlineStatus(item = {}) {
+  const statuses = getOperationFlowStatuses(item);
+
+  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.COMPLETED) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산완료" };
+  }
+  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.CONFIRMED) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산확정" };
+  }
+  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.ON_HOLD) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산보류" };
+  }
+  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.PENDING) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산대기" };
+  }
+  if (statuses.operation_status === OPERATION_STATUS.COMPLETED) {
+    return { type: "operation", value: statuses.operation_status, label: "업무완료" };
+  }
+  if (statuses.operation_status === OPERATION_STATUS.IN_PROGRESS) {
+    return { type: "operation", value: statuses.operation_status, label: "운영중" };
+  }
+  if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNED) {
+    return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
+  }
+  if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNING) {
+    return {
+      type: "assignment",
+      value: statuses.assignment_status,
+      label: isDesignatedRequest(item) ? "통역사 확인중" : "배정중",
+    };
+  }
+  return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
+}
+
+function FlowStatusBadge({ label, type, value }) {
+  return (
+    <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(type, value)}`}>
+      {label}
+    </span>
+  );
+}
+
+function getOperationStatusOptionLabel(options, value) {
+  return options.find((opt) => opt.value === value)?.label || "-";
 }
 
 function JobField({ label, children }) {
@@ -882,17 +1057,7 @@ function JobInfo({ label, value }) {
   );
 }
 
-function SectionTitle({ count, title }) {
-  return (
-    <div className="admin-section-title">
-      <div>
-        <p className="admin-kicker">MANAGE</p>
-        <h2>{title}</h2>
-      </div>
-      <span className="admin-count">{count}</span>
-    </div>
-  );
-}
+
 
 function MessageBox({ text }) {
   return <div className="admin-message">{text}</div>;
@@ -1179,61 +1344,15 @@ function hasJobApplicationScheduleConflict(application = {}, job = {}, getInterp
   }).some((matching) => String(matching.job_id) !== String(job.id));
 }
 
-function OperationFlowStatusControls({ disabled = false, item, onChange }) {
-  const statuses = getOperationFlowStatuses(item);
 
-  return (
-    <div className="admin-flow-status-controls" aria-label="운영 단계 상태 변경">
-      <OperationFlowSelect
-        disabled={disabled}
-        options={ASSIGNMENT_STATUS_OPTIONS}
-        type="assignment"
-        value={statuses.assignment_status}
-        onChange={(value) => onChange(getAssignmentStatusChanges({ ...item, assignment_status: value }))}
-      />
-      <OperationFlowSelect
-        disabled={disabled}
-        options={OPERATION_STATUS_OPTIONS}
-        type="operation"
-        value={statuses.operation_status}
-        onChange={(value) => onChange(getOperationStatusChanges({ ...item, operation_status: value }))}
-      />
-      <OperationFlowSelect
-        disabled={disabled}
-        options={SETTLEMENT_FLOW_STATUS_OPTIONS}
-        type="settlement"
-        value={statuses.settlement_status}
-        onChange={(value) => onChange(getSettlementFlowStatusChanges({ ...item, settlement_status: value }))}
-      />
-    </div>
-  );
-}
 
-function OperationFlowSelect({ disabled, onChange, options, type, value }) {
-  return (
-    <select
-      className={`admin-flow-status-select ${getOperationFlowBadgeClass(type, value)}`}
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-      aria-label={getOperationFlowAriaLabel(type)}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  );
-}
+
 
 function getStatusBadgeClass(status) {
   return getStandardStatusBadgeClass(status);
 }
 
-function getVisibilityBadgeClass(visibility) {
-  return getStatusBadgeClass(visibility === "public" ? "공개" : "비공개");
-}
+
 
 function getDesignatedJobType(...items) {
   const isDesignated = isDesignatedRequest(...items);
@@ -1256,10 +1375,7 @@ function getAssignedInterpreterName(assignments = [], interpreters = []) {
     .join(", ");
 }
 
-function formatDate(value) {
-  if (!value) return "-";
-  return String(value).slice(0, 10);
-}
+
 
 function getOperationFlowStatuses(item = {}) {
   return {
@@ -1344,11 +1460,7 @@ function getOperationFlowBadgeClass(type, value) {
   return getSettlementFlowStatusBadgeClass(value);
 }
 
-function getOperationFlowAriaLabel(type) {
-  if (type === "assignment") return "배정 상태";
-  if (type === "operation") return "운영 상태";
-  return "정산 상태";
-}
+
 
 function JobModal({
   editingId,

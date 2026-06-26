@@ -3745,6 +3745,8 @@ function Admin({ onBackClick }) {
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
                 onOpenDocumentPreview={openDocumentPreview}
+                generatedDocuments={generatedDocuments}
+                openRequestModal={openRequestModal}
               />
             )}
 
@@ -3764,6 +3766,8 @@ function Admin({ onBackClick }) {
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
                 onOpenDocumentPreview={openDocumentPreview}
+                generatedDocuments={generatedDocuments}
+                openRequestModal={openRequestModal}
               />
             )}
 
@@ -3782,6 +3786,9 @@ function Admin({ onBackClick }) {
                 noteDrafts={adminNoteDrafts}
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
+                generatedDocuments={generatedDocuments}
+                openRequestModal={openRequestModal}
               />
             )}
 
@@ -3800,6 +3807,9 @@ function Admin({ onBackClick }) {
                 noteDrafts={adminNoteDrafts}
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
+                onOpenDocumentPreview={openDocumentPreview}
+                generatedDocuments={generatedDocuments}
+                openRequestModal={openRequestModal}
               />
             )}
 
@@ -4046,7 +4056,12 @@ function RequestActionModal({
   const shouldBePublic = jobPublicState.type !== "public";
 
   return (
-    <AdminModal title={modalTitle} titleId={modalId} onClose={onClose}>
+    <AdminModal
+      title={modalTitle}
+      titleId={modalId}
+      onClose={onClose}
+      className={activeModal.type === "detail" ? "admin-request-detail-modal" : ""}
+    >
       {activeModal.type === "detail" && (
         <RequestDetailPanel
           request={request}
@@ -5373,7 +5388,6 @@ function RequestManagement({
   applicationsRequestId,
   assignmentDrafts,
   assignmentsByRequest,
-  expandedRequestId,
   filters,
   getInterpreterScheduleConflicts,
   interpreters,
@@ -5387,7 +5401,6 @@ function RequestManagement({
   savingKey,
   setAssignmentDrafts,
   setApplicationsRequestId,
-  setExpandedRequestId,
   openRequestModal,
   setFilters,
   assignInterpreter,
@@ -5402,6 +5415,7 @@ function RequestManagement({
   onOpenDocumentPreview,
 }) {
   const isListView = filters.view === "list";
+  const [localExpandedRequestId, setLocalExpandedRequestId] = useState(null);
 
   return (
     <section className="admin-section">
@@ -5486,7 +5500,7 @@ function RequestManagement({
               applicationsExpanded={applicationsRequestId === request.id}
               assignmentDrafts={assignmentDrafts}
               assignments={assignmentsByRequest.get(request.id) || []}
-              expanded={expandedRequestId === request.id}
+              expanded={localExpandedRequestId === request.id}
               getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
               interpreters={interpreters}
               jobApplications={
@@ -5501,7 +5515,7 @@ function RequestManagement({
               savingKey={savingKey}
               setAssignmentDrafts={setAssignmentDrafts}
               setApplicationsRequestId={setApplicationsRequestId}
-              setExpandedRequestId={setExpandedRequestId}
+              setExpandedRequestId={setLocalExpandedRequestId}
               assignInterpreter={assignInterpreter}
               handlePriceDraft={handlePriceDraft}
               saveSettlement={saveSettlement}
@@ -8116,6 +8130,7 @@ function ApplicationManagement({
   onChangeNoteDraft,
   onCreateNote,
 }) {
+  const [expandedAppId, setExpandedAppId] = useState(null);
   const duplicateData = useMemo(
     () => duplicateResult || getDuplicateApplicationIdSet(applications),
     [applications, duplicateResult]
@@ -8201,6 +8216,8 @@ function ApplicationManagement({
                 noteDrafts={noteDrafts}
                 onChangeNoteDraft={onChangeNoteDraft}
                 onCreateNote={onCreateNote}
+                expanded={expandedAppId === application.id}
+                setExpanded={(val) => setExpandedAppId(val ? application.id : null)}
               />
             );
           })}
@@ -8224,18 +8241,40 @@ function ApplicationCard({
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
+  expanded,
+  setExpanded,
 }) {
   const duplicateTitle = duplicateReasons.join(", ");
 
   return (
-    <article className="admin-list-card">
-      <div className="admin-list-card-head">
+    <article
+      className={`admin-list-card accordion-card ${expanded ? "is-expanded" : ""}`}
+      onClick={(e) => {
+        if (
+          e.target.closest("button") ||
+          e.target.closest("select") ||
+          e.target.closest("a") ||
+          e.target.closest("input") ||
+          e.target.closest("textarea") ||
+          e.target.closest(".admin-more-menu") ||
+          e.target.closest(".admin-flow-status-panel")
+        ) {
+          return;
+        }
+        setExpanded(!expanded);
+      }}
+      style={{ cursor: "pointer" }}
+    >
+      <div className="admin-list-card-head" style={{ marginBottom: expanded ? "6px" : "0" }}>
         <div>
           <span className="admin-card-meta">지원자</span>
           <ManagementNumberBadge value={application.application_no} />
           <h3 title={application.applicant_name || ""}>
             {application.applicant_name || "이름 미입력"}
           </h3>
+          <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px", fontWeight: "700" }}>
+            {getJobDisplayTitle(job, application.job_id)}
+          </div>
         </div>
         <div className="admin-card-chip-row">
           {duplicateSuspected && (
@@ -8246,69 +8285,105 @@ function ApplicationCard({
         </div>
       </div>
 
-      <dl className="admin-card-summary">
-        <Info label="지원번호" value={formatManagementNumber(application.application_no)} />
-        <Info label="지원 공고" value={getJobDisplayTitle(job, application.job_id)} />
-        <Info label="기업/행사" value={getJobOrganizationLabel(job)} />
-        <Info label="언어" value={getApplicationLanguage(application, job)} />
-        <Info label="지원일" value={formatDate(application.created_at)} />
-        <Info label="이메일" value={application.email || application.applicant_email || "-"} />
-        <Info label="전화번호" value={application.phone || application.applicant_phone || "-"} />
-        <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
-        <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
-        <Info label="메모" value={application.message || "지원 메모 없음"} />
-      </dl>
+      <div className={`admin-card-expandable-content ${expanded ? "is-expanded" : ""}`}>
+        <div className="admin-card-expandable-content-inner">
+          <dl className="admin-card-summary">
+            <Info label="지원번호" value={formatManagementNumber(application.application_no)} />
+            <Info label="지원 공고" value={getJobDisplayTitle(job, application.job_id)} />
+            <Info label="기업/행사" value={getJobOrganizationLabel(job)} />
+            <Info label="언어" value={getApplicationLanguage(application, job)} />
+            <Info label="지원일" value={formatDate(application.created_at)} />
+            <Info label="이메일" value={application.email || application.applicant_email || "-"} />
+            <Info label="전화번호" value={application.phone || application.applicant_phone || "-"} />
+            <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
+            <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
+            <Info label="메모" value={application.message || "지원 메모 없음"} />
+          </dl>
 
-      <div className="admin-card-controls-grid single">
-        <FieldControl label="상태">
-          <InlineSelect
-            options={JOB_APPLICATION_STATUSES}
-            value={normalizeApplicationStatus(application.status)}
-            disabled={savingKey === `job-application-${application.id}`}
-            onChange={(value) => updateApplicationStatus(application, value)}
+          <div className="admin-card-controls-grid single">
+            <FieldControl label="상태">
+              <InlineSelect
+                options={JOB_APPLICATION_STATUSES}
+                value={normalizeApplicationStatus(application.status)}
+                disabled={savingKey === `job-application-${application.id}`}
+                onChange={(value) => updateApplicationStatus(application, value)}
+              />
+            </FieldControl>
+          </div>
+
+          <div className="admin-card-actions">
+            {normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED ? (
+              <StatusBadge status={APPLICATION_STATUS.ACCEPTED} />
+            ) : (
+              <button
+                type="button"
+                className="admin-link-button primary"
+                disabled={savingKey === `job-application-${application.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateApplicationStatus(application, APPLICATION_STATUS.ACCEPTED, {
+                    confirmMessage: "이 지원자를 합격 처리하시겠습니까?",
+                    askAssignJob: true,
+                  });
+                }}
+              >
+                매칭하기
+              </button>
+            )}
+            <button
+              type="button"
+              className="admin-link-button danger"
+              disabled={savingKey === `job-application-delete-${application.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteApplication(application);
+              }}
+            >
+              삭제
+            </button>
+          </div>
+
+          <AdminOperationsPanel
+            activityLogs={adminActivityLogs}
+            compactModal
+            notes={adminNotes}
+            noteDrafts={noteDrafts}
+            saving={savingKey === `admin-note-application:${application.id}`}
+            targetId={application.id}
+            targetType="application"
+            onChangeNoteDraft={onChangeNoteDraft}
+            onCreateNote={onCreateNote}
           />
-        </FieldControl>
+        </div>
       </div>
 
-      <div className="admin-card-actions">
-        {normalizeApplicationStatus(application.status) === APPLICATION_STATUS.ACCEPTED ? (
-          <StatusBadge status={APPLICATION_STATUS.ACCEPTED} />
-        ) : (
-          <button
-            type="button"
-            className="admin-link-button primary"
-            disabled={savingKey === `job-application-${application.id}`}
-            onClick={() =>
-              updateApplicationStatus(application, APPLICATION_STATUS.ACCEPTED, {
-                confirmMessage: "이 지원자를 합격 처리하시겠습니까?",
-                askAssignJob: true,
-              })
-            }
-          >
-            매칭하기
-          </button>
-        )}
+      {/* Expand / Collapse Indicator Button */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
         <button
           type="button"
-          className="admin-link-button danger"
-          disabled={savingKey === `job-application-delete-${application.id}`}
-          onClick={() => deleteApplication(application)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(!expanded);
+          }}
+          style={{
+            fontSize: "11px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            padding: "4px 8px",
+            background: "none",
+            border: "none",
+            color: "#6b7280",
+            cursor: "pointer",
+            fontWeight: "800",
+            transition: "color 0.2s ease"
+          }}
+          onMouseEnter={(e) => e.target.style.color = "#4f46e5"}
+          onMouseLeave={(e) => e.target.style.color = "#6b7280"}
         >
-          삭제
+          {expanded ? "▲ 접기" : "▼ 펼치기"}
         </button>
       </div>
-
-      <AdminOperationsPanel
-        activityLogs={adminActivityLogs}
-        compactModal
-        notes={adminNotes}
-        noteDrafts={noteDrafts}
-        saving={savingKey === `admin-note-application:${application.id}`}
-        targetId={application.id}
-        targetType="application"
-        onChangeNoteDraft={onChangeNoteDraft}
-        onCreateNote={onCreateNote}
-      />
     </article>
   );
 }
@@ -8327,6 +8402,7 @@ function AssignmentManagement({
     search: "",
     status: "all",
   });
+  const [expandedId, setExpandedId] = useState(null);
   const [collapsedSections, setCollapsedSections] = useState({
     allAssignments: false,
     pendingRequests: false,
@@ -8394,50 +8470,148 @@ function AssignmentManagement({
             <MessageBox text="검색 조건에 맞는 배정 의뢰가 없습니다." />
           ) : (
             <div className="admin-management-card-grid">
-              {filteredRows.map((row) => (
-                <article className="admin-list-card" key={row.rowId}>
-                  <div className="admin-list-card-head">
-                    <div>
-                      <span className="admin-card-meta">배정</span>
-                      <ManagementNumberBadge value={row.assignmentNo} />
-                      <h3>{row.interpreterName || "-"}</h3>
+              {filteredRows.map((row) => {
+                const request = row.request || {};
+                const flowSource = getRequestFlowSource(request, null);
+                const headlineStatus = getRequestHeadlineStatus(flowSource);
+                const statuses = getOperationFlowStatuses(flowSource);
+                const estimateStatus = request.estimate_status || "estimate_preparing";
+                const isExpanded = expandedId === `assignment-${row.rowId}`;
+
+                return (
+                  <article
+                    className={`admin-list-card accordion-card ${isExpanded ? "is-expanded" : ""}`}
+                    key={row.rowId}
+                    onClick={(e) => {
+                      if (
+                        e.target.closest("button") ||
+                        e.target.closest("select") ||
+                        e.target.closest("a") ||
+                        e.target.closest("input") ||
+                        e.target.closest("textarea") ||
+                        e.target.closest(".admin-more-menu") ||
+                        e.target.closest(".admin-flow-status-panel")
+                      ) {
+                        return;
+                      }
+                      setExpandedId(isExpanded ? null : `assignment-${row.rowId}`);
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+                      borderColor: isExpanded ? "#c084fc" : "#e5e7eb",
+                      boxShadow: isExpanded ? "0 4px 20px rgba(192, 132, 252, 0.15)" : "",
+                    }}
+                  >
+                    <div className="request-card-body" style={{ gap: "8px" }}>
+                      <div className="admin-list-card-head" style={{ marginBottom: isExpanded ? "6px" : "0" }}>
+                        <div>
+                          <span className="admin-card-meta">배정</span>
+                          <ManagementNumberBadge value={row.assignmentNo} />
+                          <h3 title={row.eventName || ""}>{row.eventName || "-"}</h3>
+                          <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px", fontWeight: "700" }}>
+                            통역사: {row.interpreterName || "-"}
+                          </div>
+                        </div>
+                        <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(headlineStatus.type, headlineStatus.value)}`}>
+                          {headlineStatus.label}
+                        </span>
+                      </div>
+
+                      <div className="admin-status-badge-row" style={{ marginBottom: isExpanded ? "6px" : "0" }}>
+                        <FlowStatusBadge
+                          type="operation"
+                          value={estimateStatus}
+                          label={getEstimateStatusLabel(estimateStatus)}
+                        />
+                        <FlowStatusBadge
+                          type="assignment"
+                          value={statuses.assignment_status}
+                          label={getOperationStatusOptionLabel(ASSIGNMENT_STATUS_OPTIONS, statuses.assignment_status)}
+                        />
+                        <FlowStatusBadge
+                          type="operation"
+                          value={statuses.operation_status}
+                          label={getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, statuses.operation_status)}
+                        />
+                        <FlowStatusBadge
+                          type="settlement"
+                          value={statuses.settlement_status}
+                          label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
+                        />
+                      </div>
+
+                      <div className={`admin-card-expandable-content ${isExpanded ? "is-expanded" : ""}`}>
+                        <div className="admin-card-expandable-content-inner">
+                          <dl className="admin-card-summary">
+                            <Info label="배정번호" value={formatManagementNumber(row.assignmentNo)} />
+                            <Info label="의뢰번호" value={formatManagementNumber(row.requestNo)} />
+                            <Info label="지원번호" value={formatManagementNumber(row.applicationNo)} />
+                            <Info label="통역사명" value={row.interpreterName || "-"} />
+                            <Info label="행사명" value={row.eventName || "-"} />
+                            <Info label="일정" value={row.dateLabel || "-"} />
+                            <Info label="장소" value={row.location || "-"} />
+                            <Info label="배정 상태" value={row.assignmentStatusLabel} />
+                            <Info label="정산 상태" value={row.settlementStatusLabel} />
+                          </dl>
+                          {row.request && (
+                            <div className="admin-card-primary-actions">
+                              <button
+                                type="button"
+                                className="admin-link-button primary subtle"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenRequest(row.request);
+                                }}
+                              >
+                                상세보기
+                              </button>
+                            </div>
+                          )}
+                          <AdminOperationsPanel
+                            activityLogs={adminActivityLogs}
+                            compactModal
+                            notes={adminNotes}
+                            noteDrafts={noteDrafts}
+                            targetId={row.assignment?.id || row.rowId}
+                            targetType="assignment"
+                            onChangeNoteDraft={onChangeNoteDraft}
+                            onCreateNote={onCreateNote}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Expand / Collapse Indicator Button */}
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedId(isExpanded ? null : `assignment-${row.rowId}`);
+                          }}
+                          style={{
+                            fontSize: "11px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "4px 8px",
+                            background: "none",
+                            border: "none",
+                            color: "#6b7280",
+                            cursor: "pointer",
+                            fontWeight: "800",
+                            transition: "color 0.2s ease"
+                          }}
+                          onMouseEnter={(e) => e.target.style.color = "#4f46e5"}
+                          onMouseLeave={(e) => e.target.style.color = "#6b7280"}
+                        >
+                          {isExpanded ? "▲ 접기" : "▼ 펼치기"}
+                        </button>
+                      </div>
                     </div>
-                    <StatusBadge status={row.assignmentStatusLabel} />
-                  </div>
-                  <dl className="admin-card-summary">
-                    <Info label="배정번호" value={formatManagementNumber(row.assignmentNo)} />
-                    <Info label="의뢰번호" value={formatManagementNumber(row.requestNo)} />
-                    <Info label="지원번호" value={formatManagementNumber(row.applicationNo)} />
-                    <Info label="통역사명" value={row.interpreterName || "-"} />
-                    <Info label="행사명" value={row.eventName || "-"} />
-                    <Info label="일정" value={row.dateLabel || "-"} />
-                    <Info label="장소" value={row.location || "-"} />
-                    <Info label="배정 상태" value={row.assignmentStatusLabel} />
-                    <Info label="정산 상태" value={row.settlementStatusLabel} />
-                  </dl>
-                  {row.request && (
-                    <div className="admin-card-actions">
-                      <button
-                        type="button"
-                        className="admin-link-button primary"
-                        onClick={() => onOpenRequest(row.request)}
-                      >
-                        상세보기
-                      </button>
-                    </div>
-                  )}
-                  <AdminOperationsPanel
-                    activityLogs={adminActivityLogs}
-                    compactModal
-                    notes={adminNotes}
-                    noteDrafts={noteDrafts}
-                    targetId={row.assignment?.id || row.rowId}
-                    targetType="assignment"
-                    onChangeNoteDraft={onChangeNoteDraft}
-                    onCreateNote={onCreateNote}
-                  />
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           ))}
       </div>
@@ -8453,41 +8627,140 @@ function AssignmentManagement({
           />
           {!collapsedSections.pendingRequests && (
             <div className="admin-management-card-grid">
-              {filteredPendingRequests.map((request) => (
-                <article className="admin-list-card" key={`pending-assignment-${request.id}`}>
-                  <div className="admin-list-card-head">
-                    <div>
-                      <span className="admin-card-meta">배정 대기</span>
-                      <ManagementNumberBadge value={request.request_no} />
-                      <h3>{request.event_name || request.title || "-"}</h3>
+              {filteredPendingRequests.map((request) => {
+                const flowSource = getRequestFlowSource(request, null);
+                const headlineStatus = getRequestHeadlineStatus(flowSource);
+                const statuses = getOperationFlowStatuses(flowSource);
+                const estimateStatus = request.estimate_status || "estimate_preparing";
+                const isExpanded = expandedId === `pending-${request.id}`;
+
+                return (
+                  <article
+                    className={`admin-list-card accordion-card ${isExpanded ? "is-expanded" : ""}`}
+                    key={`pending-assignment-${request.id}`}
+                    onClick={(e) => {
+                      if (
+                        e.target.closest("button") ||
+                        e.target.closest("select") ||
+                        e.target.closest("a") ||
+                        e.target.closest("input") ||
+                        e.target.closest("textarea") ||
+                        e.target.closest(".admin-more-menu") ||
+                        e.target.closest(".admin-flow-status-panel")
+                      ) {
+                        return;
+                      }
+                      setExpandedId(isExpanded ? null : `pending-${request.id}`);
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+                      borderColor: isExpanded ? "#c084fc" : "#e5e7eb",
+                      boxShadow: isExpanded ? "0 4px 20px rgba(192, 132, 252, 0.15)" : "",
+                    }}
+                  >
+                    <div className="request-card-body" style={{ gap: "8px" }}>
+                      <div className="admin-list-card-head" style={{ marginBottom: isExpanded ? "6px" : "0" }}>
+                        <div>
+                          <span className="admin-card-meta">배정 대기</span>
+                          <ManagementNumberBadge value={request.request_no} />
+                          <h3 title={request.event_name || request.title || ""}>
+                            {request.event_name || request.title || "-"}
+                          </h3>
+                          <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px", fontWeight: "700" }}>
+                            {request.company_name || "-"}
+                          </div>
+                        </div>
+                        <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass(headlineStatus.type, headlineStatus.value)}`}>
+                          {headlineStatus.label}
+                        </span>
+                      </div>
+
+                      <div className="admin-status-badge-row" style={{ marginBottom: isExpanded ? "6px" : "0" }}>
+                        <FlowStatusBadge
+                          type="operation"
+                          value={estimateStatus}
+                          label={getEstimateStatusLabel(estimateStatus)}
+                        />
+                        <FlowStatusBadge
+                          type="assignment"
+                          value={statuses.assignment_status}
+                          label={getOperationStatusOptionLabel(ASSIGNMENT_STATUS_OPTIONS, statuses.assignment_status)}
+                        />
+                        <FlowStatusBadge
+                          type="operation"
+                          value={statuses.operation_status}
+                          label={getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, statuses.operation_status)}
+                        />
+                        <FlowStatusBadge
+                          type="settlement"
+                          value={statuses.settlement_status}
+                          label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
+                        />
+                      </div>
+
+                      <div className={`admin-card-expandable-content ${isExpanded ? "is-expanded" : ""}`}>
+                        <div className="admin-card-expandable-content-inner">
+                          <dl className="admin-card-summary">
+                            <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
+                            <Info label="기업명" value={request.company_name || "-"} />
+                            <Info
+                              label="일정"
+                              value={formatDateRange(
+                                request.start_date,
+                                request.end_date,
+                                request.event_date || request.date
+                              )}
+                            />
+                            <Info label="장소" value={request.event_location || request.location || "-"} />
+                            <Info label="배정 상태" value={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
+                          </dl>
+                          <div className="admin-card-primary-actions">
+                            <button
+                              type="button"
+                              className="admin-link-button primary subtle"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenRequest(request);
+                              }}
+                            >
+                              상세보기
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expand / Collapse Indicator Button */}
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedId(isExpanded ? null : `pending-${request.id}`);
+                          }}
+                          style={{
+                            fontSize: "11px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "4px 8px",
+                            background: "none",
+                            border: "none",
+                            color: "#6b7280",
+                            cursor: "pointer",
+                            fontWeight: "800",
+                            transition: "color 0.2s ease"
+                          }}
+                          onMouseEnter={(e) => e.target.style.color = "#4f46e5"}
+                          onMouseLeave={(e) => e.target.style.color = "#6b7280"}
+                        >
+                          {isExpanded ? "▲ 접기" : "▼ 펼치기"}
+                        </button>
+                      </div>
                     </div>
-                    <StatusBadge status={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
-                  </div>
-                  <dl className="admin-card-summary">
-                    <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
-                    <Info label="기업명" value={request.company_name || "-"} />
-                    <Info
-                      label="일정"
-                      value={formatDateRange(
-                        request.start_date,
-                        request.end_date,
-                        request.event_date || request.date
-                      )}
-                    />
-                    <Info label="장소" value={request.event_location || request.location || "-"} />
-                    <Info label="배정 상태" value={getAssignmentStatusLabel(normalizeAssignmentStatus(request))} />
-                  </dl>
-                  <div className="admin-card-actions">
-                    <button
-                      type="button"
-                      className="admin-link-button primary"
-                      onClick={() => onOpenRequest(request)}
-                    >
-                      상세보기
-                    </button>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>
@@ -8525,9 +8798,11 @@ function DocumentManagement({
   );
 
   useEffect(() => {
-    setFilters((current) => ({ ...current, documentType: initialType }));
-    setSelectedDocumentId(null);
-    setVersionDraft(null);
+    queueMicrotask(() => {
+      setFilters((current) => ({ ...current, documentType: initialType }));
+      setSelectedDocumentId(null);
+      setVersionDraft(null);
+    });
   }, [initialType]);
 
   const filteredDocuments = useMemo(
@@ -9257,7 +9532,11 @@ function SettlementManagement({
   onChangeNoteDraft,
   onCreateNote,
   onOpenDocumentPreview,
+  generatedDocuments = [],
+  openRequestModal,
 }) {
+  const [expandedRequestId, setExpandedRequestId] = useState(null);
+
   const filteredRequests = requests.filter((request) => {
     const matchesMonth =
       !filters.month ||
@@ -9313,6 +9592,10 @@ function SettlementManagement({
               onChangeNoteDraft={onChangeNoteDraft}
               onCreateNote={onCreateNote}
               onOpenDocumentPreview={onOpenDocumentPreview}
+              generatedDocuments={generatedDocuments}
+              openRequestModal={openRequestModal}
+              expanded={expandedRequestId === request.id}
+              setExpandedRequestId={setExpandedRequestId}
             />
           ))}
         </div>
@@ -9322,18 +9605,20 @@ function SettlementManagement({
 }
 
 function SettlementRequestCard({
-  adminActivityLogs = [],
-  adminNotes = [],
   request,
   assignments,
   interpreters,
   savingKey,
   updateSettlementStatus,
-  noteDrafts = {},
-  onChangeNoteDraft,
-  onCreateNote,
   onOpenDocumentPreview,
+  generatedDocuments = [],
+  openRequestModal,
+  expanded,
+  setExpandedRequestId,
 }) {
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const moreMenuRef = useRef(null);
+
   const assignedInterpreterNames = getAssignedInterpreterName(
     request,
     assignments,
@@ -9343,9 +9628,26 @@ function SettlementRequestCard({
   const [isFinalAmountTouched, setIsFinalAmountTouched] = useState(false);
 
   useEffect(() => {
-    setDraft(createSettlementDraft(request));
-    setIsFinalAmountTouched(false);
+    queueMicrotask(() => {
+      setDraft(createSettlementDraft(request));
+      setIsFinalAmountTouched(false);
+    });
   }, [request]);
+
+  useEffect(() => {
+    if (!isMoreOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!moreMenuRef.current?.contains(event.target)) {
+        setIsMoreOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isMoreOpen]);
+
+  const closeMoreMenu = () => setIsMoreOpen(false);
 
   const updateDraft = (field, value) => {
     setDraft((current) => {
@@ -9365,16 +9667,30 @@ function SettlementRequestCard({
     }
   };
 
-  const clientPrice = getCompanyAmount(request);
   const settlementAmounts = calculateSettlementAmounts(draft);
   const interpreterPrice = settlementAmounts.settlement_final_amount;
-  const platformProfit = clientPrice - interpreterPrice;
   const paymentStatus = normalizePaymentStatus(request.payment_status);
   const settlementStatus = normalizeSettlementFlowStatus(request);
   const eventDate = formatDateRange(request.start_date, request.end_date, request.event_date);
+  const dailyRate = SETTLEMENT_LEVEL_DEFAULTS[draft.settlement_level || "LV1"]?.interpreter_payment || 0;
+
+  const assignedId = request.assigned_interpreter_id || request.matched_interpreter_id;
+  const interpreterObj = assignedId 
+    ? interpreters.find((item) => Number(item.id) === Number(assignedId))
+    : assignments.find(Boolean)?.interpreter;
+
+  const payoutMethod = interpreterObj 
+    ? (interpreterObj.business_license_file_url ? "사업자" : "개인(3.3%)")
+    : null;
+
+  const requestDocuments = generatedDocuments.filter(
+    (doc) => String(doc.request_id) === String(request.id)
+  );
+  const payoutDoc = requestDocuments.find((doc) => doc.document_type === "payout");
 
   const saveDraft = () => {
     updateSettlementStatus(request, getSettlementSavePayload({ ...request, ...draft }));
+    closeMoreMenu();
   };
 
   const completeSettlement = () => {
@@ -9387,140 +9703,294 @@ function SettlementRequestCard({
       settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
       settlement_completed_at: new Date().toISOString(),
     });
+    closeMoreMenu();
   };
 
   return (
-    <article className="admin-list-card">
-      <div className="admin-list-card-head">
-        <div>
-          <span className="admin-card-meta">정산</span>
-          <ManagementNumberBadge value={request.request_no} />
-          <h3 title={request.event_name || ""}>{request.event_name || "-"}</h3>
+    <article
+      className={`admin-list-card accordion-card ${expanded ? "is-expanded" : ""}`}
+      onClick={(e) => {
+        if (
+          e.target.closest("button") ||
+          e.target.closest("select") ||
+          e.target.closest("a") ||
+          e.target.closest("input") ||
+          e.target.closest("textarea") ||
+          e.target.closest(".admin-more-menu") ||
+          e.target.closest(".admin-flow-status-panel")
+        ) {
+          return;
+        }
+        setExpandedRequestId(expanded ? null : request.id);
+      }}
+      style={{
+        cursor: "pointer",
+        transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+        borderColor: expanded ? "#c084fc" : "#e5e7eb",
+        boxShadow: expanded ? "0 4px 20px rgba(192, 132, 252, 0.15)" : "",
+        minHeight: "170px"
+      }}
+    >
+      <div className="request-card-body" style={{ gap: "8px" }}>
+        {/* 상단: 정산/의뢰 번호 & 우측 정산 상태 Badge */}
+        <div className="admin-list-card-head" style={{ marginBottom: "4px" }}>
+          <div>
+            <span className="admin-card-meta">정산</span>
+            <ManagementNumberBadge value={request.request_no} />
+          </div>
+          <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass("settlement", settlementStatus)}`}>
+            {getSettlementFlowStatusLabel(settlementStatus)}
+          </span>
         </div>
-        <StatusBadge status={getSettlementFlowStatusLabel(settlementStatus)} />
+
+        {/* 제목: 행사명 */}
+        <h3 title={request.event_name || ""} style={{ margin: "2px 0 4px" }}>
+          {request.event_name || "-"}
+        </h3>
+
+        {/* 부제: 통역사명 */}
+        <div style={{ fontSize: "13px", color: "#475569", fontWeight: "700", marginBottom: "6px" }}>
+          통역사: {assignedInterpreterNames || "-"}
+        </div>
+
+        {/* 상태 Badge: 지급 상태, 레벨, 지급 방식(있으면) */}
+        <div className="admin-status-badge-row" style={{ marginBottom: "6px" }}>
+          <FlowStatusBadge
+            type="settlement"
+            value={settlementStatus}
+            label={`지급 상태: ${getSettlementFlowStatusLabel(settlementStatus)}`}
+          />
+          <span className="status-badge badge-gray" style={{ fontSize: "11px", fontWeight: "700" }}>
+            레벨: {draft.settlement_level || "-"}
+          </span>
+          {payoutMethod && (
+            <span className="status-badge badge-blue" style={{ fontSize: "11px", fontWeight: "700" }}>
+              지급 방식: {payoutMethod}
+            </span>
+          )}
+        </div>
+
+        {/* 금액: 최종 지급 예정 금액 */}
+        <div style={{ fontSize: "14px", fontWeight: "800", color: "#4f46e5", margin: "4px 0" }}>
+          최종 지급 예정 금액: {formatJPY(interpreterPrice)}
+        </div>
+
+        {/* Expandable Details Container */}
+        <div className={`admin-card-expandable-content ${expanded ? "is-expanded" : ""}`}>
+          <div className="admin-card-expandable-content-inner">
+            <div className="admin-flow-status-panel" onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px" }}>
+                <FieldControl label="업무 일수">
+                  <input
+                    type="number"
+                    min="1"
+                    value={draft.settlement_work_days}
+                    onChange={(event) => updateDraft("settlement_work_days", event.target.value)}
+                  />
+                </FieldControl>
+                <FieldControl label="적용 레벨">
+                  <InlineSelect
+                    options={SETTLEMENT_LEVEL_OPTIONS}
+                    value={draft.settlement_level}
+                    disabled={savingKey === `settlement-request-${request.id}`}
+                    onChange={(value) => updateDraft("settlement_level", value)}
+                  />
+                </FieldControl>
+                <NumberControl
+                  label="정산 금액"
+                  value={draft.settlement_final_amount}
+                  onChange={(value) => updateDraft("settlement_final_amount", value)}
+                />
+                <NumberControl
+                  label="추가 지급"
+                  value={draft.settlement_extra_amount}
+                  onChange={(value) => updateDraft("settlement_extra_amount", value)}
+                />
+                <NumberControl
+                  label="차감 금액"
+                  value={draft.settlement_deduction_amount}
+                  onChange={(value) => updateDraft("settlement_deduction_amount", value)}
+                />
+                <FieldControl label="기업 결제 상태">
+                  <InlineSelect
+                    options={[
+                      { label: "미결제", value: "unpaid" },
+                      { label: "결제완료", value: "paid" },
+                    ]}
+                    value={paymentStatus}
+                    disabled={savingKey === `settlement-request-${request.id}`}
+                    onChange={(value) =>
+                      updateSettlementStatus(request, { payment_status: value })
+                    }
+                  />
+                </FieldControl>
+                <FieldControl label="지급 상태 변경">
+                  <InlineSelect
+                    options={SETTLEMENT_FLOW_STATUS_OPTIONS.filter(
+                      (option) => option.value !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
+                    )}
+                    value={draft.settlement_status}
+                    disabled={savingKey === `settlement-request-${request.id}`}
+                    onChange={(value) =>
+                      updateDraft("settlement_status", value)
+                    }
+                  />
+                </FieldControl>
+                <FieldControl label="지급 방식 변경">
+                  <InlineSelect
+                    options={[
+                      { label: "개인(3.3%)", value: "freelancer" },
+                      { label: "사업자", value: "business" },
+                    ]}
+                    value={payoutMethod === "사업자" ? "business" : "freelancer"}
+                    disabled={true}
+                    onChange={() => {}}
+                  />
+                </FieldControl>
+              </div>
+              <span style={{ fontSize: "11px", color: "#94a3b8", display: "block", marginTop: "6px" }}>
+                * 지급 방식은 통역사 프로필의 사업자등록증 첨부 여부에 따라 자동 판정됩니다.
+              </span>
+            </div>
+
+            <FieldControl label="정산 메모" onClick={(e) => e.stopPropagation()}>
+              <textarea
+                className="admin-textarea"
+                rows={3}
+                value={draft.settlement_memo}
+                onChange={(event) => updateDraft("settlement_memo", event.target.value)}
+                placeholder="정산 메모"
+              />
+            </FieldControl>
+
+            <dl className="admin-request-summary admin-request-summary-clean">
+              <Info label="행사명" value={request.event_name || "-"} />
+              <Info label="통역사" value={assignedInterpreterNames || "-"} />
+              <Info label="날짜" value={eventDate} />
+              <Info label="근무일수" value={`${draft.settlement_work_days || 0}일`} />
+              <Info label="적용 레벨" value={draft.settlement_level || "-"} />
+              <Info label="일당" value={formatJPY(dailyRate)} />
+              <Info label="추가금액" value={formatJPY(draft.settlement_extra_amount)} />
+              <Info label="차감금액" value={formatJPY(draft.settlement_deduction_amount)} />
+              <Info label="최종 지급금액" value={formatJPY(interpreterPrice)} />
+            </dl>
+
+            {/* Row 1: 정산서 생성 / 정산서 보기 */}
+            <div className="admin-card-primary-actions">
+              <button
+                type="button"
+                className="admin-link-button primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenDocumentPreview("payout", request);
+                }}
+              >
+                정산서 생성
+              </button>
+              <button
+                type="button"
+                className="admin-link-button primary subtle"
+                disabled={!payoutDoc}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (payoutDoc) {
+                    openDocumentSignedUrl(supabase, payoutDoc);
+                  }
+                }}
+                style={{
+                  background: payoutDoc ? "" : "#f3f4f6",
+                  color: payoutDoc ? "" : "#9ca3af",
+                  border: payoutDoc ? "" : "1px solid #e5e7eb",
+                  cursor: payoutDoc ? "pointer" : "not-allowed",
+                }}
+              >
+                정산서 보기
+              </button>
+            </div>
+
+            {/* Row 2: 상세보기 / 더보기(...) */}
+            <div className="admin-card-secondary-area">
+              <div className="admin-card-secondary-actions" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <button
+                  type="button"
+                  className="admin-link-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openRequestModal("detail", request);
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  상세보기
+                </button>
+                <div className="admin-more-menu request-more-wrapper" ref={moreMenuRef} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="request-more-trigger"
+                    aria-label="더보기"
+                    aria-expanded={isMoreOpen}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMoreOpen((current) => !current);
+                    }}
+                  >
+                    <MoreHorizontal size={18} aria-hidden="true" />
+                  </button>
+                  {isMoreOpen && (
+                    <div className="request-more-menu">
+                      <button
+                        type="button"
+                        className="request-more-item"
+                        disabled={savingKey === `settlement-request-${request.id}`}
+                        onClick={saveDraft}
+                      >
+                        수정 저장
+                      </button>
+                      {settlementStatus !== SETTLEMENT_FLOW_STATUS.COMPLETED && (
+                        <button
+                          type="button"
+                          className="request-more-item"
+                          disabled={savingKey === `settlement-request-${request.id}`}
+                          onClick={completeSettlement}
+                        >
+                          정산 완료 처리
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Expand / Collapse Indicator Button */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedRequestId(expanded ? null : request.id);
+            }}
+            style={{
+              fontSize: "11px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 8px",
+              background: "none",
+              border: "none",
+              color: "#6b7280",
+              cursor: "pointer",
+              fontWeight: "800",
+              transition: "color 0.2s ease"
+            }}
+            onMouseEnter={(e) => e.target.style.color = "#4f46e5"}
+            onMouseLeave={(e) => e.target.style.color = "#6b7280"}
+          >
+            {expanded ? "▲ 접기" : "▼ 펼치기"}
+          </button>
+        </div>
       </div>
-
-      <dl className="admin-card-summary">
-        <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
-        <Info label="기업명" value={request.company_name || "-"} />
-        <Info label="행사명" value={request.event_name || "-"} />
-        <Info label="업무일" value={eventDate} />
-        <Info label="통역사명" value={assignedInterpreterNames || "-"} />
-        <Info label="적용 레벨" value={draft.settlement_level || "-"} />
-        <Info label="자동 계산 금액" value={formatJPY(settlementAmounts.settlement_base_amount)} />
-        <Info label="최종 정산 금액" value={formatJPY(interpreterPrice)} />
-        <Info label="정산 상태" value={getSettlementFlowStatusLabel(settlementStatus)} />
-        <Info label="기업 청구액" value={formatJPY(clientPrice)} />
-        <Info label="플랫폼 수익" value={formatJPY(platformProfit)} />
-        <Info label="기업 결제 상태" value={getStatusLabel(paymentStatus)} />
-      </dl>
-
-      <div className="admin-card-controls-grid">
-        <FieldControl label="업무 일수">
-          <input
-            type="number"
-            min="1"
-            value={draft.settlement_work_days}
-            onChange={(event) => updateDraft("settlement_work_days", event.target.value)}
-          />
-        </FieldControl>
-        <FieldControl label="적용 레벨">
-          <InlineSelect
-            options={SETTLEMENT_LEVEL_OPTIONS}
-            value={draft.settlement_level}
-            disabled={savingKey === `settlement-request-${request.id}`}
-            onChange={(value) => updateDraft("settlement_level", value)}
-          />
-        </FieldControl>
-        <NumberControl
-          label="정산 금액"
-          value={draft.settlement_final_amount}
-          onChange={(value) => updateDraft("settlement_final_amount", value)}
-        />
-        <NumberControl
-          label="추가 지급"
-          value={draft.settlement_extra_amount}
-          onChange={(value) => updateDraft("settlement_extra_amount", value)}
-        />
-        <NumberControl
-          label="차감 금액"
-          value={draft.settlement_deduction_amount}
-          onChange={(value) => updateDraft("settlement_deduction_amount", value)}
-        />
-        <FieldControl label="기업 결제 상태">
-          <InlineSelect
-            options={[
-              { label: "미결제", value: "unpaid" },
-              { label: "결제완료", value: "paid" },
-            ]}
-            value={paymentStatus}
-            disabled={savingKey === `settlement-request-${request.id}`}
-            onChange={(value) =>
-              updateSettlementStatus(request, { payment_status: value })
-            }
-          />
-        </FieldControl>
-        <FieldControl label="통역사 정산 상태">
-          <InlineSelect
-            options={SETTLEMENT_FLOW_STATUS_OPTIONS.filter(
-              (option) => option.value !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
-            )}
-            value={draft.settlement_status}
-            disabled={savingKey === `settlement-request-${request.id}`}
-            onChange={(value) =>
-              updateDraft("settlement_status", value)
-            }
-          />
-        </FieldControl>
-      </div>
-
-      <FieldControl label="정산 메모">
-        <textarea
-          className="admin-textarea"
-          rows={3}
-          value={draft.settlement_memo}
-          onChange={(event) => updateDraft("settlement_memo", event.target.value)}
-          placeholder="정산 메모"
-        />
-      </FieldControl>
-
-      <div className="admin-card-actions">
-        <button
-          type="button"
-          className="admin-link-button primary"
-          disabled={savingKey === `settlement-request-${request.id}`}
-          onClick={saveDraft}
-        >
-          수정 저장
-        </button>
-        <button
-          type="button"
-          className="admin-save"
-          disabled={savingKey === `settlement-request-${request.id}`}
-          onClick={completeSettlement}
-        >
-          정산 완료 처리
-        </button>
-        <button
-          type="button"
-          className="admin-link-button"
-          onClick={() => onOpenDocumentPreview("payout", request)}
-        >
-          정산 내역서 생성
-        </button>
-      </div>
-
-      <AdminOperationsPanel
-        activityLogs={adminActivityLogs}
-        compactModal
-        notes={adminNotes}
-        noteDrafts={noteDrafts}
-        saving={savingKey === `admin-note-settlement:${request.id}`}
-        targetId={request.id}
-        targetType="settlement"
-        onChangeNoteDraft={onChangeNoteDraft}
-        onCreateNote={onCreateNote}
-      />
     </article>
   );
 }
