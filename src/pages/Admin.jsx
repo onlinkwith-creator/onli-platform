@@ -69,6 +69,20 @@ import {
 } from "../utils/operationsStatus";
 import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import {
+  DOCUMENT_TYPE_LABELS,
+  createDocumentRecord,
+  createSimplePdfBlob,
+  getAllDocuments,
+  getDocumentVersions,
+  getDocumentStoragePath,
+  getLatestDocumentByRequestAndInterpreter,
+  getLatestDocumentsByRequest,
+  getNextDocumentNo,
+  getSignedDocumentUrl,
+  uploadDocumentPdf,
+  voidDocument,
+} from "../lib/documents";
+import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
   isDesignatedRequest,
@@ -92,6 +106,7 @@ const TABS = [
   { id: "interpreters", label: "통역사 관리" },
   { id: "applications", label: "지원자 관리" },
   { id: "matching", label: "정산 관리" },
+  { id: "documents", label: "문서 관리" },
 ];
 const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspended"];
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
@@ -281,6 +296,23 @@ function Admin({ onBackClick }) {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [activeRequestModal, setActiveRequestModal] = useState(null);
   const [requestEditDraft, setRequestEditDraft] = useState(null);
+  const [documentsByRequest, setDocumentsByRequest] = useState({});
+  const [documentModal, setDocumentModal] = useState(null);
+  const [documentDraft, setDocumentDraft] = useState(null);
+  const [payoutDocumentsByKey, setPayoutDocumentsByKey] = useState({});
+  const [payoutModal, setPayoutModal] = useState(null);
+  const [payoutDraft, setPayoutDraft] = useState(null);
+  const [adminDocuments, setAdminDocuments] = useState([]);
+  const [documentVersions, setDocumentVersions] = useState([]);
+  const [selectedAdminDocument, setSelectedAdminDocument] = useState(null);
+  const [adminDocumentFilters, setAdminDocumentFilters] = useState({
+    search: "",
+    documentType: "all",
+    status: "all",
+    startDate: "",
+    endDate: "",
+  });
+  const [adminDocumentDraft, setAdminDocumentDraft] = useState(null);
   const [isAdminAccountModalOpen, setIsAdminAccountModalOpen] = useState(false);
   const [isSettlementPendingModalOpen, setIsSettlementPendingModalOpen] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
@@ -410,6 +442,13 @@ function Admin({ onBackClick }) {
     setActiveRequestModal(null);
     setRequestEditDraft(null);
     setSelectedRequest(null);
+    setDocumentModal(null);
+    setDocumentDraft(null);
+    setPayoutModal(null);
+    setPayoutDraft(null);
+    setSelectedAdminDocument(null);
+    setAdminDocumentDraft(null);
+    setDocumentVersions([]);
   }, []);
 
   const closeAdminAccountModal = useCallback(() => {
@@ -512,6 +551,9 @@ function Admin({ onBackClick }) {
   const activeRequestJob = activeRequest?.job_id
     ? jobsById.get(String(activeRequest.job_id)) || jobsById.get(activeRequest.job_id)
     : null;
+  const activeRequestDocuments = activeRequest?.id
+    ? documentsByRequest[activeRequest.id] || {}
+    : {};
 
   const activeRequests = useMemo(
     () => requests.filter((request) => !isCompletedRequest(request)),
@@ -1190,6 +1232,447 @@ function Admin({ onBackClick }) {
         ),
         location: request?.event_location || "",
       });
+    }
+  };
+
+  const loadRequestDocuments = useCallback(async (requestId) => {
+    if (!requestId || !supabase) return;
+
+    try {
+      const latestDocuments = await getLatestDocumentsByRequest(requestId, supabase);
+      setDocumentsByRequest((current) => ({
+        ...current,
+        [requestId]: latestDocuments,
+      }));
+    } catch (error) {
+      console.error("documents fetch error:", error);
+      alert(error.message || "문서 목록 조회에 실패했습니다.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeRequestModal?.type === "detail" && activeRequest?.id) {
+      queueMicrotask(() => loadRequestDocuments(activeRequest.id));
+    }
+  }, [activeRequest?.id, activeRequestModal?.type, loadRequestDocuments]);
+
+  const loadAdminDocuments = useCallback(async () => {
+    if (!supabase) return;
+
+    try {
+      const documents = await getAllDocuments(supabase);
+      setAdminDocuments(documents);
+    } catch (error) {
+      console.error("admin documents fetch error:", error);
+      alert(error.message || "문서 목록 조회에 실패했습니다.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "documents") {
+      queueMicrotask(loadAdminDocuments);
+    }
+  }, [activeTab, loadAdminDocuments]);
+
+  const openAdminDocumentDetail = async (document) => {
+    setSelectedAdminDocument(document);
+    setAdminDocumentDraft(null);
+    try {
+      const versions = await getDocumentVersions(document.document_no, supabase);
+      setDocumentVersions(versions);
+    } catch (error) {
+      console.error("document versions fetch error:", error);
+      setDocumentVersions([document]);
+      alert(error.message || "버전 기록 조회에 실패했습니다.");
+    }
+  };
+
+  const closeAdminDocumentDetail = () => {
+    setSelectedAdminDocument(null);
+    setAdminDocumentDraft(null);
+    setDocumentVersions([]);
+  };
+
+  const startAdminDocumentNewVersion = () => {
+    if (!selectedAdminDocument) return;
+    setAdminDocumentDraft(createAdminDocumentDraft(selectedAdminDocument));
+  };
+
+  const updateAdminDocumentDraft = (name, value) => {
+    setAdminDocumentDraft((current) => ({
+      ...(current || {}),
+      [name]: value,
+    }));
+  };
+
+  const createAdminDocumentVersion = async () => {
+    if (!selectedAdminDocument || !adminDocumentDraft || !supabase) return;
+
+    const nextVersion =
+      Math.max(
+        selectedAdminDocument.version || 1,
+        ...documentVersions.map((document) => Number(document.version || 1))
+      ) + 1;
+
+    setSavingKey(`admin-document-version-${selectedAdminDocument.id}`);
+    try {
+      const nextMetadata = {
+        ...(selectedAdminDocument.metadata || {}),
+        admin_note: adminDocumentDraft.admin_note || "",
+        revision_note: adminDocumentDraft.revision_note || "",
+      };
+      const nextAmount = normalizeMoneyInput(adminDocumentDraft.amount);
+      const ownerId =
+        selectedAdminDocument.document_type === "payout"
+          ? selectedAdminDocument.interpreter_id
+          : selectedAdminDocument.company_id ||
+            nextMetadata.company_id ||
+            selectedAdminDocument.request_id ||
+            "unassigned";
+      const filePath = getDocumentStoragePath(
+        selectedAdminDocument.document_type,
+        ownerId,
+        selectedAdminDocument.document_no,
+        nextVersion
+      );
+      const pdfBlob = await createSimplePdfBlob(
+        buildAdminDocumentVersionPdfPayload({
+          document: selectedAdminDocument,
+          metadata: nextMetadata,
+          amount: nextAmount,
+          version: nextVersion,
+        })
+      );
+
+      await uploadDocumentPdf(pdfBlob, filePath, supabase);
+      const record = await createDocumentRecord(
+        {
+          ...copyDocumentForNewVersion(selectedAdminDocument),
+          version: nextVersion,
+          file_path: filePath,
+          amount: nextAmount,
+          metadata: nextMetadata,
+          created_by: user?.id || null,
+          status: "issued",
+        },
+        supabase
+      );
+
+      const versions = await getDocumentVersions(record.document_no, supabase);
+      setDocumentVersions(versions);
+      setSelectedAdminDocument(record);
+      setAdminDocuments((current) => upsertById(current, record));
+      setAdminDocumentDraft(null);
+      alert("새 버전이 생성되었습니다.");
+    } catch (error) {
+      console.error("document version create error:", error);
+      alert(error.message || "새 버전 생성에 실패했습니다.");
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const voidAdminDocument = async (document) => {
+    if (!document?.id) return;
+    if (!window.confirm("이 문서를 폐기 처리하시겠습니까? 파일과 버전 기록은 유지됩니다.")) {
+      return;
+    }
+
+    setSavingKey(`admin-document-void-${document.id}`);
+    try {
+      const updated = await voidDocument(document.id, user?.id || null, supabase);
+      setAdminDocuments((current) =>
+        current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
+      );
+      setSelectedAdminDocument((current) =>
+        current?.id === updated.id ? { ...current, ...updated } : current
+      );
+      setDocumentVersions((current) =>
+        current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
+      );
+      alert("폐기 처리되었습니다.");
+    } catch (error) {
+      console.error("document void error:", error);
+      alert(error.message || "폐기 처리에 실패했습니다.");
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const openDocumentModal = (documentType, request, assignedInterpreters = "") => {
+    if (documentType === "completion" && !isCompletedRequest(request)) {
+      alert("업무 완료 후 생성 가능합니다.");
+      return;
+    }
+
+    setDocumentModal({ documentType, requestId: request.id });
+    setDocumentDraft(createDocumentDraft(documentType, request, assignedInterpreters));
+  };
+
+  const closeDocumentModal = () => {
+    setDocumentModal(null);
+    setDocumentDraft(null);
+  };
+
+  const updateDocumentDraft = (name, value) => {
+    setDocumentDraft((current) => ({
+      ...(current || {}),
+      [name]: value,
+    }));
+  };
+
+  const openDocumentPdf = async (document) => {
+    if (!document?.file_path) {
+      alert("PDF 파일이 아직 저장되지 않았습니다.");
+      return;
+    }
+
+    try {
+      const signedUrl = await getSignedDocumentUrl(document.file_path, supabase);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("document signed url error:", error);
+      alert(error.message || "PDF 보기 링크 생성에 실패했습니다.");
+    }
+  };
+
+  const createRequestDocument = async () => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+    if (!activeRequest || !documentModal || !documentDraft) {
+      alert("문서 생성에 필요한 의뢰 정보를 확인할 수 없습니다.");
+      return;
+    }
+
+    const documentType = documentModal.documentType;
+    const latestDocument = activeRequestDocuments[documentType];
+    const version = Number(latestDocument?.version || 0) + 1;
+    const amount = documentType === "estimate" ? calculateEstimateAmount(documentDraft) : null;
+
+    setSavingKey(`document-${documentType}-${activeRequest.id}`);
+    try {
+      const documentNo = await getNextDocumentNo(documentType, supabase);
+      const ownerId =
+        documentType === "payout"
+          ? documentDraft.interpreter_id
+          : activeRequest.company_id || activeRequest.company_email || activeRequest.id;
+      const filePath = getDocumentStoragePath(documentType, ownerId, documentNo, version);
+      const pdfBlob = await createSimplePdfBlob(
+        buildRequestDocumentPdfPayload({
+          documentNo,
+          documentType,
+          draft: documentDraft,
+          request: activeRequest,
+          version,
+        })
+      );
+
+      await uploadDocumentPdf(pdfBlob, filePath, supabase);
+      const record = await createDocumentRecord(
+        {
+          document_type: documentType,
+          document_no: documentNo,
+          request_id: activeRequest.id,
+          company_id: activeRequest.company_id || null,
+          interpreter_id: documentDraft.interpreter_id || null,
+          status: "issued",
+          version,
+          title: `${DOCUMENT_TYPE_LABELS[documentType]} ${documentNo}`,
+          file_path: filePath,
+          amount,
+          metadata: buildDocumentMetadata(documentType, documentDraft, activeRequest),
+          created_by: user?.id || null,
+        },
+        supabase
+      );
+
+      if (documentType === "estimate") {
+        await updateRequestEstimateStatus(activeRequest.id, "estimate_issued", amount);
+      }
+
+      setDocumentsByRequest((current) => ({
+        ...current,
+        [activeRequest.id]: {
+          ...(current[activeRequest.id] || {}),
+          [documentType]: record,
+        },
+      }));
+      alert(`${DOCUMENT_TYPE_LABELS[documentType]}가 생성되었습니다.`);
+      closeDocumentModal();
+    } catch (error) {
+      console.error("document create error:", error);
+      alert(error.message || "문서 생성에 실패했습니다.");
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const updateRequestEstimateStatus = async (requestId, estimateStatus, amount) => {
+    const payload = {
+      estimate_status: estimateStatus,
+      estimate_amount: amount,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from("requests")
+      .update(payload)
+      .eq("id", requestId)
+      .select("*")
+      .single();
+
+    if (error && isMissingColumnError(error)) {
+      console.warn("estimate_status columns are not available yet:", error.message);
+      return;
+    }
+    if (error) throw new Error(`견적 상태 업데이트에 실패했습니다. ${error.message}`);
+
+    setRequests((current) =>
+      current.map((item) => (item.id === requestId ? { ...item, ...(data || payload) } : item))
+    );
+    setSelectedRequest((current) =>
+      current?.id === requestId ? { ...current, ...(data || payload) } : current
+    );
+  };
+
+  const getPayoutKey = (requestId, interpreterId) => `${requestId}-${interpreterId}`;
+
+  const loadPayoutDocument = useCallback(async (requestId, interpreterId) => {
+    if (!requestId || !interpreterId || !supabase) return null;
+
+    try {
+      const document = await getLatestDocumentByRequestAndInterpreter(
+        requestId,
+        String(interpreterId),
+        "payout",
+        supabase
+      );
+      setPayoutDocumentsByKey((current) => ({
+        ...current,
+        [getPayoutKey(requestId, interpreterId)]: document,
+      }));
+      return document;
+    } catch (error) {
+      console.error("payout document fetch error:", error);
+      return null;
+    }
+  }, []);
+
+  const openPayoutModal = async (request, assignment, interpreter, latestDocument = null) => {
+    if (!isCompletedRequest(request)) {
+      alert("업무 완료 후 정산 내역서를 생성할 수 있습니다.");
+      return;
+    }
+    if (!assignment?.interpreter_id) {
+      alert("배정된 통역사가 있는 건만 생성할 수 있습니다.");
+      return;
+    }
+
+    const currentDocument =
+      latestDocument ||
+      payoutDocumentsByKey[getPayoutKey(request.id, assignment.interpreter_id)] ||
+      (await loadPayoutDocument(request.id, assignment.interpreter_id));
+    setPayoutModal({
+      requestId: request.id,
+      interpreterId: assignment.interpreter_id,
+      request,
+      assignment,
+      interpreter,
+      latestDocument: currentDocument,
+    });
+    setPayoutDraft(createPayoutDraft(request, assignment, interpreter));
+  };
+
+  const closePayoutModal = () => {
+    setPayoutModal(null);
+    setPayoutDraft(null);
+  };
+
+  const updatePayoutDraft = (name, value) => {
+    setPayoutDraft((current) => ({
+      ...(current || {}),
+      [name]: value,
+    }));
+  };
+
+  const openPayoutPdf = async (document) => {
+    if (!document?.file_path) {
+      alert("정산서 PDF 파일이 아직 저장되지 않았습니다.");
+      return;
+    }
+
+    try {
+      const signedUrl = await getSignedDocumentUrl(document.file_path, supabase);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("payout signed url error:", error);
+      alert(error.message || "정산서 PDF 보기 링크 생성에 실패했습니다.");
+    }
+  };
+
+  const createPayoutDocument = async () => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+    if (!payoutModal || !payoutDraft) {
+      alert("정산서 생성에 필요한 정보를 확인할 수 없습니다.");
+      return;
+    }
+
+    const { request, interpreterId, latestDocument } = payoutModal;
+    const normalizedInterpreterId = String(interpreterId);
+    const version = Number(latestDocument?.version || 0) + 1;
+    const amount = calculatePayoutAmount(payoutDraft);
+
+    setSavingKey(`payout-document-${request.id}-${interpreterId}`);
+    try {
+      const documentNo = latestDocument?.document_no || (await getNextDocumentNo("payout", supabase));
+      const filePath =
+        version === 1
+          ? `payouts/${normalizedInterpreterId}/${documentNo}.pdf`
+          : `payouts/${normalizedInterpreterId}/${documentNo}-v${version}.pdf`;
+      const pdfBlob = await createSimplePdfBlob(
+        buildPayoutPdfPayload({
+          documentNo,
+          draft: payoutDraft,
+          request,
+          version,
+        })
+      );
+
+      await uploadDocumentPdf(pdfBlob, filePath, supabase);
+      const record = await createDocumentRecord(
+        {
+          document_type: "payout",
+          document_no: documentNo,
+          request_id: request.id,
+          company_id: request.company_id || null,
+          interpreter_id: normalizedInterpreterId,
+          settlement_id: request.id,
+          status: "issued",
+          version,
+          title: `정산서 ${documentNo}`,
+          file_path: filePath,
+          amount,
+          metadata: buildPayoutMetadata(payoutDraft, request),
+          created_by: user?.id || null,
+        },
+        supabase
+      );
+
+      setPayoutDocumentsByKey((current) => ({
+        ...current,
+        [getPayoutKey(request.id, normalizedInterpreterId)]: record,
+      }));
+      alert("정산 내역서가 생성되었습니다.");
+      closePayoutModal();
+    } catch (error) {
+      console.error("payout document create error:", error);
+      alert(error.message || "정산 내역서 생성에 실패했습니다.");
+    } finally {
+      setSavingKey("");
     }
   };
 
@@ -2787,9 +3270,40 @@ function Admin({ onBackClick }) {
                 requests={requests}
                 assignmentsByRequest={assignmentsByRequest}
                 interpreters={interpreters}
+                payoutDocumentsByKey={payoutDocumentsByKey}
+                payoutDraft={payoutDraft}
+                payoutModal={payoutModal}
                 savingKey={savingKey}
                 setFilters={setMatchingFilters}
+                loadPayoutDocument={loadPayoutDocument}
+                onClosePayoutModal={closePayoutModal}
+                onCreatePayoutDocument={createPayoutDocument}
+                onOpenPayoutModal={openPayoutModal}
+                onOpenPayoutPdf={openPayoutPdf}
+                onUpdatePayoutDraft={updatePayoutDraft}
                 updateSettlementStatus={updateSettlementManagementStatus}
+              />
+            )}
+
+            {activeTab === "documents" && (
+              <DocumentManagement
+                documents={adminDocuments}
+                documentDraft={adminDocumentDraft}
+                filters={adminDocumentFilters}
+                interpreters={interpreters}
+                requests={requests}
+                savingKey={savingKey}
+                selectedDocument={selectedAdminDocument}
+                versions={documentVersions}
+                onChangeDraft={updateAdminDocumentDraft}
+                onCloseDetail={closeAdminDocumentDetail}
+                onCreateVersion={createAdminDocumentVersion}
+                onOpenDetail={openAdminDocumentDetail}
+                onOpenPdf={openDocumentPdf}
+                onRefresh={loadAdminDocuments}
+                onStartNewVersion={startAdminDocumentNewVersion}
+                onVoidDocument={voidAdminDocument}
+                setFilters={setAdminDocumentFilters}
               />
             )}
 
@@ -2858,6 +3372,9 @@ function Admin({ onBackClick }) {
                 interpreters={interpreters}
                 job={activeRequestJob}
                 request={activeRequest}
+                documents={activeRequestDocuments}
+                documentDraft={documentDraft}
+                documentModal={documentModal}
                 savingKey={savingKey}
                 setAssignmentDrafts={setAssignmentDrafts}
                 assignInterpreter={assignInterpreter}
@@ -2865,6 +3382,11 @@ function Admin({ onBackClick }) {
                 handlePriceDraft={handlePriceDraft}
                 onChangeDraft={updateRequestEditDraft}
                 onClose={closeRequestModal}
+                onCloseDocumentModal={closeDocumentModal}
+                onCreateDocument={createRequestDocument}
+                onOpenDocumentModal={openDocumentModal}
+                onOpenDocumentPdf={openDocumentPdf}
+                onUpdateDocumentDraft={updateDocumentDraft}
                 onRemoveAssignment={removeAssignment}
                 onSaveEdit={saveRequestEditDraft}
                 saveSettlement={saveSettlement}
@@ -2886,6 +3408,9 @@ function RequestActionModal({
   activeModal,
   applications,
   assignments,
+  documents,
+  documentDraft,
+  documentModal,
   assignmentDrafts,
   draft,
   getInterpreterScheduleConflicts,
@@ -2899,6 +3424,11 @@ function RequestActionModal({
   handlePriceDraft,
   onChangeDraft,
   onClose,
+  onCloseDocumentModal,
+  onCreateDocument,
+  onOpenDocumentModal,
+  onOpenDocumentPdf,
+  onUpdateDocumentDraft,
   onRemoveAssignment,
   onSaveEdit,
   saveSettlement,
@@ -2926,6 +3456,9 @@ function RequestActionModal({
       {activeModal.type === "detail" && (
         <RequestDetailPanel
           request={request}
+          documents={documents}
+          documentDraft={documentDraft}
+          documentModal={documentModal}
           job={job}
           applications={applications}
           assignmentDrafts={assignmentDrafts}
@@ -2938,6 +3471,11 @@ function RequestActionModal({
           handlePriceDraft={handlePriceDraft}
           saveSettlement={saveSettlement}
           removeAssignment={onRemoveAssignment}
+          onCloseDocumentModal={onCloseDocumentModal}
+          onCreateDocument={onCreateDocument}
+          onOpenDocumentModal={onOpenDocumentModal}
+          onOpenDocumentPdf={onOpenDocumentPdf}
+          onUpdateDocumentDraft={onUpdateDocumentDraft}
           updateRequest={updateRequest}
           updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
@@ -3993,6 +4531,9 @@ function RequestDetailPanel({
   applications,
   assignmentDrafts,
   assignments,
+  documents = {},
+  documentDraft,
+  documentModal,
   getInterpreterScheduleConflicts,
   interpreters,
   job,
@@ -4003,6 +4544,11 @@ function RequestDetailPanel({
   handlePriceDraft,
   saveSettlement,
   removeAssignment,
+  onCloseDocumentModal,
+  onCreateDocument,
+  onOpenDocumentModal,
+  onOpenDocumentPdf,
+  onUpdateDocumentDraft,
   updateRequest,
   updateApplicationStatus,
   updateRequestFlowStatus,
@@ -4082,6 +4628,20 @@ function RequestDetailPanel({
         <h3>복장/주의사항</h3>
         <p>{request.dress_code || "추후 안내"}</p>
       </div>
+
+      <DocumentManagementPanel
+        assignedInterpreterName={assignedInterpreterName}
+        documents={documents}
+        documentDraft={documentDraft}
+        documentModal={documentModal}
+        request={request}
+        savingKey={savingKey}
+        onCloseDocumentModal={onCloseDocumentModal}
+        onCreateDocument={onCreateDocument}
+        onOpenDocumentModal={onOpenDocumentModal}
+        onOpenDocumentPdf={onOpenDocumentPdf}
+        onUpdateDocumentDraft={onUpdateDocumentDraft}
+      />
 
       <div>
         <h3>행사 기간 수정</h3>
@@ -4190,6 +4750,281 @@ function RequestDetailPanel({
           onRemoveAssignment={removeAssignment}
           onStatusChange={updateApplicationStatus}
         />
+      </div>
+    </div>
+  );
+}
+
+function DocumentManagementPanel({
+  assignedInterpreterName,
+  documents = {},
+  documentDraft,
+  documentModal,
+  request,
+  savingKey,
+  onCloseDocumentModal,
+  onCreateDocument,
+  onOpenDocumentModal,
+  onOpenDocumentPdf,
+  onUpdateDocumentDraft,
+}) {
+  const estimateDocument = documents.estimate;
+  const completionDocument = documents.completion;
+  const isCompletionReady = isCompletedRequest(request);
+  const activeType = documentModal?.documentType;
+  const isSaving = activeType
+    ? savingKey === `document-${activeType}-${request.id}`
+    : false;
+
+  return (
+    <div>
+      <h3>문서 관리</h3>
+      <div className="admin-document-panel">
+        <DocumentStatusRow
+          amount={estimateDocument?.amount}
+          document={estimateDocument}
+          label="견적서"
+          status={getDocumentStatusLabel(estimateDocument)}
+          onOpen={() => onOpenDocumentPdf(estimateDocument)}
+        />
+        <DocumentStatusRow
+          document={completionDocument}
+          label="업무확인서"
+          status={getDocumentStatusLabel(completionDocument)}
+          onOpen={() => onOpenDocumentPdf(completionDocument)}
+        />
+        <div className="admin-card-actions">
+          <button
+            type="button"
+            className="admin-save"
+            disabled={savingKey === `document-estimate-${request.id}`}
+            onClick={() => onOpenDocumentModal("estimate", request, assignedInterpreterName)}
+          >
+            견적서 생성
+          </button>
+          <button
+            type="button"
+            className="admin-save"
+            disabled={
+              !isCompletionReady || savingKey === `document-completion-${request.id}`
+            }
+            title={isCompletionReady ? undefined : "업무 완료 후 생성 가능"}
+            onClick={() => onOpenDocumentModal("completion", request, assignedInterpreterName)}
+          >
+            업무확인서 생성
+          </button>
+        </div>
+      </div>
+
+      {documentModal && documentDraft ? (
+        <DocumentCreateDialog
+          draft={documentDraft}
+          documentType={documentModal.documentType}
+          saving={isSaving}
+          onCancel={onCloseDocumentModal}
+          onChange={onUpdateDocumentDraft}
+          onCreate={onCreateDocument}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function DocumentStatusRow({ amount, document, label, onOpen, status }) {
+  return (
+    <div className="admin-document-row">
+      <div>
+        <strong>{label}</strong>
+        <span>{status}</span>
+        {amount ? <span>{formatJPY(amount)}</span> : null}
+      </div>
+      <button
+        type="button"
+        className="admin-link-button"
+        disabled={!document?.file_path}
+        onClick={onOpen}
+      >
+        PDF 보기
+      </button>
+    </div>
+  );
+}
+
+function DocumentCreateDialog({
+  draft,
+  documentType,
+  onCancel,
+  onChange,
+  onCreate,
+  saving,
+}) {
+  const isEstimate = documentType === "estimate";
+  const amount = isEstimate ? calculateEstimateAmount(draft) : null;
+
+  return (
+    <div className="admin-document-dialog">
+      <div className="admin-document-dialog-head">
+        <strong>{DOCUMENT_TYPE_LABELS[documentType]} 생성</strong>
+        <button type="button" className="admin-link-button" onClick={onCancel}>
+          닫기
+        </button>
+      </div>
+
+      <div className="admin-modal-edit-grid">
+        {isEstimate ? (
+          <>
+            <NumberControl
+              label="단가"
+              value={draft.unit_price}
+              onChange={(value) => onChange("unit_price", value)}
+            />
+            <NumberControl
+              label="할인 금액"
+              value={draft.discount_amount}
+              onChange={(value) => onChange("discount_amount", value)}
+            />
+            <NumberControl
+              label="추가 비용"
+              value={draft.extra_amount}
+              onChange={(value) => onChange("extra_amount", value)}
+            />
+          </>
+        ) : (
+          <>
+            <FieldControl label="업무 시간">
+              <input
+                value={draft.work_hours || ""}
+                onChange={(event) => onChange("work_hours", event.target.value)}
+              />
+            </FieldControl>
+            <FieldControl label="완료 확인일">
+              <input
+                type="date"
+                value={draft.completed_at || ""}
+                onChange={(event) => onChange("completed_at", event.target.value)}
+              />
+            </FieldControl>
+            <FieldControl label="담당 통역사 표시명">
+              <input
+                value={draft.interpreter_display_name || ""}
+                onChange={(event) =>
+                  onChange("interpreter_display_name", event.target.value)
+                }
+              />
+            </FieldControl>
+          </>
+        )}
+        <FieldControl label="메모">
+          <textarea
+            value={draft.memo || ""}
+            onChange={(event) => onChange("memo", event.target.value)}
+            rows={3}
+          />
+        </FieldControl>
+      </div>
+
+      <div className="admin-document-preview">
+        <strong>미리보기</strong>
+        <Info label="기업명" value={draft.company_name} />
+        <Info label="행사명" value={draft.event_name} />
+        <Info label="행사 기간" value={draft.date_label} />
+        <Info label="필요 인원" value={`${draft.people_count || 1}명`} />
+        {isEstimate ? (
+          <>
+            <Info label="기본 금액" value={formatJPY(calculateEstimateBaseAmount(draft))} />
+            <Info label="최종 금액" value={formatJPY(amount)} />
+          </>
+        ) : (
+          <>
+            <Info label="업무 시간" value={draft.work_hours} />
+            <Info label="완료 확인일" value={draft.completed_at} />
+            <Info label="담당 통역사" value={draft.interpreter_display_name} />
+          </>
+        )}
+        <Info label="메모" value={draft.memo || "-"} />
+      </div>
+
+      <div className="admin-modal-actions">
+        <button type="button" className="admin-link-button" onClick={onCancel}>
+          취소
+        </button>
+        <button type="button" className="admin-save" disabled={saving} onClick={onCreate}>
+          {saving ? "생성 중..." : "확정 생성"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PayoutCreateDialog({
+  draft,
+  latestDocument,
+  onCancel,
+  onChange,
+  onCreate,
+  saving,
+}) {
+  const baseAmount = calculatePayoutBaseAmount(draft);
+  const finalAmount = calculatePayoutAmount(draft);
+  const nextVersion = Number(latestDocument?.version || 0) + 1;
+
+  return (
+    <div className="admin-document-dialog">
+      <div className="admin-document-dialog-head">
+        <strong>정산 내역서 생성 {latestDocument ? `v${nextVersion}` : ""}</strong>
+        <button type="button" className="admin-link-button" onClick={onCancel}>
+          닫기
+        </button>
+      </div>
+
+      <div className="admin-modal-edit-grid">
+        <NumberControl
+          label="일당"
+          value={draft.daily_rate}
+          onChange={(value) => onChange("daily_rate", value)}
+        />
+        <NumberControl
+          label="근무 일수"
+          value={draft.work_days}
+          onChange={(value) => onChange("work_days", value)}
+        />
+        <NumberControl
+          label="추가 지급"
+          value={draft.extra_amount}
+          onChange={(value) => onChange("extra_amount", value)}
+        />
+        <NumberControl
+          label="공제 금액"
+          value={draft.deduction_amount}
+          onChange={(value) => onChange("deduction_amount", value)}
+        />
+        <FieldControl label="메모">
+          <textarea
+            value={draft.memo || ""}
+            onChange={(event) => onChange("memo", event.target.value)}
+            rows={3}
+          />
+        </FieldControl>
+      </div>
+
+      <div className="admin-document-preview">
+        <strong>미리보기</strong>
+        <Info label="통역사명" value={draft.interpreter_name} />
+        <Info label="업무명" value={draft.event_name} />
+        <Info label="업무 날짜" value={draft.date_label} />
+        <Info label="적용 레벨" value={draft.level} />
+        <Info label="기본 지급액" value={formatJPY(baseAmount)} />
+        <Info label="최종 지급액" value={formatJPY(finalAmount)} />
+        <Info label="메모" value={draft.memo || "-"} />
+      </div>
+
+      <div className="admin-modal-actions">
+        <button type="button" className="admin-link-button" onClick={onCancel}>
+          취소
+        </button>
+        <button type="button" className="admin-save" disabled={saving} onClick={onCreate}>
+          {saving ? "생성 중..." : "확정 생성"}
+        </button>
       </div>
     </div>
   );
@@ -5541,13 +6376,333 @@ function ApplicationCard({
   );
 }
 
+function DocumentManagement({
+  documents,
+  documentDraft,
+  filters,
+  interpreters,
+  requests,
+  savingKey,
+  selectedDocument,
+  setFilters,
+  versions,
+  onChangeDraft,
+  onCloseDetail,
+  onCreateVersion,
+  onOpenDetail,
+  onOpenPdf,
+  onRefresh,
+  onStartNewVersion,
+  onVoidDocument,
+}) {
+  const requestMap = useMemo(
+    () => new Map(requests.map((request) => [String(request.id), request])),
+    [requests]
+  );
+  const interpreterMap = useMemo(
+    () => new Map(interpreters.map((interpreter) => [String(interpreter.id), interpreter])),
+    [interpreters]
+  );
+  const filteredDocuments = useMemo(
+    () =>
+      documents.filter((document) =>
+        doesDocumentMatchFilters(document, filters, requestMap, interpreterMap)
+      ),
+    [documents, filters, interpreterMap, requestMap]
+  );
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${filteredDocuments.length}건`} title="문서 관리" />
+      <div className="admin-filter-bar admin-filters admin-document-filters">
+        <label className="admin-filter-search admin-search-control">
+          <Search size={16} aria-hidden="true" />
+          <input
+            value={filters.search}
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, search: event.target.value }))
+            }
+            placeholder="문서번호/기업명/통역사명/행사명 검색"
+          />
+        </label>
+        <select
+          className="admin-filter-select"
+          value={filters.documentType}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, documentType: event.target.value }))
+          }
+        >
+          <option value="all">문서 종류: 전체</option>
+          <option value="estimate">견적서</option>
+          <option value="completion">업무확인서</option>
+          <option value="payout">정산서</option>
+        </select>
+        <select
+          className="admin-filter-select"
+          value={filters.status}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, status: event.target.value }))
+          }
+        >
+          <option value="all">상태: 전체</option>
+          <option value="draft">임시저장</option>
+          <option value="issued">발급완료</option>
+          <option value="voided">폐기</option>
+        </select>
+        <input
+          type="date"
+          className="admin-filter-select"
+          value={filters.startDate}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, startDate: event.target.value }))
+          }
+          aria-label="생성일 시작"
+        />
+        <input
+          type="date"
+          className="admin-filter-select"
+          value={filters.endDate}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, endDate: event.target.value }))
+          }
+          aria-label="생성일 종료"
+        />
+        <button type="button" className="admin-link-button" onClick={onRefresh}>
+          새로고침
+        </button>
+      </div>
+
+      {filteredDocuments.length === 0 ? (
+        <MessageBox text="조건에 맞는 문서가 없습니다." />
+      ) : (
+        <div className="admin-document-table-wrap">
+          <table className="admin-document-table">
+            <thead>
+              <tr>
+                <th>문서번호</th>
+                <th>문서 종류</th>
+                <th>관련 의뢰명</th>
+                <th>기업명</th>
+                <th>통역사명</th>
+                <th>생성일</th>
+                <th>버전</th>
+                <th>상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredDocuments.map((document) => {
+                const request = getDocumentRequest(document, requestMap);
+                const interpreter = getDocumentInterpreter(document, interpreterMap);
+                return (
+                  <tr key={document.id} onClick={() => onOpenDetail(document)}>
+                    <td>{document.document_no}</td>
+                    <td>{getDocumentTypeLabel(document.document_type)}</td>
+                    <td>{getDocumentEventName(document, request)}</td>
+                    <td>{getDocumentCompanyName(document, request)}</td>
+                    <td>{getDocumentInterpreterName(document, interpreter)}</td>
+                    <td>{formatDate(document.created_at)}</td>
+                    <td>v{document.version || 1}</td>
+                    <td>{getDocumentStatusText(document.status)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selectedDocument ? (
+        <AdminDocumentDetailModal
+          document={selectedDocument}
+          draft={documentDraft}
+          interpreter={getDocumentInterpreter(selectedDocument, interpreterMap)}
+          request={getDocumentRequest(selectedDocument, requestMap)}
+          savingKey={savingKey}
+          versions={versions}
+          onChangeDraft={onChangeDraft}
+          onClose={onCloseDetail}
+          onCreateVersion={onCreateVersion}
+          onOpenPdf={onOpenPdf}
+          onStartNewVersion={onStartNewVersion}
+          onVoidDocument={onVoidDocument}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function AdminDocumentDetailModal({
+  document,
+  draft,
+  interpreter,
+  onChangeDraft,
+  onClose,
+  onCreateVersion,
+  onOpenPdf,
+  onStartNewVersion,
+  onVoidDocument,
+  request,
+  savingKey,
+  versions,
+}) {
+  const metadata = document.metadata || {};
+  const latestVersion = Math.max(...versions.map((item) => Number(item.version || 1)), document.version || 1);
+  const isLatest = Number(document.version || 1) === latestVersion;
+
+  return (
+    <AdminModal title="문서 상세" titleId="admin-document-detail-title" onClose={onClose}>
+      <div className="admin-document-detail">
+        <section>
+          <h3>기본 정보</h3>
+          <dl className="admin-detail-list compact">
+            <Info label="문서번호" value={document.document_no} />
+            <Info label="문서 종류" value={getDocumentTypeLabel(document.document_type)} />
+            <Info label="버전" value={`v${document.version || 1}${isLatest ? " (최신)" : ""}`} />
+            <Info label="생성일" value={formatDateTime(document.created_at)} />
+            <Info label="생성 관리자" value={document.created_by || "-"} />
+            <Info label="상태" value={getDocumentStatusText(document.status)} />
+          </dl>
+        </section>
+
+        <section>
+          <h3>연결 정보</h3>
+          <dl className="admin-detail-list compact">
+            <Info label="의뢰 정보" value={getDocumentEventName(document, request)} />
+            <Info label="기업 정보" value={getDocumentCompanyName(document, request)} />
+            <Info label="통역사 정보" value={getDocumentInterpreterName(document, interpreter)} />
+            <Info label="금액" value={formatJPY(document.amount || metadata.final_amount)} />
+          </dl>
+        </section>
+
+        <section>
+          <h3>파일</h3>
+          <div className="admin-card-actions">
+            <button
+              type="button"
+              className="admin-save"
+              disabled={!document.file_path}
+              onClick={() => onOpenPdf(document)}
+            >
+              PDF 보기
+            </button>
+            <button
+              type="button"
+              className="admin-link-button"
+              disabled={!document.file_path}
+              onClick={() => onOpenPdf(document)}
+            >
+              다운로드
+            </button>
+          </div>
+        </section>
+
+        <section>
+          <h3>관리 기능</h3>
+          <div className="admin-card-actions">
+            <button type="button" className="admin-save" onClick={onStartNewVersion}>
+              새 버전 생성
+            </button>
+            <button
+              type="button"
+              className="admin-save danger"
+              disabled={
+                document.status === "voided" ||
+                savingKey === `admin-document-void-${document.id}`
+              }
+              onClick={() => onVoidDocument(document)}
+            >
+              폐기 처리
+            </button>
+          </div>
+        </section>
+
+        {draft ? (
+          <section className="admin-document-version-form">
+            <h3>새 버전 수정</h3>
+            <div className="admin-modal-edit-grid">
+              <NumberControl
+                label="금액"
+                value={draft.amount}
+                onChange={(value) => onChangeDraft("amount", value)}
+              />
+              <FieldControl label="수정 메모">
+                <textarea
+                  rows={3}
+                  value={draft.revision_note || ""}
+                  onChange={(event) => onChangeDraft("revision_note", event.target.value)}
+                />
+              </FieldControl>
+              <FieldControl label="관리자 메모">
+                <textarea
+                  rows={3}
+                  value={draft.admin_note || ""}
+                  onChange={(event) => onChangeDraft("admin_note", event.target.value)}
+                />
+              </FieldControl>
+            </div>
+            <div className="admin-modal-actions">
+              <button type="button" className="admin-link-button" onClick={onStartNewVersion}>
+                초기화
+              </button>
+              <button
+                type="button"
+                className="admin-save"
+                disabled={savingKey === `admin-document-version-${document.id}`}
+                onClick={onCreateVersion}
+              >
+                새 PDF 생성
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        <section>
+          <h3>버전 기록</h3>
+          <div className="admin-version-list">
+            {versions.map((version) => (
+              <article className="admin-version-row" key={version.id}>
+                <div>
+                  <strong>
+                    v{version.version || 1}
+                    {Number(version.version || 1) === latestVersion ? " (최신)" : ""}
+                  </strong>
+                  <span>{formatDate(version.created_at)}</span>
+                  <span>{version.created_by || "-"}</span>
+                  <span>{getDocumentStatusText(version.status)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="admin-link-button"
+                  disabled={!version.file_path}
+                  onClick={() => onOpenPdf(version)}
+                >
+                  보기
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </AdminModal>
+  );
+}
+
 function SettlementManagement({
   requests,
   filters,
   setFilters,
   assignmentsByRequest,
   interpreters,
+  payoutDocumentsByKey,
+  payoutDraft,
+  payoutModal,
   savingKey,
+  loadPayoutDocument,
+  onClosePayoutModal,
+  onCreatePayoutDocument,
+  onOpenPayoutModal,
+  onOpenPayoutPdf,
+  onUpdatePayoutDraft,
   updateSettlementStatus,
 }) {
   const filteredRequests = requests.filter((request) => {
@@ -5597,7 +6752,16 @@ function SettlementManagement({
               request={request}
               assignments={assignmentsByRequest.get(request.id) || []}
               interpreters={interpreters}
+              payoutDocumentsByKey={payoutDocumentsByKey}
+              payoutDraft={payoutDraft}
+              payoutModal={payoutModal}
               savingKey={savingKey}
+              loadPayoutDocument={loadPayoutDocument}
+              onClosePayoutModal={onClosePayoutModal}
+              onCreatePayoutDocument={onCreatePayoutDocument}
+              onOpenPayoutModal={onOpenPayoutModal}
+              onOpenPayoutPdf={onOpenPayoutPdf}
+              onUpdatePayoutDraft={onUpdatePayoutDraft}
               updateSettlementStatus={updateSettlementStatus}
             />
           ))}
@@ -5611,9 +6775,32 @@ function SettlementRequestCard({
   request,
   assignments,
   interpreters,
+  payoutDocumentsByKey,
+  payoutDraft,
+  payoutModal,
   savingKey,
+  loadPayoutDocument,
+  onClosePayoutModal,
+  onCreatePayoutDocument,
+  onOpenPayoutModal,
+  onOpenPayoutPdf,
+  onUpdatePayoutDraft,
   updateSettlementStatus,
 }) {
+  const primaryAssignment = assignments[0] || null;
+  const primaryInterpreter =
+    primaryAssignment?.interpreter ||
+    interpreters.find(
+      (interpreter) => String(interpreter.id) === String(primaryAssignment?.interpreter_id)
+    ) ||
+    null;
+  const payoutKey = primaryAssignment?.interpreter_id
+    ? `${request.id}-${primaryAssignment.interpreter_id}`
+    : "";
+  const latestPayoutDocument = payoutKey ? payoutDocumentsByKey[payoutKey] : null;
+  const isPayoutModalOpen =
+    payoutModal?.requestId === request.id &&
+    String(payoutModal?.interpreterId) === String(primaryAssignment?.interpreter_id);
   const assignedInterpreterNames = getAssignedInterpreterName(
     request,
     assignments,
@@ -5624,6 +6811,13 @@ function SettlementRequestCard({
   const platformProfit = getPlatformProfit(request);
   const paymentStatus = normalizePaymentStatus(request.payment_status);
   const settlementStatus = normalizeSettlementFlowStatus(request);
+  const canCreatePayout = isCompletedRequest(request) && Boolean(primaryAssignment?.interpreter_id);
+
+  useEffect(() => {
+    if (primaryAssignment?.interpreter_id) {
+      queueMicrotask(() => loadPayoutDocument(request.id, primaryAssignment.interpreter_id));
+    }
+  }, [loadPayoutDocument, primaryAssignment?.interpreter_id, request.id]);
 
   return (
     <article className="admin-list-card">
@@ -5686,6 +6880,63 @@ function SettlementRequestCard({
             }
           />
         </FieldControl>
+      </div>
+
+      <div className="admin-payout-document-panel">
+        <div className="admin-document-row">
+          <div>
+            <strong>정산 내역서</strong>
+            <span>{getDocumentStatusLabel(latestPayoutDocument)}</span>
+            {latestPayoutDocument?.amount ? (
+              <span>{formatJPY(latestPayoutDocument.amount)}</span>
+            ) : null}
+          </div>
+          <div className="admin-payout-actions">
+            {latestPayoutDocument?.file_path ? (
+              <button
+                type="button"
+                className="admin-link-button"
+                onClick={() => onOpenPayoutPdf(latestPayoutDocument)}
+              >
+                최신 정산서 보기
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="admin-save"
+              disabled={
+                !canCreatePayout ||
+                savingKey === `payout-document-${request.id}-${primaryAssignment?.interpreter_id}`
+              }
+              title={
+                canCreatePayout
+                  ? undefined
+                  : "완료 업무이며 배정된 통역사가 있어야 생성할 수 있습니다."
+              }
+              onClick={() =>
+                onOpenPayoutModal(
+                  request,
+                  primaryAssignment,
+                  primaryInterpreter,
+                  latestPayoutDocument
+                )
+              }
+            >
+              {latestPayoutDocument ? "새 버전 생성" : "정산 내역서 생성"}
+            </button>
+          </div>
+        </div>
+
+        {isPayoutModalOpen && payoutDraft ? (
+          <PayoutCreateDialog
+            draft={payoutDraft}
+            latestDocument={latestPayoutDocument}
+            saving={savingKey === `payout-document-${request.id}-${primaryAssignment?.interpreter_id}`}
+            onCancel={onClosePayoutModal}
+            onChange={onUpdatePayoutDraft}
+            onCreate={onCreatePayoutDocument}
+          />
+        ) : null}
       </div>
     </article>
   );
@@ -6686,6 +7937,360 @@ function getRequestRequiredCount(request = {}) {
     request.requested_people_count || request.required_count || request.people_count,
     1
   );
+}
+
+function createDocumentDraft(documentType, request = {}, assignedInterpreterName = "") {
+  const peopleCount = getRequestRequiredCount(request);
+  const workDays = getRequestWorkDays(request);
+  const baseAmount = getCompanyAmount(request) || normalizeMoneyInput(request.estimated_price);
+  const unitPrice = baseAmount && peopleCount && workDays
+    ? Math.round(baseAmount / peopleCount / workDays)
+    : 0;
+
+  return {
+    document_type: documentType,
+    request_id: request.id,
+    company_id: request.company_id || null,
+    interpreter_id: request.assigned_interpreter_id || request.matched_interpreter_id || null,
+    company_name: request.company_name || "-",
+    event_name: request.event_name || request.title || "-",
+    date_label: formatDateRange(request.start_date, request.end_date, request.event_date),
+    location: request.event_location || request.location || "-",
+    people_count: peopleCount,
+    work_days: workDays,
+    unit_price: unitPrice,
+    discount_amount: 0,
+    extra_amount: 0,
+    work_hours: request.work_hours || "",
+    completed_at: new Date().toISOString().slice(0, 10),
+    interpreter_display_name: assignedInterpreterName || request.assigned_interpreter_name || "-",
+    memo: "",
+  };
+}
+
+function getRequestWorkDays(request = {}) {
+  const startValue = getDateRangeStart(request.start_date, request.event_date);
+  const endValue = getDateRangeEnd(request.end_date, request.event_date);
+  const startDate = parseRequestDateOnly(startValue);
+  const endDate = parseRequestDateOnly(endValue || startValue);
+  if (!startDate || !endDate) return 1;
+  const diff = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
+  return Math.max(1, diff + 1);
+}
+
+function calculateEstimateBaseAmount(draft = {}) {
+  return (
+    normalizeMoneyInput(draft.unit_price) *
+    getPositiveInteger(draft.people_count, 1) *
+    getPositiveInteger(draft.work_days, 1)
+  );
+}
+
+function calculateEstimateAmount(draft = {}) {
+  return Math.max(
+    0,
+    calculateEstimateBaseAmount(draft) -
+      normalizeMoneyInput(draft.discount_amount) +
+      normalizeMoneyInput(draft.extra_amount)
+  );
+}
+
+function buildDocumentMetadata(documentType, draft = {}, request = {}) {
+  const metadata = {
+    request_no: request.request_no || null,
+    company_name: draft.company_name,
+    event_name: draft.event_name,
+    date_label: draft.date_label,
+    location: draft.location,
+    people_count: getPositiveInteger(draft.people_count, 1),
+    memo: draft.memo || "",
+  };
+
+  if (documentType === "estimate") {
+    return {
+      ...metadata,
+      unit_price: normalizeMoneyInput(draft.unit_price),
+      work_days: getPositiveInteger(draft.work_days, 1),
+      discount_amount: normalizeMoneyInput(draft.discount_amount),
+      extra_amount: normalizeMoneyInput(draft.extra_amount),
+      base_amount: calculateEstimateBaseAmount(draft),
+      final_amount: calculateEstimateAmount(draft),
+    };
+  }
+
+  return {
+    ...metadata,
+    work_hours: draft.work_hours || "",
+    completed_at: draft.completed_at || "",
+    interpreter_display_name: draft.interpreter_display_name || "",
+  };
+}
+
+function buildRequestDocumentPdfPayload({
+  documentNo,
+  documentType,
+  draft = {},
+  request = {},
+  version = 1,
+}) {
+  const isEstimate = documentType === "estimate";
+  const issuedAt = new Date().toLocaleDateString("ko-KR");
+
+  return {
+    title: DOCUMENT_TYPE_LABELS[documentType] || "문서",
+    subtitle: `${documentNo} / v${version} / 발급일 ${issuedAt}`,
+    sections: [
+      {
+        heading: "의뢰 정보",
+        rows: [
+          ["의뢰번호", formatManagementNumber(request.request_no)],
+          ["기업명", draft.company_name],
+          ["행사명", draft.event_name],
+          ["행사 기간", draft.date_label],
+          ["장소", draft.location],
+          ["필요 인원", `${draft.people_count || 1}명`],
+        ],
+      },
+      isEstimate
+        ? {
+            heading: "견적 정보",
+            rows: [
+              ["단가", formatJPY(draft.unit_price)],
+              ["업무 일수", `${draft.work_days || 1}일`],
+              ["기본 금액", formatJPY(calculateEstimateBaseAmount(draft))],
+              ["할인 금액", formatJPY(draft.discount_amount)],
+              ["추가 비용", formatJPY(draft.extra_amount)],
+              ["최종 금액", formatJPY(calculateEstimateAmount(draft))],
+            ],
+          }
+        : {
+            heading: "업무 확인 정보",
+            rows: [
+              ["업무 시간", draft.work_hours || "-"],
+              ["완료 확인일", draft.completed_at || "-"],
+              ["담당 통역사", draft.interpreter_display_name || "-"],
+            ],
+          },
+      {
+        heading: "메모",
+        rows: [["비고", draft.memo || "-"]],
+      },
+    ],
+  };
+}
+
+function getDocumentStatusLabel(document = null) {
+  if (!document) return "미발급";
+  return `${document.document_no} / v${document.version || 1}`;
+}
+
+function getDocumentTypeLabel(documentType) {
+  return DOCUMENT_TYPE_LABELS[documentType] || documentType || "-";
+}
+
+function getDocumentStatusText(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value === "draft") return "임시저장";
+  if (value === "issued") return "발급완료";
+  if (value === "voided") return "폐기";
+  return status || "-";
+}
+
+function getDocumentRequest(document = {}, requestMap = new Map()) {
+  return document.request_id ? requestMap.get(String(document.request_id)) || null : null;
+}
+
+function getDocumentInterpreter(document = {}, interpreterMap = new Map()) {
+  return document.interpreter_id
+    ? interpreterMap.get(String(document.interpreter_id)) || null
+    : null;
+}
+
+function getDocumentEventName(document = {}, request = null) {
+  const metadata = document.metadata || {};
+  return metadata.event_name || request?.event_name || request?.title || document.title || "-";
+}
+
+function getDocumentCompanyName(document = {}, request = null) {
+  const metadata = document.metadata || {};
+  return metadata.company_name || request?.company_name || (document.document_type === "payout" ? "-" : "-");
+}
+
+function getDocumentInterpreterName(document = {}, interpreter = null) {
+  const metadata = document.metadata || {};
+  return metadata.interpreter_name || metadata.interpreter_display_name || interpreter?.name || "-";
+}
+
+function doesDocumentMatchFilters(document, filters, requestMap, interpreterMap) {
+  if (filters.documentType !== "all" && document.document_type !== filters.documentType) {
+    return false;
+  }
+  if (filters.status !== "all" && document.status !== filters.status) {
+    return false;
+  }
+
+  const createdDate = String(document.created_at || "").slice(0, 10);
+  if (filters.startDate && createdDate < filters.startDate) return false;
+  if (filters.endDate && createdDate > filters.endDate) return false;
+
+  const request = getDocumentRequest(document, requestMap);
+  const interpreter = getDocumentInterpreter(document, interpreterMap);
+  const search = String(filters.search || "").trim().toLowerCase();
+  if (!search) return true;
+
+  return [
+    document.document_no,
+    getDocumentCompanyName(document, request),
+    getDocumentInterpreterName(document, interpreter),
+    getDocumentEventName(document, request),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(search);
+}
+
+function createAdminDocumentDraft(document = {}) {
+  const metadata = document.metadata || {};
+  return {
+    amount: document.amount || metadata.final_amount || 0,
+    admin_note: metadata.admin_note || "",
+    revision_note: "",
+  };
+}
+
+function copyDocumentForNewVersion(document = {}) {
+  return {
+    document_type: document.document_type,
+    document_no: document.document_no,
+    request_id: document.request_id || null,
+    company_id: document.company_id || null,
+    interpreter_id: document.interpreter_id || null,
+    settlement_id: document.settlement_id || null,
+    title: document.title,
+  };
+}
+
+function buildAdminDocumentVersionPdfPayload({ document, metadata = {}, amount, version }) {
+  return {
+    title: getDocumentTypeLabel(document.document_type),
+    subtitle: `${document.document_no} / v${version} / 발급일 ${new Date().toLocaleDateString("ko-KR")}`,
+    sections: [
+      {
+        heading: "문서 정보",
+        rows: [
+          ["문서번호", document.document_no],
+          ["문서 종류", getDocumentTypeLabel(document.document_type)],
+          ["버전", `v${version}`],
+          ["상태", "발급완료"],
+        ],
+      },
+      {
+        heading: "연결 정보",
+        rows: [
+          ["행사명", metadata.event_name || document.title || "-"],
+          ["기업명", metadata.company_name || "-"],
+          ["통역사명", metadata.interpreter_name || metadata.interpreter_display_name || "-"],
+          ["금액", formatJPY(amount)],
+        ],
+      },
+      {
+        heading: "수정 내용",
+        rows: [
+          ["수정 메모", metadata.revision_note || "-"],
+          ["관리자 메모", metadata.admin_note || "-"],
+        ],
+      },
+    ],
+  };
+}
+
+function createPayoutDraft(request = {}, assignment = {}, interpreter = {}) {
+  const workDays = getRequestWorkDays(request);
+  const totalPayment = getInterpreterPayment(request);
+  const dailyRate = totalPayment && workDays ? Math.round(totalPayment / workDays) : 0;
+
+  return {
+    request_id: request.id,
+    interpreter_id: assignment.interpreter_id || interpreter?.id || null,
+    interpreter_name: interpreter?.name || assignment.interpreter?.name || request.assigned_interpreter_name || "-",
+    event_name: request.event_name || request.title || "-",
+    date_label: formatDateRange(request.start_date, request.end_date, request.event_date),
+    level: normalizeLevel(interpreter?.level || request.requested_level || request.required_level || "Lv1"),
+    daily_rate: dailyRate,
+    work_days: workDays,
+    extra_amount: 0,
+    deduction_amount: 0,
+    memo: "",
+  };
+}
+
+function calculatePayoutBaseAmount(draft = {}) {
+  return normalizeMoneyInput(draft.daily_rate) * getPositiveInteger(draft.work_days, 1);
+}
+
+function calculatePayoutAmount(draft = {}) {
+  return Math.max(
+    0,
+    calculatePayoutBaseAmount(draft) +
+      normalizeMoneyInput(draft.extra_amount) -
+      normalizeMoneyInput(draft.deduction_amount)
+  );
+}
+
+function buildPayoutMetadata(draft = {}, request = {}) {
+  return {
+    request_no: request.request_no || null,
+    interpreter_name: draft.interpreter_name,
+    event_name: draft.event_name,
+    date_label: draft.date_label,
+    level: draft.level,
+    daily_rate: normalizeMoneyInput(draft.daily_rate),
+    work_days: getPositiveInteger(draft.work_days, 1),
+    base_amount: calculatePayoutBaseAmount(draft),
+    extra_amount: normalizeMoneyInput(draft.extra_amount),
+    deduction_amount: normalizeMoneyInput(draft.deduction_amount),
+    final_amount: calculatePayoutAmount(draft),
+    settlement_status: normalizeSettlementFlowStatus(request),
+    memo: draft.memo || "",
+  };
+}
+
+function buildPayoutPdfPayload({ documentNo, draft = {}, request = {}, version = 1 }) {
+  const issuedAt = new Date().toLocaleDateString("ko-KR");
+
+  return {
+    title: "정산 내역서",
+    subtitle: `${documentNo} / v${version} / 발급일 ${issuedAt}`,
+    sections: [
+      {
+        heading: "업무 정보",
+        rows: [
+          ["의뢰번호", formatManagementNumber(request.request_no)],
+          ["통역사명", draft.interpreter_name],
+          ["업무명", draft.event_name],
+          ["업무 날짜", draft.date_label],
+          ["적용 레벨", draft.level],
+          ["정산 상태", getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request))],
+        ],
+      },
+      {
+        heading: "지급 정보",
+        rows: [
+          ["일당", formatJPY(draft.daily_rate)],
+          ["근무 일수", `${draft.work_days || 1}일`],
+          ["기본 지급액", formatJPY(calculatePayoutBaseAmount(draft))],
+          ["추가 지급", formatJPY(draft.extra_amount)],
+          ["공제 금액", formatJPY(draft.deduction_amount)],
+          ["최종 지급액", formatJPY(calculatePayoutAmount(draft))],
+        ],
+      },
+      {
+        heading: "메모",
+        rows: [["비고", draft.memo || "-"]],
+      },
+    ],
+  };
 }
 
 function buildAssignmentRequestChanges(assignments = [], requiredCount = 1) {

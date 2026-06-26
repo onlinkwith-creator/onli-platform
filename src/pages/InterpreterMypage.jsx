@@ -21,6 +21,10 @@ import {
   isJobApplicationWithdrawalPermissionError,
   withdrawOwnJobApplication,
 } from "../utils/applicationContact";
+import {
+  getLatestPayoutDocumentsByInterpreter,
+  getSignedDocumentUrl,
+} from "../lib/documents";
 import "./InterpreterAuth.css";
 import {
   Award,
@@ -35,6 +39,7 @@ const TABS = [
   { id: "profile", label: "프로필 정보", icon: "👤" },
   { id: "applications", label: "지원 내역", icon: "📄" },
   { id: "assignments", label: "배정 내역", icon: "💼" },
+  { id: "settlements", label: "정산 문서", icon: "💴" },
   { id: "schedule", label: "일정 및 캘린더", icon: "📅" },
   { id: "takeHome", label: "예상 실수령액 계산", icon: "🧮" },
 ];
@@ -56,6 +61,7 @@ function InterpreterMypage({
   // Dynamic dashboard states
   const [applications, setApplications] = useState([]);
   const [matchings, setMatchings] = useState([]);
+  const [payoutDocuments, setPayoutDocuments] = useState([]);
   const [activeTab, setActiveTab] = useState("profile");
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -216,8 +222,10 @@ function InterpreterMypage({
           fetchApplicationsData(nextInterpreter.id),
           fetchMatchingsData(nextInterpreter.id),
         ]);
+        const payouts = await fetchPayoutDocuments(nextInterpreter.id);
         setApplications(apps);
         setMatchings(mats);
+        setPayoutDocuments(payouts);
       } catch (err) {
         console.error("Failed to load applications/matchings", err);
       } finally {
@@ -575,6 +583,32 @@ function InterpreterMypage({
     }
 
     return data || [];
+  };
+
+  const fetchPayoutDocuments = async (interpreterId) => {
+    if (!supabase) return [];
+
+    try {
+      return await getLatestPayoutDocumentsByInterpreter(String(interpreterId), supabase);
+    } catch (error) {
+      console.error("Payout documents fetch failed", error);
+      return [];
+    }
+  };
+
+  const handleOpenPayoutPdf = async (document) => {
+    if (!document?.file_path) {
+      alert("정산서 PDF 파일을 확인할 수 없습니다.");
+      return;
+    }
+
+    try {
+      const signedUrl = await getSignedDocumentUrl(document.file_path, supabase);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Payout signed URL failed", error);
+      alert(error.message || "정산서 PDF를 열 수 없습니다.");
+    }
   };
 
   const handleConfirmWithdrawal = async () => {
@@ -1754,6 +1788,84 @@ function InterpreterMypage({
                   </article>
                 )}
 
+                {activeTab === "settlements" && (
+                  <article className="interpreter-mypage-card animate-fade-in">
+                    <h2>정산 내역</h2>
+                    {loadingData ? (
+                      <p className="loading-text">정산 내역을 불러오고 있습니다...</p>
+                    ) : payoutDocuments.length === 0 ? (
+                      <div className="interpreter-empty-state">
+                        <span className="empty-icon">💴</span>
+                        <p>아직 발급된 정산 내역서가 없습니다.</p>
+                        <p className="empty-sub">
+                          업무 완료 후 ON-LI 운영팀이 정산서를 발급하면 이곳에서 확인할 수
+                          있습니다.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="interpreter-assignment-list">
+                        {payoutDocuments.map((document) => {
+                          const metadata = document.metadata || {};
+                          return (
+                            <div key={document.id} className="interpreter-assignment-card">
+                              <div className="card-top-row">
+                                <span className="matching-no">
+                                  {document.document_no || `Payout No.${document.id}`}
+                                </span>
+                                <span className="status-badge settled">
+                                  {getPayoutStatusLabel(document.status)}
+                                </span>
+                              </div>
+                              <h3>{metadata.event_name || document.title || "정산 내역"}</h3>
+
+                              <section className="application-info-section is-personal">
+                                <h4>정산 정보</h4>
+                                <div className="application-personal-meta">
+                                  <ApplicationInfo
+                                    label="업무명"
+                                    value={metadata.event_name || document.title || "-"}
+                                  />
+                                  <ApplicationInfo
+                                    label="업무 날짜"
+                                    value={metadata.date_label || "-"}
+                                  />
+                                  <ApplicationInfo
+                                    label="지급 예정 금액"
+                                    value={formatJPY(document.amount || metadata.final_amount)}
+                                  />
+                                  <ApplicationInfo
+                                    label="정산 상태"
+                                    value={getPayoutStatusLabel(document.status)}
+                                  />
+                                  <ApplicationInfo
+                                    label="버전"
+                                    value={`v${document.version || 1}`}
+                                  />
+                                </div>
+                              </section>
+
+                              <div className="application-card-footer assignment-card-footer">
+                                <p className="assignment-change-note">
+                                  정산서 PDF는 보안 링크로 열리며 일정 시간이 지나면 만료됩니다.
+                                </p>
+                                <div className="application-card-actions">
+                                  <button
+                                    type="button"
+                                    className="application-job-detail-button"
+                                    onClick={() => handleOpenPayoutPdf(document)}
+                                  >
+                                    정산서 PDF 보기
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </article>
+                )}
+
                 {activeTab === "schedule" && (
                   <article className="interpreter-mypage-card animate-fade-in">
                     <h2>내 일정 및 캘린더 타임라인</h2>
@@ -2016,6 +2128,18 @@ function formatDate(dateString) {
     month: "long",
     day: "numeric",
   });
+}
+
+function formatJPY(value) {
+  return `¥${Number(value || 0).toLocaleString()}`;
+}
+
+function getPayoutStatusLabel(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value === "issued") return "발급완료";
+  if (value === "draft") return "임시저장";
+  if (value === "voided") return "무효";
+  return status || "발급완료";
 }
 
 function getDaysRemaining(startDateStr) {
