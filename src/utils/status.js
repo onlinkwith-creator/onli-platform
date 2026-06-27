@@ -319,7 +319,9 @@ export function getStatusBadgeClass(status) {
     matchingStatus === MATCHING_STATUS.SETTLED ||
     normalized === "public" ||
     normalized === "공개" ||
-    normalized === "승인 완료"
+    normalized === "승인 완료" ||
+    lower === "paid" ||
+    normalized === "지급완료"
   ) {
     return "badge-green";
   }
@@ -350,13 +352,16 @@ export function getStatusBadgeClass(status) {
     return "badge-yellow";
   }
   if (matchingStatus === MATCHING_STATUS.SETTLEMENT_PENDING) return "badge-orange";
+  if (lower === "withheld" || normalized === "보류") return "badge-orange";
   if (
     jobStatus === JOB_STATUS.CANCELLED ||
     applicationStatus === APPLICATION_STATUS.REJECTED ||
     applicationStatus === APPLICATION_STATUS.CANCELLED ||
     matchingStatus === MATCHING_STATUS.CANCELLED ||
     normalized === "suspended" ||
-    normalized === "반려"
+    normalized === "반려" ||
+    lower === "cancelled" ||
+    lower === "canceled"
   ) {
     return "badge-red";
   }

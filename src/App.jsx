@@ -81,6 +81,7 @@ function getInitialPage() {
     path === "/admin/new" ||
     path === "/admin/requests" ||
     path === "/admin/interpreters" ||
+    path === "/admin/payments" ||
     path === "/admin/settlements" ||
     path === "/admin/internal"
   ) {

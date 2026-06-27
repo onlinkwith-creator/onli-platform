@@ -105,6 +105,7 @@ const MAIN_TABS = [
   { id: "requests", label: "의뢰 관리", defaultSubTab: "all_requests" },
   { id: "interpreters", label: "통역사 관리", defaultSubTab: "registered_interpreters" },
   { id: "businesses", label: "기업 관리", defaultSubTab: "all_businesses" },
+  { id: "payments", label: "결제 관리", defaultSubTab: "company_payments" },
   { id: "settlements", label: "정산 관리", defaultSubTab: "settlement_pending" },
   { id: "documents", label: "문서 관리", defaultSubTab: "all_documents" },
   { id: "internal", label: "내부 관리", defaultSubTab: "admin_memos" },
@@ -127,6 +128,9 @@ const SUB_TABS = {
   ],
   businesses: [
     { id: "all_businesses", label: "전체 기업" },
+  ],
+  payments: [
+    { id: "company_payments", label: "결제 관리" },
   ],
   settlements: [
     { id: "settlement_pending", label: "정산 대기" },
@@ -215,6 +219,7 @@ const ADMIN_TAB_ALIASES = {
   requests: "all_requests",
   interpreters: "registered_interpreters",
   businesses: "all_businesses",
+  payments: "company_payments",
   settlement: "settlement_pending",
   interpreter_applications: "applications",
   new_applications: "new_interpreters",
@@ -277,6 +282,32 @@ const SETTLEMENT_MANAGEMENT_FILTERS = [
   { value: "settlement_confirmed", label: "정산확정" },
   { value: "settlement_completed", label: "정산완료" },
   { value: "settlement_on_hold", label: "정산보류" },
+];
+const COMPANY_PAYMENT_STATUS_OPTIONS = [
+  { value: "unpaid", label: "미입금" },
+  { value: "invoice_sent", label: "청구 완료" },
+  { value: "paid", label: "입금 완료" },
+  { value: "overdue", label: "연체" },
+  { value: "refunded", label: "환불" },
+];
+const COMPANY_PAYMENT_METHOD_OPTIONS = [
+  { value: "", label: "미입력" },
+  { value: "bank_transfer", label: "계좌이체" },
+  { value: "cash", label: "현금" },
+  { value: "other", label: "기타" },
+];
+const SETTLEMENT_PAYOUT_STATUS_OPTIONS = [
+  { value: "pending", label: "정산 대기" },
+  { value: "confirmed", label: "지급 확정" },
+  { value: "paid", label: "지급 완료" },
+  { value: "withheld", label: "보류" },
+  { value: "cancelled", label: "취소" },
+];
+const SETTLEMENT_PAYOUT_METHOD_OPTIONS = [
+  { value: "", label: "미입력" },
+  { value: "bank_transfer", label: "계좌이체" },
+  { value: "cash", label: "현금" },
+  { value: "other", label: "기타" },
 ];
 const STATUS_LABELS = {
   pending: "대기",
@@ -376,6 +407,7 @@ function getInitialAdminSubTab() {
   if (path === "/admin/applications") return "applications";
   if (path === "/admin/interpreters") return "registered_interpreters";
   if (path === "/admin/businesses") return "all_businesses";
+  if (path === "/admin/payments" || sectionParam === "payments") return "company_payments";
   if (path === "/admin/settings") return "admin_accounts";
   if (path === "/admin/new" || sectionParam === "new") return "new_requests";
   if (path === "/admin/requests" || sectionParam === "requests") return "all_requests";
@@ -395,6 +427,7 @@ function getAdminPathForSubTab(subTabId) {
     requests: "/admin/requests",
     interpreters: "/admin/interpreters",
     businesses: "/admin/businesses",
+    payments: "/admin/payments",
     settlements: "/admin/settlements",
     internal: "/admin/internal",
   };
@@ -419,8 +452,19 @@ function Admin({ onBackClick }) {
   const [adminNotes, setAdminNotes] = useState([]);
   const [adminActivityLogs, setAdminActivityLogs] = useState([]);
   const [notificationEvents, setNotificationEvents] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [paymentLogs, setPaymentLogs] = useState([]);
+  const [settlements, setSettlements] = useState([]);
+  const [settlementLogs, setSettlementLogs] = useState([]);
   const [adminNoteDrafts, setAdminNoteDrafts] = useState({});
   const [notificationProcessing, setNotificationProcessing] = useState(false);
+  const [notificationFilters, setNotificationFilters] = useState({
+    recipient: "all",
+    status: "all",
+    channel: "all",
+    startDate: "",
+    endDate: "",
+  });
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [savingKey, setSavingKey] = useState("");
@@ -462,13 +506,21 @@ function Admin({ onBackClick }) {
     sort: "latest",
     view: "card",
   });
-  const [matchingFilters, setMatchingFilters] = useState({
-    month: "",
-    status: "all",
-  });
   const [applicationFilters, setApplicationFilters] = useState({
     status: "all",
     duplicate: "all",
+  });
+  const [paymentFilters, setPaymentFilters] = useState({
+    search: "",
+    status: "all",
+    startDate: "",
+    endDate: "",
+  });
+  const [settlementFilters, setSettlementFilters] = useState({
+    search: "",
+    status: "all",
+    startDate: "",
+    endDate: "",
   });
 
   const fetchAdminData = useCallback(async () => {
@@ -571,7 +623,16 @@ function Admin({ onBackClick }) {
     }
     if (supabase) {
       try {
-        const [notesResult, logsResult, notificationsResult, documentsResult] = (
+        const [
+          notesResult,
+          logsResult,
+          notificationsResult,
+          documentsResult,
+          paymentsResult,
+          paymentLogsResult,
+          settlementsResult,
+          settlementLogsResult,
+        ] = (
           await Promise.allSettled([
             supabase
               .from("admin_notes")
@@ -585,14 +646,34 @@ function Admin({ onBackClick }) {
               .limit(300),
             supabase
               .from("notification_events")
-              .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
+              .select("id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
               .order("created_at", { ascending: false })
               .limit(300),
             supabase
               .from("documents")
-              .select("id, document_type, document_no, status, version, request_id, interpreter_id, title, amount, storage_bucket, file_path, metadata, created_at")
+              .select("id, document_type, document_no, status, version, request_id, interpreter_id, settlement_id, title, amount, storage_bucket, file_path, metadata, created_at")
               .order("created_at", { ascending: false })
               .limit(300),
+            supabase
+              .from("payments")
+              .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
+              .order("created_at", { ascending: false })
+              .limit(500),
+            supabase
+              .from("payment_logs")
+              .select("id, payment_id, previous_status, new_status, changed_by, memo, created_at")
+              .order("created_at", { ascending: false })
+              .limit(500),
+            supabase
+              .from("settlements")
+              .select("id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at")
+              .order("created_at", { ascending: false })
+              .limit(500),
+            supabase
+              .from("settlement_logs")
+              .select("id, settlement_id, previous_status, new_status, changed_by, memo, created_at")
+              .order("created_at", { ascending: false })
+              .limit(500),
           ])
         ).map((result) =>
           result.status === "fulfilled"
@@ -622,6 +703,34 @@ function Admin({ onBackClick }) {
           console.warn("generated documents fetch skipped:", documentsResult.error);
         } else {
           setGeneratedDocuments(uniqueById(documentsResult.data || []));
+        }
+
+        if (paymentsResult.error) {
+          console.warn("payments fetch skipped:", paymentsResult.error);
+          setPayments([]);
+        } else {
+          setPayments(uniqueById(paymentsResult.data || []));
+        }
+
+        if (paymentLogsResult.error) {
+          console.warn("payment logs fetch skipped:", paymentLogsResult.error);
+          setPaymentLogs([]);
+        } else {
+          setPaymentLogs(uniqueById(paymentLogsResult.data || []));
+        }
+
+        if (settlementsResult.error) {
+          console.warn("settlements fetch skipped:", settlementsResult.error);
+          setSettlements([]);
+        } else {
+          setSettlements(uniqueById(settlementsResult.data || []));
+        }
+
+        if (settlementLogsResult.error) {
+          console.warn("settlement logs fetch skipped:", settlementLogsResult.error);
+          setSettlementLogs([]);
+        } else {
+          setSettlementLogs(uniqueById(settlementLogsResult.data || []));
         }
       } catch (error) {
         console.warn("admin optional data fetch skipped:", error);
@@ -782,24 +891,6 @@ function Admin({ onBackClick }) {
   );
   const settlementPendingRequests = useMemo(
     () => requests.filter((request) => isSettlementPendingRequest(request)),
-    [requests]
-  );
-  const settlementConfirmedRequests = useMemo(
-    () =>
-      requests.filter(
-        (request) => normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.CONFIRMED
-      ),
-    [requests]
-  );
-  const settlementCompletedRequests = useMemo(
-    () => requests.filter((request) => isSettlementCompletedRequest(request)),
-    [requests]
-  );
-  const settlementOnHoldRequests = useMemo(
-    () =>
-      requests.filter(
-        (request) => normalizeSettlementFlowStatus(request) === SETTLEMENT_FLOW_STATUS.ON_HOLD
-      ),
     [requests]
   );
   const newRequests = useMemo(
@@ -985,6 +1076,9 @@ function Admin({ onBackClick }) {
 
   const dashboard = useMemo(
     () => {
+      const failedNotifications = notificationEvents.filter((event) => event.status === "failed").length;
+      const pendingNotifications = notificationEvents.filter((event) => event.status === "pending").length;
+      const unconfirmedBusinesses = businesses.filter((business) => isBusinessApprovalPending(business)).length;
       return {
         totalRequests: requests.length,
         totalInterpreters: interpreters.length,
@@ -997,18 +1091,22 @@ function Admin({ onBackClick }) {
           )
         ).length,
         pendingAssignments: pendingAssignmentRequests.length,
-        settlementPending: settlementPendingRequests.length,
+        settlementPending: settlements.filter((item) => item.payout_status === "pending").length,
+        unconfirmedBusinesses,
+        processingNotifications: failedNotifications + pendingNotifications,
       };
     },
     [
+      businesses,
       jobApplications,
       newRequests.length,
+      notificationEvents,
       pendingInterpreters.length,
       pendingAssignmentRequests.length,
       recruitingJobs.length,
       requests.length,
       interpreters.length,
-      settlementPendingRequests.length,
+      settlements,
     ]
   );
 
@@ -1019,7 +1117,9 @@ function Admin({ onBackClick }) {
   const processingQueueItems = useMemo(
     () =>
       buildProcessingQueueItems({
+        businesses,
         newRequests,
+        notificationEvents,
         pendingResumeReviewInterpreters,
         uncheckedApplications: jobApplications.filter((application) =>
           [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
@@ -1027,15 +1127,44 @@ function Admin({ onBackClick }) {
           )
         ),
         pendingAssignmentRequests,
-        settlementPendingRequests,
+        settlements,
       }),
     [
+      businesses,
       jobApplications,
       newRequests,
+      notificationEvents,
       pendingAssignmentRequests,
       pendingResumeReviewInterpreters,
-      settlementPendingRequests,
+      settlements,
     ]
+  );
+  const processingTaskItems = useMemo(
+    () =>
+      buildProcessingTaskItems({
+        businesses,
+        generatedDocuments,
+        newRequests,
+        pendingAssignmentRequests,
+        requests,
+        settlements,
+      }),
+    [businesses, generatedDocuments, newRequests, pendingAssignmentRequests, requests, settlements]
+  );
+  const revenueSummary = useMemo(
+    () => buildRevenueSummary({ payments, requests, settlements }),
+    [payments, requests, settlements]
+  );
+  const recentActivityItems = useMemo(
+    () =>
+      buildRecentActivityItems({
+        adminActivityLogs,
+        generatedDocuments,
+        notificationEvents,
+        payments,
+        settlements,
+      }),
+    [adminActivityLogs, generatedDocuments, notificationEvents, payments, settlements]
   );
   const getInterpreterScheduleConflicts = useCallback(
     (interpreterId, range, excludeMatchingId) =>
@@ -1086,11 +1215,12 @@ function Admin({ onBackClick }) {
     if (subTabId === "verification_pending") return pendingResumeReviewInterpreters.length;
     if (subTabId === "interpreter_activity") return interpreters.length;
     if (subTabId === "all_businesses") return businesses.length;
-    if (subTabId === "settlement_pending") return settlementPendingRequests.length;
-    if (subTabId === "settlement_confirmed") return settlementConfirmedRequests.length;
-    if (subTabId === "settlement_completed") return settlementCompletedRequests.length;
-    if (subTabId === "settlement_on_hold") return settlementOnHoldRequests.length;
-    if (subTabId === "payment_history") return settlementCompletedRequests.length;
+    if (subTabId === "company_payments") return payments.length;
+    if (subTabId === "settlement_pending") return settlements.filter((item) => item.payout_status === "pending").length;
+    if (subTabId === "settlement_confirmed") return settlements.filter((item) => item.payout_status === "confirmed").length;
+    if (subTabId === "settlement_completed") return settlements.filter((item) => item.payout_status === "paid").length;
+    if (subTabId === "settlement_on_hold") return settlements.filter((item) => item.payout_status === "withheld").length;
+    if (subTabId === "payment_history") return settlements.filter((item) => item.payout_status === "paid").length;
     if (subTabId === "all_documents") return generatedDocuments.length;
     if (subTabId === "estimate_documents") {
       return generatedDocuments.filter((doc) => doc.document_type === "estimate").length;
@@ -1117,31 +1247,7 @@ function Admin({ onBackClick }) {
       targetTab: "new_requests",
     },
     {
-      label: "신규 통역사",
-      value: `${dashboard.pendingInterpreters}명`,
-      description: "검증 처리 필요",
-      tone: "green",
-      icon: User,
-      targetTab: "new_interpreters",
-    },
-    {
-      label: "모집중 공고",
-      value: `${dashboard.recruitingJobs}건`,
-      description: "공개 모집 상태",
-      tone: "blue",
-      icon: Star,
-      targetTab: "jobs",
-    },
-    {
-      label: "신규 지원",
-      value: `${dashboard.uncheckedApplications}건`,
-      description: "검토가 필요한 지원",
-      tone: "orange",
-      icon: Mail,
-      targetTab: "applications",
-    },
-    {
-      label: "배정 대기",
+      label: "배정 필요",
       value: `${dashboard.pendingAssignments}건`,
       description: "배정 확인 필요",
       tone: "red",
@@ -1149,12 +1255,37 @@ function Admin({ onBackClick }) {
       targetTab: "assignments",
     },
     {
+      label: "진행 예정 업무",
+      value: `${operationDashboard.weekItems.length}건`,
+      description: "이번 주 운영 일정",
+      tone: "blue",
+      icon: Star,
+      targetTab: "all_requests",
+      requestStatus: "before_operation",
+    },
+    {
       label: "정산 대기",
       value: `${dashboard.settlementPending}건`,
-      description: "정산 처리 필요",
+      description: "지급 처리 필요",
       tone: "indigo",
       icon: CheckCircle2,
       targetTab: "settlement_pending",
+    },
+    {
+      label: "미확인 기업",
+      value: `${dashboard.unconfirmedBusinesses}건`,
+      description: "기업 상태 확인",
+      tone: "green",
+      icon: User,
+      targetTab: "all_businesses",
+    },
+    {
+      label: "처리 필요 알림",
+      value: `${dashboard.processingNotifications}건`,
+      description: "실패/대기 알림",
+      tone: "orange",
+      icon: Mail,
+      targetTab: "notification_history",
     },
   ];
 
@@ -1168,7 +1299,7 @@ function Admin({ onBackClick }) {
         ...prev,
         search: "",
         month: "",
-        status: "all",
+        status: card.requestStatus || "all",
         public: "all",
       }));
       switchSubTab("all_requests");
@@ -1194,15 +1325,27 @@ function Admin({ onBackClick }) {
       });
       switchSubTab("applications");
     } else if (card.targetTab === "settlement_pending") {
-      setMatchingFilters((prev) => ({
+      setSettlementFilters((prev) => ({
         ...prev,
-        month: "",
-        status: "settlement_pending",
+        status: "pending",
       }));
       switchSubTab("settlement_pending");
+    } else if (card.targetTab === "notification_history") {
+      setNotificationFilters((prev) => ({
+        ...prev,
+        status: "failed",
+      }));
+      switchSubTab("notification_history");
     } else {
       switchSubTab(card.targetTab);
     }
+  };
+
+  const handleDashboardShortcut = (targetTab) => {
+    if (targetTab === "new_requests") {
+      setRequestFilters((prev) => ({ ...prev, status: "new_request", search: "", month: "" }));
+    }
+    switchSubTab(targetTab);
   };
 
   const updateAdminAccountDraft = (name, value) => {
@@ -1419,7 +1562,15 @@ function Admin({ onBackClick }) {
   const refreshAdminOperationsData = async () => {
     if (!supabase) return;
 
-    const [notesResult, logsResult, notificationsResult] = await Promise.all([
+    const [
+      notesResult,
+      logsResult,
+      notificationsResult,
+      paymentsResult,
+      paymentLogsResult,
+      settlementsResult,
+      settlementLogsResult,
+    ] = await Promise.all([
       supabase
         .from("admin_notes")
         .select("id, target_type, target_id, note, created_by, created_at, updated_at")
@@ -1432,14 +1583,38 @@ function Admin({ onBackClick }) {
         .limit(300),
       supabase
         .from("notification_events")
-        .select("id, event_type, target_type, target_id, recipient_type, recipient_email, recipient_phone, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
+        .select("id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
         .order("created_at", { ascending: false })
         .limit(300),
+      supabase
+        .from("payments")
+        .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("payment_logs")
+        .select("id, payment_id, previous_status, new_status, changed_by, memo, created_at")
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("settlements")
+        .select("id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at")
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("settlement_logs")
+        .select("id, settlement_id, previous_status, new_status, changed_by, memo, created_at")
+        .order("created_at", { ascending: false })
+        .limit(500),
     ]);
 
     if (!notesResult.error) setAdminNotes(uniqueById(notesResult.data || []));
     if (!logsResult.error) setAdminActivityLogs(logsResult.data || []);
     if (!notificationsResult.error) setNotificationEvents(uniqueById(notificationsResult.data || []));
+    if (!paymentsResult.error) setPayments(uniqueById(paymentsResult.data || []));
+    if (!paymentLogsResult.error) setPaymentLogs(uniqueById(paymentLogsResult.data || []));
+    if (!settlementsResult.error) setSettlements(uniqueById(settlementsResult.data || []));
+    if (!settlementLogsResult.error) setSettlementLogs(uniqueById(settlementLogsResult.data || []));
   };
 
   const processNotificationEvents = async ({ eventIds = [], retryFailed = false } = {}) => {
@@ -1450,6 +1625,19 @@ function Admin({ onBackClick }) {
 
     setNotificationProcessing(true);
     try {
+      if (retryFailed && eventIds.length > 0) {
+        const { error: resetError } = await supabase
+          .from("notification_events")
+          .update({
+            status: "pending",
+            error_message: null,
+            processed_at: null,
+          })
+          .in("id", eventIds);
+
+        if (resetError) throw resetError;
+      }
+
       const { data, error } = await supabase.functions.invoke("send-email", {
         body: {
           action: "process_notification_events",
@@ -1471,6 +1659,93 @@ function Admin({ onBackClick }) {
       return false;
     } finally {
       setNotificationProcessing(false);
+    }
+  };
+
+  const updateCompanyPayment = async (paymentId, changes) => {
+    if (!supabase || !paymentId) {
+      alert(supabaseConfigError.message);
+      return false;
+    }
+
+    setSavingKey(`company-payment-${paymentId}`);
+    try {
+      const payload = {
+        payment_status: changes.payment_status,
+        payment_method: changes.payment_method || null,
+        paid_at: changes.paid_at || null,
+        due_date: changes.due_date || null,
+        admin_memo: changes.admin_memo || null,
+      };
+
+      const { data, error } = await supabase
+        .from("payments")
+        .update(payload)
+        .eq("id", paymentId)
+        .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
+        .single();
+
+      if (error) throw error;
+
+      setPayments((current) =>
+        current.map((payment) => (payment.id === paymentId ? { ...payment, ...data } : payment))
+      );
+      await refreshAdminOperationsData();
+      alert("결제 상태가 저장되었습니다.");
+      return true;
+    } catch (error) {
+      console.error("company payment update failed:", error);
+      alert(`결제 상태 저장 실패: ${error.message || "원인을 확인해주세요."}`);
+      return false;
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const updateInterpreterSettlement = async (settlementId, changes) => {
+    if (!supabase || !settlementId) {
+      alert(supabaseConfigError.message);
+      return false;
+    }
+
+    setSavingKey(`settlement-${settlementId}`);
+    try {
+      const payload = {
+        amount: normalizeMoneyInput(changes.amount),
+        payout_status: changes.payout_status,
+        work_days: changes.work_days ? Number(changes.work_days) : null,
+        level: changes.level || null,
+        daily_rate: changes.daily_rate ? normalizeMoneyInput(changes.daily_rate) : null,
+        extra_amount: normalizeMoneyInput(changes.extra_amount),
+        deduction_amount: normalizeMoneyInput(changes.deduction_amount),
+        paid_at: changes.paid_at || null,
+        payment_method: changes.payment_method || null,
+        admin_memo: changes.admin_memo || null,
+      };
+
+      const { data, error } = await supabase
+        .from("settlements")
+        .update(payload)
+        .eq("id", settlementId)
+        .select("id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at")
+        .single();
+
+      if (error) throw error;
+
+      setSettlements((current) =>
+        current.map((settlement) =>
+          settlement.id === settlementId ? { ...settlement, ...data } : settlement
+        )
+      );
+      await refreshAdminOperationsData();
+      alert("지급 상태가 저장되었습니다.");
+      return true;
+    } catch (error) {
+      console.error("interpreter settlement update failed:", error);
+      alert(`지급 상태 저장 실패: ${error.message || "원인을 확인해주세요."}`);
+      return false;
+    } finally {
+      setSavingKey("");
     }
   };
 
@@ -3223,6 +3498,7 @@ function Admin({ onBackClick }) {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const updateSettlementManagementStatus = async (request, changes) => {
     if (!request?.id) {
       alert("의뢰 정보를 확인할 수 없습니다.");
@@ -3435,6 +3711,8 @@ function Admin({ onBackClick }) {
         {errorMessage && <MessageBox text={errorMessage} />}
         {!loading && (
           <>
+            <DashboardQuickActions onNavigate={handleDashboardShortcut} />
+
             <section className="admin-metrics">
               {metricCards.map((card) => (
                 <MetricCard
@@ -3450,12 +3728,22 @@ function Admin({ onBackClick }) {
             </section>
 
             <OperationOverview
+              notificationCount={dashboard.processingNotifications}
+              recentActivities={recentActivityItems}
+              revenueSummary={revenueSummary}
               todayItems={operationDashboard.todayItems}
               urgentItems={operationDashboard.urgentItems}
+              weekItems={operationDashboard.weekItems}
+              onOpenNotification={() => handleDashboardShortcut("notification_history")}
               onOpenRequest={(request) => {
                 switchSubTab("requests");
                 openRequestModal("detail", request);
               }}
+            />
+
+            <ProcessingTaskList
+              items={processingTaskItems}
+              onOpenItem={(item) => handleDashboardShortcut(item.targetSubTab)}
             />
 
             <ProcessingQueue
@@ -3507,6 +3795,19 @@ function Admin({ onBackClick }) {
                 requests={requests}
                 onUpdateStatus={(bizId, newStatus) => updateBusiness(bizId, { status: newStatus })}
                 onUpdateNotes={(bizId, newNotes) => updateBusiness(bizId, { notes: newNotes })}
+              />
+            )}
+
+            {activeSubTab === "company_payments" && (
+              <CompanyPaymentManagement
+                documents={generatedDocuments}
+                filters={paymentFilters}
+                logs={paymentLogs}
+                payments={payments}
+                requests={requests}
+                savingKey={savingKey}
+                setFilters={setPaymentFilters}
+                updatePayment={updateCompanyPayment}
               />
             )}
 
@@ -3730,94 +4031,82 @@ function Admin({ onBackClick }) {
             )}
 
             {activeSubTab === "settlement_pending" && (
-              <SettlementManagement
-                filters={matchingFilters}
-                requests={settlementPendingRequests}
-                sectionTitle="정산 대기"
-                assignmentsByRequest={assignmentsByRequest}
+              <InterpreterSettlementManagement
+                documents={generatedDocuments}
+                filters={settlementFilters}
                 interpreters={interpreters}
+                logs={settlementLogs}
+                requests={requests}
                 savingKey={savingKey}
-                setFilters={setMatchingFilters}
-                updateSettlementStatus={updateSettlementManagementStatus}
-                adminNotes={adminNotes}
-                adminActivityLogs={adminActivityLogs}
-                noteDrafts={adminNoteDrafts}
-                onChangeNoteDraft={updateAdminNoteDraft}
-                onCreateNote={createAdminNote}
-                onOpenDocumentPreview={openDocumentPreview}
-                generatedDocuments={generatedDocuments}
-                openRequestModal={openRequestModal}
+                settlements={settlements}
+                setFilters={setSettlementFilters}
+                statusScope="pending"
+                title="정산 대기"
+                updateSettlement={updateInterpreterSettlement}
               />
             )}
 
             {activeSubTab === "settlement_confirmed" && (
-              <SettlementManagement
-                filters={matchingFilters}
-                requests={settlementConfirmedRequests}
-                sectionTitle="정산 확정"
-                assignmentsByRequest={assignmentsByRequest}
+              <InterpreterSettlementManagement
+                documents={generatedDocuments}
+                filters={settlementFilters}
                 interpreters={interpreters}
+                logs={settlementLogs}
+                requests={requests}
                 savingKey={savingKey}
-                setFilters={setMatchingFilters}
-                updateSettlementStatus={updateSettlementManagementStatus}
-                adminNotes={adminNotes}
-                adminActivityLogs={adminActivityLogs}
-                noteDrafts={adminNoteDrafts}
-                onChangeNoteDraft={updateAdminNoteDraft}
-                onCreateNote={createAdminNote}
-                onOpenDocumentPreview={openDocumentPreview}
-                generatedDocuments={generatedDocuments}
-                openRequestModal={openRequestModal}
+                settlements={settlements}
+                setFilters={setSettlementFilters}
+                statusScope="confirmed"
+                title="지급 확정"
+                updateSettlement={updateInterpreterSettlement}
               />
             )}
 
             {activeSubTab === "settlement_completed" && (
-              <SettlementManagement
-                filters={matchingFilters}
-                requests={settlementCompletedRequests}
-                sectionTitle="정산 완료"
-                assignmentsByRequest={assignmentsByRequest}
+              <InterpreterSettlementManagement
+                documents={generatedDocuments}
+                filters={settlementFilters}
                 interpreters={interpreters}
+                logs={settlementLogs}
+                requests={requests}
                 savingKey={savingKey}
-                setFilters={setMatchingFilters}
-                updateSettlementStatus={updateSettlementManagementStatus}
-                adminNotes={adminNotes}
-                adminActivityLogs={adminActivityLogs}
-                noteDrafts={adminNoteDrafts}
-                onChangeNoteDraft={updateAdminNoteDraft}
-                onCreateNote={createAdminNote}
-                onOpenDocumentPreview={openDocumentPreview}
-                generatedDocuments={generatedDocuments}
-                openRequestModal={openRequestModal}
+                settlements={settlements}
+                setFilters={setSettlementFilters}
+                statusScope="paid"
+                title="지급 완료"
+                updateSettlement={updateInterpreterSettlement}
               />
             )}
 
             {activeSubTab === "settlement_on_hold" && (
-              <SettlementManagement
-                filters={matchingFilters}
-                requests={settlementOnHoldRequests}
-                sectionTitle="정산 보류"
-                assignmentsByRequest={assignmentsByRequest}
+              <InterpreterSettlementManagement
+                documents={generatedDocuments}
+                filters={settlementFilters}
                 interpreters={interpreters}
+                logs={settlementLogs}
+                requests={requests}
                 savingKey={savingKey}
-                setFilters={setMatchingFilters}
-                updateSettlementStatus={updateSettlementManagementStatus}
-                adminNotes={adminNotes}
-                adminActivityLogs={adminActivityLogs}
-                noteDrafts={adminNoteDrafts}
-                onChangeNoteDraft={updateAdminNoteDraft}
-                onCreateNote={createAdminNote}
-                onOpenDocumentPreview={openDocumentPreview}
-                generatedDocuments={generatedDocuments}
-                openRequestModal={openRequestModal}
+                settlements={settlements}
+                setFilters={setSettlementFilters}
+                statusScope="withheld"
+                title="정산 보류"
+                updateSettlement={updateInterpreterSettlement}
               />
             )}
 
             {activeSubTab === "payment_history" && (
-              <PaymentHistoryManagement
-                requests={settlementCompletedRequests}
-                assignmentsByRequest={assignmentsByRequest}
+              <InterpreterSettlementManagement
+                documents={generatedDocuments}
+                filters={settlementFilters}
                 interpreters={interpreters}
+                logs={settlementLogs}
+                requests={requests}
+                savingKey={savingKey}
+                settlements={settlements}
+                setFilters={setSettlementFilters}
+                statusScope="paid"
+                title="지급 기록"
+                updateSettlement={updateInterpreterSettlement}
               />
             )}
 
@@ -3867,6 +4156,8 @@ function Admin({ onBackClick }) {
                 interpreters={interpreters}
                 assignmentRows={assignmentRows}
                 jobApplications={jobApplications}
+                filters={notificationFilters}
+                onFiltersChange={setNotificationFilters}
                 processing={notificationProcessing}
                 onProcessPending={() => processNotificationEvents()}
                 onProcessEvent={(event) =>
@@ -5216,6 +5507,656 @@ function RequestEditForm({ draft, onCancel, onChange, onSave, saving }) {
         </button>
       </div>
     </form>
+  );
+}
+
+function CompanyPaymentManagement({
+  documents = [],
+  filters,
+  logs = [],
+  payments = [],
+  requests = [],
+  savingKey,
+  setFilters,
+  updatePayment,
+}) {
+  const [selectedPaymentId, setSelectedPaymentId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const requestMap = useMemo(
+    () => new Map(requests.map((request) => [String(request.id), request])),
+    [requests]
+  );
+  const documentMap = useMemo(
+    () => new Map(documents.map((document) => [String(document.id), document])),
+    [documents]
+  );
+  const rows = useMemo(
+    () =>
+      payments
+        .map((payment) => {
+          const request = requestMap.get(String(payment.request_id)) || {};
+          const estimateDocument = payment.estimate_document_id
+            ? documentMap.get(String(payment.estimate_document_id))
+            : null;
+          return {
+            payment,
+            request,
+            estimateDocument,
+            requestNo: request.request_no || `REQ-${payment.request_id}`,
+            companyName: request.company_name || "-",
+            eventName: request.event_name || request.title || "-",
+          };
+        })
+        .filter((row) => doesCompanyPaymentMatchFilters(row, filters)),
+    [documentMap, filters, payments, requestMap]
+  );
+  const selectedPayment =
+    payments.find((payment) => payment.id === selectedPaymentId) || null;
+  const selectedRequest = selectedPayment
+    ? requestMap.get(String(selectedPayment.request_id)) || null
+    : null;
+  const selectedDocument = selectedPayment?.estimate_document_id
+    ? documentMap.get(String(selectedPayment.estimate_document_id)) || null
+    : null;
+  const selectedLogs = selectedPayment
+    ? logs.filter((log) => log.payment_id === selectedPayment.id)
+    : [];
+
+  const openDetail = (payment) => {
+    setSelectedPaymentId(payment.id);
+    setDraft({
+      payment_status: payment.payment_status || "unpaid",
+      payment_method: payment.payment_method || "",
+      paid_at: payment.paid_at ? String(payment.paid_at).slice(0, 16) : "",
+      due_date: payment.due_date || "",
+      admin_memo: payment.admin_memo || "",
+    });
+  };
+
+  const updateDraft = (field, value) => {
+    setDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const saveDraft = async () => {
+    if (!selectedPayment || !draft) return;
+    const ok = await updatePayment(selectedPayment.id, {
+      ...draft,
+      paid_at: draft.paid_at ? new Date(draft.paid_at).toISOString() : null,
+    });
+    if (ok) {
+      setSelectedPaymentId(null);
+      setDraft(null);
+    }
+  };
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${rows.length}건`} title="결제 관리" />
+      <div className="admin-filter-bar admin-filters">
+        <label className="admin-filter-search admin-search-control">
+          <Search size={16} aria-hidden="true" />
+          <input
+            value={filters.search}
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, search: event.target.value }))
+            }
+            placeholder="기업명, 의뢰번호, 행사명 검색"
+          />
+        </label>
+        <select
+          className="admin-filter-select"
+          value={filters.status}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, status: event.target.value }))
+          }
+        >
+          <option value="all">결제 상태: 전체</option>
+          {COMPANY_PAYMENT_STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <input
+          className="admin-filter-select"
+          type="date"
+          value={filters.startDate}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, startDate: event.target.value }))
+          }
+          aria-label="입금 기한 시작"
+        />
+        <input
+          className="admin-filter-select"
+          type="date"
+          value={filters.endDate}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, endDate: event.target.value }))
+          }
+          aria-label="입금 기한 종료"
+        />
+      </div>
+
+      {rows.length === 0 ? (
+        <MessageBox text="조건에 맞는 결제 항목이 없습니다." />
+      ) : (
+        <div className="admin-table-wrap">
+          <table className="admin-table admin-payment-table">
+            <thead>
+              <tr>
+                <th>의뢰번호</th>
+                <th>기업명</th>
+                <th>행사명</th>
+                <th>견적 금액</th>
+                <th>결제 상태</th>
+                <th>입금 기한</th>
+                <th>입금일</th>
+                <th>메모</th>
+                <th>상세보기</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ payment, requestNo, companyName, eventName }) => (
+                <tr key={payment.id}>
+                  <td>{formatManagementNumber(requestNo)}</td>
+                  <td>{companyName}</td>
+                  <td>{eventName}</td>
+                  <td>{formatDocumentAmount(payment.amount)}</td>
+                  <td>
+                    <span className={`status-badge ${getCompanyPaymentBadgeClass(payment.payment_status)}`}>
+                      {getCompanyPaymentStatusLabel(payment.payment_status)}
+                    </span>
+                  </td>
+                  <td>{formatDate(payment.due_date)}</td>
+                  <td>{formatDateTime(payment.paid_at)}</td>
+                  <td className="admin-table-text">{payment.admin_memo || "-"}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="admin-secondary"
+                      onClick={() => openDetail(payment)}
+                    >
+                      상세
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selectedPayment && draft && (
+        <AdminModal
+          className="admin-payment-detail-modal"
+          title="결제 상세"
+          titleId="admin-payment-detail-title"
+          onClose={() => {
+            setSelectedPaymentId(null);
+            setDraft(null);
+          }}
+        >
+          <div className="admin-payment-detail-grid">
+            <section>
+              <h3>기업/의뢰 정보</h3>
+              <dl className="admin-detail-list compact">
+                <Info label="기업명" value={selectedRequest?.company_name || "-"} />
+                <Info label="의뢰번호" value={formatManagementNumber(selectedRequest?.request_no)} />
+                <Info label="행사명" value={selectedRequest?.event_name || selectedRequest?.title || "-"} />
+                <Info label="일정" value={formatDateRange(selectedRequest?.start_date, selectedRequest?.end_date, selectedRequest?.event_date)} />
+              </dl>
+            </section>
+            <section>
+              <h3>견적서 정보</h3>
+              <dl className="admin-detail-list compact">
+                <Info label="문서번호" value={selectedDocument?.document_no || "-"} />
+                <Info label="견적 금액" value={formatDocumentAmount(selectedPayment.amount)} />
+                <Info label="입금 방식" value={getCompanyPaymentMethodLabel(selectedPayment.payment_method)} />
+                <Info label="생성일" value={formatDateTime(selectedDocument?.created_at)} />
+              </dl>
+            </section>
+            <section>
+              <h3>상태 변경</h3>
+              <div className="admin-card-controls-grid">
+                <FieldControl label="결제 상태">
+                  <select
+                    className="admin-filter-select"
+                    value={draft.payment_status}
+                    onChange={(event) => updateDraft("payment_status", event.target.value)}
+                  >
+                    {COMPANY_PAYMENT_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FieldControl>
+                <FieldControl label="입금 방식">
+                  <select
+                    className="admin-filter-select"
+                    value={draft.payment_method}
+                    onChange={(event) => updateDraft("payment_method", event.target.value)}
+                  >
+                    {COMPANY_PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FieldControl>
+                <FieldControl label="입금 기한">
+                  <input
+                    type="date"
+                    value={draft.due_date}
+                    onChange={(event) => updateDraft("due_date", event.target.value)}
+                  />
+                </FieldControl>
+                <FieldControl label="입금일">
+                  <input
+                    type="datetime-local"
+                    value={draft.paid_at}
+                    onChange={(event) => updateDraft("paid_at", event.target.value)}
+                  />
+                </FieldControl>
+              </div>
+              <label className="admin-field-control">
+                <span>관리자 메모</span>
+                <textarea
+                  rows={4}
+                  value={draft.admin_memo}
+                  onChange={(event) => updateDraft("admin_memo", event.target.value)}
+                  placeholder="입금 확인 메모를 입력하세요."
+                />
+              </label>
+              <div className="admin-card-actions">
+                <button
+                  type="button"
+                  className="admin-save"
+                  disabled={savingKey === `company-payment-${selectedPayment.id}`}
+                  onClick={saveDraft}
+                >
+                  {savingKey === `company-payment-${selectedPayment.id}` ? "저장 중..." : "저장"}
+                </button>
+              </div>
+            </section>
+            <section>
+              <h3>상태 변경 이력</h3>
+              {selectedLogs.length === 0 ? (
+                <p className="admin-empty-text">아직 상태 변경 이력이 없습니다.</p>
+              ) : (
+                <div className="admin-operations-list">
+                  {selectedLogs.map((log) => (
+                    <article className="admin-operation-log-item" key={log.id}>
+                      <strong>
+                        {getCompanyPaymentStatusLabel(log.previous_status)} → {getCompanyPaymentStatusLabel(log.new_status)}
+                      </strong>
+                      <p>{log.memo || "-"}</p>
+                      <span>{formatDateTime(log.created_at)}</span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </AdminModal>
+      )}
+    </section>
+  );
+}
+
+function InterpreterSettlementManagement({
+  documents = [],
+  filters,
+  interpreters = [],
+  logs = [],
+  requests = [],
+  savingKey,
+  settlements = [],
+  setFilters,
+  statusScope = "all",
+  title = "정산 관리",
+  updateSettlement,
+}) {
+  const [selectedSettlementId, setSelectedSettlementId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const requestMap = useMemo(
+    () => new Map(requests.map((request) => [String(request.id), request])),
+    [requests]
+  );
+  const interpreterMap = useMemo(
+    () => new Map(interpreters.map((interpreter) => [String(interpreter.id), interpreter])),
+    [interpreters]
+  );
+  const rows = useMemo(
+    () =>
+      settlements
+        .filter((settlement) => statusScope === "all" || settlement.payout_status === statusScope)
+        .map((settlement) => {
+          const request = requestMap.get(String(settlement.request_id)) || {};
+          const interpreter = interpreterMap.get(String(settlement.interpreter_id)) || {};
+          const document = findPayoutDocumentForSettlement(documents, settlement);
+          return { settlement, request, interpreter, document };
+        })
+        .filter((row) => doesInterpreterSettlementMatchFilters(row, filters)),
+    [documents, filters, interpreterMap, requestMap, settlements, statusScope]
+  );
+  const selectedSettlement =
+    settlements.find((settlement) => settlement.id === selectedSettlementId) || null;
+  const selectedRequest = selectedSettlement
+    ? requestMap.get(String(selectedSettlement.request_id)) || null
+    : null;
+  const selectedInterpreter = selectedSettlement
+    ? interpreterMap.get(String(selectedSettlement.interpreter_id)) || null
+    : null;
+  const selectedDocument = selectedSettlement
+    ? findPayoutDocumentForSettlement(documents, selectedSettlement)
+    : null;
+  const selectedLogs = selectedSettlement
+    ? logs.filter((log) => log.settlement_id === selectedSettlement.id)
+    : [];
+
+  const openDetail = (settlement) => {
+    setSelectedSettlementId(settlement.id);
+    setDraft({
+      amount: settlement.amount ?? 0,
+      payout_status: settlement.payout_status || "pending",
+      work_days: settlement.work_days || "",
+      level: settlement.level || "",
+      daily_rate: settlement.daily_rate || "",
+      extra_amount: settlement.extra_amount || 0,
+      deduction_amount: settlement.deduction_amount || 0,
+      paid_at: settlement.paid_at ? String(settlement.paid_at).slice(0, 16) : "",
+      payment_method: settlement.payment_method || "",
+      admin_memo: settlement.admin_memo || "",
+    });
+  };
+
+  const updateDraft = (field, value) => {
+    setDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const openPayoutDocument = async (document) => {
+    if (!document?.file_path) return;
+    try {
+      const { data, error } = await supabase.storage
+        .from(document.storage_bucket || "onli-documents")
+        .createSignedUrl(document.file_path, 600, {
+          download: `${document.document_no || "ONLI-PAYOUT"}.pdf`,
+        });
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("payout document open failed:", error);
+      alert("정산서를 열 수 없습니다. 권한 또는 파일 상태를 확인해주세요.");
+    }
+  };
+
+  const saveDraft = async () => {
+    if (!selectedSettlement || !draft) return;
+    if (
+      selectedDocument &&
+      Number(selectedSettlement.amount || 0) !== Number(draft.amount || 0) &&
+      !window.confirm("이미 발급된 정산서가 있습니다. 금액 변경 후에는 문서 관리에서 새 정산서 버전을 생성해주세요. 계속 저장하시겠습니까?")
+    ) {
+      return;
+    }
+
+    const ok = await updateSettlement(selectedSettlement.id, {
+      ...draft,
+      paid_at: draft.paid_at ? new Date(draft.paid_at).toISOString() : null,
+    });
+    if (ok) {
+      setSelectedSettlementId(null);
+      setDraft(null);
+    }
+  };
+
+  return (
+    <section className="admin-section">
+      <SectionTitle count={`${rows.length}건`} title={title} />
+      <div className="admin-filter-bar admin-filters">
+        <label className="admin-filter-search admin-search-control">
+          <Search size={16} aria-hidden="true" />
+          <input
+            value={filters.search}
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, search: event.target.value }))
+            }
+            placeholder="통역사명, 의뢰명 검색"
+          />
+        </label>
+        <select
+          className="admin-filter-select"
+          value={filters.status}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, status: event.target.value }))
+          }
+        >
+          <option value="all">지급 상태: 전체</option>
+          {SETTLEMENT_PAYOUT_STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <input
+          className="admin-filter-select"
+          type="date"
+          value={filters.startDate}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, startDate: event.target.value }))
+          }
+          aria-label="업무 기간 시작"
+        />
+        <input
+          className="admin-filter-select"
+          type="date"
+          value={filters.endDate}
+          onChange={(event) =>
+            setFilters((current) => ({ ...current, endDate: event.target.value }))
+          }
+          aria-label="업무 기간 종료"
+        />
+      </div>
+
+      {rows.length === 0 ? (
+        <MessageBox text="조건에 맞는 정산 항목이 없습니다." />
+      ) : (
+        <div className="admin-table-wrap">
+          <table className="admin-table admin-settlement-table">
+            <thead>
+              <tr>
+                <th>의뢰명</th>
+                <th>통역사명</th>
+                <th>업무 날짜</th>
+                <th>적용 레벨</th>
+                <th>근무 일수</th>
+                <th>일당</th>
+                <th>최종 지급 금액</th>
+                <th>지급 상태</th>
+                <th>지급일</th>
+                <th>정산서 보기</th>
+                <th>상세보기</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ settlement, request, interpreter, document }) => (
+                <tr key={settlement.id}>
+                  <td>{request.event_name || request.title || "-"}</td>
+                  <td>{interpreter.name || "-"}</td>
+                  <td>{formatDateRange(request.start_date, request.end_date, request.event_date)}</td>
+                  <td>{settlement.level || request.settlement_level || "-"}</td>
+                  <td>{settlement.work_days || request.settlement_work_days || "-"}</td>
+                  <td>{formatJPY(settlement.daily_rate)}</td>
+                  <td>{formatJPY(settlement.amount)}</td>
+                  <td>
+                    <span className={`status-badge ${getSettlementPayoutBadgeClass(settlement.payout_status)}`}>
+                      {getSettlementPayoutStatusLabel(settlement.payout_status)}
+                    </span>
+                  </td>
+                  <td>{formatDateTime(settlement.paid_at)}</td>
+                  <td>
+                    {document ? (
+                      <button
+                        type="button"
+                        className="admin-secondary"
+                        onClick={() => openPayoutDocument(document)}
+                      >
+                        보기
+                      </button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="admin-secondary"
+                      onClick={() => openDetail(settlement)}
+                    >
+                      상세
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selectedSettlement && draft && (
+        <AdminModal
+          className="admin-payment-detail-modal"
+          title="정산 상세"
+          titleId="admin-settlement-detail-title"
+          onClose={() => {
+            setSelectedSettlementId(null);
+            setDraft(null);
+          }}
+        >
+          <div className="admin-payment-detail-grid">
+            <section>
+              <h3>의뢰/통역사 정보</h3>
+              <dl className="admin-detail-list compact">
+                <Info label="의뢰명" value={selectedRequest?.event_name || selectedRequest?.title || "-"} />
+                <Info label="의뢰번호" value={formatManagementNumber(selectedRequest?.request_no)} />
+                <Info label="업무일" value={formatDateRange(selectedRequest?.start_date, selectedRequest?.end_date, selectedRequest?.event_date)} />
+                <Info label="통역사명" value={selectedInterpreter?.name || "-"} />
+              </dl>
+            </section>
+            <section>
+              <h3>지급 정보</h3>
+              <div className="admin-card-controls-grid">
+                <FieldControl label="지급 상태">
+                  <select
+                    className="admin-filter-select"
+                    value={draft.payout_status}
+                    onChange={(event) => updateDraft("payout_status", event.target.value)}
+                  >
+                    {SETTLEMENT_PAYOUT_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FieldControl>
+                <NumberControl
+                  label="최종 지급 금액"
+                  value={draft.amount}
+                  onChange={(value) => updateDraft("amount", value)}
+                />
+                <FieldControl label="근무 일수">
+                  <input
+                    type="number"
+                    min="0"
+                    value={draft.work_days}
+                    onChange={(event) => updateDraft("work_days", event.target.value)}
+                  />
+                </FieldControl>
+                <FieldControl label="적용 레벨">
+                  <input
+                    value={draft.level}
+                    onChange={(event) => updateDraft("level", event.target.value)}
+                  />
+                </FieldControl>
+                <NumberControl
+                  label="일당"
+                  value={draft.daily_rate}
+                  onChange={(value) => updateDraft("daily_rate", value)}
+                />
+                <NumberControl
+                  label="추가 지급"
+                  value={draft.extra_amount}
+                  onChange={(value) => updateDraft("extra_amount", value)}
+                />
+                <NumberControl
+                  label="차감 금액"
+                  value={draft.deduction_amount}
+                  onChange={(value) => updateDraft("deduction_amount", value)}
+                />
+                <FieldControl label="지급일">
+                  <input
+                    type="datetime-local"
+                    value={draft.paid_at}
+                    onChange={(event) => updateDraft("paid_at", event.target.value)}
+                  />
+                </FieldControl>
+                <FieldControl label="지급 방식">
+                  <select
+                    className="admin-filter-select"
+                    value={draft.payment_method}
+                    onChange={(event) => updateDraft("payment_method", event.target.value)}
+                  >
+                    {SETTLEMENT_PAYOUT_METHOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FieldControl>
+              </div>
+              <label className="admin-field-control">
+                <span>관리자 메모</span>
+                <textarea
+                  rows={4}
+                  value={draft.admin_memo}
+                  onChange={(event) => updateDraft("admin_memo", event.target.value)}
+                  placeholder="지급 확인 메모를 입력하세요."
+                />
+              </label>
+              <div className="admin-card-actions">
+                <button
+                  type="button"
+                  className="admin-save"
+                  disabled={savingKey === `settlement-${selectedSettlement.id}`}
+                  onClick={saveDraft}
+                >
+                  {savingKey === `settlement-${selectedSettlement.id}` ? "저장 중..." : "저장"}
+                </button>
+              </div>
+            </section>
+            <section>
+              <h3>지급 이력 로그</h3>
+              {selectedLogs.length === 0 ? (
+                <p className="admin-empty-text">아직 지급 이력이 없습니다.</p>
+              ) : (
+                <div className="admin-operations-list">
+                  {selectedLogs.map((log) => (
+                    <article className="admin-operation-log-item" key={log.id}>
+                      <strong>
+                        {getSettlementPayoutStatusLabel(log.previous_status)} → {getSettlementPayoutStatusLabel(log.new_status)}
+                      </strong>
+                      <p>{log.memo || "-"}</p>
+                      <span>{formatDateTime(log.created_at)}</span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </AdminModal>
+      )}
+    </section>
   );
 }
 
@@ -9246,6 +10187,7 @@ function DocumentManagement({
   );
 }
 
+// eslint-disable-next-line no-unused-vars
 function PaymentHistoryManagement({ assignmentsByRequest, interpreters, requests }) {
   const rows = requests.flatMap((request) => {
     const assignments = assignmentsByRequest.get(request.id) || [];
@@ -9474,12 +10416,19 @@ function NotificationHistoryManagement({
   interpreters = [],
   assignmentRows = [],
   jobApplications = [],
+  filters = {
+    recipient: "all",
+    status: "all",
+    channel: "all",
+    startDate: "",
+    endDate: "",
+  },
+  onFiltersChange,
   processing = false,
   onProcessPending,
   onProcessEvent,
   onRetryEvent,
 }) {
-  const [statusFilter, setStatusFilter] = useState("all");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const notificationItems = buildNotificationDisplayItems({
     events,
@@ -9488,30 +10437,96 @@ function NotificationHistoryManagement({
     assignmentRows,
     jobApplications,
   });
-  const visibleEvents =
-    statusFilter === "all"
-      ? notificationItems
-      : notificationItems.filter((event) => event.status === statusFilter);
+  const visibleEvents = notificationItems.filter((event) => {
+    if (filters.recipient !== "all") {
+      const recipientType = String(event.recipient_type || "").trim().toLowerCase();
+      if (filters.recipient === "company") {
+        if (!["company", "client"].includes(recipientType)) return false;
+      } else if (recipientType !== filters.recipient) {
+        return false;
+      }
+    }
+    if (filters.status !== "all" && event.status !== filters.status) {
+      return false;
+    }
+    if (filters.channel !== "all" && getNotificationChannel(event) !== filters.channel) {
+      return false;
+    }
+    if (filters.startDate && event.created_at) {
+      const createdAt = new Date(event.created_at);
+      const startAt = new Date(`${filters.startDate}T00:00:00`);
+      if (createdAt < startAt) return false;
+    }
+    if (filters.endDate && event.created_at) {
+      const createdAt = new Date(event.created_at);
+      const endAt = new Date(`${filters.endDate}T23:59:59`);
+      if (createdAt > endAt) return false;
+    }
+    return true;
+  });
   const pendingCount = events.filter((event) => event.status === "pending").length;
   const failedCount = events.filter((event) => event.status === "failed").length;
+  const updateFilter = (key, value) => {
+    onFiltersChange?.({
+      ...filters,
+      [key]: value,
+    });
+  };
 
   return (
     <section className="admin-section">
-      <SectionTitle count={`${visibleEvents.length}건`} title="알림 이력" />
+      <SectionTitle count={`${visibleEvents.length}건`} title="알림 로그" />
       <div className="admin-section-toolbar admin-notification-toolbar">
         <div className="admin-filter-bar admin-filters">
           <select
             className="admin-filter-select"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
+            value={filters.recipient}
+            onChange={(event) => updateFilter("recipient", event.target.value)}
+            aria-label="대상 필터"
           >
-            <option value="all">전체</option>
+            <option value="all">대상 전체</option>
+            <option value="company">기업</option>
+            <option value="interpreter">통역사</option>
+            <option value="admin">관리자</option>
+          </select>
+          <select
+            className="admin-filter-select"
+            value={filters.status}
+            onChange={(event) => updateFilter("status", event.target.value)}
+            aria-label="상태 필터"
+          >
+            <option value="all">상태 전체</option>
             <option value="pending">발송 대기</option>
             <option value="processing">발송 처리 중</option>
             <option value="sent">발송 완료</option>
             <option value="failed">발송 실패</option>
             <option value="skipped">발송 제외</option>
           </select>
+          <select
+            className="admin-filter-select"
+            value={filters.channel}
+            onChange={(event) => updateFilter("channel", event.target.value)}
+            aria-label="채널 필터"
+          >
+            <option value="all">채널 전체</option>
+            <option value="email">이메일</option>
+            <option value="kakao">카카오</option>
+            <option value="internal">내부</option>
+          </select>
+          <input
+            className="admin-filter-input"
+            type="date"
+            value={filters.startDate}
+            onChange={(event) => updateFilter("startDate", event.target.value)}
+            aria-label="시작일"
+          />
+          <input
+            className="admin-filter-input"
+            type="date"
+            value={filters.endDate}
+            onChange={(event) => updateFilter("endDate", event.target.value)}
+            aria-label="종료일"
+          />
         </div>
         <button
           type="button"
@@ -9525,47 +10540,61 @@ function NotificationHistoryManagement({
       {visibleEvents.length === 0 ? (
         <MessageBox text="조건에 맞는 알림 이벤트가 없습니다." />
       ) : (
-        <div className="admin-notification-history-list">
-          {visibleEvents.map((event) => (
-            <article className="admin-list-card" key={event.id}>
-              <div className="admin-list-card-head">
-                <div>
-                  <span className="admin-card-meta">알림</span>
-                  <h3>{event.eventLabel}</h3>
-                </div>
-                <span className={`status-badge ${getStatusBadgeClass(event.status)}`}>
-                  {event.statusLabel}
-                </span>
-              </div>
-              <dl className="admin-card-summary">
-                <Info label="알림 종류" value={event.eventLabel} />
-                <Info label="대상" value={event.targetLabel} />
-                <Info label="관련" value={event.relatedLabel} />
-                <Info label="발송 상태" value={event.statusLabel} />
-                <Info label="생성일" value={formatDateTime(event.created_at)} />
-              </dl>
-              <div className="admin-button-row">
-                <button
-                  type="button"
-                  className="admin-secondary"
-                  onClick={() => setSelectedEvent(event)}
-                >
-                  상세보기
-                </button>
-                {event.status !== "pending" && event.status !== "processing" && (
-                  <button
-                    type="button"
-                    className="admin-save"
-                    style={{ marginLeft: "8px" }}
-                    onClick={() => onRetryEvent(event)}
-                    disabled={processing}
-                  >
-                    재발송
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+        <div className="admin-table-wrap">
+          <table className="admin-table admin-notification-log-table">
+            <thead>
+              <tr>
+                <th>생성일</th>
+                <th>대상</th>
+                <th>알림 종류</th>
+                <th>제목</th>
+                <th>채널</th>
+                <th>상태</th>
+                <th>발송일</th>
+                <th>실패 사유</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleEvents.map((event) => (
+                <tr key={event.id}>
+                  <td>{formatDateTime(event.created_at)}</td>
+                  <td>{event.recipientLabel}</td>
+                  <td>{event.eventLabel}</td>
+                  <td>{event.title || event.message || event.eventLabel}</td>
+                  <td>{getNotificationChannelLabel(event.channel)}</td>
+                  <td>
+                    <span className={`status-badge ${getStatusBadgeClass(event.status)}`}>
+                      {event.statusLabel}
+                    </span>
+                  </td>
+                  <td>{event.sent_at ? formatDateTime(event.sent_at) : "-"}</td>
+                  <td className="admin-table-text">{event.error_message || "-"}</td>
+                  <td>
+                    <div className="admin-inline-actions">
+                      <button
+                        type="button"
+                        className="admin-secondary"
+                        onClick={() => setSelectedEvent(event)}
+                      >
+                        상세
+                      </button>
+                      {event.status === "failed" && (
+                        <button
+                          type="button"
+                          className="admin-save"
+                          onClick={() => onRetryEvent(event)}
+                          disabled={processing}
+                        >
+                          재발송
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
       {failedCount > 0 && (
@@ -9654,6 +10683,7 @@ function NotificationEventDetailModal({
   );
 }
 
+// eslint-disable-next-line no-unused-vars
 function SettlementManagement({
   adminActivityLogs = [],
   adminNotes = [],
@@ -10132,7 +11162,46 @@ function SettlementRequestCard({
   );
 }
 
-function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
+function DashboardQuickActions({ onNavigate }) {
+  const actions = [
+    { label: "+ 새 의뢰 등록", target: "new_requests" },
+    { label: "+ 통역사 추가", target: "new_interpreters" },
+    { label: "기업 관리", target: "all_businesses" },
+    { label: "문서 관리", target: "all_documents" },
+  ];
+
+  return (
+    <section className="admin-dashboard-actions" aria-label="빠른 액션">
+      <div>
+        <p className="admin-kicker">ADMIN HOME</p>
+        <h2>오늘 운영 현황</h2>
+      </div>
+      <div className="admin-dashboard-action-buttons">
+        {actions.map((action) => (
+          <button
+            key={action.target}
+            type="button"
+            className="admin-secondary"
+            onClick={() => onNavigate(action.target)}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OperationOverview({
+  notificationCount = 0,
+  recentActivities = [],
+  revenueSummary,
+  todayItems,
+  urgentItems,
+  weekItems = [],
+  onOpenNotification,
+  onOpenRequest,
+}) {
   const [selectedUrgentItem, setSelectedUrgentItem] = useState(null);
 
   const handleOpenUrgentDetail = (item) => {
@@ -10147,12 +11216,12 @@ function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
   };
 
   return (
-    <section className="admin-operation-overview" aria-label="오늘 운영과 긴급 요청">
+    <section className="admin-operation-overview" aria-label="운영 대시보드">
       <div className="admin-operation-panel admin-today-panel">
         <div className="admin-panel-head">
           <div>
             <p className="admin-kicker">TODAY</p>
-            <h2>오늘 운영</h2>
+            <h2>오늘 진행</h2>
           </div>
           <span>{todayItems.length}건</span>
         </div>
@@ -10177,6 +11246,7 @@ function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
                   <User size={14} aria-hidden="true" />
                   {item.interpreters || "배정 통역사 없음"}
                 </p>
+                <p>{item.request.company_name || "-"}</p>
               </article>
             ))
           )}
@@ -10186,49 +11256,72 @@ function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
       <div className="admin-operation-panel admin-urgent-panel">
         <div className="admin-panel-head">
           <div>
-            <p className="admin-kicker">URGENT</p>
-            <h2>긴급 요청</h2>
+            <p className="admin-kicker">THIS WEEK</p>
+            <h2>이번 주 예정</h2>
           </div>
-          <span>{urgentItems.length}건</span>
+          <span>{weekItems.length}건</span>
         </div>
         <div className="admin-operation-list">
-          {urgentItems.length === 0 ? (
-            <p className="admin-empty-text">긴급 확인이 필요한 의뢰가 없습니다.</p>
+          {weekItems.length === 0 ? (
+            <p className="admin-empty-text">이번 주 예정된 운영이 없습니다.</p>
           ) : (
-            <div className="admin-urgent-list" role="list">
-              <div className="admin-urgent-list-head" aria-hidden="true">
-                <span>상태</span>
-                <span>행사명</span>
-                <span>날짜</span>
-                <span>관리</span>
-              </div>
-              <div className="admin-urgent-list-scroll">
-                {urgentItems.map((item) => (
-                  <button
-                    type="button"
-                    className="admin-urgent-row"
-                    key={`urgent-${item.request.id}`}
-                    onClick={() => handleOpenUrgentDetail(item)}
-                    role="listitem"
-                  >
-                    <span className={`admin-urgent-dday ${getUrgentDdayTone(item)}`}>
-                      {item.dDayLabel}
-                    </span>
-                    <span className="admin-urgent-event">
-                      <strong>{item.request.event_name || "-"}</strong>
-                      <small>{item.reason}</small>
-                    </span>
-                    <span className="admin-urgent-date">
-                      {formatUrgentShortDate(item.request)}
-                    </span>
-                    <span className="admin-urgent-manage">확인</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            weekItems.slice(0, 6).map((item) => (
+              <button
+                type="button"
+                className="admin-week-row"
+                key={`week-${item.request.id}`}
+                onClick={() => onOpenRequest(item.request)}
+              >
+                <strong>{formatUrgentShortDate(item.request)}</strong>
+                <span>{item.request.event_name || "-"}</span>
+                <small>{item.request.company_name || "-"} · {item.interpreters || "배정 통역사 없음"}</small>
+              </button>
+            ))
           )}
         </div>
       </div>
+
+      <div className="admin-operation-panel admin-urgent-panel">
+        <div className="admin-panel-head">
+          <div>
+            <p className="admin-kicker">ALERT</p>
+            <h2>관리자 알림</h2>
+          </div>
+          <button type="button" className="admin-notification-pill" onClick={onOpenNotification}>
+            처리 필요 {notificationCount}건
+          </button>
+        </div>
+        <div className="admin-urgent-list" role="list">
+          <div className="admin-urgent-list-scroll">
+            {urgentItems.length === 0 ? (
+              <p className="admin-empty-text">긴급 확인이 필요한 의뢰가 없습니다.</p>
+            ) : (
+              urgentItems.slice(0, 5).map((item) => (
+                <button
+                  type="button"
+                  className="admin-urgent-row"
+                  key={`urgent-${item.request.id}`}
+                  onClick={() => handleOpenUrgentDetail(item)}
+                  role="listitem"
+                >
+                  <span className={`admin-urgent-dday ${getUrgentDdayTone(item)}`}>
+                    {item.dDayLabel}
+                  </span>
+                  <span className="admin-urgent-event">
+                    <strong>{item.request.event_name || "-"}</strong>
+                    <small>{item.reason}</small>
+                  </span>
+                  <span className="admin-urgent-manage">확인</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <RevenueSummaryPanel summary={revenueSummary} />
+
+      <RecentActivityPanel activities={recentActivities} />
 
       {selectedUrgentItem && (
         <UrgentRequestDetailModal
@@ -10238,6 +11331,95 @@ function OperationOverview({ todayItems, urgentItems, onOpenRequest }) {
         />
       )}
     </section>
+  );
+}
+
+function ProcessingTaskList({ items = [], onOpenItem }) {
+  return (
+    <section className="admin-task-list-section">
+      <div className="admin-panel-head">
+        <div>
+          <p className="admin-kicker">TASKS</p>
+          <h2>처리 필요 업무</h2>
+        </div>
+        <span>{items.length}건</span>
+      </div>
+      <div className="admin-task-list">
+        {items.length === 0 ? (
+          <p className="admin-empty-text">지금 처리할 업무가 없습니다.</p>
+        ) : (
+          items.slice(0, 10).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="admin-task-row"
+              onClick={() => onOpenItem(item)}
+            >
+              <span>{item.category}</span>
+              <strong>{item.title}</strong>
+              <small>{item.description}</small>
+              <em>{formatDate(item.date)}</em>
+              <b>바로가기</b>
+            </button>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RevenueSummaryPanel({ summary }) {
+  return (
+    <div className="admin-operation-panel admin-revenue-panel">
+      <div className="admin-panel-head">
+        <div>
+          <p className="admin-kicker">MONTH</p>
+          <h2>운영 매출 요약</h2>
+        </div>
+        <span>예상</span>
+      </div>
+      <dl className="admin-revenue-grid">
+        <div>
+          <dt>기업 청구 금액</dt>
+          <dd>{formatJPY(summary?.companyAmount || 0)}</dd>
+        </div>
+        <div>
+          <dt>통역사 지급 예정</dt>
+          <dd>{formatJPY(summary?.interpreterAmount || 0)}</dd>
+        </div>
+        <div>
+          <dt>예상 운영 수익</dt>
+          <dd>{formatJPY(summary?.profit || 0)}</dd>
+        </div>
+      </dl>
+      <p className="admin-revenue-note">세금 계산 전 운영 참고용 예상값입니다.</p>
+    </div>
+  );
+}
+
+function RecentActivityPanel({ activities = [] }) {
+  return (
+    <div className="admin-operation-panel admin-activity-panel">
+      <div className="admin-panel-head">
+        <div>
+          <p className="admin-kicker">RECENT</p>
+          <h2>최근 변경</h2>
+        </div>
+        <span>{activities.length}건</span>
+      </div>
+      <div className="admin-activity-list">
+        {activities.length === 0 ? (
+          <p className="admin-empty-text">최근 활동 로그가 없습니다.</p>
+        ) : (
+          activities.slice(0, 5).map((activity) => (
+            <article key={activity.id} className="admin-activity-item">
+              <strong>{activity.description}</strong>
+              <span>{formatDateTime(activity.created_at)}</span>
+            </article>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -10912,6 +12094,7 @@ function isSettlementPendingRequest(request = {}) {
   );
 }
 
+// eslint-disable-next-line no-unused-vars
 function isSettlementCompletedRequest(request = {}) {
   const status = String(request.settlement_status || request.payment_status || "")
     .trim()
@@ -11463,6 +12646,9 @@ function normalizeAdminTargetType(targetType) {
     return "application";
   }
   if (["request", "requests"].includes(normalized)) return "request";
+  if (["business", "businesses", "company", "companies"].includes(normalized)) return "business";
+  if (["document", "documents"].includes(normalized)) return "document";
+  if (["payment", "payments"].includes(normalized)) return "payment";
   if (["interpreter", "interpreters"].includes(normalized)) return "interpreter";
   if (["assignment", "assignments", "matching", "matchings", "request_interpreter"].includes(normalized)) {
     return "assignment";
@@ -11542,6 +12728,7 @@ function buildNotificationDisplayItems({
       ...event,
       eventLabel: getNotificationEventTypeLabel(event.event_type),
       statusLabel: getNotificationStatusLabel(event.status),
+      recipientLabel: getNotificationRecipientLabel(event),
       targetLabel: getNotificationTargetLabel({
         targetType,
         payload,
@@ -11601,23 +12788,65 @@ function getNotificationPayloadSummary(event = {}) {
 function getNotificationEventTypeLabel(eventType) {
   const labels = {
     assignment_created: "배정 완료 알림",
+    interpreter_assignment_completed: "배정 완료 알림",
     application_created: "신규 지원 알림",
+    interpreter_application_received: "지원 완료 알림",
     new_request: "신규 의뢰 알림",
+    admin_new_request: "신규 의뢰 알림",
+    admin_new_company: "신규 기업 등록 알림",
+    admin_estimate_approved: "견적 승인 완료 알림",
     status_changed: "상태 변경 알림",
     settlement_ready: "정산 대기 알림",
     application_status_changed: "지원 상태 변경 알림",
     settlement_status_changed: "정산 상태 변경 알림",
+    interpreter_payout_issued: "정산서 발급 알림",
+    interpreter_payout_completed: "정산 완료 알림",
     memo_created: "내부 메모 알림",
     new_interpreter: "신규 통역사 알림",
     request_created_client: "의뢰 접수 완료 알림",
+    company_request_received: "의뢰 접수 완료 알림",
+    company_estimate_issued: "견적서 발급 알림",
+    company_estimate_approved: "견적 승인 완료 알림",
     client_review_started: "의뢰 검토 시작 알림",
     client_estimate_ready: "견적 안내 알림",
     client_recruiting_started: "통역사 모집 시작 알림",
     assignment_confirmed_client: "배정 완료 알림",
+    company_assignment_completed: "배정 완료 알림",
     client_work_completed: "업무 완료 알림",
+    company_completion_document_issued: "업무확인서 발급 알림",
+    company_payment_invoice_sent: "입금 안내 알림",
+    company_payment_paid: "입금 확인 알림",
+    company_payment_overdue: "연체 안내 알림",
+    admin_payment_overdue: "결제 연체 알림",
     client_settlement_ready: "정산/결제 안내 알림",
   };
   return labels[String(eventType || "").trim()] || "운영 알림";
+}
+
+function getNotificationChannel(event = {}) {
+  return String(event.channel || "email").trim().toLowerCase() || "email";
+}
+
+function getNotificationChannelLabel(channel) {
+  const labels = {
+    email: "이메일",
+    kakao: "카카오",
+    internal: "내부",
+  };
+  return labels[String(channel || "email").trim().toLowerCase()] || "이메일";
+}
+
+function getNotificationRecipientLabel(event = {}) {
+  const labels = {
+    company: "기업",
+    client: "기업",
+    interpreter: "통역사",
+    admin: "관리자",
+  };
+  const type = String(event.recipient_type || "").trim().toLowerCase();
+  const typeLabel = labels[type] || "대상";
+  const email = event.recipient_email ? ` / ${event.recipient_email}` : "";
+  return `${typeLabel}${email}`;
 }
 
 function getNotificationStatusLabel(status) {
@@ -11629,6 +12858,133 @@ function getNotificationStatusLabel(status) {
     skipped: "발송 제외",
   };
   return labels[String(status || "").trim().toLowerCase()] || "상태 확인 필요";
+}
+
+function getCompanyPaymentStatusLabel(status) {
+  const option = COMPANY_PAYMENT_STATUS_OPTIONS.find(
+    (item) => item.value === String(status || "").trim()
+  );
+  return option?.label || "미입금";
+}
+
+function getCompanyPaymentMethodLabel(method) {
+  const option = COMPANY_PAYMENT_METHOD_OPTIONS.find(
+    (item) => item.value === String(method || "").trim()
+  );
+  return option?.label || "미입력";
+}
+
+function getCompanyPaymentBadgeClass(status) {
+  const classes = {
+    unpaid: "badge-yellow",
+    invoice_sent: "badge-blue",
+    paid: "badge-green",
+    overdue: "badge-red",
+    refunded: "badge-gray",
+  };
+  return classes[String(status || "").trim()] || "badge-yellow";
+}
+
+function getSettlementPayoutStatusLabel(status) {
+  const option = SETTLEMENT_PAYOUT_STATUS_OPTIONS.find(
+    (item) => item.value === String(status || "").trim()
+  );
+  return option?.label || "정산 대기";
+}
+
+function getSettlementPayoutBadgeClass(status) {
+  const classes = {
+    pending: "badge-yellow",
+    confirmed: "badge-blue",
+    paid: "badge-green",
+    withheld: "badge-red",
+    cancelled: "badge-gray",
+  };
+  return classes[String(status || "").trim()] || "badge-yellow";
+}
+
+function findPayoutDocumentForSettlement(documents = [], settlement = {}) {
+  if (!settlement) return null;
+  return (
+    documents.find((document) => document.id === settlement.payout_document_id) ||
+    documents.find(
+      (document) =>
+        document.document_type === "payout" &&
+        String(document.settlement_id || "") === String(settlement.id)
+    ) ||
+    documents.find(
+      (document) =>
+        document.document_type === "payout" &&
+        String(document.request_id || "") === String(settlement.request_id || "") &&
+        String(document.interpreter_id || "") === String(settlement.interpreter_id || "")
+    ) ||
+    null
+  );
+}
+
+function doesInterpreterSettlementMatchFilters(row = {}, filters = {}) {
+  const settlement = row.settlement || {};
+  const request = row.request || {};
+  const interpreter = row.interpreter || {};
+  const search = String(filters.search || "").trim().toLowerCase();
+
+  if (filters.status && filters.status !== "all" && settlement.payout_status !== filters.status) {
+    return false;
+  }
+
+  if (search) {
+    const haystack = [
+      interpreter.name,
+      request.event_name,
+      request.title,
+      request.request_no,
+      settlement.assignment_id,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (!haystack.includes(search)) return false;
+  }
+
+  const rowDate = String(request.start_date || request.event_date || settlement.created_at || "").slice(0, 10);
+  if (filters.startDate && rowDate && rowDate < filters.startDate) return false;
+  if (filters.endDate && rowDate && rowDate > filters.endDate) return false;
+  return true;
+}
+
+function doesCompanyPaymentMatchFilters(row, filters = {}) {
+  const payment = row.payment || {};
+  if (filters.status && filters.status !== "all" && payment.payment_status !== filters.status) {
+    return false;
+  }
+
+  const search = String(filters.search || "").trim().toLowerCase();
+  if (search) {
+    const haystack = [
+      row.requestNo,
+      row.companyName,
+      row.eventName,
+      payment.admin_memo,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (!haystack.includes(search)) return false;
+  }
+
+  const compareDate = payment.due_date || payment.created_at;
+  if (filters.startDate && compareDate) {
+    const value = new Date(`${String(compareDate).slice(0, 10)}T00:00:00`);
+    const start = new Date(`${filters.startDate}T00:00:00`);
+    if (value < start) return false;
+  }
+  if (filters.endDate && compareDate) {
+    const value = new Date(`${String(compareDate).slice(0, 10)}T00:00:00`);
+    const end = new Date(`${filters.endDate}T23:59:59`);
+    if (value > end) return false;
+  }
+
+  return true;
 }
 
 function getNotificationTargetLabel({
@@ -11648,6 +13004,15 @@ function getNotificationTargetLabel({
   if (targetType === "request") {
     return request?.company_name || payload.company_name || "의뢰 기업";
   }
+  if (targetType === "business") {
+    return payload.company_name || "등록 기업";
+  }
+  if (targetType === "document") {
+    return payload.company_name || payload.interpreter_name || "문서 대상";
+  }
+  if (targetType === "payment") {
+    return payload.company_name || "결제 대상 기업";
+  }
   if (targetType === "interpreter") {
     return interpreter?.name || payload.name || "통역사";
   }
@@ -11658,17 +13023,25 @@ function getNotificationRelatedLabel({ targetType, request, interpreter, applica
   if (targetType === "assignment") return formatManagementNumber(assignmentRow?.assignmentNo);
   if (targetType === "application") return formatManagementNumber(application?.application_no);
   if (targetType === "request") return formatManagementNumber(request?.request_no || request?.request_number);
+  if (targetType === "business") return formatManagementNumber(request?.company_no || "-");
+  if (targetType === "document") return "-";
+  if (targetType === "payment") return formatManagementNumber(request?.request_no || "-");
   if (targetType === "interpreter") return formatManagementNumber(interpreter?.interpreter_no);
   return "-";
 }
 
 function buildProcessingQueueItems({
+  businesses = [],
   newRequests = [],
+  notificationEvents = [],
   pendingResumeReviewInterpreters = [],
   uncheckedApplications = [],
   pendingAssignmentRequests = [],
-  settlementPendingRequests = [],
+  settlements = [],
 }) {
+  const pendingSettlements = settlements.filter((settlement) => settlement.payout_status === "pending");
+  const failedNotifications = notificationEvents.filter((event) => event.status === "failed");
+  const uncheckedBusinesses = businesses.filter((business) => isBusinessApprovalPending(business));
   return [
     {
       id: "new-requests",
@@ -11705,12 +13078,231 @@ function buildProcessingQueueItems({
     {
       id: "pending-settlements",
       label: "정산 대기",
-      count: settlementPendingRequests.length,
+      count: pendingSettlements.length,
       description: "진행 완료 후 지급 확인",
-      priority: settlementPendingRequests.length > 0 ? "urgent" : "general",
+      priority: pendingSettlements.length > 0 ? "urgent" : "general",
       targetSubTab: "settlement_pending",
     },
+    {
+      id: "unconfirmed-businesses",
+      label: "미확인 기업",
+      count: uncheckedBusinesses.length,
+      description: "기업 상태 확인",
+      priority: uncheckedBusinesses.length > 0 ? "today" : "general",
+      targetSubTab: "all_businesses",
+    },
+    {
+      id: "failed-notifications",
+      label: "실패 알림",
+      count: failedNotifications.length,
+      description: "발송 실패 이벤트 확인",
+      priority: failedNotifications.length > 0 ? "urgent" : "general",
+      targetSubTab: "notification_history",
+    },
   ];
+}
+
+function buildProcessingTaskItems({
+  businesses = [],
+  generatedDocuments = [],
+  newRequests = [],
+  pendingAssignmentRequests = [],
+  requests = [],
+  settlements = [],
+}) {
+  const tasks = [];
+  const requestMap = new Map(requests.map((request) => [String(request.id), request]));
+
+  businesses
+    .filter((business) => isBusinessApprovalPending(business))
+    .slice(0, 5)
+    .forEach((business) => {
+      tasks.push({
+        id: `business-${business.id}`,
+        category: "기업",
+        title: business.company_name || business.name || "신규 기업",
+        description: "신규 기업 승인 요청",
+        date: business.created_at,
+        targetSubTab: "all_businesses",
+      });
+    });
+
+  newRequests.slice(0, 5).forEach((request) => {
+    tasks.push({
+      id: `new-request-${request.id}`,
+      category: "의뢰",
+      title: request.event_name || request.title || "신규 의뢰",
+      description: "신규 의뢰 확인 필요",
+      date: request.created_at || request.start_date || request.event_date,
+      targetSubTab: "new_requests",
+    });
+  });
+
+  requests
+    .filter((request) => isEstimateCreationNeeded(request, generatedDocuments))
+    .slice(0, 5)
+    .forEach((request) => {
+      tasks.push({
+        id: `estimate-${request.id}`,
+        category: "견적",
+        title: request.event_name || request.title || "견적 필요 의뢰",
+        description: "견적 생성 필요",
+        date: request.created_at || request.start_date || request.event_date,
+        targetSubTab: "estimate_documents",
+      });
+    });
+
+  pendingAssignmentRequests.slice(0, 5).forEach((request) => {
+    tasks.push({
+      id: `assignment-${request.id}`,
+      category: "배정",
+      title: request.event_name || request.title || "배정 필요 의뢰",
+      description: "견적 승인 완료 또는 일정 임박, 통역사 배정 필요",
+      date: request.start_date || request.event_date || request.created_at,
+      targetSubTab: "assignments",
+    });
+  });
+
+  requests
+    .filter((request) => isWorkCompletionCheckNeeded(request))
+    .slice(0, 5)
+    .forEach((request) => {
+      tasks.push({
+        id: `completion-${request.id}`,
+        category: "의뢰",
+        title: request.event_name || request.title || "완료 확인 필요",
+        description: "업무 완료 확인 필요",
+        date: request.end_date || request.event_date || request.start_date,
+        targetSubTab: "all_requests",
+      });
+    });
+
+  settlements
+    .filter((settlement) => settlement.payout_status === "pending")
+    .slice(0, 5)
+    .forEach((settlement) => {
+      const request = requestMap.get(String(settlement.request_id)) || {};
+      tasks.push({
+        id: `settlement-${settlement.id}`,
+        category: "정산",
+        title: request.event_name || request.title || `정산 ${formatManagementNumber(settlement.request_id)}`,
+        description: settlement.payout_document_id ? "지급 대기" : "정산서 생성 필요",
+        date: settlement.created_at,
+        targetSubTab: settlement.payout_document_id ? "settlement_pending" : "payout_documents",
+      });
+    });
+
+  return tasks
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+    .slice(0, 12);
+}
+
+function buildRevenueSummary({ payments = [], requests = [], settlements = [] } = {}) {
+  const now = new Date();
+  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const requestMap = new Map(requests.map((request) => [String(request.id), request]));
+  const monthlyPayments = payments.filter((payment) => {
+    const request = requestMap.get(String(payment.request_id)) || {};
+    const date = String(payment.paid_at || payment.created_at || request.start_date || request.event_date || "");
+    return date.startsWith(monthPrefix);
+  });
+  const monthlySettlements = settlements.filter((settlement) => {
+    const request = requestMap.get(String(settlement.request_id)) || {};
+    const date = String(settlement.paid_at || settlement.created_at || request.start_date || request.event_date || "");
+    return date.startsWith(monthPrefix);
+  });
+  const companyAmount = monthlyPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const interpreterAmount = monthlySettlements.reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+  return {
+    companyAmount,
+    interpreterAmount,
+    profit: companyAmount - interpreterAmount,
+  };
+}
+
+function buildRecentActivityItems({
+  adminActivityLogs = [],
+  generatedDocuments = [],
+  notificationEvents = [],
+  payments = [],
+  settlements = [],
+} = {}) {
+  return [
+    ...adminActivityLogs.map((log) => ({
+      id: `log-${log.id}`,
+      description: getActivityDescription(log.action_type),
+      created_at: log.created_at,
+    })),
+    ...generatedDocuments.map((document) => ({
+      id: `doc-${document.id}`,
+      description: `${getDocumentTypeLabel(document.document_type)} 생성`,
+      created_at: document.created_at,
+    })),
+    ...payments
+      .filter((payment) => payment.payment_status === "paid")
+      .map((payment) => ({
+        id: `payment-${payment.id}`,
+        description: "기업 입금 확인",
+        created_at: payment.updated_at || payment.paid_at || payment.created_at,
+      })),
+    ...settlements
+      .filter((settlement) => settlement.payout_status === "paid")
+      .map((settlement) => ({
+        id: `settlement-${settlement.id}`,
+        description: "통역사 지급 완료",
+        created_at: settlement.updated_at || settlement.paid_at || settlement.created_at,
+      })),
+    ...notificationEvents
+      .filter((event) => event.status === "failed")
+      .map((event) => ({
+        id: `notification-${event.id}`,
+        description: "알림 발송 실패",
+        created_at: event.created_at,
+      })),
+  ]
+    .filter((item) => item.created_at)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 10);
+}
+
+function getActivityDescription(actionType) {
+  const labels = {
+    admin_note_created: "관리자 메모 추가",
+    request_updated: "의뢰 정보 변경",
+    settlement_updated: "정산 수정",
+    assignment_created: "통역사 배정",
+    business_updated: "기업 정보 변경",
+  };
+  return labels[actionType] || "운영 정보 변경";
+}
+
+function isBusinessApprovalPending(business = {}) {
+  const status = String(
+    business.status || business.approval_status || business.review_status || ""
+  )
+    .trim()
+    .toLowerCase();
+  return (
+    business.approved === false ||
+    ["pending", "approval_pending", "review_pending", "unconfirmed", "미확인", "승인대기"].includes(status)
+  );
+}
+
+function isEstimateCreationNeeded(request = {}, documents = []) {
+  const estimateStatus = String(request.estimate_status || "").trim().toLowerCase();
+  const hasEstimate = documents.some(
+    (document) =>
+      document.document_type === "estimate" &&
+      String(document.request_id || "") === String(request.id || "")
+  );
+  return !hasEstimate && ["estimate_required", "estimate_preparing", "pending", ""].includes(estimateStatus);
+}
+
+function isWorkCompletionCheckNeeded(request = {}) {
+  const end = getDateRangeEnd(request.end_date || request.event_date, request.start_date);
+  if (!end) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return end < today && normalizeOperationStatus(request) !== OPERATION_STATUS.COMPLETED;
 }
 
 function getQueuePriority(items = [], type) {
@@ -11911,10 +13503,15 @@ function buildOperationDashboard(
   interpreters = []
 ) {
   const today = new Date().toISOString().slice(0, 10);
+  const nextWeekDate = new Date();
+  nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+  const nextWeek = nextWeekDate.toISOString().slice(0, 10);
 
   const todayItems = requests
-    .filter((request) =>
-      isDateInRange(today, request.start_date, request.end_date, request.event_date)
+    .filter(
+      (request) =>
+        !isDashboardExcludedRequest(request) &&
+        isDateInRange(today, request.start_date, request.end_date, request.event_date)
     )
     .map((request) => {
       const operationStatus = normalizeOperationStatus(request);
@@ -11943,6 +13540,28 @@ function buildOperationDashboard(
       };
     });
 
+  const weekItems = requests
+    .filter((request) => {
+      if (isDashboardExcludedRequest(request)) return false;
+      const startDate = getDateRangeStart(request.start_date || request.event_date, request.date);
+      if (!startDate) return false;
+      return startDate >= today && startDate <= nextWeek;
+    })
+    .sort(
+      (a, b) =>
+        String(getDateRangeStart(a.start_date || a.event_date, a.date)).localeCompare(
+          String(getDateRangeStart(b.start_date || b.event_date, b.date))
+        )
+    )
+    .map((request) => ({
+      request,
+      interpreters: getAssignedInterpreterName(
+        request,
+        assignmentsByRequest.get(request.id) || [],
+        interpreters
+      ),
+    }));
+
   const urgentItems = requests
     .map((request) => {
       const isUnassigned =
@@ -11966,7 +13585,27 @@ function buildOperationDashboard(
     .filter((item) => item.visible)
     .sort((a, b) => a.priority - b.priority);
 
-  return { todayItems, urgentItems };
+  return { todayItems, urgentItems, weekItems };
+}
+
+function isDashboardExcludedRequest(request = {}) {
+  const statusText = [
+    request.status,
+    request.matching_status,
+    request.operation_status,
+    request.settlement_status,
+    request.request_status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return (
+    normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED ||
+    statusText.includes("cancel") ||
+    statusText.includes("취소") ||
+    statusText.includes("cancelled") ||
+    statusText.includes("canceled")
+  );
 }
 
 function getAssignedInterpreterName(request = {}, assignments = [], interpreters = []) {

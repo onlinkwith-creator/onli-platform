@@ -2301,6 +2301,9 @@ function InterpreterMypage({
                                 업무일: {formatDateRange(settlement.startDate, settlement.endDate)}
                               </p>
                               <p className="assignment-secondary-meta">
+                                근무 일수: {settlement.workDays || "-"}일
+                              </p>
+                              <p className="assignment-secondary-meta">
                                 정산 예정 금액: {formatKRW(settlement.amount)}
                               </p>
                               <p className="assignment-language">
@@ -3011,8 +3014,9 @@ function getSettlementStatusLabel(status) {
   const normalized = String(status || "").trim().toLowerCase();
   if (["pending", "settlement_pending", "정산대기"].includes(normalized)) return "정산대기";
   if (["confirmed", "settlement_confirmed", "정산확정"].includes(normalized)) return "정산확정";
-  if (["completed", "settled", "정산완료"].includes(normalized)) return "정산완료";
-  if (["on_hold", "hold", "settlement_on_hold", "정산보류"].includes(normalized)) return "정산보류";
+  if (["paid", "completed", "settled", "정산완료"].includes(normalized)) return "지급완료";
+  if (["withheld", "on_hold", "hold", "settlement_on_hold", "정산보류"].includes(normalized)) return "보류";
+  if (["cancelled", "canceled", "취소"].includes(normalized)) return "취소";
   return "정산대기";
 }
 
@@ -3118,6 +3122,7 @@ function mapMySettlementRow(row = {}) {
     amount: row.settlement_final_amount ?? row.amount,
     settlementStatus: row.settlement_status,
     completedAt: row.settlement_completed_at,
+    workDays: row.settlement_work_days,
   };
 }
 

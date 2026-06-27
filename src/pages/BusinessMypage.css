@@ -285,6 +285,68 @@
   background: #ffffff;
 }
 
+.business-payment-section {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.business-payment-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.business-payment-head h4,
+.business-payment-section p {
+  margin: 0;
+}
+
+.business-payment-head h4 {
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.business-payment-section p {
+  margin-top: 10px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.business-payment-badge {
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.business-payment-badge.status-unpaid,
+.business-payment-badge.status-invoice_sent {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.business-payment-badge.status-paid {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.business-payment-badge.status-overdue {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.business-payment-badge.status-refunded {
+  color: #475569;
+  background: #e2e8f0;
+}
+
 .request-card-header {
   display: flex;
   justify-content: space-between;
@@ -1369,5 +1431,4 @@
   line-height: 1.5;
   text-align: left;
 }
-
 

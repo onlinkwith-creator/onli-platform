@@ -46,6 +46,12 @@ const getClientNotificationLabel = (eventType) => {
       return "업무 완료";
     case "client_settlement_ready":
       return "정산/결제 안내";
+    case "company_payment_invoice_sent":
+      return "입금 안내";
+    case "company_payment_paid":
+      return "입금 확인";
+    case "company_payment_overdue":
+      return "입금 기한 초과";
     default:
       return "알림";
   }
@@ -88,6 +94,12 @@ const getClientNotificationText = (event) => {
       return `의뢰 [${eventName}] 통역 업무가 종료되었습니다.${suffix}`;
     case "client_settlement_ready":
       return `의뢰 [${eventName}] 정산/결제 요청이 접수되었습니다.${suffix}`;
+    case "company_payment_invoice_sent":
+      return `의뢰 [${eventName}] 입금 안내가 발송되었습니다.${suffix}`;
+    case "company_payment_paid":
+      return `의뢰 [${eventName}] 입금이 확인되었습니다.${suffix}`;
+    case "company_payment_overdue":
+      return `의뢰 [${eventName}] 입금 기한이 지났습니다. 관리자에게 문의해주세요.${suffix}`;
     default:
       return `새로운 알림이 도착했습니다.`;
   }
@@ -108,6 +120,7 @@ function BusinessMypage({
   const [assignments, setAssignments] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
@@ -243,7 +256,7 @@ function BusinessMypage({
           const { data: notifData, error: notifError } = await supabase
             .from("notification_events")
             .select("*")
-            .eq("recipient_type", "client")
+            .in("recipient_type", ["client", "company"])
             .in("target_id", requestIds.map(String))
             .eq("target_type", "request")
             .order("created_at", { ascending: false })
@@ -270,12 +283,47 @@ function BusinessMypage({
             setDocuments(docData || []);
           }
 
+          const { data: paymentData, error: paymentError } = await supabase
+            .from("payments")
+            .select("id, request_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
+            .in("request_id", requestIds)
+            .order("created_at", { ascending: false });
+
+          if (paymentError) {
+            console.warn("Payments fetch skipped:", paymentError);
+            setPayments([]);
+          } else {
+            setPayments(paymentData || []);
+
+            const paymentIds = (paymentData || []).map((payment) => String(payment.id));
+            if (paymentIds.length > 0) {
+              const { data: paymentNotifData, error: paymentNotifError } = await supabase
+                .from("notification_events")
+                .select("*")
+                .eq("recipient_type", "company")
+                .eq("target_type", "payment")
+                .in("target_id", paymentIds)
+                .order("created_at", { ascending: false })
+                .limit(5);
+
+              if (paymentNotifError) {
+                console.warn("Payment notifications fetch skipped:", paymentNotifError);
+              } else {
+                const mergedNotifications = [...(notifData || []), ...(paymentNotifData || [])]
+                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                  .slice(0, 5);
+                setNotifications(mergedNotifications);
+              }
+            }
+          }
+
           // Set default selected request for materials tab if not set
           setSelectedMaterialRequestId((current) => current || String(fetchedRequests[0].id));
         } else {
           setAssignments([]);
           setMaterials([]);
           setDocuments([]);
+          setPayments([]);
           setNotifications([]);
         }
       }
@@ -602,6 +650,24 @@ function BusinessMypage({
           : request
       )
     );
+
+    const { data: paymentData, error: paymentError } = await supabase
+      .from("payments")
+      .select("id, request_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
+      .eq("request_id", requestId)
+      .maybeSingle();
+
+    if (paymentError) {
+      console.warn("Payment fetch after estimate approval skipped:", paymentError);
+    } else if (paymentData) {
+      setPayments((current) => {
+        const exists = current.some((payment) => payment.id === paymentData.id);
+        return exists
+          ? current.map((payment) => (payment.id === paymentData.id ? paymentData : payment))
+          : [paymentData, ...current];
+      });
+    }
+
     alert("견적 승인 완료");
   };
 
@@ -648,6 +714,28 @@ function BusinessMypage({
   const getStatusStepIndex = (statusLabel) => {
     const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "업무 준비중", "진행 예정", "진행 완료"];
     return steps.indexOf(statusLabel);
+  };
+
+  const getPaymentStatusLabel = (paymentStatus) => {
+    const labels = {
+      unpaid: "미입금",
+      invoice_sent: "청구 완료",
+      paid: "입금 완료",
+      overdue: "연체",
+      refunded: "환불",
+    };
+    return labels[paymentStatus] || "미입금";
+  };
+
+  const getPaymentStatusMessage = (paymentStatus) => {
+    const messages = {
+      unpaid: "입금 확인 전입니다.",
+      invoice_sent: "입금 안내가 발송되었습니다.",
+      paid: "입금이 확인되었습니다.",
+      overdue: "입금 기한이 지났습니다. 관리자에게 문의해주세요.",
+      refunded: "환불 처리된 결제 건입니다.",
+    };
+    return messages[paymentStatus] || "입금 확인 전입니다.";
   };
 
   const renderStatusSteps = (req) => {
@@ -913,6 +1001,7 @@ function BusinessMypage({
 
                       const estimateDocument = latestDocs["estimate"];
                       const completionDocument = latestDocs["completion"];
+                      const payment = payments.find((item) => item.request_id === req.id);
 
                       const estimateStatus =
                         ["estimate_approved", "company_approved"].includes(req.estimate_status)
@@ -992,6 +1081,34 @@ function BusinessMypage({
                               >
                                 견적 승인
                               </button>
+                            </div>
+                          )}
+
+                          {payment && (
+                            <div className="business-payment-section">
+                              <div className="business-payment-head">
+                                <h4>결제 상태</h4>
+                                <span className={`business-payment-badge status-${payment.payment_status || "unpaid"}`}>
+                                  {getPaymentStatusLabel(payment.payment_status)}
+                                </span>
+                              </div>
+                              <div className="request-meta-grid">
+                                <div className="meta-item">
+                                  <span className="meta-label">결제 금액</span>
+                                  <span className="meta-value">{formatDocumentAmount(payment.amount)}</span>
+                                </div>
+                                <div className="meta-item">
+                                  <span className="meta-label">입금 기한</span>
+                                  <span className="meta-value">{payment.due_date || "-"}</span>
+                                </div>
+                                <div className="meta-item">
+                                  <span className="meta-label">입금 완료일</span>
+                                  <span className="meta-value">
+                                    {payment.paid_at ? String(payment.paid_at).slice(0, 10) : "-"}
+                                  </span>
+                                </div>
+                              </div>
+                              <p>{getPaymentStatusMessage(payment.payment_status)}</p>
                             </div>
                           )}
 

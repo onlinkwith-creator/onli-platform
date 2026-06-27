@@ -31,6 +31,21 @@ const subjects = {
   client_settlement_ready: "[ON-LI] 정산/결제 요청 안내",
   client_work_preparing: "[ON-LI] 통역 업무 준비가 시작되었습니다",
   client_work_ready: "[ON-LI] 통역 업무 진행 예정 안내",
+  company_request_received: "[ON-LI] 통역 의뢰가 접수되었습니다",
+  company_estimate_issued: "[ON-LI] 견적서가 발급되었습니다",
+  company_estimate_approved: "[ON-LI] 견적 승인이 완료되었습니다",
+  company_assignment_completed: "[ON-LI] 통역사 배정이 완료되었습니다",
+  company_completion_document_issued: "[ON-LI] 업무확인서가 발급되었습니다",
+  interpreter_application_received: "[ON-LI] 지원이 접수되었습니다",
+  interpreter_assignment_completed: "[ON-LI] 배정이 완료되었습니다",
+  interpreter_payout_issued: "[ON-LI] 정산서가 발급되었습니다",
+  interpreter_payout_completed: "[ON-LI] 정산이 완료되었습니다",
+  interpreter_settlement_confirmed: "[ON-LI] 정산 금액이 확정되었습니다",
+  interpreter_payout_paid: "[ON-LI] 지급이 완료되었습니다",
+  interpreter_settlement_withheld: "[ON-LI] 정산이 보류되었습니다",
+  admin_new_request: "[ON-LI 관리자 알림] 신규 의뢰 접수",
+  admin_new_company: "[ON-LI 관리자 알림] 신규 기업 등록",
+  admin_estimate_approved: "[ON-LI 관리자 알림] 견적 승인 완료",
 } as const;
 
 type EmailType = keyof typeof subjects;
@@ -57,6 +72,9 @@ type NotificationEvent = {
   payload?: Payload | null;
   status: string;
   retry_count?: number | null;
+  channel?: string | null;
+  title?: string | null;
+  message?: string | null;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -325,6 +343,7 @@ function buildHtml(type: EmailType, payload: Payload) {
         `
       );
     case "company_request_received_user":
+    case "company_request_received":
       return layout(
         "통역 의뢰가 접수되었습니다",
         `
@@ -341,6 +360,7 @@ function buildHtml(type: EmailType, payload: Payload) {
         `
       );
     case "company_request_received_admin":
+    case "admin_new_request":
       return layout(
         "신규 기업 의뢰 알림",
         `
@@ -354,6 +374,131 @@ function buildHtml(type: EmailType, payload: Payload) {
             ["장소", field(payload, "location")],
             ["요청 인원", field(payload, "requestedPeopleCount")],
           ])}
+        `
+      );
+    case "company_estimate_issued":
+      return layout(
+        "견적서가 발급되었습니다",
+        `
+          <p>요청하신 통역 의뢰의 견적서가 발급되었습니다. 마이페이지에서 세부 내용을 확인해주세요.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_no", "request_code", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["문서번호", fieldFrom(payload, ["document_no", "document_id"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "company_estimate_approved":
+      return layout(
+        "견적 승인이 완료되었습니다",
+        `
+          <p>견적 승인 처리가 완료되었습니다. 다음 절차는 ON-LI 운영팀이 안내드립니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_no", "request_code", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "company_assignment_completed":
+      return layout(
+        "통역사 배정이 완료되었습니다",
+        `
+          <p>요청하신 통역 의뢰의 통역사 배정이 완료되었습니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_no", "request_code", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "company_completion_document_issued":
+      return layout(
+        "업무확인서가 발급되었습니다",
+        `
+          <p>완료된 통역 업무의 업무확인서가 발급되었습니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_no", "request_code", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["문서번호", fieldFrom(payload, ["document_no", "document_id"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "interpreter_application_received":
+      return layout(
+        "지원이 접수되었습니다",
+        `
+          <p>${fieldFrom(payload, ["name", "applicant_name"], "통역사")}님, 지원이 정상 접수되었습니다.</p>
+          ${infoTable([
+            ["공고명", fieldFrom(payload, ["jobTitle", "event_name", "title"])],
+            ["일정", fieldFrom(payload, ["date", "start_date"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
+        `
+      );
+    case "interpreter_assignment_completed":
+      return layout(
+        "배정이 완료되었습니다",
+        `
+          <p>${fieldFrom(payload, ["interpreter_name", "name"], "통역사")}님, 통역 배정이 완료되었습니다.</p>
+          ${infoTable([
+            ["의뢰/공고명", fieldFrom(payload, ["event_name", "jobTitle", "title"])],
+            ["일정", fieldFrom(payload, ["date", "event_date", "start_date"])],
+            ["장소", fieldFrom(payload, ["location", "event_location"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
+        `
+      );
+    case "interpreter_payout_issued":
+      return layout(
+        "정산서가 발급되었습니다",
+        `
+          <p>배정 건의 정산서가 발급되었습니다. 마이페이지에서 확인해주세요.</p>
+          ${infoTable([
+            ["문서번호", fieldFrom(payload, ["document_no", "document_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "title"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
+        `
+      );
+    case "interpreter_payout_completed":
+      return layout(
+        "정산이 완료되었습니다",
+        `
+          <p>배정 건의 정산 완료 처리가 되었습니다.</p>
+          ${infoTable([
+            ["배정번호", fieldFrom(payload, ["assignment_code", "matching_no", "assignment_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "title"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
+        `
+      );
+    case "admin_new_company":
+      return layout(
+        "신규 기업 등록 알림",
+        `
+          <p>신규 기업 계정이 등록되었습니다. 관리자 페이지에서 검토해주세요.</p>
+          ${infoTable([
+            ["기업명", fieldFrom(payload, ["company_name", "companyName"])],
+            ["담당자", fieldFrom(payload, ["contact_name", "contactName"])],
+          ])}
+          ${linkButton("기업 관리 열기", appUrl("/admin/businesses"))}
+        `
+      );
+    case "admin_estimate_approved":
+      return layout(
+        "견적 승인 완료 알림",
+        `
+          <p>기업이 견적을 승인했습니다. 후속 배정 절차를 확인해주세요.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_no", "request_code", "request_id"])],
+            ["기업명", fieldFrom(payload, ["company_name", "companyName"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+          ])}
+          ${linkButton("의뢰 관리 열기", appUrl("/admin/requests"))}
         `
       );
     case "company_request_under_review":
@@ -437,6 +582,24 @@ function notificationSubject(eventType: string) {
     client_recruiting_started: "[ON-LI] 통역사 모집이 시작되었습니다",
     client_work_completed: "[ON-LI] 통역 업무가 완료되었습니다",
     client_settlement_ready: "[ON-LI] 정산/결제 요청 안내",
+    company_estimate_issued: "[ON-LI] 견적서가 발급되었습니다",
+    company_estimate_approved: "[ON-LI] 견적 승인이 완료되었습니다",
+    company_assignment_completed: "[ON-LI] 통역사 배정이 완료되었습니다",
+    company_completion_document_issued: "[ON-LI] 업무확인서가 발급되었습니다",
+    interpreter_application_received: "[ON-LI] 지원이 접수되었습니다",
+    interpreter_assignment_completed: "[ON-LI] 배정이 완료되었습니다",
+    interpreter_payout_issued: "[ON-LI] 정산서가 발급되었습니다",
+    interpreter_payout_completed: "[ON-LI] 정산이 완료되었습니다",
+    interpreter_settlement_confirmed: "[ON-LI] 정산 금액이 확정되었습니다",
+    interpreter_payout_paid: "[ON-LI] 지급이 완료되었습니다",
+    interpreter_settlement_withheld: "[ON-LI] 정산이 보류되었습니다",
+    admin_new_request: "[ON-LI 관리자 알림] 신규 의뢰 접수",
+    admin_new_company: "[ON-LI 관리자 알림] 신규 기업 등록",
+    admin_estimate_approved: "[ON-LI 관리자 알림] 견적 승인 완료",
+    company_payment_invoice_sent: "[ON-LI] 입금 안내드립니다",
+    company_payment_paid: "[ON-LI] 입금이 확인되었습니다",
+    company_payment_overdue: "[ON-LI] 입금 기한 초과 안내",
+    admin_payment_overdue: "[ON-LI 관리자 알림] 결제 연체 확인 필요",
   };
   return subjectsByEvent[eventType] || "[ON-LI] 알림이 도착했습니다";
 }
@@ -444,6 +607,7 @@ function notificationSubject(eventType: string) {
 function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
   switch (event.event_type) {
     case "new_request":
+    case "admin_new_request":
       return layout(
         "신규 통역 의뢰가 접수되었습니다",
         `
@@ -461,18 +625,20 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
         `
       );
     case "new_interpreter":
+    case "admin_new_company":
       return layout(
-        "신규 통역사가 등록되었습니다",
+        event.event_type === "admin_new_company"
+          ? "신규 기업이 등록되었습니다"
+          : "신규 통역사가 등록되었습니다",
         `
-          <p>신규 통역사 등록 건을 검토해주세요.</p>
+          <p>${event.event_type === "admin_new_company" ? "신규 기업 등록 건" : "신규 통역사 등록 건"}을 검토해주세요.</p>
           ${infoTable([
-            ["이름", field(payload, "name")],
-            ["언어", fieldFrom(payload, ["language", "language_pair", "language_level"])],
-            ["지역", fieldFrom(payload, ["region", "available_regions", "availableRegions"])],
-            ["레벨", fieldFrom(payload, ["level", "requested_level"])],
-            ["이력서 제출 여부", fieldFrom(payload, ["resume_submitted", "resumeSubmitted"])],
+            ["대상", fieldFrom(payload, ["company_name", "companyName", "name"])],
+            ["담당자", fieldFrom(payload, ["contact_name", "contactName"])],
+            ["언어/지역", fieldFrom(payload, ["language", "language_pair", "language_level", "region", "available_regions", "availableRegions"])],
+            ["상태", fieldFrom(payload, ["status", "resume_submitted", "resumeSubmitted"])],
           ])}
-          ${linkButton("통역사 검증 화면 열기", appUrl("/admin/interpreters"))}
+          ${linkButton(event.event_type === "admin_new_company" ? "기업 관리 열기" : "통역사 검증 화면 열기", appUrl(event.event_type === "admin_new_company" ? "/admin/businesses" : "/admin/interpreters"))}
         `
       );
     case "application_created":
@@ -491,6 +657,7 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
         `
       );
     case "assignment_created":
+    case "interpreter_assignment_completed":
       return layout(
         "통역 일정이 배정되었습니다",
         `
@@ -506,10 +673,13 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
         `
       );
     case "application_status_changed":
+    case "interpreter_application_received":
       return layout(
-        "지원 상태가 변경되었습니다",
+        event.event_type === "interpreter_application_received"
+          ? "지원이 접수되었습니다"
+          : "지원 상태가 변경되었습니다",
         `
-          <p>지원하신 공고의 상태가 변경되었습니다.</p>
+          <p>${event.event_type === "interpreter_application_received" ? "지원이 정상 접수되었습니다." : "지원하신 공고의 상태가 변경되었습니다."}</p>
           ${infoTable([
             ["지원번호", fieldFrom(payload, ["application_code", "application_no", "application_id"])],
             ["행사명", fieldFrom(payload, ["event_name", "jobTitle", "title"])],
@@ -519,10 +689,26 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
         `
       );
     case "settlement_status_changed":
+    case "interpreter_payout_completed":
+    case "interpreter_settlement_confirmed":
+    case "interpreter_payout_paid":
+    case "interpreter_settlement_withheld":
       return layout(
-        "정산 상태가 변경되었습니다",
+        event.event_type === "interpreter_settlement_confirmed"
+          ? "정산 금액이 확정되었습니다"
+          : event.event_type === "interpreter_payout_paid" || event.event_type === "interpreter_payout_completed"
+            ? "지급이 완료되었습니다"
+            : event.event_type === "interpreter_settlement_withheld"
+              ? "정산이 보류되었습니다"
+              : "정산 상태가 변경되었습니다",
         `
-          <p>배정 건의 정산 상태가 변경되었습니다.</p>
+          <p>${event.event_type === "interpreter_settlement_confirmed"
+            ? "배정 건의 지급 금액이 확정되었습니다."
+            : event.event_type === "interpreter_payout_paid" || event.event_type === "interpreter_payout_completed"
+              ? "배정 건의 지급 처리가 완료되었습니다."
+              : event.event_type === "interpreter_settlement_withheld"
+                ? "배정 건의 정산 처리가 보류되었습니다."
+                : "배정 건의 정산 상태가 변경되었습니다."}</p>
           ${infoTable([
             ["배정번호", fieldFrom(payload, ["assignment_code", "matching_no", "assignment_id"])],
             ["행사명", fieldFrom(payload, ["event_name", "jobTitle", "title"])],
@@ -532,6 +718,7 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
         `
       );
     case "request_created_client":
+    case "company_request_received":
       return layout(
         "통역 의뢰가 접수되었습니다",
         `
@@ -545,6 +732,7 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
         `
       );
     case "assignment_confirmed_client":
+    case "company_assignment_completed":
       return layout(
         "통역사 배정이 완료되었습니다",
         `
@@ -572,8 +760,9 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
         `
       );
     case "client_estimate_ready":
+    case "company_estimate_issued":
       return layout(
-        "통역 의뢰 견적서 준비 완료 안내",
+        "견적서가 발급되었습니다",
         `
           <p>요청하신 통역 의뢰의 견적이 확인되었습니다. 마이페이지에서 견적 세부 내역을 확인해 주세요.</p>
           ${infoTable([
@@ -583,6 +772,56 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
             ["의뢰 상태", "견적 안내"],
           ])}
           ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "company_estimate_approved":
+      return layout(
+        "견적 승인이 완료되었습니다",
+        `
+          <p>견적 승인 처리가 완료되었습니다. ON-LI 운영팀이 다음 절차를 진행합니다.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "admin_estimate_approved":
+      return layout(
+        "견적 승인 완료 알림",
+        `
+          <p>기업이 견적을 승인했습니다. 배정 절차를 확인해주세요.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["기업명", fieldFrom(payload, ["company_name", "companyName"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+          ])}
+          ${linkButton("의뢰 관리 열기", appUrl("/admin/requests"))}
+        `
+      );
+    case "company_completion_document_issued":
+      return layout(
+        "업무확인서가 발급되었습니다",
+        `
+          <p>완료된 통역 업무의 업무확인서가 발급되었습니다. 마이페이지에서 확인해주세요.</p>
+          ${infoTable([
+            ["의뢰번호", fieldFrom(payload, ["request_code", "request_no", "request_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "eventName"])],
+            ["문서번호", fieldFrom(payload, ["document_no", "document_id"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/business/mypage"))}
+        `
+      );
+    case "interpreter_payout_issued":
+      return layout(
+        "정산서가 발급되었습니다",
+        `
+          <p>정산서가 발급되었습니다. 마이페이지에서 내용을 확인해주세요.</p>
+          ${infoTable([
+            ["문서번호", fieldFrom(payload, ["document_no", "document_id"])],
+            ["행사명", fieldFrom(payload, ["event_name", "title"])],
+          ])}
+          ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
         `
       );
     case "client_recruiting_started":
@@ -657,9 +896,9 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
       );
     default:
       return layout(
-        "ON-LI 알림",
+        event.title || "ON-LI 알림",
         `
-          <p>ON-LI 운영 알림이 도착했습니다.</p>
+          <p>${escapeHtml(event.message || "ON-LI 운영 알림이 도착했습니다.")}</p>
           ${infoTable([
             ["이벤트", escapeHtml(event.event_type)],
             ["대상", `${escapeHtml(event.target_type)} #${escapeHtml(event.target_id)}`],
@@ -917,7 +1156,7 @@ async function processNotificationEvents({
 
   let query = supabase
     .from("notification_events")
-    .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count,created_at");
+    .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count,created_at,channel,title,message");
 
   if (eventIds.length > 0) {
     query = query.in("id", eventIds);
@@ -952,7 +1191,7 @@ async function processNotificationEvents({
     }
 
     const { data: lockedEvent, error: lockError } = await updateQuery
-      .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count")
+      .select("id,event_type,target_type,target_id,recipient_type,recipient_email,payload,status,retry_count,channel,title,message")
       .single();
 
     if (lockError || !lockedEvent) {
@@ -966,6 +1205,20 @@ async function processNotificationEvents({
     }
 
     const currentEvent = lockedEvent as NotificationEvent;
+    if (String(currentEvent.channel || "email") !== "email") {
+      await updateNotificationStatus(supabase, currentEvent.id, {
+        status: "skipped",
+        error_message: `${currentEvent.channel} channel is queued but not implemented yet.`,
+      });
+      results.push({
+        id: currentEvent.id,
+        ok: false,
+        skipped: true,
+        error: `${currentEvent.channel} channel is not implemented.`,
+      });
+      continue;
+    }
+
     const payload = await enrichNotificationPayload(supabase, currentEvent);
     const recipientEmail =
       String(currentEvent.recipient_email || payload.recipient_email || "").trim() ||
