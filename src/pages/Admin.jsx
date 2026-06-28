@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Briefcase,
+  Building2,
   CheckCircle2,
   Eye,
   FileText,
@@ -15,6 +16,7 @@ import {
   ShieldAlert,
   Star,
   Trash2,
+  WalletCards,
   User,
   X,
 } from "lucide-react";
@@ -167,6 +169,8 @@ const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const NOTIFICATION_EVENTS_SELECT =
   "id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at, deleted_at, deleted_by";
+const SETTLEMENTS_SELECT =
+  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -310,6 +314,17 @@ const SETTLEMENT_PAYOUT_STATUS_OPTIONS = [
   { value: "withheld", label: "보류" },
   { value: "cancelled", label: "취소" },
 ];
+
+function logSupabaseError(label, error) {
+  if (!error) return;
+  console.error(`${label} failed`, {
+    code: error.code || null,
+    message: error.message || String(error),
+    details: error.details || null,
+    hint: error.hint || null,
+    error,
+  });
+}
 const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
   pending: "pending",
   settlement_pending: "pending",
@@ -575,7 +590,11 @@ function Admin({ onBackClick }) {
       setLoading(false);
       return;
     }
-    if (!isAdmin) {
+    if (isAdmin == null) {
+      setLoading(true);
+      return;
+    }
+    if (isAdmin !== true) {
       setErrorMessage("관리자 권한 확인 후 데이터를 조회할 수 있습니다.");
       setLoading(false);
       return;
@@ -711,7 +730,7 @@ function Admin({ onBackClick }) {
               .limit(500),
             supabase
               .from("settlements")
-              .select("id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at")
+              .select(SETTLEMENTS_SELECT)
               .order("created_at", { ascending: false })
               .limit(500),
             supabase
@@ -739,7 +758,7 @@ function Admin({ onBackClick }) {
         }
 
         if (notificationsResult.error) {
-          console.error("notification events fetch failed:", notificationsResult.error);
+          logSupabaseError("notification events fetch", notificationsResult.error);
           setAdminDataErrors((current) => ({
             ...current,
             notifications: notificationsResult.error,
@@ -768,7 +787,7 @@ function Admin({ onBackClick }) {
         }
 
         if (settlementsResult.error) {
-          console.error("settlements fetch failed:", settlementsResult.error);
+          logSupabaseError("settlements fetch", settlementsResult.error);
           setAdminDataErrors((current) => ({
             ...current,
             settlements: settlementsResult.error,
@@ -784,7 +803,7 @@ function Admin({ onBackClick }) {
           setSettlementLogs(uniqueById(settlementLogsResult.data || []));
         }
       } catch (error) {
-        console.error("admin optional data fetch failed:", error);
+        logSupabaseError("admin optional data fetch", error);
       }
     }
     setLoading(false);
@@ -1320,6 +1339,30 @@ function Admin({ onBackClick }) {
       targetTab: "all_requests",
       requestStatus: "before_operation",
     },
+    {
+      label: "정산 대기",
+      value: `${dashboard.settlementPending}건`,
+      description: "지급 확인 필요",
+      tone: "green",
+      icon: WalletCards,
+      targetTab: "settlement_pending",
+    },
+    {
+      label: "미확인 기업",
+      value: `${dashboard.unconfirmedBusinesses}건`,
+      description: "기업 승인 확인",
+      tone: "orange",
+      icon: Building2,
+      targetTab: "all_businesses",
+    },
+    {
+      label: "처리 필요 알림",
+      value: `${dashboard.processingNotifications}건`,
+      description: "실패/대기 알림 확인",
+      tone: "indigo",
+      icon: Mail,
+      targetTab: "notification_history",
+    },
   ];
 
   const switchToJobsTab = () => {
@@ -1632,7 +1675,7 @@ function Admin({ onBackClick }) {
         .limit(500),
       supabase
         .from("settlements")
-        .select("id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at")
+        .select(SETTLEMENTS_SELECT)
         .order("created_at", { ascending: false })
         .limit(500),
       supabase
@@ -1653,7 +1696,7 @@ function Admin({ onBackClick }) {
       setAdminActivityLogs(logsResult.data || []);
     }
     if (notificationsResult.error) {
-      console.error("notification events refresh failed:", notificationsResult.error);
+      logSupabaseError("notification events refresh", notificationsResult.error);
       setAdminDataErrors((current) => ({ ...current, notifications: notificationsResult.error }));
     } else {
       setNotificationEvents(uniqueById(notificationsResult.data || []));
@@ -1670,7 +1713,7 @@ function Admin({ onBackClick }) {
       setPaymentLogs(uniqueById(paymentLogsResult.data || []));
     }
     if (settlementsResult.error) {
-      console.error("settlements refresh failed:", settlementsResult.error);
+      logSupabaseError("settlements refresh", settlementsResult.error);
       setAdminDataErrors((current) => ({ ...current, settlements: settlementsResult.error }));
     } else {
       setSettlements(uniqueById(settlementsResult.data || []));
@@ -1822,7 +1865,7 @@ function Admin({ onBackClick }) {
         .from("settlements")
         .update(payload)
         .eq("id", settlementId)
-        .select("id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at")
+        .select(SETTLEMENTS_SELECT)
         .single();
 
       if (error) throw error;
@@ -3806,8 +3849,6 @@ function Admin({ onBackClick }) {
         {errorMessage && <MessageBox text={errorMessage} />}
         {!loading && (
           <>
-            <DashboardQuickActions />
-
             <section className="admin-metrics">
               {metricCards.map((card) => (
                 <MetricCard
@@ -6123,9 +6164,13 @@ function InterpreterSettlementManagement({
             <tbody>
               {rows.map(({ settlement, request, interpreter, document }) => (
                 <tr key={settlement.id}>
-                  <td>{request.event_name || request.title || "-"}</td>
-                  <td>{interpreter.name || "-"}</td>
-                  <td>{formatDateRange(request.start_date, request.end_date, request.event_date)}</td>
+                  <td>{request.event_name || request.title || "정보 없음"}</td>
+                  <td>{interpreter.name || "정보 없음"}</td>
+                  <td>
+                    {request.id
+                      ? formatDateRange(request.start_date, request.end_date, request.event_date)
+                      : "정보 없음"}
+                  </td>
                   <td>{settlement.level || request.settlement_level || "-"}</td>
                   <td>{settlement.work_days || request.settlement_work_days || "-"}</td>
                   <td>{formatJPY(settlement.daily_rate)}</td>
@@ -6179,10 +6224,17 @@ function InterpreterSettlementManagement({
             <section>
               <h3>의뢰/통역사 정보</h3>
               <dl className="admin-detail-list compact">
-                <Info label="의뢰명" value={selectedRequest?.event_name || selectedRequest?.title || "-"} />
+                <Info label="의뢰명" value={selectedRequest?.event_name || selectedRequest?.title || "정보 없음"} />
                 <Info label="의뢰번호" value={formatManagementNumber(selectedRequest?.request_no)} />
-                <Info label="업무일" value={formatDateRange(selectedRequest?.start_date, selectedRequest?.end_date, selectedRequest?.event_date)} />
-                <Info label="통역사명" value={selectedInterpreter?.name || "-"} />
+                <Info
+                  label="업무일"
+                  value={
+                    selectedRequest
+                      ? formatDateRange(selectedRequest.start_date, selectedRequest.end_date, selectedRequest.event_date)
+                      : "정보 없음"
+                  }
+                />
+                <Info label="통역사명" value={selectedInterpreter?.name || "정보 없음"} />
               </dl>
             </section>
             <section>
@@ -7171,6 +7223,8 @@ function RequestDetailPanel({
       alert("자료 파일을 다운로드할 수 없습니다.");
     }
   };
+  const getMaterialDisplayName = (material = {}) =>
+    material.original_file_name || material.file_name || "자료 파일";
 
   useEffect(() => {
     const requestWithDefaults = applySettlementDefaults(request, settlementTouched);
@@ -7442,11 +7496,11 @@ function RequestDetailPanel({
                     <div key={mat.id} className="admin-document-list-row">
                       <div>
                         <span className="badge-green">{mat.file_type}</span>
-                        <strong>{mat.file_name}</strong>
+                        <strong>{getMaterialDisplayName(mat)}</strong>
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleDownloadMaterial(mat.file_path, mat.file_name)}
+                        onClick={() => handleDownloadMaterial(mat.file_path, getMaterialDisplayName(mat))}
                         className="admin-link-button"
                       >
                         다운로드
@@ -10612,10 +10666,8 @@ function NotificationHistoryManagement({
           >
             <option value="all">상태 전체</option>
             <option value="pending">발송 대기</option>
-            <option value="processing">발송 처리 중</option>
             <option value="sent">발송 완료</option>
             <option value="failed">발송 실패</option>
-            <option value="skipped">발송 제외</option>
           </select>
           <select
             className="admin-filter-select"
@@ -11314,17 +11366,6 @@ function SettlementRequestCard({
         </div>
       </div>
     </article>
-  );
-}
-
-function DashboardQuickActions() {
-  return (
-    <section className="admin-dashboard-actions" aria-label="빠른 액션">
-      <div>
-        <p className="admin-kicker">ADMIN HOME</p>
-        <h2>오늘 운영 현황</h2>
-      </div>
-    </section>
   );
 }
 
@@ -13154,10 +13195,8 @@ function getNotificationRecipientLabel(event = {}) {
 function getNotificationStatusLabel(status) {
   const labels = {
     pending: "발송 대기",
-    processing: "발송 처리 중",
     sent: "발송 완료",
     failed: "발송 실패",
-    skipped: "발송 제외",
   };
   return labels[String(status || "").trim().toLowerCase()] || "상태 확인 필요";
 }

@@ -1179,7 +1179,6 @@ async function processNotificationEvents({
     let updateQuery = supabase
       .from("notification_events")
       .update({
-        status: "processing",
         retry_count: Number(event.retry_count || 0) + 1,
         error_message: null,
         processed_at: new Date().toISOString(),
@@ -1207,13 +1206,12 @@ async function processNotificationEvents({
     const currentEvent = lockedEvent as NotificationEvent;
     if (String(currentEvent.channel || "email") !== "email") {
       await updateNotificationStatus(supabase, currentEvent.id, {
-        status: "skipped",
+        status: "failed",
         error_message: `${currentEvent.channel} channel is queued but not implemented yet.`,
       });
       results.push({
         id: currentEvent.id,
         ok: false,
-        skipped: true,
         error: `${currentEvent.channel} channel is not implemented.`,
       });
       continue;
@@ -1226,13 +1224,12 @@ async function processNotificationEvents({
 
     if (!recipientEmail || !recipientEmail.includes("@")) {
       await updateNotificationStatus(supabase, currentEvent.id, {
-        status: "skipped",
+        status: "failed",
         error_message: "Recipient email is empty.",
       });
       results.push({
         id: currentEvent.id,
         ok: false,
-        skipped: true,
         error: "Recipient email is empty.",
       });
       continue;

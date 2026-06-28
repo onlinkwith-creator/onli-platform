@@ -32,6 +32,47 @@ const COUNTRY_OPTIONS = [
   { value: "기타", label: "기타 (미국, 중국 등)" },
 ];
 
+const formatIssuedDate = (dateValue) => {
+  if (!dateValue) return "-";
+  return String(dateValue).slice(0, 10).replaceAll("-", ".");
+};
+
+const getDocumentStatusLabel = (status) => {
+  if (status === "issued") return "발급완료";
+  if (status === "draft") return "작성중";
+  if (status === "cancelled") return "취소됨";
+  return status || "-";
+};
+
+const getBusinessDocumentLabel = (documentType, title) => {
+  if (documentType === "completion") return "업무확인서";
+  return title || getDocumentTypeLabel(documentType);
+};
+
+const MATERIAL_BUCKET = "request-files";
+const MATERIAL_MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MATERIAL_ALLOWED_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
+const MATERIAL_ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+
+const getMaterialFileExtension = (fileName) => {
+  const normalizedName = String(fileName || "").trim();
+  const dotIndex = normalizedName.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex === normalizedName.length - 1) return "";
+  return normalizedName.slice(dotIndex + 1).toLowerCase();
+};
+
+const createMaterialStoragePath = (requestId, extension) => {
+  const uuid =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  const safeId = uuid.replace(/[^a-zA-Z0-9-]/g, "");
+  return `requests/reference_files/materials/${requestId}/${safeId}.${extension}`;
+};
+
+const getMaterialDisplayName = (material = {}) =>
+  material.original_file_name || material.file_name || "자료 파일";
+
 const getClientNotificationLabel = (eventType) => {
   switch (eventType) {
     case "request_created_client":
@@ -343,7 +384,6 @@ function BusinessMypage({
             .from("documents")
             .select("id, document_type, document_no, status, version, request_id, title, amount, storage_bucket, file_path, created_at")
             .in("request_id", requestIds)
-            .in("document_type", ["estimate", "completion"])
             .eq("status", "issued")
             .order("created_at", { ascending: false });
 
@@ -538,29 +578,27 @@ function BusinessMypage({
       return;
     }
 
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    const fileExtension = String(file.name.split(".").pop() || "").toLowerCase();
-    const allowedExtensions = ["pdf", "jpg", "jpeg", "png"];
-    const allowedMimeTypes = ["application/pdf", "image/jpeg", "image/png"];
+    const fileExtension = getMaterialFileExtension(file.name);
 
-    if (!allowedExtensions.includes(fileExtension) || (file.type && !allowedMimeTypes.includes(file.type))) {
-      alert("지원하지 않는 형식입니다. PDF, JPG, JPEG, PNG 파일만 업로드 가능합니다.");
+    if (
+      !MATERIAL_ALLOWED_EXTENSIONS.has(fileExtension) ||
+      (file.type && !MATERIAL_ALLOWED_MIME_TYPES.has(file.type))
+    ) {
+      alert("지원하지 않는 파일 형식입니다. PDF, JPG, PNG 파일만 업로드할 수 있습니다.");
       return;
     }
-    if (file.size > maxSize) {
-      alert("파일 용량이 너무 큽니다. 최대 10MB까지 업로드할 수 있습니다.");
+    if (file.size > MATERIAL_MAX_FILE_SIZE) {
+      alert("파일 용량은 최대 10MB까지 업로드할 수 있습니다.");
       return;
     }
 
     setUploadingMaterial(true);
     try {
-      const timestamp = Date.now();
-      const storageId = Math.random().toString(36).substring(2, 10);
-      const filePath = `requests/reference_files/materials/${selectedRequest.id}/${materialCategory}_${timestamp}_${storageId}.${fileExtension}`;
+      const filePath = createMaterialStoragePath(selectedRequest.id, fileExtension);
 
       // 1. Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
-        .from("request-files")
+        .from(MATERIAL_BUCKET)
         .upload(filePath, file, {
           cacheControl: "3600",
           contentType: file.type || "application/octet-stream",
@@ -575,9 +613,12 @@ function BusinessMypage({
         .insert([{
           request_id: Number(selectedRequest.id),
           file_name: file.name,
+          original_file_name: file.name,
           file_path: filePath,
           file_size: file.size,
           file_type: materialCategory,
+          mime_type: file.type || null,
+          company_id: business?.id || null,
           uploaded_by: user.id
         }])
         .select("*")
@@ -585,7 +626,7 @@ function BusinessMypage({
 
       if (dbError) {
         // Cleanup storage file on db error
-        await supabase.storage.from("request-files").remove([filePath]);
+        await supabase.storage.from(MATERIAL_BUCKET).remove([filePath]);
         throw dbError;
       }
 
@@ -595,13 +636,8 @@ function BusinessMypage({
       }
       void fetchData();
     } catch (err) {
-      console.error("Material upload error:", err);
-      const message = /row-level security|permission|policy|unauthorized/i.test(err.message || "")
-        ? "업로드 권한을 확인할 수 없습니다. 다시 로그인한 뒤 시도해주세요."
-        : /storage|bucket|object/i.test(err.message || "")
-          ? "파일 저장에 실패했습니다. 다시 시도해주세요."
-          : err.message || "업로드에 실패했습니다. 다시 시도해주세요.";
-      alert(message);
+      console.error("Material upload failed", err);
+      alert("업로드에 실패했습니다. 파일명을 확인한 뒤 다시 시도해주세요.");
     } finally {
       setUploadingMaterial(false);
       if (e.target) e.target.value = "";
@@ -622,7 +658,7 @@ function BusinessMypage({
       if (dbError) throw dbError;
 
       try {
-        await supabase.storage.from("request-files").remove([filePath]);
+        await supabase.storage.from(MATERIAL_BUCKET).remove([filePath]);
       } catch (err) {
         console.warn("Storage deletion warning:", err);
       }
@@ -648,7 +684,7 @@ function BusinessMypage({
 
     try {
       const { data, error } = await supabase.storage
-        .from("request-files")
+        .from(MATERIAL_BUCKET)
         .createSignedUrl(path, 600, { download: name || true });
 
       if (error) throw error;
@@ -1077,8 +1113,13 @@ function BusinessMypage({
                       });
 
                       const estimateDocument = latestDocs["estimate"];
-                      const completionDocument = latestDocs["completion"];
                       const payment = payments.find((item) => item.request_id === req.id);
+                      const documentRows = Object.values(latestDocs).sort((a, b) => {
+                        const typeOrder = ["estimate", "completion", "payout", "contract", "attachment"];
+                        const aIndex = typeOrder.indexOf(a.document_type);
+                        const bIndex = typeOrder.indexOf(b.document_type);
+                        return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+                      });
 
                       const estimateStatus =
                         ["estimate_approved", "company_approved"].includes(req.estimate_status)
@@ -1127,42 +1168,51 @@ function BusinessMypage({
                                 {estimateDocument ? formatDocumentAmount(estimateDocument.amount) : "-"}
                               </span>
                             </div>
-                            <div className="meta-item">
-                              <span className="meta-label">문서</span>
-                              <span className="meta-value">
-                                {Object.keys(latestDocs).length === 0 ? (
-                                  "-"
-                                ) : (
-                                  <span className="business-document-actions">
-                                    {Object.values(latestDocs).map((doc) => (
-                                      <span className="business-document-action-group" key={doc.id}>
-                                        <span className="business-document-label">
-                                          <FileText size={14} aria-hidden="true" />
-                                          {getDocumentTypeLabel(doc.document_type)}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          className="business-doc-action-btn"
-                                          onClick={() => handleOpenGeneratedDocument(doc)}
-                                        >
-                                          <Eye size={16} aria-hidden="true" />
-                                          보기
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="business-doc-action-btn"
-                                          onClick={() => handleDownloadGeneratedDocument(doc)}
-                                        >
-                                          <Download size={16} aria-hidden="true" />
-                                          다운로드
-                                        </button>
-                                      </span>
-                                    ))}
-                                  </span>
-                                )}
-                              </span>
-                            </div>
                           </div>
+
+                          <section className="business-documents-section" aria-label="문서">
+                            <h4>문서</h4>
+                            {documentRows.length === 0 ? (
+                              <p className="business-documents-empty">발급된 문서가 없습니다.</p>
+                            ) : (
+                              <div className="business-documents-list">
+                                {documentRows.map((doc) => (
+                                  <div className="business-document-row" key={doc.id}>
+                                    <div className="business-document-info">
+                                      <FileText size={20} aria-hidden="true" className="business-document-icon" />
+                                      <div>
+                                        <strong>{getBusinessDocumentLabel(doc.document_type, doc.title)}</strong>
+                                        <span>
+                                          v{doc.version || 1} · {getDocumentStatusLabel(doc.status)}
+                                        </span>
+                                        <time dateTime={String(doc.created_at || "").slice(0, 10)}>
+                                          {formatIssuedDate(doc.created_at)}
+                                        </time>
+                                      </div>
+                                    </div>
+                                    <div className="business-document-actions">
+                                      <button
+                                        type="button"
+                                        className="business-doc-action-btn"
+                                        onClick={() => handleOpenGeneratedDocument(doc)}
+                                      >
+                                        <Eye size={16} aria-hidden="true" />
+                                        보기
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="business-doc-action-btn"
+                                        onClick={() => handleDownloadGeneratedDocument(doc)}
+                                      >
+                                        <Download size={16} aria-hidden="true" />
+                                        다운로드
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </section>
 
                           {estimateDocument && !["estimate_approved", "company_approved"].includes(req.estimate_status) && (
                             <div className="request-card-actions">
@@ -1207,44 +1257,6 @@ function BusinessMypage({
                           {/* Interactive Step Progress Timeline */}
                           <div className="timeline-section">
                             {renderStatusSteps(req)}
-                          </div>
-
-                          {/* 업무확인서 영역 */}
-                          <div
-                            className="completion-document-section"
-                          >
-                            <h4>
-                              업무확인서 발급 정보
-                            </h4>
-                            {completionDocument ? (
-                              <div className="completion-document-content">
-                                <span>
-                                  발급 완료 ({completionDocument.document_no} - v{completionDocument.version})
-                                </span>
-                                <div className="business-document-actions compact">
-                                  <button
-                                    type="button"
-                                    className="business-doc-action-btn"
-                                    onClick={() => handleOpenGeneratedDocument(completionDocument)}
-                                  >
-                                    <Eye size={16} aria-hidden="true" />
-                                    업무 확인서 보기
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="business-doc-action-btn"
-                                    onClick={() => handleDownloadGeneratedDocument(completionDocument)}
-                                  >
-                                    <Download size={16} aria-hidden="true" />
-                                    업무 확인서 다운로드
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <p>
-                                업무 완료 후 확인서가 발급됩니다.
-                              </p>
-                            )}
                           </div>
 
                           {/* Action Button: Duplicate Request */}
@@ -1503,7 +1515,7 @@ function BusinessMypage({
                                       </td>
                                       <td className="file-name-cell">
                                         <span className="clickable-file">
-                                          {mat.file_name}
+                                          {getMaterialDisplayName(mat)}
                                         </span>
                                       </td>
                                       <td>{(mat.file_size / 1024 / 1024).toFixed(2)} MB</td>
@@ -1512,7 +1524,7 @@ function BusinessMypage({
                                         <div className="material-row-actions">
                                           <button
                                             type="button"
-                                            onClick={() => handleDownloadFile(mat.file_path, mat.file_name)}
+                                            onClick={() => handleDownloadFile(mat.file_path, getMaterialDisplayName(mat))}
                                             className="material-action-btn"
                                           >
                                             <Download size={14} aria-hidden="true" />

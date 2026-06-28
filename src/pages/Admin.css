@@ -88,13 +88,13 @@
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 15px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .admin-metric-card {
   position: relative;
-  min-height: 122px;
-  padding: 18px 20px;
+  min-height: 110px;
+  padding: 15px 18px;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   background: #ffffff;
@@ -129,7 +129,7 @@
 
 .admin-metric-card strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 6px;
   color: #111827;
   font-size: 28px;
   font-weight: 900;

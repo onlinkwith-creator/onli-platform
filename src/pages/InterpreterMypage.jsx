@@ -3176,6 +3176,8 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
       alert("파일을 다운로드할 수 없습니다.");
     }
   };
+  const getMaterialDisplayName = (material = {}) =>
+    material.original_file_name || material.file_name || "자료 파일";
 
   const scheduleText = (() => {
     if (!start && !end) return "일정 미등록";
@@ -3248,9 +3250,9 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
                     <button
                       type="button"
                       className="prep-mat-download"
-                      onClick={() => handleDownload(mat.file_path, mat.file_name)}
+                      onClick={() => handleDownload(mat.file_path, getMaterialDisplayName(mat))}
                     >
-                      {mat.file_name} ↓
+                      {getMaterialDisplayName(mat)} ↓
                     </button>
                   </li>
                 ))}
