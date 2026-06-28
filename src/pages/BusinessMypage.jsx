@@ -1,6 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Eye, FileText, UserRound } from "lucide-react";
 import { supabase } from "../supabase";
-import { isOnliCertified } from "../utils/publicInterpreter";
+import {
+  PUBLIC_INTERPRETER_SELECT,
+  PUBLIC_INTERPRETER_SELECT_FALLBACK,
+  isMissingColumnError,
+  isOnliCertified,
+} from "../utils/publicInterpreter";
 import {
   DOCUMENT_BUCKET,
   formatDocumentAmount,
@@ -217,6 +223,7 @@ function BusinessMypage({
             .select(`
               id,
               request_id,
+              interpreter_id,
               is_contact_visible,
               interpreter:interpreters (
                 id,
@@ -236,7 +243,71 @@ function BusinessMypage({
           if (assignError) {
             console.error("Error fetching assignments:", assignError);
           } else {
-            setAssignments(assignData || []);
+            const baseAssignments = assignData || [];
+            const missingInterpreterIds = [
+              ...new Set(
+                [
+                  ...baseAssignments
+                    .filter((assignment) => !assignment.interpreter && assignment.interpreter_id)
+                    .map((assignment) => assignment.interpreter_id),
+                  ...fetchedRequests
+                    .filter((request) => request.assigned_interpreter_id)
+                    .map((request) => request.assigned_interpreter_id),
+                ]
+              ),
+            ];
+            let publicInterpreters = [];
+
+            if (missingInterpreterIds.length > 0) {
+              const { data: publicData, error: publicError } = await supabase
+                .from("public_interpreters")
+                .select(PUBLIC_INTERPRETER_SELECT)
+                .in("id", missingInterpreterIds);
+
+              if (publicError && isMissingColumnError(publicError)) {
+                const fallbackResult = await supabase
+                  .from("public_interpreters")
+                  .select(PUBLIC_INTERPRETER_SELECT_FALLBACK)
+                  .in("id", missingInterpreterIds);
+                if (!fallbackResult.error) publicInterpreters = fallbackResult.data || [];
+              } else if (!publicError) {
+                publicInterpreters = publicData || [];
+              } else {
+                console.warn("Public interpreter fallback fetch skipped:", publicError);
+              }
+            }
+
+            const publicInterpreterById = new Map(
+              publicInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
+            );
+            const mergedAssignments = baseAssignments.map((assignment) => ({
+                ...assignment,
+                interpreter:
+                  assignment.interpreter ||
+                  publicInterpreterById.get(String(assignment.interpreter_id)) ||
+                  null,
+              }));
+            const assignmentRequestIds = new Set(
+              mergedAssignments.map((assignment) => String(assignment.request_id))
+            );
+            const requestFallbackAssignments = fetchedRequests
+              .filter((request) => request.assigned_interpreter_id && !assignmentRequestIds.has(String(request.id)))
+              .map((request) => ({
+                id: `request-assigned-${request.id}`,
+                request_id: request.id,
+                interpreter_id: request.assigned_interpreter_id,
+                is_contact_visible: false,
+                interpreter:
+                  publicInterpreterById.get(String(request.assigned_interpreter_id)) ||
+                  {
+                    id: request.assigned_interpreter_id,
+                    name: request.assigned_interpreter_name || "배정 통역사",
+                    level: request.required_level || request.requested_level || "",
+                  },
+              }));
+            setAssignments(
+              [...mergedAssignments, ...requestFallbackAssignments]
+            );
           }
 
           // 2. Fetch request materials
@@ -343,6 +414,19 @@ function BusinessMypage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
+  const visibleAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment?.interpreter),
+    [assignments]
+  );
+
+  const getSelectedMaterialRequest = () =>
+    requests.find((request) => String(request.id) === String(selectedMaterialRequestId));
+
+  const openInterpreterProfile = (interpreterId) => {
+    if (!interpreterId) return;
+    window.open(`/interpreters/${interpreterId}`, "_blank", "noopener,noreferrer");
+  };
+
   const handleStartEdit = () => {
     if (!business) return;
     setEditForm({
@@ -447,18 +531,24 @@ function BusinessMypage({
 
   const handleMaterialFileChange = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedMaterialRequestId) return;
+    if (!file) return;
+    const selectedRequest = getSelectedMaterialRequest();
+    if (!selectedRequest) {
+      alert("자료를 업로드할 의뢰를 먼저 선택해주세요.");
+      return;
+    }
 
     const maxSize = 10 * 1024 * 1024; // 10MB
-    const fileExtension = file.name.split(".").pop().toLowerCase();
+    const fileExtension = String(file.name.split(".").pop() || "").toLowerCase();
     const allowedExtensions = ["pdf", "jpg", "jpeg", "png"];
+    const allowedMimeTypes = ["application/pdf", "image/jpeg", "image/png"];
 
-    if (!allowedExtensions.includes(fileExtension)) {
-      alert("PDF, JPG, JPEG, PNG 파일만 업로드 가능합니다.");
+    if (!allowedExtensions.includes(fileExtension) || (file.type && !allowedMimeTypes.includes(file.type))) {
+      alert("지원하지 않는 형식입니다. PDF, JPG, JPEG, PNG 파일만 업로드 가능합니다.");
       return;
     }
     if (file.size > maxSize) {
-      alert("파일 크기는 최대 10MB까지 지원합니다.");
+      alert("파일 용량이 너무 큽니다. 최대 10MB까지 업로드할 수 있습니다.");
       return;
     }
 
@@ -466,7 +556,7 @@ function BusinessMypage({
     try {
       const timestamp = Date.now();
       const storageId = Math.random().toString(36).substring(2, 10);
-      const filePath = `requests/reference_files/materials/${selectedMaterialRequestId}/${materialCategory}_${timestamp}_${storageId}.${fileExtension}`;
+      const filePath = `requests/reference_files/materials/${selectedRequest.id}/${materialCategory}_${timestamp}_${storageId}.${fileExtension}`;
 
       // 1. Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
@@ -480,16 +570,18 @@ function BusinessMypage({
       if (uploadError) throw uploadError;
 
       // 2. Insert record in public.request_materials
-      const { error: dbError } = await supabase
+      const { data: insertedMaterial, error: dbError } = await supabase
         .from("request_materials")
         .insert([{
-          request_id: Number(selectedMaterialRequestId),
+          request_id: Number(selectedRequest.id),
           file_name: file.name,
           file_path: filePath,
           file_size: file.size,
           file_type: materialCategory,
           uploaded_by: user.id
-        }]);
+        }])
+        .select("*")
+        .single();
 
       if (dbError) {
         // Cleanup storage file on db error
@@ -498,12 +590,21 @@ function BusinessMypage({
       }
 
       alert("자료가 업로드되었습니다.");
-      fetchData();
+      if (insertedMaterial) {
+        setMaterials((current) => [insertedMaterial, ...current.filter((item) => item.id !== insertedMaterial.id)]);
+      }
+      void fetchData();
     } catch (err) {
       console.error("Material upload error:", err);
-      alert(`자료 업로드 실패: ${err.message || "다시 시도해주세요."}`);
+      const message = /row-level security|permission|policy|unauthorized/i.test(err.message || "")
+        ? "업로드 권한을 확인할 수 없습니다. 다시 로그인한 뒤 시도해주세요."
+        : /storage|bucket|object/i.test(err.message || "")
+          ? "파일 저장에 실패했습니다. 다시 시도해주세요."
+          : err.message || "업로드에 실패했습니다. 다시 시도해주세요.";
+      alert(message);
     } finally {
       setUploadingMaterial(false);
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -527,7 +628,8 @@ function BusinessMypage({
       }
 
       alert("행사 자료가 삭제되었습니다.");
-      fetchData();
+      setMaterials((current) => current.filter((material) => material.id !== materialId));
+      void fetchData();
     } catch (err) {
       console.error("Material deletion error:", err);
       alert(`자료 삭제 실패: ${err.message || "다시 시도해주세요."}`);
@@ -592,64 +694,39 @@ function BusinessMypage({
   const handleApproveEstimate = async (requestId) => {
     if (!window.confirm("견적을 승인하시겠습니까? 승인 후 금액 수정은 관리자 문의가 필요합니다.")) return;
 
-    // 1. Update request estimate status
-    const { error } = await supabase
-      .from("requests")
-      .update({ estimate_status: "estimate_approved" })
-      .eq("id", requestId)
-      .eq("company_auth_user_id", user.id);
+    const latestEstimate = documents
+      .filter((doc) => doc.request_id === requestId && doc.document_type === "estimate" && doc.status === "issued")
+      .sort((a, b) => b.version - a.version)[0];
 
-    if (error) {
-      console.error("Estimate approval failed:", error);
-      alert("견적 승인에 실패했습니다. 다시 시도해주세요.");
+    if (!business?.id || !latestEstimate?.id) {
+      alert("승인 가능한 견적서 또는 기업 정보를 찾을 수 없습니다.");
       return;
     }
 
-    // 2. Fetch and update the latest estimate document's metadata
-    try {
-      const latestEstimate = documents
-        .filter((doc) => doc.request_id === requestId && doc.document_type === "estimate" && doc.status === "issued")
-        .sort((a, b) => b.version - a.version)[0];
+    const { error } = await supabase.rpc("approve_estimate_and_create_payment", {
+      p_request_id: requestId,
+      p_company_id: business.id,
+      p_document_id: latestEstimate.id,
+    });
 
-      if (latestEstimate) {
-        const { data: docData } = await supabase
-          .from("documents")
-          .select("metadata")
-          .eq("id", latestEstimate.id)
-          .maybeSingle();
-
-        const updatedMetadata = {
-          ...(docData?.metadata || {}),
-          approved_at: new Date().toISOString(),
-          approved_by: user.id,
-        };
-
-        const { error: docUpdateError } = await supabase
-          .from("documents")
-          .update({ metadata: updatedMetadata })
-          .eq("id", latestEstimate.id);
-
-        if (docUpdateError) {
-          console.warn("Failed to update estimate document metadata:", docUpdateError);
-        } else {
-          setDocuments((current) =>
-            current.map((doc) =>
-              doc.id === latestEstimate.id ? { ...doc, metadata: updatedMetadata } : doc
-            )
-          );
-        }
-      }
-    } catch (err) {
-      console.warn("Error updating document metadata on approval:", err);
+    if (error) {
+      console.error("approve_estimate_and_create_payment failed:", error);
+      alert(`견적 승인에 실패했습니다: ${error.message}`);
+      return;
     }
 
-    setRequests((current) =>
-      current.map((request) =>
-        request.id === requestId
-          ? { ...request, estimate_status: "estimate_approved" }
-          : request
-      )
-    );
+    try {
+      await fetchData();
+    } catch (refreshError) {
+      console.warn("Business data refresh after estimate approval failed:", refreshError);
+      setRequests((current) =>
+        current.map((request) =>
+          request.id === requestId
+            ? { ...request, estimate_status: "estimate_approved" }
+            : request
+        )
+      );
+    }
 
     const { data: paymentData, error: paymentError } = await supabase
       .from("payments")
@@ -1056,17 +1133,32 @@ function BusinessMypage({
                                 {Object.keys(latestDocs).length === 0 ? (
                                   "-"
                                 ) : (
-                                  Object.values(latestDocs).map((doc) => (
-                                    <button
-                                      key={doc.id}
-                                      type="button"
-                                      className="file-download-btn"
-                                      onClick={() => handleOpenGeneratedDocument(doc)}
-                                      style={{ marginRight: "6px", marginBottom: "4px" }}
-                                    >
-                                      {getDocumentTypeLabel(doc.document_type)} PDF
-                                    </button>
-                                  ))
+                                  <span className="business-document-actions">
+                                    {Object.values(latestDocs).map((doc) => (
+                                      <span className="business-document-action-group" key={doc.id}>
+                                        <span className="business-document-label">
+                                          <FileText size={14} aria-hidden="true" />
+                                          {getDocumentTypeLabel(doc.document_type)}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="business-doc-action-btn"
+                                          onClick={() => handleOpenGeneratedDocument(doc)}
+                                        >
+                                          <Eye size={16} aria-hidden="true" />
+                                          보기
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="business-doc-action-btn"
+                                          onClick={() => handleDownloadGeneratedDocument(doc)}
+                                        >
+                                          <Download size={16} aria-hidden="true" />
+                                          다운로드
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </span>
                                 )}
                               </span>
                             </div>
@@ -1120,51 +1212,36 @@ function BusinessMypage({
                           {/* 업무확인서 영역 */}
                           <div
                             className="completion-document-section"
-                            style={{
-                              marginTop: "16px",
-                              padding: "16px",
-                              borderRadius: "10px",
-                              background: "rgba(255, 255, 255, 0.45)",
-                              border: "1px solid rgba(226, 232, 240, 0.8)",
-                              backdropFilter: "blur(8px)",
-                              marginBottom: "16px",
-                            }}
                           >
-                            <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", fontWeight: "850", color: "#1e293b" }}>
+                            <h4>
                               업무확인서 발급 정보
                             </h4>
                             {completionDocument ? (
-                              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px" }}>
-                                <span style={{ fontSize: "13px", color: "#475569" }}>
+                              <div className="completion-document-content">
+                                <span>
                                   발급 완료 ({completionDocument.document_no} - v{completionDocument.version})
                                 </span>
-                                <div style={{ display: "flex", gap: "6px" }}>
+                                <div className="business-document-actions compact">
                                   <button
                                     type="button"
-                                    className="file-download-btn"
+                                    className="business-doc-action-btn"
                                     onClick={() => handleOpenGeneratedDocument(completionDocument)}
-                                    style={{ fontSize: "12px", padding: "6px 12px" }}
                                   >
-                                    보기
+                                    <Eye size={16} aria-hidden="true" />
+                                    업무 확인서 보기
                                   </button>
                                   <button
                                     type="button"
-                                    className="file-download-btn secondary"
+                                    className="business-doc-action-btn"
                                     onClick={() => handleDownloadGeneratedDocument(completionDocument)}
-                                    style={{
-                                      fontSize: "12px",
-                                      padding: "6px 12px",
-                                      background: "#f1f5f9",
-                                      color: "#475569",
-                                      border: "1px solid #cbd5e1",
-                                    }}
                                   >
-                                    다운로드
+                                    <Download size={16} aria-hidden="true" />
+                                    업무 확인서 다운로드
                                   </button>
                                 </div>
                               </div>
                             ) : (
-                              <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
+                              <p>
                                 업무 완료 후 확인서가 발급됩니다.
                               </p>
                             )}
@@ -1195,12 +1272,12 @@ function BusinessMypage({
               <div className="business-mypage-card">
                 <div className="card-header-with-action">
                   <h2>배정 통역사</h2>
-                  <p className="data-count-label">총 {assignments.length}명 배정됨</p>
+                  <p className="data-count-label">총 {visibleAssignments.length}명 배정됨</p>
                 </div>
 
                 {loadingData ? (
                   <div className="loading-placeholder">배정 통역사 정보 불러오는 중...</div>
-                ) : assignments.length === 0 ? (
+                ) : visibleAssignments.length === 0 ? (
                   <div className="mypage-empty-state">
                     <span className="empty-state-symbol">🤝</span>
                     <p>배정 완료된 통역사가 없습니다.</p>
@@ -1208,13 +1285,16 @@ function BusinessMypage({
                   </div>
                 ) : (
                   <div className="assigned-interpreters-list">
-                    {assignments.map((assign) => {
+                    {visibleAssignments.map((assign) => {
                       const req = requests.find((r) => r.id === assign.request_id);
                       const interpreter = assign.interpreter;
-                      if (!interpreter) return null;
 
                       const isCertified = isOnliCertified(interpreter);
-                      const displayLanguages = interpreter.jlpt || "한국어 · 일본어";
+                      const displayLanguages =
+                        interpreter.jlpt ||
+                        interpreter.language_direction ||
+                        interpreter.languages ||
+                        "한국어 · 일본어";
                       const specialtiesList = Array.isArray(interpreter.specialties)
                         ? interpreter.specialties.filter(Boolean)
                         : (interpreter.specialties || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -1238,6 +1318,14 @@ function BusinessMypage({
                                     <span className="certified-badge">ON-LI 인증</span>
                                   )}
                                 </div>
+                                <button
+                                  type="button"
+                                  className="interpreter-profile-button"
+                                  onClick={() => openInterpreterProfile(interpreter.id || assign.interpreter_id)}
+                                >
+                                  <UserRound size={16} aria-hidden="true" />
+                                  프로필 보기
+                                </button>
                               </div>
 
                               <dl className="interpreter-details-dl">
@@ -1267,7 +1355,12 @@ function BusinessMypage({
 
                               {/* Protected Contacts Section */}
                               <div className="protected-contacts-box">
-                                <h4>연락처 정보</h4>
+                                <h4>
+                                  연락처 정보
+                                  <span className={`contact-status-pill ${assign.is_contact_visible ? "visible" : "masked"}`}>
+                                    {assign.is_contact_visible ? "연락 가능" : "공개 대기"}
+                                  </span>
+                                </h4>
                                 {assign.is_contact_visible ? (
                                   <div className="contacts-grid">
                                     <div className="contact-item">
@@ -1378,7 +1471,9 @@ function BusinessMypage({
                       ) : (
                         (() => {
                           const currentRequestId = Number(selectedMaterialRequestId);
-                          const filteredMaterials = materials.filter((m) => m.request_id === currentRequestId);
+                          const filteredMaterials = materials.filter(
+                            (m) => String(m.request_id) === String(currentRequestId)
+                          );
 
                           if (filteredMaterials.length === 0) {
                             return (
@@ -1407,23 +1502,30 @@ function BusinessMypage({
                                         <span className="material-type-pill">{mat.file_type}</span>
                                       </td>
                                       <td className="file-name-cell">
-                                        <span
-                                          onClick={() => handleDownloadFile(mat.file_path, mat.file_name)}
-                                          className="clickable-file"
-                                        >
+                                        <span className="clickable-file">
                                           {mat.file_name}
                                         </span>
                                       </td>
                                       <td>{(mat.file_size / 1024 / 1024).toFixed(2)} MB</td>
                                       <td>{new Date(mat.created_at).toLocaleDateString()}</td>
                                       <td>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteMaterial(mat.id, mat.file_path)}
-                                          className="btn-delete-link"
-                                        >
-                                          삭제
-                                        </button>
+                                        <div className="material-row-actions">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDownloadFile(mat.file_path, mat.file_name)}
+                                            className="material-action-btn"
+                                          >
+                                            <Download size={14} aria-hidden="true" />
+                                            다운로드
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteMaterial(mat.id, mat.file_path)}
+                                            className="material-action-btn danger"
+                                          >
+                                            삭제
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   ))}

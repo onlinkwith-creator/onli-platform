@@ -2250,6 +2250,20 @@
     width: 100%;
   }
 
+  .prep-card-header,
+  .prep-card-right {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .prep-contact-card {
+    grid-template-columns: 1fr;
+  }
+
+  .prep-contact-card div:first-child {
+    grid-column: auto;
+  }
+
 }
 
 /* Desktop Detailed Profile Cards */
@@ -2448,6 +2462,42 @@
   color: #9ca3af;
 }
 
+.prep-contact-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.prep-contact-card div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.prep-contact-card div:first-child {
+  grid-column: 1 / -1;
+}
+
+.prep-contact-card dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.prep-contact-card dd {
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .prep-mat-empty {
   margin: 0;
   font-size: 13px;
@@ -2504,4 +2554,3 @@
 .prep-mat-download:hover {
   color: #3730a3;
 }
-

@@ -3105,6 +3105,13 @@ function mapMyAssignmentRow(row = {}) {
     created_at: row.assigned_at,
     request_assignment_status: row.request_assignment_status || "assigned",
     is_contact_visible: row.is_contact_visible || false,
+    company_contact: {
+      companyName: row.company_name || "",
+      contactName: row.company_contact_name || "",
+      phone: row.company_contact_phone || "",
+      email: row.company_contact_email || "",
+      messenger: row.company_contact_messenger || "",
+    },
     jobs: mapPublicJobFromMypageRow(row),
   };
 }
@@ -3124,6 +3131,10 @@ function mapMySettlementRow(row = {}) {
     completedAt: row.settlement_completed_at,
     workDays: row.settlement_work_days,
   };
+}
+
+function isAssignedPreparationStatus(status) {
+  return ["assigned", "preparing", "ready"].includes(String(status || "").trim());
 }
 
 function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
@@ -3171,6 +3182,15 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     if (!end || start === end) return start;
     return `${start} ~ ${end}`;
   })();
+  const canShowCompanyContact = isAssignedPreparationStatus(mat.request_assignment_status);
+  const companyContact = mat.company_contact || {};
+  const contactRows = [
+    ["기업명", companyContact.companyName],
+    ["담당자", companyContact.contactName],
+    ["연락처", companyContact.phone],
+    ["이메일", companyContact.email],
+    ["카카오톡(ID)", companyContact.messenger],
+  ];
 
   return (
     <div className="interpreter-prep-card">
@@ -3194,14 +3214,21 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
       {expanded && (
         <div className="prep-card-detail">
           {/* Contact info if visible */}
-          {mat.is_contact_visible ? (
+          {canShowCompanyContact ? (
             <div className="prep-contact-section">
-              <span className="prep-section-label">📞 기업 연락처</span>
-              <p className="prep-contact-note">관리자가 연락처 공개를 승인했습니다. 의뢰 정보를 통해 기업 담당자에게 연락해 주세요.</p>
+              <span className="prep-section-label">기업 연락처</span>
+              <dl className="prep-contact-card">
+                {contactRows.map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value || "-"}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           ) : (
             <div className="prep-contact-section muted">
-              <span className="prep-section-label">📞 기업 연락처</span>
+              <span className="prep-section-label">기업 연락처</span>
               <p className="prep-contact-note muted">아직 연락처가 공개되지 않았습니다. 관리자 확인 후 공개됩니다.</p>
             </div>
           )}

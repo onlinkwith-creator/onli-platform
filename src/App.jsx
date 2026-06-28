@@ -68,7 +68,7 @@ function getInitialPage() {
 
   if (POLICY_PATH_TO_KEY[path]) return "policy";
   if (path === "/about") return "about";
-  if (path === "/business") return "business";
+  if (path === "/business" || path === "/corporate") return "business";
   if (path === "/company-register") return "businessRegister";
   if (path === "/business/mypage") return "businessMypage";
   if (path === "/role-selection") return "roleSelection";

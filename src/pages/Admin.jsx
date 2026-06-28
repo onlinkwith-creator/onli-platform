@@ -14,6 +14,7 @@ import {
   Search,
   ShieldAlert,
   Star,
+  Trash2,
   User,
   X,
 } from "lucide-react";
@@ -160,6 +161,12 @@ const INTERPRETER_STATUSES = ["pending", "active", "rejected", "warning", "suspe
 const LEVELS = ["Lv1", "Lv2", "Lv3", "Lv4"];
 const INTERPRETER_DOCUMENT_BUCKET = "resume-files";
 const REQUEST_REFERENCE_BUCKET = "request-files";
+const ADMIN_NOTES_SELECT =
+  "id, target_type, target_id, note, created_by, created_at, updated_at";
+const ADMIN_ACTIVITY_LOGS_SELECT =
+  "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
+const NOTIFICATION_EVENTS_SELECT =
+  "id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at, deleted_at, deleted_by";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -303,6 +310,32 @@ const SETTLEMENT_PAYOUT_STATUS_OPTIONS = [
   { value: "withheld", label: "보류" },
   { value: "cancelled", label: "취소" },
 ];
+const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
+  pending: "pending",
+  settlement_pending: "pending",
+  unpaid: "pending",
+  "정산대기": "pending",
+  "정산 대기": "pending",
+  confirmed: "confirmed",
+  settlement_confirmed: "confirmed",
+  "정산확정": "confirmed",
+  "지급확정": "confirmed",
+  paid: "paid",
+  completed: "paid",
+  settlement_completed: "paid",
+  settled: "paid",
+  "정산완료": "paid",
+  "지급완료": "paid",
+  withheld: "withheld",
+  on_hold: "withheld",
+  settlement_on_hold: "withheld",
+  hold: "withheld",
+  "정산보류": "withheld",
+  "보류": "withheld",
+  cancelled: "cancelled",
+  canceled: "cancelled",
+  "취소": "cancelled",
+};
 const SETTLEMENT_PAYOUT_METHOD_OPTIONS = [
   { value: "", label: "미입력" },
   { value: "bank_transfer", label: "계좌이체" },
@@ -436,7 +469,7 @@ function getAdminPathForSubTab(subTabId) {
 }
 
 function Admin({ onBackClick }) {
-  const { user, signOut, adminProfile } = useAuth();
+  const { user, signOut, adminProfile, loading: authLoading, isAdmin } = useAuth();
   const initialSubTab = getInitialAdminSubTab();
   const [activeMainTab, setActiveMainTab] = useState(
     SUB_TAB_TO_MAIN_TAB[initialSubTab] || "new"
@@ -456,6 +489,10 @@ function Admin({ onBackClick }) {
   const [paymentLogs, setPaymentLogs] = useState([]);
   const [settlements, setSettlements] = useState([]);
   const [settlementLogs, setSettlementLogs] = useState([]);
+  const [adminDataErrors, setAdminDataErrors] = useState({
+    notifications: null,
+    settlements: null,
+  });
   const [adminNoteDrafts, setAdminNoteDrafts] = useState({});
   const [notificationProcessing, setNotificationProcessing] = useState(false);
   const [notificationFilters, setNotificationFilters] = useState({
@@ -524,14 +561,28 @@ function Admin({ onBackClick }) {
   });
 
   const fetchAdminData = useCallback(async () => {
-    setLoading(true);
-    setErrorMessage("");
-
     if (!publicSupabase) {
       setErrorMessage(supabaseConfigError.message);
       setLoading(false);
       return;
     }
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+    if (!user) {
+      setErrorMessage("관리자 로그인이 필요합니다.");
+      setLoading(false);
+      return;
+    }
+    if (!isAdmin) {
+      setErrorMessage("관리자 권한 확인 후 데이터를 조회할 수 있습니다.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
 
     try {
       const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult, businessResult] =
@@ -603,23 +654,16 @@ function Admin({ onBackClick }) {
       console.log("loaded jobs:", jobData);
       console.log("loaded interpreters:", interpreterData);
       console.log("loaded applications:", jobApplicationData);
-      setRequests(requestData);
-      setJobs(jobData);
-      setInterpreters(interpreterData);
-      setAssignments(assignmentData);
-      setMatchings(matchingData);
-      setJobApplications(jobApplicationData);
-      setBusinesses(businessData);
+      if (!requestResult.error) setRequests(requestData);
+      if (!jobResult.error) setJobs(jobData);
+      if (!interpreterResult.error) setInterpreters(interpreterData);
+      if (!assignmentResult.error) setAssignments(assignmentData);
+      if (!matchingResult.error) setMatchings(matchingData);
+      if (!jobApplicationResult.error) setJobApplications(jobApplicationData);
+      if (!businessResult.error) setBusinesses(businessData);
     } catch (error) {
       console.error("admin data fetch failed:", error);
       setErrorMessage("관리자 데이터를 불러오지 못했습니다. Supabase RLS 정책 또는 DB migration 적용 상태를 확인해주세요.");
-      setRequests([]);
-      setJobs([]);
-      setInterpreters([]);
-      setAssignments([]);
-      setMatchings([]);
-      setJobApplications([]);
-      setBusinesses([]);
     }
     if (supabase) {
       try {
@@ -636,17 +680,18 @@ function Admin({ onBackClick }) {
           await Promise.allSettled([
             supabase
               .from("admin_notes")
-              .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+              .select(ADMIN_NOTES_SELECT)
               .order("created_at", { ascending: false })
               .limit(300),
             supabase
               .from("admin_activity_logs")
-              .select("id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at")
+              .select(ADMIN_ACTIVITY_LOGS_SELECT)
               .order("created_at", { ascending: false })
               .limit(300),
             supabase
               .from("notification_events")
-              .select("id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
+              .select(NOTIFICATION_EVENTS_SELECT)
+              .is("deleted_at", null)
               .order("created_at", { ascending: false })
               .limit(300),
             supabase
@@ -694,9 +739,14 @@ function Admin({ onBackClick }) {
         }
 
         if (notificationsResult.error) {
-          console.warn("notification events fetch skipped:", notificationsResult.error);
+          console.error("notification events fetch failed:", notificationsResult.error);
+          setAdminDataErrors((current) => ({
+            ...current,
+            notifications: notificationsResult.error,
+          }));
         } else {
           setNotificationEvents(uniqueById(notificationsResult.data || []));
+          setAdminDataErrors((current) => ({ ...current, notifications: null }));
         }
 
         if (documentsResult.error) {
@@ -707,37 +757,38 @@ function Admin({ onBackClick }) {
 
         if (paymentsResult.error) {
           console.warn("payments fetch skipped:", paymentsResult.error);
-          setPayments([]);
         } else {
           setPayments(uniqueById(paymentsResult.data || []));
         }
 
         if (paymentLogsResult.error) {
           console.warn("payment logs fetch skipped:", paymentLogsResult.error);
-          setPaymentLogs([]);
         } else {
           setPaymentLogs(uniqueById(paymentLogsResult.data || []));
         }
 
         if (settlementsResult.error) {
-          console.warn("settlements fetch skipped:", settlementsResult.error);
-          setSettlements([]);
+          console.error("settlements fetch failed:", settlementsResult.error);
+          setAdminDataErrors((current) => ({
+            ...current,
+            settlements: settlementsResult.error,
+          }));
         } else {
           setSettlements(uniqueById(settlementsResult.data || []));
+          setAdminDataErrors((current) => ({ ...current, settlements: null }));
         }
 
         if (settlementLogsResult.error) {
           console.warn("settlement logs fetch skipped:", settlementLogsResult.error);
-          setSettlementLogs([]);
         } else {
           setSettlementLogs(uniqueById(settlementLogsResult.data || []));
         }
       } catch (error) {
-        console.warn("admin optional data fetch skipped:", error);
+        console.error("admin optional data fetch failed:", error);
       }
     }
     setLoading(false);
-  }, []);
+  }, [authLoading, isAdmin, user]);
 
   useEffect(() => {
     queueMicrotask(fetchAdminData);
@@ -934,6 +985,18 @@ function Admin({ onBackClick }) {
     () => buildAdminMemoItems({ requests, interpreters, assignmentRows, jobApplications }),
     [assignmentRows, interpreters, jobApplications, requests]
   );
+  const adminMemoDisplayItems = useMemo(
+    () =>
+      buildAdminMemoDisplayItems({
+        items: adminMemoItems,
+        notes: adminNotes,
+        requests,
+        interpreters,
+        assignmentRows,
+        jobApplications,
+      }),
+    [adminMemoItems, adminNotes, assignmentRows, interpreters, jobApplications, requests]
+  );
 
   const filteredRequests = useMemo(() => {
     const search = requestFilters.search.trim().toLowerCase();
@@ -1091,7 +1154,7 @@ function Admin({ onBackClick }) {
           )
         ).length,
         pendingAssignments: pendingAssignmentRequests.length,
-        settlementPending: settlements.filter((item) => item.payout_status === "pending").length,
+        settlementPending: settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "pending").length,
         unconfirmedBusinesses,
         processingNotifications: failedNotifications + pendingNotifications,
       };
@@ -1117,9 +1180,7 @@ function Admin({ onBackClick }) {
   const processingQueueItems = useMemo(
     () =>
       buildProcessingQueueItems({
-        businesses,
         newRequests,
-        notificationEvents,
         pendingResumeReviewInterpreters,
         uncheckedApplications: jobApplications.filter((application) =>
           [APPLICATION_STATUS.PENDING, APPLICATION_STATUS.REVIEWING].includes(
@@ -1127,16 +1188,12 @@ function Admin({ onBackClick }) {
           )
         ),
         pendingAssignmentRequests,
-        settlements,
       }),
     [
-      businesses,
       jobApplications,
       newRequests,
-      notificationEvents,
       pendingAssignmentRequests,
       pendingResumeReviewInterpreters,
-      settlements,
     ]
   );
   const processingTaskItems = useMemo(
@@ -1216,11 +1273,11 @@ function Admin({ onBackClick }) {
     if (subTabId === "interpreter_activity") return interpreters.length;
     if (subTabId === "all_businesses") return businesses.length;
     if (subTabId === "company_payments") return payments.length;
-    if (subTabId === "settlement_pending") return settlements.filter((item) => item.payout_status === "pending").length;
-    if (subTabId === "settlement_confirmed") return settlements.filter((item) => item.payout_status === "confirmed").length;
-    if (subTabId === "settlement_completed") return settlements.filter((item) => item.payout_status === "paid").length;
-    if (subTabId === "settlement_on_hold") return settlements.filter((item) => item.payout_status === "withheld").length;
-    if (subTabId === "payment_history") return settlements.filter((item) => item.payout_status === "paid").length;
+    if (subTabId === "settlement_pending") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "pending").length;
+    if (subTabId === "settlement_confirmed") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "confirmed").length;
+    if (subTabId === "settlement_completed") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "paid").length;
+    if (subTabId === "settlement_on_hold") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "withheld").length;
+    if (subTabId === "payment_history") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "paid").length;
     if (subTabId === "all_documents") return generatedDocuments.length;
     if (subTabId === "estimate_documents") {
       return generatedDocuments.filter((doc) => doc.document_type === "estimate").length;
@@ -1231,7 +1288,7 @@ function Admin({ onBackClick }) {
     if (subTabId === "payout_documents") {
       return generatedDocuments.filter((doc) => doc.document_type === "payout").length;
     }
-    if (subTabId === "admin_memos") return adminMemoItems.length;
+    if (subTabId === "admin_memos") return adminMemoDisplayItems.length;
     if (subTabId === "notification_history") return notificationEvents.length;
     if (subTabId === "admin_accounts") return adminUsers.length;
     return null;
@@ -1262,30 +1319,6 @@ function Admin({ onBackClick }) {
       icon: Star,
       targetTab: "all_requests",
       requestStatus: "before_operation",
-    },
-    {
-      label: "정산 대기",
-      value: `${dashboard.settlementPending}건`,
-      description: "지급 처리 필요",
-      tone: "indigo",
-      icon: CheckCircle2,
-      targetTab: "settlement_pending",
-    },
-    {
-      label: "미확인 기업",
-      value: `${dashboard.unconfirmedBusinesses}건`,
-      description: "기업 상태 확인",
-      tone: "green",
-      icon: User,
-      targetTab: "all_businesses",
-    },
-    {
-      label: "처리 필요 알림",
-      value: `${dashboard.processingNotifications}건`,
-      description: "실패/대기 알림",
-      tone: "orange",
-      icon: Mail,
-      targetTab: "notification_history",
     },
   ];
 
@@ -1573,17 +1606,18 @@ function Admin({ onBackClick }) {
     ] = await Promise.all([
       supabase
         .from("admin_notes")
-        .select("id, target_type, target_id, note, created_by, created_at, updated_at")
+        .select(ADMIN_NOTES_SELECT)
         .order("created_at", { ascending: false })
         .limit(300),
       supabase
         .from("admin_activity_logs")
-        .select("id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at")
+        .select(ADMIN_ACTIVITY_LOGS_SELECT)
         .order("created_at", { ascending: false })
         .limit(300),
       supabase
         .from("notification_events")
-        .select("id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at")
+        .select(NOTIFICATION_EVENTS_SELECT)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(300),
       supabase
@@ -1608,13 +1642,45 @@ function Admin({ onBackClick }) {
         .limit(500),
     ]);
 
-    if (!notesResult.error) setAdminNotes(uniqueById(notesResult.data || []));
-    if (!logsResult.error) setAdminActivityLogs(logsResult.data || []);
-    if (!notificationsResult.error) setNotificationEvents(uniqueById(notificationsResult.data || []));
-    if (!paymentsResult.error) setPayments(uniqueById(paymentsResult.data || []));
-    if (!paymentLogsResult.error) setPaymentLogs(uniqueById(paymentLogsResult.data || []));
-    if (!settlementsResult.error) setSettlements(uniqueById(settlementsResult.data || []));
-    if (!settlementLogsResult.error) setSettlementLogs(uniqueById(settlementLogsResult.data || []));
+    if (notesResult.error) {
+      console.error("admin notes refresh failed:", notesResult.error);
+    } else {
+      setAdminNotes(uniqueById(notesResult.data || []));
+    }
+    if (logsResult.error) {
+      console.error("admin activity logs refresh failed:", logsResult.error);
+    } else {
+      setAdminActivityLogs(logsResult.data || []);
+    }
+    if (notificationsResult.error) {
+      console.error("notification events refresh failed:", notificationsResult.error);
+      setAdminDataErrors((current) => ({ ...current, notifications: notificationsResult.error }));
+    } else {
+      setNotificationEvents(uniqueById(notificationsResult.data || []));
+      setAdminDataErrors((current) => ({ ...current, notifications: null }));
+    }
+    if (paymentsResult.error) {
+      console.error("payments refresh failed:", paymentsResult.error);
+    } else {
+      setPayments(uniqueById(paymentsResult.data || []));
+    }
+    if (paymentLogsResult.error) {
+      console.error("payment logs refresh failed:", paymentLogsResult.error);
+    } else {
+      setPaymentLogs(uniqueById(paymentLogsResult.data || []));
+    }
+    if (settlementsResult.error) {
+      console.error("settlements refresh failed:", settlementsResult.error);
+      setAdminDataErrors((current) => ({ ...current, settlements: settlementsResult.error }));
+    } else {
+      setSettlements(uniqueById(settlementsResult.data || []));
+      setAdminDataErrors((current) => ({ ...current, settlements: null }));
+    }
+    if (settlementLogsResult.error) {
+      console.error("settlement logs refresh failed:", settlementLogsResult.error);
+    } else {
+      setSettlementLogs(uniqueById(settlementLogsResult.data || []));
+    }
   };
 
   const processNotificationEvents = async ({ eventIds = [], retryFailed = false } = {}) => {
@@ -1659,6 +1725,35 @@ function Admin({ onBackClick }) {
       return false;
     } finally {
       setNotificationProcessing(false);
+    }
+  };
+
+  const deleteNotificationEvents = async (eventIds = []) => {
+    const ids = [...new Set(eventIds.filter(Boolean))];
+    if (!supabase || ids.length === 0) return false;
+
+    setSavingKey("notification-delete");
+    try {
+      const { error } = await supabase
+        .from("notification_events")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: user?.id || null,
+        })
+        .in("id", ids);
+
+      if (error) throw error;
+
+      setNotificationEvents((current) =>
+        current.filter((event) => !ids.includes(event.id))
+      );
+      return true;
+    } catch (error) {
+      console.error("notification delete failed:", error);
+      alert(`알림 삭제 실패: ${error.message || "알 수 없는 오류"}`);
+      return false;
+    } finally {
+      setSavingKey("");
     }
   };
 
@@ -3711,7 +3806,7 @@ function Admin({ onBackClick }) {
         {errorMessage && <MessageBox text={errorMessage} />}
         {!loading && (
           <>
-            <DashboardQuickActions onNavigate={handleDashboardShortcut} />
+            <DashboardQuickActions />
 
             <section className="admin-metrics">
               {metricCards.map((card) => (
@@ -3728,13 +3823,9 @@ function Admin({ onBackClick }) {
             </section>
 
             <OperationOverview
-              notificationCount={dashboard.processingNotifications}
-              recentActivities={recentActivityItems}
-              revenueSummary={revenueSummary}
               todayItems={operationDashboard.todayItems}
               urgentItems={operationDashboard.urgentItems}
               weekItems={operationDashboard.weekItems}
-              onOpenNotification={() => handleDashboardShortcut("notification_history")}
               onOpenRequest={(request) => {
                 switchSubTab("requests");
                 openRequestModal("detail", request);
@@ -3749,14 +3840,6 @@ function Admin({ onBackClick }) {
             <ProcessingQueue
               items={processingQueueItems}
               onOpenItem={(item) => switchSubTab(item.targetSubTab)}
-            />
-
-            <NotificationEventSummary
-              events={notificationEvents}
-              requests={requests}
-              interpreters={interpreters}
-              assignmentRows={assignmentRows}
-              jobApplications={jobApplications}
             />
 
             <nav className="admin-tabs admin-main-tabs" aria-label="관리자 상위 메뉴">
@@ -3788,6 +3871,10 @@ function Admin({ onBackClick }) {
                 );
               })}
             </nav>
+
+            {activeMainTab === "settlements" && (
+              <RevenueSummaryPanel summary={revenueSummary} />
+            )}
 
             {activeSubTab === "all_businesses" && (
               <BusinessManagement
@@ -4043,6 +4130,7 @@ function Admin({ onBackClick }) {
                 statusScope="pending"
                 title="정산 대기"
                 updateSettlement={updateInterpreterSettlement}
+                loadError={adminDataErrors.settlements}
               />
             )}
 
@@ -4059,6 +4147,7 @@ function Admin({ onBackClick }) {
                 statusScope="confirmed"
                 title="지급 확정"
                 updateSettlement={updateInterpreterSettlement}
+                loadError={adminDataErrors.settlements}
               />
             )}
 
@@ -4075,6 +4164,7 @@ function Admin({ onBackClick }) {
                 statusScope="paid"
                 title="지급 완료"
                 updateSettlement={updateInterpreterSettlement}
+                loadError={adminDataErrors.settlements}
               />
             )}
 
@@ -4091,6 +4181,7 @@ function Admin({ onBackClick }) {
                 statusScope="withheld"
                 title="정산 보류"
                 updateSettlement={updateInterpreterSettlement}
+                loadError={adminDataErrors.settlements}
               />
             )}
 
@@ -4107,6 +4198,7 @@ function Admin({ onBackClick }) {
                 statusScope="paid"
                 title="지급 기록"
                 updateSettlement={updateInterpreterSettlement}
+                loadError={adminDataErrors.settlements}
               />
             )}
 
@@ -4139,14 +4231,15 @@ function Admin({ onBackClick }) {
             )}
 
             {activeSubTab === "admin_memos" && (
-              <AdminMemoManagement
-                items={adminMemoItems}
-                notes={adminNotes}
-                requests={requests}
-                interpreters={interpreters}
-                assignmentRows={assignmentRows}
-                jobApplications={jobApplications}
-              />
+              <>
+                <RecentActivityPanel
+                  activities={recentActivityItems}
+                  onOpenActivity={(activity) => {
+                    if (activity.targetSubTab) handleDashboardShortcut(activity.targetSubTab);
+                  }}
+                />
+                <AdminMemoManagement items={adminMemoDisplayItems} />
+              </>
             )}
 
             {activeSubTab === "notification_history" && (
@@ -4166,6 +4259,9 @@ function Admin({ onBackClick }) {
                 onRetryEvent={(event) =>
                   processNotificationEvents({ eventIds: [event.id], retryFailed: true })
                 }
+                onDeleteEvents={deleteNotificationEvents}
+                deleting={savingKey === "notification-delete"}
+                loadError={adminDataErrors.notifications}
               />
             )}
 
@@ -4345,13 +4441,34 @@ function RequestActionModal({
   const modalId = `request-${activeModal.type}-modal-title`;
   const jobPublicState = getRequestJobPublicState(request, job);
   const shouldBePublic = jobPublicState.type !== "public";
+  const detailHeadlineStatus =
+    activeModal.type === "detail"
+      ? getRequestHeadlineStatus(getRequestFlowSource(request, job))
+      : null;
 
   return (
     <AdminModal
-      title={modalTitle}
+      title={activeModal.type === "detail" ? request.event_name || modalTitle : modalTitle}
       titleId={modalId}
       onClose={onClose}
       className={activeModal.type === "detail" ? "admin-request-detail-modal" : ""}
+      meta={activeModal.type === "detail" ? "REQUEST DETAIL" : undefined}
+      subtitle={
+        activeModal.type === "detail"
+          ? formatManagementNumber(request.request_no)
+          : undefined
+      }
+      badge={
+        detailHeadlineStatus
+          ? {
+              label: detailHeadlineStatus.label,
+              className: `admin-flow-status-badge ${getOperationFlowBadgeClass(
+                detailHeadlineStatus.type,
+                detailHeadlineStatus.value
+              )}`,
+            }
+          : null
+      }
     >
       {activeModal.type === "detail" && (
         <RequestDetailPanel
@@ -4979,7 +5096,16 @@ function AdminAccountModal({
   );
 }
 
-function AdminModal({ children, className = "", onClose, title, titleId }) {
+function AdminModal({
+  badge = null,
+  children,
+  className = "",
+  meta = "REQUEST",
+  onClose,
+  subtitle = "",
+  title,
+  titleId,
+}) {
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
       <section
@@ -4991,12 +5117,16 @@ function AdminModal({ children, className = "", onClose, title, titleId }) {
       >
         <div className="admin-modal-head">
           <div>
-            <span className="admin-card-meta">REQUEST</span>
+            <span className="admin-card-meta">{meta}</span>
             <h2 id={titleId}>{title}</h2>
+            {subtitle && <p className="admin-modal-subtitle">{subtitle}</p>}
           </div>
-          <button type="button" className="admin-modal-close" onClick={onClose}>
-            닫기
-          </button>
+          <div className="admin-modal-head-actions">
+            {badge && <span className={badge.className}>{badge.label}</span>}
+            <button type="button" className="admin-modal-close" onClick={onClose}>
+              닫기
+            </button>
+          </div>
         </div>
         {children}
       </section>
@@ -5816,6 +5946,7 @@ function InterpreterSettlementManagement({
   statusScope = "all",
   title = "정산 관리",
   updateSettlement,
+  loadError = null,
 }) {
   const [selectedSettlementId, setSelectedSettlementId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -5830,7 +5961,11 @@ function InterpreterSettlementManagement({
   const rows = useMemo(
     () =>
       settlements
-        .filter((settlement) => statusScope === "all" || settlement.payout_status === statusScope)
+        .filter(
+          (settlement) =>
+            statusScope === "all" ||
+            normalizeSettlementPayoutStatus(settlement.payout_status) === statusScope
+        )
         .map((settlement) => {
           const request = requestMap.get(String(settlement.request_id)) || {};
           const interpreter = interpreterMap.get(String(settlement.interpreter_id)) || {};
@@ -5960,7 +6095,13 @@ function InterpreterSettlementManagement({
       </div>
 
       {rows.length === 0 ? (
-        <MessageBox text="조건에 맞는 정산 항목이 없습니다." />
+        <MessageBox
+          text={
+            loadError
+              ? "정산 항목을 불러오지 못했습니다. 관리자 권한 또는 RLS 정책을 확인해주세요."
+              : "조건에 맞는 정산 항목이 없습니다."
+          }
+        />
       ) : (
         <div className="admin-table-wrap">
           <table className="admin-table admin-settlement-table">
@@ -6961,6 +7102,7 @@ function RequestDetailPanel({
 
   const [activeTab, setActiveTab] = useState("basic");
   const [showAllLogs, setShowAllLogs] = useState(false);
+  const [expandedLogIds, setExpandedLogIds] = useState(() => new Set());
   const [businessProfile, setBusinessProfile] = useState(null);
   const [uploadedMaterials, setUploadedMaterials] = useState([]);
 
@@ -7131,7 +7273,25 @@ function RequestDetailPanel({
     (log) => log.target_type === targetType && String(log.target_id) === String(targetId)
   );
   const LOGS_DEFAULT_LIMIT = 5;
-  const visibleLogs = showAllLogs ? allTargetLogs : allTargetLogs.slice(0, LOGS_DEFAULT_LIMIT);
+  const sortedTargetLogs = useMemo(
+    () =>
+      [...allTargetLogs].sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      ),
+    [allTargetLogs]
+  );
+  const visibleLogs = showAllLogs ? sortedTargetLogs : sortedTargetLogs.slice(0, LOGS_DEFAULT_LIMIT);
+  const toggleLogExpanded = (logId) => {
+    setExpandedLogIds((current) => {
+      const next = new Set(current);
+      if (next.has(logId)) {
+        next.delete(logId);
+      } else {
+        next.add(logId);
+      }
+      return next;
+    });
+  };
 
   const tabs = [
     { id: "basic", label: "기본 정보" },
@@ -7164,14 +7324,14 @@ function RequestDetailPanel({
           <ManagementNumberBlock label="관리번호" value={request.request_no} />
 
           <div>
-            <h3>의뢰 기본 정보</h3>
+            <h3>기본정보</h3>
             <dl className="admin-detail-list compact">
               <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
               <Info label="담당자" value={request.manager_name} />
               <Info label="의뢰 유형" value={requestType.label} />
               <Info label="지정 요청 통역사" value={designatedInterpreterName} />
               <Info label="지정 요청 상태" value={designatedRequestCheckStatus} />
-              <Info label="배정 통역사" value={assignedInterpreterName} />
+              <Info label="배정 통역사" value={assignedInterpreterName || "-"} />
               <Info label="약관 동의" value={getAgreementStatusLabel(request)} />
               <Info label="동의 시간" value={formatDateTime(request.agreed_at)} />
               <Info label="이메일" value={request.email} />
@@ -7207,7 +7367,7 @@ function RequestDetailPanel({
 
           {businessProfile && (
             <div>
-              <h3>기업 상세 정보</h3>
+            <h3>기업</h3>
               <dl className="admin-detail-list compact">
                 <Info label="회사명" value={businessProfile.company_name} />
                 <Info label="사업자번호" value={businessProfile.business_number} />
@@ -7223,7 +7383,7 @@ function RequestDetailPanel({
           )}
 
           <div>
-            <h3>기업 히스토리</h3>
+            <h3>이용 이력</h3>
             <dl className="admin-detail-list compact">
               <Info label="과거 의뢰" value={`${companyHistory.requestCount}건`} />
               <Info label="진행한 행사" value={companyHistory.events || "-"} />
@@ -7236,11 +7396,11 @@ function RequestDetailPanel({
           {companyPreviousRequests.length > 0 && (
             <div>
               <h3>이전 의뢰 기록</h3>
-              <div className="admin-previous-requests-list" style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "8px", background: "#f8fafc" }}>
+              <div className="admin-previous-requests-list">
                 {companyPreviousRequests.map(prev => (
-                  <div key={prev.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", borderBottom: "1px solid #f1f5f9", fontSize: "12px" }}>
-                    <span style={{ fontWeight: "700" }}>{prev.event_name || prev.title || `REQ-${prev.id}`} ({prev.start_date})</span>
-                    <span className="badge-gray" style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+                  <div key={prev.id} className="admin-previous-request-row">
+                    <span>{prev.event_name || prev.title || `REQ-${prev.id}`} ({prev.start_date})</span>
+                    <span className="badge-gray">
                       {prev.status || prev.matching_status || "접수"}
                     </span>
                   </div>
@@ -7250,7 +7410,7 @@ function RequestDetailPanel({
           )}
 
           <div>
-            <h3>기업 내부 메모</h3>
+            <h3>메모</h3>
             <textarea
               className="admin-textarea"
               rows={4}
@@ -7272,23 +7432,22 @@ function RequestDetailPanel({
               onOpen={handleOpenReferenceFile}
               onDownload={handleDownloadReferenceFile}
             />
-            <div style={{ marginTop: "16px" }}>
-              <h4 style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: "850", color: "#334155" }}>업로드 행사 자료</h4>
+            <div className="admin-uploaded-materials">
+              <h4>업로드 행사 자료</h4>
               {uploadedMaterials.length === 0 ? (
-                <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>업로드된 행사 자료가 없습니다.</p>
+                <p>업로드된 행사 자료가 없습니다.</p>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div className="admin-document-list">
                   {uploadedMaterials.map(mat => (
-                    <div key={mat.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", background: "#f8fafc", fontSize: "12px" }}>
+                    <div key={mat.id} className="admin-document-list-row">
                       <div>
-                        <span className="badge-green" style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", marginRight: "8px" }}>{mat.file_type}</span>
-                        <strong style={{ color: "#334155" }}>{mat.file_name}</strong>
+                        <span className="badge-green">{mat.file_type}</span>
+                        <strong>{mat.file_name}</strong>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleDownloadMaterial(mat.file_path, mat.file_name)}
                         className="admin-link-button"
-                        style={{ fontSize: "11px", color: "#5b5cf0", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
                       >
                         다운로드
                       </button>
@@ -7441,16 +7600,15 @@ function RequestDetailPanel({
         <div className="admin-detail-tab-content admin-detail-panel">
           <div>
             <h3>견적서 관리</h3>
-            <div className="admin-settlement" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div className="admin-document-action-block">
               <p className="admin-settlement-note">
                 의뢰인용 견적서를 발급하거나 수정할 수 있습니다.
               </p>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div className="admin-detail-action-row">
                 <button
                   type="button"
-                  className="admin-save"
+                  className="admin-link-button"
                   onClick={() => onOpenDocumentPreview("estimate", request)}
-                  style={{ width: "auto", minWidth: "150px" }}
                 >
                   견적서 생성
                 </button>
@@ -7460,24 +7618,21 @@ function RequestDetailPanel({
 
           <div>
             <h3>업무확인서 관리</h3>
-            <div className="admin-settlement" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div className="admin-document-action-block">
               <p className="admin-settlement-note">
                 의뢰 상태가 '완료'일 때만 업무확인서 발급이 가능합니다.
               </p>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div className="admin-detail-action-row">
                 <button
                   type="button"
-                  className="admin-save"
+                  className="admin-link-button"
                   disabled={normalizeOperationStatus(request) !== OPERATION_STATUS.COMPLETED}
                   onClick={() => onOpenDocumentPreview("completion", request)}
-                  style={{ width: "auto", minWidth: "150px" }}
                 >
                   업무확인서 생성
                 </button>
                 {normalizeOperationStatus(request) !== OPERATION_STATUS.COMPLETED && (
-                  <span style={{ fontSize: "13px", fontWeight: "700", color: "#dc2626" }}>
-                    ⚠️ 업무 완료 후 생성 가능
-                  </span>
+                  <span className="admin-inline-warning">업무 완료 후 생성 가능</span>
                 )}
               </div>
             </div>
@@ -7485,7 +7640,7 @@ function RequestDetailPanel({
 
           <div>
             <h3>발급 문서 관리</h3>
-            <div className="admin-settlement" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div className="admin-document-list">
               {(() => {
                 const requestDocs = generatedDocuments.filter((doc) => doc.request_id === request.id);
                 const latestEstimate = requestDocs
@@ -7501,26 +7656,15 @@ function RequestDetailPanel({
 
                 return (
                   <>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "10px 14px",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        background: "#f8fafc",
-                        fontSize: "13px",
-                      }}
-                    >
+                    <div className="admin-document-list-row">
                       <div>
-                        <strong style={{ color: "#1e293b", marginRight: "8px" }}>📄 최신 견적서</strong>
+                        <strong>최신 견적서</strong>
                         {latestEstimate ? (
-                          <span style={{ color: "#475569" }}>
+                          <span>
                             {latestEstimate.document_no} (v{latestEstimate.version})
                           </span>
                         ) : (
-                          <span style={{ color: "#94a3b8" }}>미발급</span>
+                          <span>미발급</span>
                         )}
                       </div>
                       {latestEstimate && (
@@ -7528,33 +7672,21 @@ function RequestDetailPanel({
                           type="button"
                           className="admin-link-button"
                           onClick={() => openDocumentSignedUrl(supabase, latestEstimate)}
-                          style={{ fontSize: "12px", color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
                         >
                           보기
                         </button>
                       )}
                     </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "10px 14px",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        background: "#f8fafc",
-                        fontSize: "13px",
-                      }}
-                    >
+                    <div className="admin-document-list-row">
                       <div>
-                        <strong style={{ color: "#1e293b", marginRight: "8px" }}>📋 최신 업무확인서</strong>
+                        <strong>최신 업무확인서</strong>
                         {latestCompletion ? (
-                          <span style={{ color: "#475569" }}>
+                          <span>
                             {latestCompletion.document_no} (v{latestCompletion.version})
                           </span>
                         ) : (
-                          <span style={{ color: "#94a3b8" }}>미발급</span>
+                          <span>미발급</span>
                         )}
                       </div>
                       {latestCompletion && (
@@ -7562,7 +7694,6 @@ function RequestDetailPanel({
                           type="button"
                           className="admin-link-button"
                           onClick={() => openDocumentSignedUrl(supabase, latestCompletion)}
-                          style={{ fontSize: "12px", color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
                         >
                           보기
                         </button>
@@ -7570,46 +7701,26 @@ function RequestDetailPanel({
                     </div>
 
                     {requestDocs.length > 0 && (
-                      <div style={{ marginTop: "8px" }}>
-                        <h4 style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#475569", fontWeight: "700" }}>
+                      <div className="admin-document-history">
+                        <h4>
                           전체 문서 발급 이력 ({requestDocs.length}건)
                         </h4>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "6px",
-                            maxHeight: "150px",
-                            overflowY: "auto",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "8px",
-                            padding: "8px 12px",
-                            background: "#ffffff",
-                          }}
-                        >
+                        <div className="admin-document-list is-scrollable">
                           {requestDocs.map((doc) => (
                             <div
                               key={doc.id}
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                fontSize: "12px",
-                                padding: "4px 0",
-                                borderBottom: "1px solid #f1f5f9",
-                              }}
+                              className="admin-document-list-row"
                             >
-                              <span style={{ color: "#334155" }}>
-                                <strong style={{ color: "#111827", marginRight: "6px" }}>
+                              <span>
+                                <strong>
                                   [{getDocumentTypeLabel(doc.document_type)}]
                                 </strong>
-                                {doc.document_no} <span style={{ color: "#9ca3af" }}>(v{doc.version})</span>
+                                {doc.document_no} <span>(v{doc.version})</span>
                               </span>
                               <button
                                 type="button"
                                 className="admin-link-button"
                                 onClick={() => openDocumentSignedUrl(supabase, doc)}
-                                style={{ fontSize: "12px", color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
                               >
                                 보기
                               </button>
@@ -7633,9 +7744,9 @@ function RequestDetailPanel({
           <div className="admin-memo-section">
             <h3>내부 메모</h3>
             {allTargetNotes.length === 0 ? (
-              <p className="admin-empty-text">아직 등록된 내부 메모가 없습니다.</p>
+              <p className="admin-empty-text">등록된 내부 메모가 없습니다.</p>
             ) : (
-              <div className="admin-operations-list">
+              <div className="admin-note-list">
                 {allTargetNotes.map((note) => (
                   <article className="admin-operation-log-item" key={note.id}>
                     <p>{note.note}</p>
@@ -7656,68 +7767,47 @@ function RequestDetailPanel({
                 style={{ resize: "vertical" }}
               />
             </label>
-            <button
-              type="button"
-              className="admin-save"
-              disabled={savingKey === `admin-note-request:${request.id}`}
-              onClick={() => onCreateNote?.(targetType, targetId)}
-            >
-              {savingKey === `admin-note-request:${request.id}` ? "저장 중..." : "메모 저장"}
-            </button>
+            <div className="admin-memo-actions">
+              <button
+                type="button"
+                className="admin-save"
+                disabled={savingKey === `admin-note-request:${request.id}`}
+                onClick={() => onCreateNote?.(targetType, targetId)}
+              >
+                {savingKey === `admin-note-request:${request.id}` ? "저장 중..." : "메모 저장"}
+              </button>
+            </div>
           </div>
 
           {/* 처리 이력 */}
           <div className="admin-memo-section">
             <div className="admin-memo-section-header">
               <h3>처리 이력</h3>
-              {allTargetLogs.length > 0 && (
-                <span className="admin-log-count-badge">{allTargetLogs.length}건</span>
+              {sortedTargetLogs.length > 0 && (
+                <span className="admin-log-count-badge">{sortedTargetLogs.length}건</span>
               )}
             </div>
-            {allTargetLogs.length === 0 ? (
+            {sortedTargetLogs.length === 0 ? (
               <p className="admin-empty-text">아직 처리 이력이 없습니다.</p>
             ) : (
-              <div className="admin-activity-log-list">
-                {visibleLogs.map((log) => {
-                  const beforeVal = summarizeAdminLogValue(log.before_value);
-                  const afterVal = summarizeAdminLogValue(log.after_value);
-                  const isMemo = log.action_type === "memo_created";
-                  return (
-                    <article key={log.id} className="admin-activity-log-card">
-                      <div className="admin-activity-log-card-header">
-                        <span className={`admin-activity-log-type-badge admin-activity-type-${(log.action_type || "default").replace(/_/g, "-")}`}>
-                          {getAdminActionTypeLabel(log.action_type)}
-                        </span>
-                        <time className="admin-activity-log-time">{formatDateTime(log.created_at)}</time>
-                      </div>
-                      {!isMemo && (beforeVal || afterVal) && (
-                        <div className="admin-activity-log-change">
-                          {beforeVal && (
-                            <span className="admin-activity-log-before">{beforeVal}</span>
-                          )}
-                          {beforeVal && afterVal && (
-                            <span className="admin-activity-log-arrow">→</span>
-                          )}
-                          {afterVal && (
-                            <span className="admin-activity-log-after">{afterVal}</span>
-                          )}
-                        </div>
-                      )}
-                      {isMemo && (
-                        <p className="admin-activity-log-desc">관리자가 내부 메모를 추가했습니다.</p>
-                      )}
-                    </article>
-                  );
-                })}
-                {allTargetLogs.length > LOGS_DEFAULT_LIMIT && (
+              <div className="admin-activity-timeline">
+                {visibleLogs.map((log) => (
+                  <AdminActivityLogCard
+                    key={log.id}
+                    expanded={expandedLogIds.has(log.id)}
+                    log={log}
+                    onToggle={() => toggleLogExpanded(log.id)}
+                  />
+                ))}
+                {sortedTargetLogs.length > LOGS_DEFAULT_LIMIT && (
                   <button
                     type="button"
                     className="admin-log-toggle-btn"
                     onClick={() => setShowAllLogs((v) => !v)}
                   >
                     {showAllLogs
-                      ? "▲ 접기"
-                      : `▼ 더 보기 (${allTargetLogs.length - LOGS_DEFAULT_LIMIT}건 더)`}
+                      ? "접기"
+                      : `전체 보기 (${sortedTargetLogs.length - LOGS_DEFAULT_LIMIT}건 더)`}
                   </button>
                 )}
               </div>
@@ -7726,6 +7816,58 @@ function RequestDetailPanel({
         </div>
       )}
     </div>
+  );
+}
+
+function AdminActivityLogCard({ expanded, log, onToggle }) {
+  const changedFields = getAdminLogChangedFields(log);
+  const actorLabel = getAdminLogActorLabel(log);
+  const summaryLabel = getAdminActivitySummaryLabel(log);
+
+  return (
+    <article className="admin-activity-log-card">
+      <div className="admin-activity-log-summary">
+        <span className="admin-activity-log-dot" aria-hidden="true" />
+        <div>
+          <strong className={`admin-activity-log-type-badge admin-activity-type-${(log.action_type || "default").replace(/_/g, "-")}`}>
+            {summaryLabel}
+          </strong>
+          <time className="admin-activity-log-time">{formatDateTime(log.created_at)}</time>
+        </div>
+        {changedFields.length > 0 && (
+          <button type="button" className="admin-log-detail-toggle" onClick={onToggle}>
+            {expanded ? "자세히 닫기" : "자세히 보기"}
+          </button>
+        )}
+      </div>
+      <dl className="admin-activity-log-meta">
+        <div>
+          <dt>담당자</dt>
+          <dd>{actorLabel || "관리자"}</dd>
+        </div>
+        <div>
+          <dt>내용</dt>
+          <dd>{getAdminLogContent(log, changedFields, summaryLabel)}</dd>
+        </div>
+      </dl>
+      {expanded && changedFields.length > 0 && (
+        <div className="admin-activity-log-detail">
+          {changedFields.map((field) => (
+            <div className="admin-activity-log-detail-row" key={field.key}>
+              <span>{field.label}</span>
+              <div>
+                <code>{formatAdminLogDetailValue(field.beforeValue)}</code>
+                <em>↓</em>
+                <code>{formatAdminLogDetailValue(field.afterValue)}</code>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {expanded && changedFields.length === 0 && (
+        <p className="admin-activity-log-desc">표시할 변경 항목이 없습니다.</p>
+      )}
+    </article>
   );
 }
 
@@ -10243,31 +10385,15 @@ function PaymentHistoryManagement({ assignmentsByRequest, interpreters, requests
   );
 }
 
-function AdminMemoManagement({
-  items,
-  notes = [],
-  requests = [],
-  interpreters = [],
-  assignmentRows = [],
-  jobApplications = [],
-}) {
-  const noteItems = buildAdminNoteDisplayItems({
-    notes,
-    requests,
-    interpreters,
-    assignmentRows,
-    jobApplications,
-  });
-  const combinedItems = uniqueById([...noteItems, ...items]);
-
+function AdminMemoManagement({ items = [] }) {
   return (
     <section className="admin-section">
-      <SectionTitle count={`${combinedItems.length}건`} title="관리자 메모" />
-      {combinedItems.length === 0 ? (
+      <SectionTitle count={`${items.length}건`} title="관리자 메모" />
+      {items.length === 0 ? (
         <MessageBox text="현재 저장된 관리자 메모가 없습니다." />
       ) : (
         <div className="admin-management-card-grid">
-          {combinedItems.map((item) => (
+          {items.map((item) => (
             <article className="admin-list-card" key={item.id}>
               <div className="admin-list-card-head">
                 <div>
@@ -10368,48 +10494,6 @@ function ProcessingQueue({ items = [], onOpenItem }) {
   );
 }
 
-function NotificationEventSummary({
-  events = [],
-  requests = [],
-  interpreters = [],
-  assignmentRows = [],
-  jobApplications = [],
-}) {
-  const pendingCount = events.filter((event) => event.status === "pending").length;
-  const failedCount = events.filter((event) => event.status === "failed").length;
-  const recentEvents = buildNotificationDisplayItems({
-    events,
-    requests,
-    interpreters,
-    assignmentRows,
-    jobApplications,
-  }).slice(0, 3);
-
-  return (
-    <section className="admin-notification-summary" aria-label="알림 이벤트 대기 현황">
-      <div>
-        <p className="admin-kicker">NOTIFICATION READY</p>
-        <h2>알림 이벤트</h2>
-      </div>
-      <div className="admin-notification-summary-counts">
-        <span>대기 {pendingCount}건</span>
-        <span>실패 {failedCount}건</span>
-      </div>
-      <div className="admin-notification-summary-list">
-        {recentEvents.length === 0 ? (
-          <span>최근 알림 이벤트가 없습니다.</span>
-        ) : (
-          recentEvents.map((event) => (
-            <span key={event.id}>
-              {event.eventLabel} · {event.targetLabel} · {event.statusLabel}
-            </span>
-          ))
-        )}
-      </div>
-    </section>
-  );
-}
-
 function NotificationHistoryManagement({
   events = [],
   requests = [],
@@ -10428,8 +10512,12 @@ function NotificationHistoryManagement({
   onProcessPending,
   onProcessEvent,
   onRetryEvent,
+  onDeleteEvents,
+  deleting = false,
+  loadError = null,
 }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedEventIds, setSelectedEventIds] = useState([]);
   const notificationItems = buildNotificationDisplayItems({
     events,
     requests,
@@ -10466,11 +10554,38 @@ function NotificationHistoryManagement({
   });
   const pendingCount = events.filter((event) => event.status === "pending").length;
   const failedCount = events.filter((event) => event.status === "failed").length;
+  const visibleEventIds = visibleEvents.map((event) => event.id);
+  const allVisibleSelected =
+    visibleEventIds.length > 0 && visibleEventIds.every((id) => selectedEventIds.includes(id));
   const updateFilter = (key, value) => {
     onFiltersChange?.({
       ...filters,
       [key]: value,
     });
+  };
+  const toggleSelectedEvent = (eventId) => {
+    setSelectedEventIds((current) =>
+      current.includes(eventId)
+        ? current.filter((id) => id !== eventId)
+        : [...current, eventId]
+    );
+  };
+  const toggleAllVisibleEvents = () => {
+    setSelectedEventIds((current) => {
+      if (allVisibleSelected) {
+        return current.filter((id) => !visibleEventIds.includes(id));
+      }
+      return [...new Set([...current, ...visibleEventIds])];
+    });
+  };
+  const confirmDeleteEvents = async (ids) => {
+    if (ids.length === 0) return;
+    if (!window.confirm("삭제하시겠습니까?")) return;
+    const deleted = await onDeleteEvents?.(ids);
+    if (deleted) {
+      setSelectedEventIds((current) => current.filter((id) => !ids.includes(id)));
+      setSelectedEvent((event) => (event && ids.includes(event.id) ? null : event));
+    }
   };
 
   return (
@@ -10536,14 +10651,36 @@ function NotificationHistoryManagement({
         >
           {processing ? "처리 중..." : `대기 알림 처리 (${pendingCount})`}
         </button>
+        <button
+          type="button"
+          className="admin-link-button danger"
+          disabled={deleting || selectedEventIds.length === 0}
+          onClick={() => confirmDeleteEvents(selectedEventIds)}
+        >
+          선택 삭제 ({selectedEventIds.length})
+        </button>
       </div>
       {visibleEvents.length === 0 ? (
-        <MessageBox text="조건에 맞는 알림 이벤트가 없습니다." />
+        <MessageBox
+          text={
+            loadError
+              ? "알림 이력을 불러오지 못했습니다. 관리자 권한 또는 RLS 정책을 확인해주세요."
+              : "조건에 맞는 알림 이벤트가 없습니다."
+          }
+        />
       ) : (
         <div className="admin-table-wrap">
           <table className="admin-table admin-notification-log-table">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisibleEvents}
+                    aria-label="알림 전체 선택"
+                  />
+                </th>
                 <th>생성일</th>
                 <th>대상</th>
                 <th>알림 종류</th>
@@ -10558,6 +10695,14 @@ function NotificationHistoryManagement({
             <tbody>
               {visibleEvents.map((event) => (
                 <tr key={event.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedEventIds.includes(event.id)}
+                      onChange={() => toggleSelectedEvent(event.id)}
+                      aria-label={`${event.eventLabel} 선택`}
+                    />
+                  </td>
                   <td>{formatDateTime(event.created_at)}</td>
                   <td>{event.recipientLabel}</td>
                   <td>{event.eventLabel}</td>
@@ -10589,6 +10734,16 @@ function NotificationHistoryManagement({
                           재발송
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="admin-icon-button danger"
+                        onClick={() => confirmDeleteEvents([event.id])}
+                        disabled={deleting}
+                        aria-label="알림 삭제"
+                        title="삭제"
+                      >
+                        <Trash2 size={15} aria-hidden="true" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -11162,44 +11317,21 @@ function SettlementRequestCard({
   );
 }
 
-function DashboardQuickActions({ onNavigate }) {
-  const actions = [
-    { label: "+ 새 의뢰 등록", target: "new_requests" },
-    { label: "+ 통역사 추가", target: "new_interpreters" },
-    { label: "기업 관리", target: "all_businesses" },
-    { label: "문서 관리", target: "all_documents" },
-  ];
-
+function DashboardQuickActions() {
   return (
     <section className="admin-dashboard-actions" aria-label="빠른 액션">
       <div>
         <p className="admin-kicker">ADMIN HOME</p>
         <h2>오늘 운영 현황</h2>
       </div>
-      <div className="admin-dashboard-action-buttons">
-        {actions.map((action) => (
-          <button
-            key={action.target}
-            type="button"
-            className="admin-secondary"
-            onClick={() => onNavigate(action.target)}
-          >
-            {action.label}
-          </button>
-        ))}
-      </div>
     </section>
   );
 }
 
 function OperationOverview({
-  notificationCount = 0,
-  recentActivities = [],
-  revenueSummary,
   todayItems,
   urgentItems,
   weekItems = [],
-  onOpenNotification,
   onOpenRequest,
 }) {
   const [selectedUrgentItem, setSelectedUrgentItem] = useState(null);
@@ -11284,12 +11416,10 @@ function OperationOverview({
       <div className="admin-operation-panel admin-urgent-panel">
         <div className="admin-panel-head">
           <div>
-            <p className="admin-kicker">ALERT</p>
-            <h2>관리자 알림</h2>
+            <p className="admin-kicker">CHECK</p>
+            <h2>긴급 확인</h2>
           </div>
-          <button type="button" className="admin-notification-pill" onClick={onOpenNotification}>
-            처리 필요 {notificationCount}건
-          </button>
+          <span>{urgentItems.length}건</span>
         </div>
         <div className="admin-urgent-list" role="list">
           <div className="admin-urgent-list-scroll">
@@ -11319,10 +11449,6 @@ function OperationOverview({
         </div>
       </div>
 
-      <RevenueSummaryPanel summary={revenueSummary} />
-
-      <RecentActivityPanel activities={recentActivities} />
-
       {selectedUrgentItem && (
         <UrgentRequestDetailModal
           item={selectedUrgentItem}
@@ -11335,36 +11461,80 @@ function OperationOverview({
 }
 
 function ProcessingTaskList({ items = [], onOpenItem }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const totalCount = items.length;
+  const openTasks = () => setIsOpen(true);
+
   return (
     <section className="admin-task-list-section">
-      <div className="admin-panel-head">
+      <button type="button" className="admin-task-list-summary" onClick={openTasks}>
         <div>
           <p className="admin-kicker">TASKS</p>
-          <h2>처리 필요 업무</h2>
+          <h2>처리 필요 업무 ({totalCount}건)</h2>
         </div>
-        <span>{items.length}건</span>
-      </div>
-      <div className="admin-task-list">
+        <span>{totalCount > 0 ? "목록 보기" : "업무 없음"}</span>
+      </button>
+      {isOpen && (
+        <ProcessingTaskModal
+          items={items}
+          onClose={() => setIsOpen(false)}
+          onOpenItem={(item) => {
+            setIsOpen(false);
+            onOpenItem(item);
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function ProcessingTaskModal({ items = [], onClose, onOpenItem }) {
+  return (
+    <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
+      <section
+        className="admin-modal-card admin-task-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="processing-task-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <div>
+            <p className="admin-kicker">TASKS</p>
+            <h2 id="processing-task-title">처리 필요 업무 ({items.length}건)</h2>
+          </div>
+          <button
+            type="button"
+            className="admin-modal-icon-close"
+            onClick={onClose}
+            aria-label="닫기"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
         {items.length === 0 ? (
           <p className="admin-empty-text">지금 처리할 업무가 없습니다.</p>
         ) : (
-          items.slice(0, 10).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="admin-task-row"
-              onClick={() => onOpenItem(item)}
-            >
-              <span>{item.category}</span>
-              <strong>{item.title}</strong>
-              <small>{item.description}</small>
-              <em>{formatDate(item.date)}</em>
-              <b>바로가기</b>
-            </button>
-          ))
+          <div className="admin-task-modal-list">
+            {items.map((item) => (
+              <article className="admin-task-modal-row" key={item.id}>
+                <span>{item.category}</span>
+                <strong>{item.title}</strong>
+                <small>{item.description}</small>
+                <em>{formatDate(item.date)}</em>
+                <button
+                  type="button"
+                  className="admin-link-button primary"
+                  onClick={() => onOpenItem(item)}
+                >
+                  바로가기
+                </button>
+              </article>
+            ))}
+          </div>
         )}
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
 
@@ -11397,9 +11567,9 @@ function RevenueSummaryPanel({ summary }) {
   );
 }
 
-function RecentActivityPanel({ activities = [] }) {
+function RecentActivityPanel({ activities = [], onOpenActivity }) {
   return (
-    <div className="admin-operation-panel admin-activity-panel">
+    <section className="admin-operation-panel admin-activity-panel">
       <div className="admin-panel-head">
         <div>
           <p className="admin-kicker">RECENT</p>
@@ -11413,13 +11583,25 @@ function RecentActivityPanel({ activities = [] }) {
         ) : (
           activities.slice(0, 5).map((activity) => (
             <article key={activity.id} className="admin-activity-item">
-              <strong>{activity.description}</strong>
-              <span>{formatDateTime(activity.created_at)}</span>
+              <div>
+                <strong>{activity.description}</strong>
+                <span>{activity.actorLabel || "시스템"}</span>
+              </div>
+              <time>{formatDateTime(activity.created_at)}</time>
+              {activity.targetSubTab && (
+                <button
+                  type="button"
+                  className="admin-link-button"
+                  onClick={() => onOpenActivity?.(activity)}
+                >
+                  바로가기
+                </button>
+              )}
             </article>
           ))
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -11727,6 +11909,29 @@ function getAdminActionTypeLabel(actionType) {
   return labels[actionType] || actionType || "처리 이력";
 }
 
+function getAdminActivitySummaryLabel(log = {}) {
+  if (log.action_type === "memo_created") return "내부 메모 추가";
+
+  const changedFields = getAdminLogChangedFields(log);
+  const primaryField = changedFields.find((field) =>
+    ["assignment_status", "operation_status", "settlement_status", "payment_status", "status"].includes(field.key)
+  );
+
+  if (primaryField) {
+    return `${primaryField.label} ${getAdminStatusDisplayValue(primaryField.afterValue)}`;
+  }
+
+  return getAdminActionTypeLabel(log.action_type);
+}
+
+function getAdminLogActorLabel(log = {}) {
+  if (log.actor_name) return log.actor_name;
+  if (log.actor_email) return log.actor_email;
+  if (log.changed_by) return log.changed_by;
+  if (log.actor_user_id) return "관리자";
+  return "";
+}
+
 function formatAdminActivityLog(log = {}) {
   if (log.action_type === "memo_created") return "관리자가 내부 메모를 추가했습니다.";
 
@@ -11738,6 +11943,85 @@ function formatAdminActivityLog(log = {}) {
   }
 
   return "운영 정보가 변경되었습니다.";
+}
+
+function getAdminLogContent(log = {}, changedFields = getAdminLogChangedFields(log), fallback = "운영 정보 변경") {
+  const formatted = formatAdminActivityLog(log);
+  if (formatted && formatted !== "운영 정보가 변경되었습니다.") return formatted;
+  if (changedFields.length > 0) {
+    return `${changedFields.map((field) => field.label).join(", ")} 항목이 변경되었습니다.`;
+  }
+  return fallback;
+}
+
+function normalizeAdminLogObject(value) {
+  if (!value) return {};
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : { value };
+    } catch {
+      return { value };
+    }
+  }
+  if (Array.isArray(value)) return { value: value.join(", ") };
+  if (typeof value === "object") return value;
+  return { value };
+}
+
+function normalizeAdminLogComparableValue(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function getAdminLogChangedFields(log = {}) {
+  const beforeObject = normalizeAdminLogObject(log.before_value);
+  const afterObject = normalizeAdminLogObject(log.after_value);
+  const keys = Array.from(new Set([...Object.keys(beforeObject), ...Object.keys(afterObject)]));
+
+  return keys
+    .map((key) => ({
+      key,
+      label: getAdminLogFieldLabel(key),
+      beforeValue: beforeObject[key],
+      afterValue: afterObject[key],
+    }))
+    .filter(
+      (field) =>
+        normalizeAdminLogComparableValue(field.beforeValue) !==
+        normalizeAdminLogComparableValue(field.afterValue)
+    )
+    .filter(
+      (field) =>
+        normalizeAdminLogComparableValue(field.beforeValue) ||
+        normalizeAdminLogComparableValue(field.afterValue)
+    );
+}
+
+function formatAdminLogDetailValue(value) {
+  if (value === null || value === undefined || value === "") return "없음";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "object") return summarizeAdminLogValue(value) || JSON.stringify(value);
+  return String(value);
+}
+
+function getAdminStatusDisplayValue(value) {
+  const raw = formatAdminLogDetailValue(value);
+  const labels = {
+    assigned: "완료",
+    matched: "완료",
+    completed: "완료",
+    paid: "완료",
+    pending: "대기",
+    waiting: "대기",
+    assigning: "중",
+    before_operation: "전",
+    not_required: "불필요",
+    unpaid: "미결제",
+    invoice_sent: "청구",
+  };
+  return labels[raw] || raw;
 }
 
 function summarizeAdminLogValue(value) {
@@ -12436,6 +12720,24 @@ function buildAdminNoteDisplayItems({
   });
 }
 
+function buildAdminMemoDisplayItems({
+  items = [],
+  notes = [],
+  requests = [],
+  interpreters = [],
+  assignmentRows = [],
+  jobApplications = [],
+}) {
+  const noteItems = buildAdminNoteDisplayItems({
+    notes,
+    requests,
+    interpreters,
+    assignmentRows,
+    jobApplications,
+  });
+  return uniqueById([...noteItems, ...items]);
+}
+
 function getAdminNoteTypeLabel(targetType) {
   const labels = {
     application: "지원 메모",
@@ -12886,8 +13188,9 @@ function getCompanyPaymentBadgeClass(status) {
 }
 
 function getSettlementPayoutStatusLabel(status) {
+  const normalized = normalizeSettlementPayoutStatus(status);
   const option = SETTLEMENT_PAYOUT_STATUS_OPTIONS.find(
-    (item) => item.value === String(status || "").trim()
+    (item) => item.value === normalized
   );
   return option?.label || "정산 대기";
 }
@@ -12900,7 +13203,12 @@ function getSettlementPayoutBadgeClass(status) {
     withheld: "badge-red",
     cancelled: "badge-gray",
   };
-  return classes[String(status || "").trim()] || "badge-yellow";
+  return classes[normalizeSettlementPayoutStatus(status)] || "badge-yellow";
+}
+
+function normalizeSettlementPayoutStatus(status) {
+  const normalized = String(status || "pending").trim().toLowerCase();
+  return SETTLEMENT_PAYOUT_STATUS_ALIASES[normalized] || normalized || "pending";
 }
 
 function findPayoutDocumentForSettlement(documents = [], settlement = {}) {
@@ -12928,7 +13236,11 @@ function doesInterpreterSettlementMatchFilters(row = {}, filters = {}) {
   const interpreter = row.interpreter || {};
   const search = String(filters.search || "").trim().toLowerCase();
 
-  if (filters.status && filters.status !== "all" && settlement.payout_status !== filters.status) {
+  if (
+    filters.status &&
+    filters.status !== "all" &&
+    normalizeSettlementPayoutStatus(settlement.payout_status) !== filters.status
+  ) {
     return false;
   }
 
@@ -13031,17 +13343,11 @@ function getNotificationRelatedLabel({ targetType, request, interpreter, applica
 }
 
 function buildProcessingQueueItems({
-  businesses = [],
   newRequests = [],
-  notificationEvents = [],
   pendingResumeReviewInterpreters = [],
   uncheckedApplications = [],
   pendingAssignmentRequests = [],
-  settlements = [],
 }) {
-  const pendingSettlements = settlements.filter((settlement) => settlement.payout_status === "pending");
-  const failedNotifications = notificationEvents.filter((event) => event.status === "failed");
-  const uncheckedBusinesses = businesses.filter((business) => isBusinessApprovalPending(business));
   return [
     {
       id: "new-requests",
@@ -13074,30 +13380,6 @@ function buildProcessingQueueItems({
       description: "행사일 임박 건 우선 배정",
       priority: getQueuePriority(pendingAssignmentRequests, "assignment"),
       targetSubTab: "assignments",
-    },
-    {
-      id: "pending-settlements",
-      label: "정산 대기",
-      count: pendingSettlements.length,
-      description: "진행 완료 후 지급 확인",
-      priority: pendingSettlements.length > 0 ? "urgent" : "general",
-      targetSubTab: "settlement_pending",
-    },
-    {
-      id: "unconfirmed-businesses",
-      label: "미확인 기업",
-      count: uncheckedBusinesses.length,
-      description: "기업 상태 확인",
-      priority: uncheckedBusinesses.length > 0 ? "today" : "general",
-      targetSubTab: "all_businesses",
-    },
-    {
-      id: "failed-notifications",
-      label: "실패 알림",
-      count: failedNotifications.length,
-      description: "발송 실패 이벤트 확인",
-      priority: failedNotifications.length > 0 ? "urgent" : "general",
-      targetSubTab: "notification_history",
     },
   ];
 }
@@ -13178,7 +13460,7 @@ function buildProcessingTaskItems({
     });
 
   settlements
-    .filter((settlement) => settlement.payout_status === "pending")
+    .filter((settlement) => normalizeSettlementPayoutStatus(settlement.payout_status) === "pending")
     .slice(0, 5)
     .forEach((settlement) => {
       const request = requestMap.get(String(settlement.request_id)) || {};
@@ -13231,38 +13513,58 @@ function buildRecentActivityItems({
     ...adminActivityLogs.map((log) => ({
       id: `log-${log.id}`,
       description: getActivityDescription(log.action_type),
+      actorLabel: getAdminLogActorLabel(log) || "관리자",
       created_at: log.created_at,
+      targetSubTab: getActivityTargetSubTab(log.target_type),
     })),
     ...generatedDocuments.map((document) => ({
       id: `doc-${document.id}`,
       description: `${getDocumentTypeLabel(document.document_type)} 생성`,
+      actorLabel: "시스템",
       created_at: document.created_at,
+      targetSubTab: "all_documents",
     })),
     ...payments
       .filter((payment) => payment.payment_status === "paid")
       .map((payment) => ({
         id: `payment-${payment.id}`,
         description: "기업 입금 확인",
+        actorLabel: "관리자",
         created_at: payment.updated_at || payment.paid_at || payment.created_at,
+        targetSubTab: "company_payments",
       })),
     ...settlements
-      .filter((settlement) => settlement.payout_status === "paid")
+      .filter((settlement) => normalizeSettlementPayoutStatus(settlement.payout_status) === "paid")
       .map((settlement) => ({
         id: `settlement-${settlement.id}`,
         description: "통역사 지급 완료",
+        actorLabel: "관리자",
         created_at: settlement.updated_at || settlement.paid_at || settlement.created_at,
+        targetSubTab: "payment_history",
       })),
     ...notificationEvents
       .filter((event) => event.status === "failed")
       .map((event) => ({
         id: `notification-${event.id}`,
         description: "알림 발송 실패",
+        actorLabel: "시스템",
         created_at: event.created_at,
+        targetSubTab: "notification_history",
       })),
   ]
     .filter((item) => item.created_at)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, 10);
+}
+
+function getActivityTargetSubTab(targetType) {
+  const normalized = normalizeAdminTargetType(targetType);
+  if (normalized === "request") return "all_requests";
+  if (normalized === "interpreter") return "registered_interpreters";
+  if (normalized === "application") return "applications";
+  if (normalized === "assignment") return "assignments";
+  if (normalized === "business") return "all_businesses";
+  return null;
 }
 
 function getActivityDescription(actionType) {
@@ -13609,12 +13911,8 @@ function isDashboardExcludedRequest(request = {}) {
 }
 
 function getAssignedInterpreterName(request = {}, assignments = [], interpreters = []) {
-  if (assignments.length > 0) {
-    return assignments
-      .map((assignment) => assignment.interpreter?.name)
-      .filter(Boolean)
-      .join(", ");
-  }
+  const assignedNames = getAssignedInterpreterNames(request, assignments, interpreters);
+  if (assignedNames.length > 0) return assignedNames.join(", ");
 
   const storedName =
     request.assigned_interpreter_name || request.matched_interpreter_name || "";
@@ -13629,7 +13927,50 @@ function getAssignedInterpreterName(request = {}, assignments = [], interpreters
   }
 
   const assignment = assignments.find(Boolean);
-  return assignment?.interpreter?.name || "";
+  return getAssignmentInterpreterName(assignment, interpreters) || "";
+}
+
+function getAssignedInterpreterNames(request = {}, assignments = [], interpreters = []) {
+  const names = assignments
+    .map((assignment) => getAssignmentInterpreterName(assignment, interpreters))
+    .filter(Boolean);
+
+  if (names.length > 0) return Array.from(new Set(names));
+
+  return [
+    request.assigned_interpreter_name,
+    request.matched_interpreter_name,
+    request.assigned_interpreter,
+    request.interpreter_name,
+  ].filter(Boolean);
+}
+
+function getAssignmentInterpreterName(assignment = {}, interpreters = []) {
+  const nestedInterpreter =
+    assignment?.interpreter ||
+    assignment?.assigned_interpreter ||
+    assignment?.interpreter_profile ||
+    assignment?.profile;
+
+  if (nestedInterpreter?.name) return nestedInterpreter.name;
+
+  const directName =
+    assignment?.interpreter_name ||
+    assignment?.assigned_interpreter_name ||
+    assignment?.matched_interpreter_name ||
+    assignment?.name;
+  if (directName) return directName;
+
+  const interpreterId =
+    assignment?.interpreter_id ||
+    assignment?.assigned_interpreter_id ||
+    assignment?.matched_interpreter_id;
+  if (!interpreterId) return "";
+
+  const interpreter = interpreters.find(
+    (item) => String(item.id) === String(interpreterId)
+  );
+  return interpreter?.name || "";
 }
 
 function getAdminDocumentRequest(document = {}, requestMap = new Map()) {
