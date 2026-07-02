@@ -170,7 +170,7 @@ const ADMIN_ACTIVITY_LOGS_SELECT =
 const NOTIFICATION_EVENTS_SELECT =
   "id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at, deleted_at, deleted_by";
 const SETTLEMENTS_SELECT =
-  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -323,6 +323,29 @@ function logSupabaseError(label, error) {
     details: error.details || null,
     hint: error.hint || null,
     error,
+  });
+}
+
+function getSupabaseErrorSummary(error) {
+  if (!error) return "";
+  return [error.code, error.message].filter(Boolean).join(" · ");
+}
+
+function logAdminQueryDebug(label, { user, isAdmin, query, data, error } = {}) {
+  console.info(`[Admin Debug] ${label}`, {
+    sessionUserId: user?.id || null,
+    sessionEmail: user?.email || null,
+    isAdmin,
+    query,
+    rowCount: Array.isArray(data) ? data.length : null,
+    error: error
+      ? {
+          code: error.code || null,
+          message: error.message || String(error),
+          details: error.details || null,
+          hint: error.hint || null,
+        }
+      : null,
   });
 }
 const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
@@ -786,6 +809,16 @@ function Admin({ onBackClick }) {
         if (operationalNotificationsResult.error) {
           logSupabaseError("notifications fetch", operationalNotificationsResult.error);
         }
+        logAdminQueryDebug("notifications fetch", {
+          user,
+          isAdmin,
+          query: "notification_events + notifications",
+          data: [
+            ...(notificationsResult.error ? [] : notificationsResult.data || []),
+            ...(operationalNotificationsResult.error ? [] : operationalNotificationsResult.data || []),
+          ],
+          error: notificationsResult.error || operationalNotificationsResult.error || null,
+        });
         setNotificationEvents(
           uniqueById([
             ...(notificationsResult.error ? [] : notificationsResult.data || []),
@@ -819,11 +852,25 @@ function Admin({ onBackClick }) {
 
         if (settlementsResult.error) {
           logSupabaseError("settlements fetch", settlementsResult.error);
+          logAdminQueryDebug("settlements fetch", {
+            user,
+            isAdmin,
+            query: `settlements.select(${SETTLEMENTS_SELECT})`,
+            data: settlementsResult.data,
+            error: settlementsResult.error,
+          });
           setAdminDataErrors((current) => ({
             ...current,
             settlements: settlementsResult.error,
           }));
         } else {
+          logAdminQueryDebug("settlements fetch", {
+            user,
+            isAdmin,
+            query: `settlements.select(${SETTLEMENTS_SELECT})`,
+            data: settlementsResult.data,
+            error: null,
+          });
           setSettlements(uniqueById(settlementsResult.data || []));
           setAdminDataErrors((current) => ({ ...current, settlements: null }));
         }
@@ -1749,6 +1796,16 @@ function Admin({ onBackClick }) {
     if (operationalNotificationsResult.error) {
       logSupabaseError("notifications refresh", operationalNotificationsResult.error);
     }
+    logAdminQueryDebug("notifications refresh", {
+      user,
+      isAdmin,
+      query: "notification_events + notifications",
+      data: [
+        ...(notificationsResult.error ? [] : notificationsResult.data || []),
+        ...(operationalNotificationsResult.error ? [] : operationalNotificationsResult.data || []),
+      ],
+      error: notificationsResult.error || operationalNotificationsResult.error || null,
+    });
     setNotificationEvents(
       uniqueById([
         ...(notificationsResult.error ? [] : notificationsResult.data || []),
@@ -1773,8 +1830,22 @@ function Admin({ onBackClick }) {
     }
     if (settlementsResult.error) {
       logSupabaseError("settlements refresh", settlementsResult.error);
+      logAdminQueryDebug("settlements refresh", {
+        user,
+        isAdmin,
+        query: `settlements.select(${SETTLEMENTS_SELECT})`,
+        data: settlementsResult.data,
+        error: settlementsResult.error,
+      });
       setAdminDataErrors((current) => ({ ...current, settlements: settlementsResult.error }));
     } else {
+      logAdminQueryDebug("settlements refresh", {
+        user,
+        isAdmin,
+        query: `settlements.select(${SETTLEMENTS_SELECT})`,
+        data: settlementsResult.data,
+        error: null,
+      });
       setSettlements(uniqueById(settlementsResult.data || []));
       setAdminDataErrors((current) => ({ ...current, settlements: null }));
     }
@@ -6258,7 +6329,7 @@ function InterpreterSettlementManagement({
         <MessageBox
           text={
             loadError
-              ? "정산 항목을 불러오지 못했습니다. 관리자 권한 또는 RLS 정책을 확인해주세요."
+              ? `정산 항목을 불러오지 못했습니다. ${getSupabaseErrorSummary(loadError)}`
               : "조건에 맞는 정산 항목이 없습니다."
           }
         />
@@ -10837,7 +10908,7 @@ function NotificationHistoryManagement({
         <MessageBox
           text={
             loadError
-              ? "알림 이력을 불러오지 못했습니다. 관리자 권한 또는 RLS 정책을 확인해주세요."
+              ? `알림 이력을 불러오지 못했습니다. ${getSupabaseErrorSummary(loadError)}`
               : "조건에 맞는 알림 이벤트가 없습니다."
           }
         />

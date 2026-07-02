@@ -747,7 +747,7 @@ function BusinessMypage({
 
     if (error) {
       console.error("approve_estimate_and_create_payment failed:", error);
-      alert(`견적 승인에 실패했습니다: ${error.message}`);
+      alert("견적 승인에 실패했습니다. 잠시 후 다시 시도해주세요.");
       return;
     }
 
