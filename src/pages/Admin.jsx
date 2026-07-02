@@ -576,6 +576,14 @@ function Admin({ onBackClick }) {
   });
 
   const fetchAdminData = useCallback(async () => {
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+
     if (!publicSupabase) {
       setErrorMessage(supabaseConfigError.message);
       setLoading(false);
@@ -602,6 +610,12 @@ function Admin({ onBackClick }) {
 
     setLoading(true);
     setErrorMessage("");
+
+    if (!isAdmin) {
+      setErrorMessage("관리자 권한 확인 후 이용할 수 있습니다.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult, businessResult] =
@@ -753,13 +767,15 @@ function Admin({ onBackClick }) {
         );
 
         if (notesResult.error) {
-          console.warn("admin notes fetch skipped:", notesResult.error);
+          logSupabaseFetchError("admin_notes", notesResult.error);
+          setOptionalDataError("일부 내부관리 데이터를 불러오지 못했습니다. 콘솔 오류를 확인해주세요.");
         } else {
           setAdminNotes(uniqueById(notesResult.data || []));
         }
 
         if (logsResult.error) {
-          console.warn("admin activity logs fetch skipped:", logsResult.error);
+          logSupabaseFetchError("admin_activity_logs", logsResult.error);
+          setOptionalDataError("일부 내부관리 데이터를 불러오지 못했습니다. 콘솔 오류를 확인해주세요.");
         } else {
           setAdminActivityLogs(compactAdminRows(logsResult.data));
         }
@@ -784,7 +800,7 @@ function Admin({ onBackClick }) {
         }));
 
         if (documentsResult.error) {
-          console.warn("generated documents fetch skipped:", documentsResult.error);
+          logSupabaseError("documents fetch", documentsResult.error);
         } else {
           setGeneratedDocuments(uniqueById(documentsResult.data || []));
         }
@@ -825,8 +841,14 @@ function Admin({ onBackClick }) {
   }, [authLoading, isAdmin, user]);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!isAdmin) {
+      setLoading(false);
+      setErrorMessage("관리자 권한 확인 후 이용할 수 있습니다.");
+      return;
+    }
     queueMicrotask(fetchAdminData);
-  }, [fetchAdminData]);
+  }, [authLoading, fetchAdminData, isAdmin]);
 
   const updateBusiness = async (bizId, payload) => {
     if (!publicSupabase) return;
@@ -929,6 +951,10 @@ function Admin({ onBackClick }) {
   const assignmentsByRequest = useMemo(() => groupBy(assignments, "request_id"), [
     assignments,
   ]);
+  const settlementRequestRows = useMemo(
+    () => buildSettlementRequestRows({ settlements }),
+    [settlements]
+  );
   const jobApplicationsByJob = useMemo(
     () => groupByStringKey(jobApplications, "job_id"),
     [jobApplications]
@@ -975,8 +1001,8 @@ function Admin({ onBackClick }) {
     [requests]
   );
   const settlementPendingRequests = useMemo(
-    () => requests.filter((request) => isSettlementPendingRequest(request)),
-    [requests]
+    () => settlementRequestRows.filter((request) => isSettlementPendingRequest(request)),
+    [settlementRequestRows]
   );
   const newRequests = useMemo(
     () => requests.filter((request) => isNewRequest(request)),
@@ -11049,7 +11075,7 @@ function SettlementManagement({
         <div className="admin-management-card-grid">
           {filteredRequests.map((request) => (
             <SettlementRequestCard
-              key={request.id}
+              key={getSettlementRequestRowKey(request)}
               request={request}
               assignments={assignmentsByRequest.get(request.id) || []}
               interpreters={interpreters}
@@ -11063,7 +11089,7 @@ function SettlementManagement({
               onOpenDocumentPreview={onOpenDocumentPreview}
               generatedDocuments={generatedDocuments}
               openRequestModal={openRequestModal}
-              expanded={expandedRequestId === request.id}
+              expanded={expandedRequestId === getSettlementRequestRowKey(request)}
               setExpandedRequestId={setExpandedRequestId}
             />
           ))}
@@ -11191,7 +11217,7 @@ function SettlementRequestCard({
         ) {
           return;
         }
-        setExpandedRequestId(expanded ? null : request.id);
+        setExpandedRequestId(expanded ? null : getSettlementRequestRowKey(request));
       }}
       style={{
         cursor: "pointer",
@@ -11439,7 +11465,7 @@ function SettlementRequestCard({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setExpandedRequestId(expanded ? null : request.id);
+                  setExpandedRequestId(expanded ? null : getSettlementRequestRowKey(request));
             }}
             style={{
               fontSize: "11px",
