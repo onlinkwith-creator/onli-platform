@@ -2356,6 +2356,12 @@
   font-weight: 800;
 }
 
+.admin-muted-text {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .admin-table th {
   position: sticky;
   top: 0;
@@ -2390,7 +2396,14 @@
 }
 
 .admin-settlement-table {
-  min-width: 1380px;
+  min-width: 1480px;
+}
+
+.admin-settlement-table .admin-date-cell {
+  min-width: 170px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .admin-payment-detail-grid {

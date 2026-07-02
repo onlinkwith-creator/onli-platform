@@ -170,7 +170,7 @@ const ADMIN_ACTIVITY_LOGS_SELECT =
 const NOTIFICATION_EVENTS_SELECT =
   "id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at, deleted_at, deleted_by";
 const SETTLEMENTS_SELECT =
-  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, applied_level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -1998,7 +1998,7 @@ function Admin({ onBackClick }) {
         amount: normalizeMoneyInput(changes.amount),
         payout_status: changes.payout_status,
         work_days: changes.work_days ? Number(changes.work_days) : null,
-        level: changes.level || null,
+        applied_level: changes.applied_level || null,
         daily_rate: changes.daily_rate ? normalizeMoneyInput(changes.daily_rate) : null,
         extra_amount: normalizeMoneyInput(changes.extra_amount),
         deduction_amount: normalizeMoneyInput(changes.deduction_amount),
@@ -6227,7 +6227,7 @@ function InterpreterSettlementManagement({
       amount: settlement.amount ?? 0,
       payout_status: settlement.payout_status || "pending",
       work_days: settlement.work_days || "",
-      level: settlement.level || "",
+      applied_level: settlement.applied_level || "",
       daily_rate: settlement.daily_rate || "",
       extra_amount: settlement.extra_amount || 0,
       deduction_amount: settlement.deduction_amount || 0,
@@ -6356,12 +6356,12 @@ function InterpreterSettlementManagement({
                 <tr key={settlement.id}>
                   <td>{request.event_name || request.title || "정보 없음"}</td>
                   <td>{interpreter.name || "정보 없음"}</td>
-                  <td>
+                  <td className="admin-date-cell">
                     {request.id
                       ? formatDateRange(request.start_date, request.end_date, request.event_date)
                       : "정보 없음"}
                   </td>
-                  <td>{settlement.level || request.settlement_level || "-"}</td>
+                  <td>{getSettlementAppliedLevel({ settlement, request, interpreter })}</td>
                   <td>{settlement.work_days || request.settlement_work_days || "-"}</td>
                   <td>{formatJPY(settlement.daily_rate)}</td>
                   <td>{formatJPY(settlement.amount)}</td>
@@ -6381,7 +6381,7 @@ function InterpreterSettlementManagement({
                         보기
                       </button>
                     ) : (
-                      "-"
+                      <span className="admin-muted-text">미발급</span>
                     )}
                   </td>
                   <td>
@@ -6458,8 +6458,8 @@ function InterpreterSettlementManagement({
                 </FieldControl>
                 <FieldControl label="적용 레벨">
                   <input
-                    value={draft.level}
-                    onChange={(event) => updateDraft("level", event.target.value)}
+                    value={draft.applied_level}
+                    onChange={(event) => updateDraft("applied_level", event.target.value)}
                   />
                 </FieldControl>
                 <NumberControl
@@ -11777,10 +11777,10 @@ function RevenueSummaryPanel({ summary }) {
     <div className="admin-operation-panel admin-revenue-panel">
       <div className="admin-panel-head">
         <div>
-          <p className="admin-kicker">MONTH</p>
+          <p className="admin-kicker">TOTAL</p>
           <h2>운영 매출 요약</h2>
         </div>
-        <span>예상</span>
+        <span>누적</span>
       </div>
       <dl className="admin-revenue-grid">
         <div>
@@ -13505,6 +13505,14 @@ function findPayoutDocumentForSettlement(documents = [], settlement = {}) {
   );
 }
 
+function getSettlementAppliedLevel({ settlement = {}, request = {}, interpreter = {} } = {}) {
+  const value =
+    settlement.applied_level ||
+    request.settlement_level ||
+    interpreter.level;
+  return String(value || "").trim() || "미설정";
+}
+
 function doesInterpreterSettlementMatchFilters(row = {}, filters = {}) {
   const settlement = row.settlement || {};
   const request = row.request || {};
@@ -13755,21 +13763,37 @@ function buildProcessingTaskItems({
 }
 
 function buildRevenueSummary({ payments = [], requests = [], settlements = [] } = {}) {
-  const now = new Date();
-  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const requestMap = new Map(requests.map((request) => [String(request.id), request]));
-  const monthlyPayments = payments.filter((payment) => {
+  const activePayments = payments.filter(
+    (payment) => !["refunded", "cancelled"].includes(String(payment.payment_status || "").toLowerCase())
+  );
+  const activeSettlements = settlements.filter(
+    (settlement) => normalizeSettlementPayoutStatus(settlement.payout_status) !== "cancelled"
+  );
+  const companyAmount = activePayments.reduce((sum, payment) => {
     const request = requestMap.get(String(payment.request_id)) || {};
-    const date = String(payment.paid_at || payment.created_at || request.start_date || request.event_date || "");
-    return date.startsWith(monthPrefix);
-  });
-  const monthlySettlements = settlements.filter((settlement) => {
+    const paymentAmount = Number(payment.amount || 0);
+    const fallbackAmount = Number(
+      request.company_amount ||
+        request.estimated_price ||
+        request.client_price ||
+        request.settlement_base_amount ||
+        0
+    );
+    return sum + (paymentAmount > 1 ? paymentAmount : fallbackAmount);
+  }, 0);
+  const interpreterAmount = activeSettlements.reduce((sum, settlement) => {
     const request = requestMap.get(String(settlement.request_id)) || {};
-    const date = String(settlement.paid_at || settlement.created_at || request.start_date || request.event_date || "");
-    return date.startsWith(monthPrefix);
-  });
-  const companyAmount = monthlyPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const interpreterAmount = monthlySettlements.reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+    const settlementAmount = Number(settlement.amount || 0);
+    const fallbackAmount = Number(
+      request.settlement_final_amount ||
+        request.interpreter_payment ||
+        request.interpreter_price ||
+        request.interpreter_pay ||
+        0
+    );
+    return sum + (settlementAmount > 1 ? settlementAmount : fallbackAmount);
+  }, 0);
   return {
     companyAmount,
     interpreterAmount,
@@ -15259,7 +15283,7 @@ function upsertById(items, nextItem) {
 }
 
 function formatJPY(value) {
-  return `¥${Number(value || 0).toLocaleString()}`;
+  return `₩${Number(value || 0).toLocaleString("ko-KR")}`;
 }
 
 async function createAdminDocumentPdfBlob({ title, rows = [] }) {
