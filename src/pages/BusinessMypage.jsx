@@ -259,13 +259,15 @@ function BusinessMypage({
           const requestIds = fetchedRequests.map((r) => r.id);
 
           // 1. Fetch assigned interpreters
-          const { data: assignData, error: assignError } = await supabase
+          let assignmentResult = await supabase
             .from("request_interpreters")
             .select(`
               id,
               request_id,
               interpreter_id,
               is_contact_visible,
+              contact_revealed,
+              contact_revealed_at,
               interpreter:interpreters (
                 id,
                 name,
@@ -280,6 +282,34 @@ function BusinessMypage({
               )
             `)
             .in("request_id", requestIds);
+
+          if (assignmentResult.error && isMissingColumnError(assignmentResult.error)) {
+            console.error("business assignments contact column fallback:", assignmentResult.error);
+            assignmentResult = await supabase
+              .from("request_interpreters")
+              .select(`
+                id,
+                request_id,
+                interpreter_id,
+                is_contact_visible,
+                interpreter:interpreters (
+                  id,
+                  name,
+                  level,
+                  approved,
+                  jlpt,
+                  specialties,
+                  experience_count,
+                  phone,
+                  kakao_or_line,
+                  email
+                )
+              `)
+              .in("request_id", requestIds);
+          }
+
+          const assignData = assignmentResult.data;
+          const assignError = assignmentResult.error;
 
           if (assignError) {
             console.error("Error fetching assignments:", assignError);
@@ -323,6 +353,8 @@ function BusinessMypage({
             );
             const mergedAssignments = baseAssignments.map((assignment) => ({
                 ...assignment,
+                is_contact_visible:
+                  Boolean(assignment.is_contact_visible) || Boolean(assignment.contact_revealed),
                 interpreter:
                   assignment.interpreter ||
                   publicInterpreterById.get(String(assignment.interpreter_id)) ||
@@ -1377,15 +1409,15 @@ function BusinessMypage({
                                   <div className="contacts-grid">
                                     <div className="contact-item">
                                       <span className="contact-label">전화번호</span>
-                                      <span className="contact-value">{interpreter.phone || "-"}</span>
+                                      <span className="contact-value">{interpreter.phone || "정보 없음"}</span>
                                     </div>
                                     <div className="contact-item">
                                       <span className="contact-label">이메일</span>
-                                      <span className="contact-value">{interpreter.email || "-"}</span>
+                                      <span className="contact-value">{interpreter.email || "정보 없음"}</span>
                                     </div>
                                     <div className="contact-item">
                                       <span className="contact-label">카카오톡</span>
-                                      <span className="contact-value">{interpreter.kakao_or_line || "-"}</span>
+                                      <span className="contact-value">{interpreter.kakao_or_line || "정보 없음"}</span>
                                     </div>
                                   </div>
                                 ) : (

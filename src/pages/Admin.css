@@ -2391,6 +2391,22 @@
   min-width: 1280px;
 }
 
+.admin-notification-send-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.admin-notification-send-panel textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
 .admin-payment-table {
   min-width: 1180px;
 }
@@ -3250,13 +3266,23 @@
 .admin-modal-card {
   width: min(100%, 720px);
   max-width: 720px;
-  max-height: 85vh;
-  overflow-y: auto;
+  max-height: 90vh;
+  overflow: hidden;
   box-sizing: border-box;
   padding: 24px;
   border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 28px 80px rgba(15, 23, 42, 0.3);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+  overscroll-behavior: contain;
 }
 
 .admin-jobs-applicant-modal {
@@ -4322,7 +4348,7 @@
   .admin-modal-card {
     width: calc(100vw - 32px);
     max-width: calc(100vw - 32px);
-    max-height: 85vh;
+    max-height: 95vh;
     padding: 18px;
     border-radius: 16px;
   }
@@ -5330,10 +5356,10 @@
   .settlement-pending-modal {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
-    max-height: calc(100vh - 24px);
+    max-height: 95vh;
     padding: 14px;
     border-radius: 16px;
-    overflow-y: auto;
+    overflow: hidden;
     box-sizing: border-box;
   }
 
@@ -5515,7 +5541,7 @@
   .settlement-pending-modal {
     width: calc(100vw - 16px);
     max-width: calc(100vw - 16px);
-    max-height: calc(100vh - 16px);
+    max-height: 95vh;
     padding: 12px;
   }
 
@@ -5828,7 +5854,7 @@
 .admin-request-detail-modal {
   width: 1100px !important;
   max-width: 90vw !important;
-  max-height: 85vh !important;
+  max-height: 90vh !important;
   padding: 0 !important;
   overflow: hidden !important;
   border: 1px solid #e5e7eb;
@@ -5858,7 +5884,7 @@
   .admin-request-detail-modal {
     width: 95vw !important;
     max-width: 95vw !important;
-    max-height: 92vh !important;
+    max-height: 95vh !important;
   }
 }
 
@@ -5915,9 +5941,14 @@
 }
 
 .admin-detail-tab-panel {
-  max-height: calc(85vh - 94px);
-  overflow-y: auto;
+  min-height: 0;
+  overflow: visible;
   background: #ffffff;
+}
+
+.admin-request-detail-modal .admin-modal-body {
+  overflow-y: auto;
+  padding-bottom: 24px;
 }
 
 /* Tabs layout styling */

@@ -77,6 +77,19 @@ type NotificationEvent = {
   message?: string | null;
 };
 
+type NotificationRow = {
+  id: string;
+  recipient_type: string;
+  recipient_id?: string | null;
+  recipient_email?: string | null;
+  notification_type: string;
+  title?: string | null;
+  message?: string | null;
+  channel?: string | null;
+  status: string;
+  error_message?: string | null;
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -1281,6 +1294,141 @@ async function processNotificationEvents({
   });
 }
 
+async function processNotifications({
+  request,
+  notificationIds,
+  supabaseUrl,
+  serviceRoleKey,
+  anonKey,
+  gmailUser,
+  gmailAppPassword,
+}: {
+  request: Request;
+  notificationIds: string[];
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  anonKey: string;
+  gmailUser: string;
+  gmailAppPassword: string;
+}) {
+  const adminCheck = await assertAdminCaller(request, supabaseUrl, anonKey, serviceRoleKey);
+  if (!adminCheck.ok) {
+    return jsonResponse({ ok: false, error: adminCheck.error }, adminCheck.status);
+  }
+
+  if (notificationIds.length === 0) {
+    return jsonResponse({ ok: false, error: "No notification ids provided." }, 400);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const transporter = createGmailTransporter(gmailUser, gmailAppPassword);
+  const emailFrom = Deno.env.get("EMAIL_FROM") || `"ON-LI" <${gmailUser.trim()}>`;
+
+  const { data: notifications, error } = await supabase
+    .from("notifications")
+    .select("id,recipient_type,recipient_id,recipient_email,notification_type,title,message,channel,status,error_message")
+    .in("id", notificationIds);
+
+  if (error) {
+    return jsonResponse({ ok: false, error: error.message }, 500);
+  }
+
+  const results = [];
+
+  for (const notification of (notifications || []) as NotificationRow[]) {
+    if (String(notification.channel || "email") !== "email") {
+      const errorMessage = `${notification.channel} channel is queued but not implemented yet.`;
+      await supabase
+        .from("notifications")
+        .update({ status: "failed", error_message: errorMessage, sent_at: null })
+        .eq("id", notification.id);
+      results.push({ id: notification.id, ok: false, error: errorMessage });
+      continue;
+    }
+
+    const recipientEmail = String(notification.recipient_email || "").trim();
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      await supabase
+        .from("notifications")
+        .update({
+          status: "failed",
+          error_message: "수신자 이메일이 없습니다.",
+          sent_at: null,
+        })
+        .eq("id", notification.id);
+      results.push({
+        id: notification.id,
+        ok: false,
+        error: "수신자 이메일이 없습니다.",
+      });
+      continue;
+    }
+
+    try {
+      const subject = notification.title || notificationSubject(notification.notification_type);
+      const html = layout(
+        notification.title || "ON-LI 알림",
+        `
+          <p>${escapeHtml(notification.message || "ON-LI 운영 알림이 도착했습니다.")}</p>
+          ${infoTable([
+            ["알림 종류", escapeHtml(notification.notification_type)],
+            ["대상", escapeHtml(notification.recipient_type)],
+          ])}
+        `
+      );
+
+      const sendResult = await transporter.sendMail({
+        from: emailFrom,
+        to: recipientEmail,
+        subject,
+        html,
+      });
+
+      await supabase
+        .from("notifications")
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          error_message: null,
+        })
+        .eq("id", notification.id);
+
+      results.push({
+        id: notification.id,
+        ok: true,
+        recipient: recipientEmail,
+        result: sendResult,
+      });
+    } catch (sendError) {
+      const message = sendError instanceof Error ? sendError.message : String(sendError);
+      await supabase
+        .from("notifications")
+        .update({
+          status: "failed",
+          sent_at: null,
+          error_message: message,
+        })
+        .eq("id", notification.id);
+      results.push({
+        id: notification.id,
+        ok: false,
+        recipient: recipientEmail,
+        error: message,
+      });
+    }
+  }
+
+  return jsonResponse({
+    ok: true,
+    processedCount: results.length,
+    sentCount: results.filter((result) => result.ok).length,
+    failedCount: results.filter((result) => !result.ok).length,
+    results,
+  });
+}
+
 Deno.serve(async (request) => {
   console.log("FUNCTION START");
 
@@ -1360,6 +1508,24 @@ Deno.serve(async (request) => {
           ? body.eventIds.map((id: unknown) => String(id)).filter(Boolean)
           : [],
         retryFailed: Boolean(body?.retryFailed),
+        supabaseUrl,
+        serviceRoleKey,
+        anonKey,
+        gmailUser,
+        gmailAppPassword,
+      });
+    }
+
+    if (action === "process_notifications") {
+      if (!anonKey) {
+        return jsonResponse({ ok: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
+      }
+
+      return await processNotifications({
+        request,
+        notificationIds: Array.isArray(body?.notificationIds)
+          ? body.notificationIds.map((id: unknown) => String(id)).filter(Boolean)
+          : [],
         supabaseUrl,
         serviceRoleKey,
         anonKey,
