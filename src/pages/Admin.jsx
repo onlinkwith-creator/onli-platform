@@ -2960,6 +2960,19 @@ function sanitizeRecipientEmail(email) {
   };
 
   const updateRequestWithFallback = async (requestId, changes) => {
+    let previousRequest = null;
+    const statusFields = ["status", "assignment_status", "operation_status", "settlement_status", "estimate_status", "payment_status"];
+    const hasStatusChange = statusFields.some(field => field in changes);
+
+    if (hasStatusChange) {
+      const { data } = await supabase
+        .from("requests")
+        .select(statusFields.join(", "))
+        .eq("id", requestId)
+        .single();
+      previousRequest = data;
+    }
+
     const { data, error } = await supabase
       .from("requests")
       .update(changes)
@@ -2967,7 +2980,50 @@ function sanitizeRecipientEmail(email) {
       .select("*")
       .single();
 
-    if (!error) return { data, error: null };
+    const handleNotification = async (updatedRequest) => {
+      if (!previousRequest) return;
+
+      for (const field of statusFields) {
+        if (field in changes && previousRequest[field] !== updatedRequest[field]) {
+          try {
+            const previousStatus = previousRequest[field];
+            const nextStatus = updatedRequest[field];
+            
+            console.log("운영상태 변경 알림 생성 시도:", {
+              related_id: updatedRequest.id,
+              previousStatus,
+              nextStatus
+            });
+            
+            await supabase.from("notifications").insert({
+              notification_type: "status_changed",
+              title: "운영상태 변경",
+              message: `${updatedRequest.event_name || updatedRequest.title || "의뢰"} 운영상태가 ${previousStatus || "-"}에서 ${nextStatus}로 변경되었습니다.`,
+              channel: "internal",
+              recipient_type: "admin",
+              status: "pending",
+              related_type: "request",
+              related_id: updatedRequest.id,
+              metadata: {
+                request_id: updatedRequest.id,
+                request_no: updatedRequest.request_no || updatedRequest.code || null,
+                previous_status: previousStatus,
+                next_status: nextStatus,
+                changed_field: field,
+                changed_at: new Date().toISOString()
+              }
+            });
+          } catch (err) {
+            console.error("operational status notification insert failed:", err);
+          }
+        }
+      }
+    };
+
+    if (!error) {
+      await handleNotification(data);
+      return { data, error: null };
+    }
 
     console.error("request update error:", error);
     if (!isMissingColumnError(error)) return { data: null, error };
@@ -2984,7 +3040,11 @@ function sanitizeRecipientEmail(email) {
       .select("*")
       .single();
 
-    if (fallbackError) console.error("request update fallback error:", fallbackError);
+    if (fallbackError) {
+      console.error("request update fallback error:", fallbackError);
+    } else if (fallbackData) {
+      await handleNotification(fallbackData);
+    }
     return { data: fallbackData, error: fallbackError };
   };
 
