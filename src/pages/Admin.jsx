@@ -1814,13 +1814,8 @@ function sanitizeRecipientEmail(email) {
     try {
       const { data, error } = await supabase.functions.invoke("send-email", {
         body: {
-          action: "send_notification",
-          notificationId: event.source_id || event.id,
-          to: event.recipient_email,
-          type: event.notification_type || event.event_type,
-          title: event.title,
-          message: event.message,
-          payload: event.payload || {},
+          action: "process_notifications",
+          notificationIds: [event.source_id || event.id],
         },
       });
 
@@ -1835,16 +1830,11 @@ function sanitizeRecipientEmail(email) {
         return false;
       }
 
-      // notifications 테이블의 sent_at 업데이트
-      if (event.source_table === "notifications" && event.source_id) {
-        const sentAt = new Date().toISOString();
-        await supabase
-          .from("notifications")
-          .update({ status: "sent", sent_at: sentAt })
-          .eq("id", event.source_id);
-      }
-
       await refreshAdminOperationsData();
+      if (data?.failedCount > 0) {
+        alert(`이메일 발송 실패: ${data?.results?.[0]?.error || "알 수 없는 오류"}`);
+        return false;
+      }
       alert(`이메일 발송 완료: ${event.recipient_email}`);
       return true;
     } catch (error) {
