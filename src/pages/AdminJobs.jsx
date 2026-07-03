@@ -290,6 +290,51 @@ function AdminJobs({
 
       if (result.error) throw result.error;
 
+      if (editingId) {
+        try {
+          const originalJob = visibleJobs.find(j => j.id === editingId) || {};
+          const fieldMap = {
+            title: "행사명",
+            company_name: "고객사명",
+            location: "장소",
+            start_date: "시작일",
+            end_date: "종료일",
+            pay: "급여",
+            language: "언어",
+            level: "통역레벨",
+            preference: "우대조건",
+            people: "인원",
+            visibility: "공개여부"
+          };
+          
+          const updated_fields = [];
+          for (const key in fieldMap) {
+            if (payload[key] !== originalJob[key]) {
+              updated_fields.push(fieldMap[key]);
+            }
+          }
+          
+          const { data: userData } = await supabase.auth.getUser();
+          
+          await supabase.from("notifications").insert({
+            channel: "internal",
+            recipient_type: "admin",
+            notification_type: "job_updated",
+            title: "의뢰 수정",
+            message: `${form.title} 의뢰가 수정되었습니다.`,
+            related_id: editingId,
+            related_type: "job",
+            status: "pending",
+            metadata: {
+              updated_by: userData?.user?.id,
+              updated_fields
+            }
+          });
+        } catch (notifError) {
+          console.error("Failed to create job_updated notification", notifError);
+        }
+      }
+
       resetForm();
       setIsJobEditModalOpen(false);
       setIsJobCreateModalOpen(false);
