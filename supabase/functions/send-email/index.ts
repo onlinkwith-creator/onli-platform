@@ -1917,15 +1917,60 @@ async function sendSingleNotification({
     notification.event_type ||
     "general";
 
-  const subject = notification.title || notificationSubject(type as EmailType);
+  const reasonMap: Record<string, string> = {
+    status_changed: "의뢰 상태 변경 안내",
+    assignment_completed: "배정 완료 안내",
+    settlement_ready: "정산 대기 안내",
+    client_recruiting_started: "통역사 모집 시작 안내",
+    job_updated: "의뢰 수정 안내",
+  };
+  const reason = reasonMap[type] || "ON-LI 운영 안내";
+
+  const metadata = notification.metadata || {};
+  const relatedNo = metadata.request_no || notification.related_request_id || "";
+  const jobTitle = metadata.job_title || metadata.event_name || notification.title || "";
+  const previousStatus = metadata.previous_status || "";
+  const nextStatus = metadata.next_status || metadata.status || "";
+
+  let statusText = nextStatus || "-";
+  if (previousStatus && nextStatus) {
+    statusText = `${previousStatus} → ${nextStatus}`;
+  } else if (!nextStatus && previousStatus) {
+    statusText = previousStatus;
+  }
+
+  const subject = `[ON-LI] ${reason}${relatedNo ? ` - ${relatedNo}` : ""}`;
+  
+  const originalMessage = String(notification.message || "");
+  const fallbackMessage = "상세 내용은 ON-LI 사이트에서 확인해 주세요.";
+  const displayMessage = originalMessage === "1" || !originalMessage.trim() ? fallbackMessage : originalMessage;
+
+  const tableRows: [string, string][] = [
+    ["발송 사유", reason],
+  ];
+  
+  if (relatedNo) {
+    tableRows.push(["관련 의뢰", relatedNo]);
+  }
+  if (jobTitle && jobTitle !== "1") {
+    tableRows.push(["의뢰명", jobTitle]);
+  }
+  if (statusText && statusText !== "-") {
+    tableRows.push(["상태", statusText]);
+  }
+
   const html = layout(
-    notification.title || "ON-LI 알림",
+    subject,
     `
-      <p>${escapeHtml(notification.message || "ON-LI 운영 알림이 도착했습니다.")}</p>
-      ${infoTable([
-        ["알림 종류", escapeHtml(type)],
-        ["대상", escapeHtml(notification.recipient_type || "")],
-      ])}
+      <p>안녕하세요.<br />ON-LI입니다.</p>
+      <p>본 메일은 아래 사유로 발송되었습니다.</p>
+      <br />
+      ${infoTable(tableRows)}
+      <br />
+      <p><strong>■ 안내 내용</strong></p>
+      <p style="white-space: pre-wrap;">${escapeHtml(displayMessage)}</p>
+      <br />
+      <p>감사합니다.<br />ON-LI 운영팀</p>
     `
   );
 
