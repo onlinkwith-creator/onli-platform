@@ -1490,39 +1490,77 @@ async function processNotifications({
         `
       );
 
-      const sendResult = await transporter.sendMail({
+      const sendResult: any = await transporter.sendMail({
         from: emailFrom,
         to: recipientEmail,
         subject,
         html,
       });
-      const provider = assertMailProviderMessageId(sendResult, recipientEmail);
-      console.log("[NOTIFICATION_EMAIL_SENT]", {
-        notificationId: notification.id,
-        recipientEmail,
-        messageId: provider.messageId,
-        accepted: provider.accepted,
-        response: provider.response,
-      });
 
-      await supabase
-        .from("notifications")
-        .update({
-          status: "sent",
-          sent_at: new Date().toISOString(),
-          error_message: null,
-          provider_message_id: provider.messageId || null,
-        })
-        .eq("id", notification.id);
+      console.log("SMTP RESULT", JSON.stringify(sendResult, null, 2));
 
-      results.push({
-        id: notification.id,
-        ok: true,
-        recipient: recipientEmail,
-        messageId: provider.messageId,
-        accepted: provider.accepted,
-        response: provider.response,
-      });
+      const accepted = Array.isArray(sendResult.accepted) ? sendResult.accepted : [];
+      const rejected = Array.isArray(sendResult.rejected) ? sendResult.rejected : [];
+      const response = sendResult.response || "";
+      const messageId = sendResult.messageId || "";
+
+      console.log("accepted:", accepted);
+      console.log("rejected:", rejected);
+      console.log("response:", response);
+      console.log("messageId:", messageId);
+
+      if (accepted.length > 0) {
+        await supabase
+          .from("notifications")
+          .update({
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            error_message: null,
+            provider_message_id: messageId || null,
+          })
+          .eq("id", notification.id);
+
+        results.push({
+          id: notification.id,
+          ok: true,
+          recipient: recipientEmail,
+          messageId,
+          accepted,
+          rejected,
+          response,
+          smtp: sendResult
+        });
+      } else {
+        const failureReason = JSON.stringify({
+          accepted,
+          rejected,
+          response,
+          messageId
+        });
+        
+        await supabase
+          .from("notifications")
+          .update({
+            status: "failed",
+            sent_at: null,
+            error_message: failureReason,
+            provider_message_id: null,
+          })
+          .eq("id", notification.id);
+
+        results.push({
+          id: notification.id,
+          ok: false,
+          recipient: recipientEmail,
+          error: "smtp_send_failed",
+          message: "SMTP 서버가 수신자를 accepted 처리하지 않았습니다.",
+          accepted,
+          rejected,
+          response,
+          messageId,
+          smtp: sendResult
+        });
+      }
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message : String(sendError);
       console.error("[NOTIFICATION_EMAIL_FAILED]", {
