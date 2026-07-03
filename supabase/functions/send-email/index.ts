@@ -1927,8 +1927,39 @@ async function sendSingleNotification({
   const reason = reasonMap[type] || "ON-LI 운영 안내";
 
   const metadata = notification.metadata || {};
-  const relatedNo = metadata.request_no || notification.related_request_id || "";
-  const jobTitle = metadata.job_title || metadata.event_name || notification.title || "";
+  let realRequestNo = metadata.request_no || "";
+  let realJobTitle = metadata.job_title || metadata.event_name || "";
+
+  if (metadata.job_id) {
+    const { data: jobData } = await supabase
+      .from("jobs")
+      .select("request_no, code, title, event_name")
+      .eq("id", metadata.job_id)
+      .single();
+    if (jobData) {
+      if (!realRequestNo) realRequestNo = jobData.request_no || jobData.code || "";
+      if (!realJobTitle) realJobTitle = jobData.title || jobData.event_name || "";
+    }
+  }
+
+  if ((!realRequestNo || !realJobTitle) && notification.related_request_id) {
+    const { data: requestData } = await supabase
+      .from("requests")
+      .select("request_no, code, title, event_name")
+      .eq("id", notification.related_request_id)
+      .single();
+    if (requestData) {
+      if (!realRequestNo) realRequestNo = requestData.request_no || requestData.code || "";
+      if (!realJobTitle) realJobTitle = requestData.title || requestData.event_name || "";
+    }
+  }
+
+  if (!realJobTitle && notification.title && !reasonMap[notification.title]) {
+    realJobTitle = notification.title;
+  }
+
+  const relatedNo = realRequestNo;
+  const jobTitle = realJobTitle;
   const previousStatus = metadata.previous_status || "";
   const nextStatus = metadata.next_status || metadata.status || "";
 
