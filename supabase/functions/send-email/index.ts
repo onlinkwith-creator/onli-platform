@@ -1890,11 +1890,6 @@ async function sendSingleNotification({
   gmailUser?: string;
   gmailAppPassword?: string;
 }) {
-  const adminCheck = await assertAdminCaller(request, supabaseUrl, anonKey, serviceRoleKey);
-  if (!adminCheck.ok) {
-    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
-  }
-
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   
   if (!gmailUser || !gmailAppPassword) {
