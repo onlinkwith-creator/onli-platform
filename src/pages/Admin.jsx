@@ -3002,8 +3002,7 @@ function sanitizeRecipientEmail(email) {
               channel: "internal",
               recipient_type: "admin",
               status: "pending",
-              related_type: "request",
-              related_id: updatedRequest.id,
+              related_request_id: updatedRequest.id,
               metadata: {
                 request_id: updatedRequest.id,
                 request_no: updatedRequest.request_no || updatedRequest.code || null,
@@ -15345,8 +15344,6 @@ async function updateJobWithFallback(jobId, changes) {
             channel: "internal",
             recipient_type: "admin",
             status: "pending",
-            related_type: "job",
-            related_id: updatedJob.id,
             metadata: {
               job_id: updatedJob.id,
               request_no: updatedJob.request_no || updatedJob.code || null,

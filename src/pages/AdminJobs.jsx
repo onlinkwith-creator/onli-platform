@@ -116,8 +116,6 @@ async function updateJobWithFallback(jobId, changes) {
             channel: "internal",
             recipient_type: "admin",
             status: "pending",
-            related_type: "job",
-            related_id: updatedJob.id,
             metadata: {
               job_id: updatedJob.id,
               request_no: updatedJob.request_no || updatedJob.code || null,
