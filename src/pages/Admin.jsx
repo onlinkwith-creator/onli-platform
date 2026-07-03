@@ -341,9 +341,9 @@ const COMPANY_PAYMENT_METHOD_OPTIONS = [
 ];
 const SETTLEMENT_PAYOUT_STATUS_OPTIONS = [
   { value: "pending", label: "정산 대기" },
-  { value: "confirmed", label: "지급 확정" },
-  { value: "paid", label: "지급 완료" },
-  { value: "withheld", label: "보류" },
+  { value: "confirmed", label: "정산 확정" },
+  { value: "paid", label: "정산 완료" },
+  { value: "withheld", label: "정산 보류" },
   { value: "cancelled", label: "취소" },
 ];
 
@@ -393,7 +393,9 @@ const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
   paid: "paid",
   completed: "paid",
   settlement_completed: "paid",
+  payout_completed: "paid",
   settled: "paid",
+  done: "paid",
   "정산완료": "paid",
   "지급완료": "paid",
   withheld: "withheld",
@@ -1414,7 +1416,7 @@ function Admin({ onBackClick }) {
     if (subTabId === "settlement_confirmed") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "confirmed").length;
     if (subTabId === "settlement_completed") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "paid").length;
     if (subTabId === "settlement_on_hold") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "withheld").length;
-    if (subTabId === "payment_history") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "paid").length;
+    if (subTabId === "payment_history") return settlements.filter((item) => ["paid", "cancelled"].includes(normalizeSettlementPayoutStatus(item.payout_status))).length;
     if (subTabId === "all_documents") return generatedDocuments.length;
     if (subTabId === "estimate_documents") {
       return generatedDocuments.filter((doc) => doc.document_type === "estimate").length;
@@ -4602,7 +4604,7 @@ function Admin({ onBackClick }) {
                 settlements={settlements}
                 setFilters={setSettlementFilters}
                 statusScope="confirmed"
-                title="지급 확정"
+                title="정산 확정"
                 updateSettlement={updateInterpreterSettlement}
                 loadError={adminDataErrors.settlements}
               />
@@ -4619,7 +4621,7 @@ function Admin({ onBackClick }) {
                 settlements={settlements}
                 setFilters={setSettlementFilters}
                 statusScope="paid"
-                title="지급 완료"
+                title="정산 완료"
                 updateSettlement={updateInterpreterSettlement}
                 loadError={adminDataErrors.settlements}
               />
@@ -4652,7 +4654,7 @@ function Admin({ onBackClick }) {
                 savingKey={savingKey}
                 settlements={settlements}
                 setFilters={setSettlementFilters}
-                statusScope="paid"
+                statusScope={["paid", "cancelled"]}
                 title="지급 기록"
                 updateSettlement={updateInterpreterSettlement}
                 loadError={adminDataErrors.settlements}
@@ -5875,7 +5877,7 @@ function DocumentPreviewModal({ draft, saving, onChange, onClose, onConfirm }) {
                   onChange={(value) => onChange("level", value)}
                 />
                 <NumberControl
-                  label="일당"
+                  label="통역사 지급 일당"
                   value={draft.dailyPay}
                   onChange={(value) => onChange("dailyPay", value)}
                 />
@@ -6225,7 +6227,8 @@ function CompanyPaymentManagement({
         </label>
         <select
           className="admin-filter-select"
-          value={filters.status}
+          value={statusScope === "all" ? filters.status : "all"}
+          disabled={statusScope !== "all"}
           onChange={(event) =>
             setFilters((current) => ({ ...current, status: event.target.value }))
           }
@@ -6453,8 +6456,7 @@ function InterpreterSettlementManagement({
       settlements
         .filter(
           (settlement) =>
-            statusScope === "all" ||
-            normalizeSettlementPayoutStatus(settlement.payout_status) === statusScope
+            doesSettlementMatchStatusScope(settlement, statusScope)
         )
         .map((settlement) => {
           const request = settlement.request || requestMap.get(String(settlement.request_id)) || {};
@@ -6462,7 +6464,12 @@ function InterpreterSettlementManagement({
           const document = findPayoutDocumentForSettlement(documents, settlement);
           return { settlement, request, interpreter, document };
         })
-        .filter((row) => doesInterpreterSettlementMatchFilters(row, filters)),
+        .filter((row) =>
+          doesInterpreterSettlementMatchFilters(row, {
+            ...filters,
+            status: statusScope === "all" ? filters.status : "all",
+          })
+        ),
     [documents, filters, interpreterMap, requestMap, settlements, statusScope]
   );
   const selectedSettlement =
@@ -6602,7 +6609,7 @@ function InterpreterSettlementManagement({
                 <th>업무 날짜</th>
                 <th>적용 레벨</th>
                 <th>근무 일수</th>
-                <th>일당</th>
+                <th>통역사 지급 일당</th>
                 <th>최종 지급 금액</th>
                 <th>지급 상태</th>
                 <th>지급일</th>
@@ -6722,7 +6729,7 @@ function InterpreterSettlementManagement({
                   />
                 </FieldControl>
                 <NumberControl
-                  label="일당"
+                  label="통역사 지급 일당"
                   value={draft.daily_rate}
                   onChange={(value) => updateDraft("daily_rate", value)}
                 />
@@ -11795,7 +11802,7 @@ function SettlementRequestCard({
               <Info label="날짜" value={eventDate} />
               <Info label="근무일수" value={`${draft.settlement_work_days || 0}일`} />
               <Info label="적용 레벨" value={draft.settlement_level || "-"} />
-              <Info label="일당" value={formatJPY(dailyRate)} />
+              <Info label="통역사 지급 일당" value={formatJPY(dailyRate)} />
               <Info label="추가금액" value={formatJPY(draft.settlement_extra_amount)} />
               <Info label="차감금액" value={formatJPY(draft.settlement_deduction_amount)} />
               <Info label="최종 지급금액" value={formatJPY(interpreterPrice)} />
@@ -12155,11 +12162,15 @@ function RevenueSummaryPanel({ loadError = null, summary }) {
           <dt>예상 운영 수익</dt>
           <dd>{hasLoadError ? "조회 실패" : formatJPY(summary?.profit || 0)}</dd>
         </div>
+        <div>
+          <dt>청구 미생성 지급액</dt>
+          <dd>{hasLoadError ? "조회 실패" : formatJPY(summary?.unbilledInterpreterAmount || 0)}</dd>
+        </div>
       </dl>
       <p className="admin-revenue-note">
         {hasLoadError
           ? "결제 또는 정산 데이터를 불러오지 못했습니다. 콘솔 오류를 확인해주세요."
-          : "payments.amount와 settlements.amount 기준 합계입니다."}
+          : "운영 수익은 payments.amount가 생성된 의뢰의 settlements.amount만 반영합니다."}
       </p>
     </div>
   );
@@ -13940,6 +13951,13 @@ function normalizeSettlementPayoutStatus(status) {
   return SETTLEMENT_PAYOUT_STATUS_ALIASES[normalized] || normalized || "pending";
 }
 
+function doesSettlementMatchStatusScope(settlement = {}, statusScope = "all") {
+  if (statusScope === "all") return true;
+  const normalized = normalizeSettlementPayoutStatus(settlement.payout_status);
+  if (Array.isArray(statusScope)) return statusScope.includes(normalized);
+  return normalized === statusScope;
+}
+
 function findPayoutDocumentForSettlement(documents = [], settlement = {}) {
   if (!settlement) return null;
   return (
@@ -14238,22 +14256,34 @@ function buildProcessingTaskItems({
 
 function buildRevenueSummary({ payments = [], settlements = [] } = {}) {
   const activePayments = payments.filter(
-    (payment) => !["refunded", "cancelled"].includes(String(payment.payment_status || "").toLowerCase())
+    (payment) => ["unpaid", "invoice_sent", "paid"].includes(String(payment.payment_status || "").toLowerCase())
   );
+  const billedRequestIds = new Set(activePayments.map((payment) => String(payment.request_id || "")).filter(Boolean));
   const activeSettlements = settlements.filter(
-    (settlement) => normalizeSettlementPayoutStatus(settlement.payout_status) !== "cancelled"
+    (settlement) => ["pending", "confirmed", "paid"].includes(normalizeSettlementPayoutStatus(settlement.payout_status))
   );
   const companyAmount = activePayments.reduce(
     (sum, payment) => sum + normalizeMoneyInput(payment.amount),
     0
   );
-  const interpreterAmount = activeSettlements.reduce(
+  const billedSettlements = activeSettlements.filter((settlement) =>
+    billedRequestIds.has(String(settlement.request_id || ""))
+  );
+  const unbilledSettlements = activeSettlements.filter(
+    (settlement) => !billedRequestIds.has(String(settlement.request_id || ""))
+  );
+  const interpreterAmount = billedSettlements.reduce(
+    (sum, settlement) => sum + normalizeMoneyInput(settlement.amount),
+    0
+  );
+  const unbilledInterpreterAmount = unbilledSettlements.reduce(
     (sum, settlement) => sum + normalizeMoneyInput(settlement.amount),
     0
   );
   return {
     companyAmount,
     interpreterAmount,
+    unbilledInterpreterAmount,
     profit: companyAmount - interpreterAmount,
   };
 }
