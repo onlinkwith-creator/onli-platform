@@ -1833,31 +1833,34 @@ function sanitizeRecipientEmail(email) {
       await refreshAdminOperationsData();
       if (data?.failedCount > 0) {
         const result = data?.results?.[0];
+        const smtp = result?.smtp || {};
         if (result?.error === "smtp_send_failed") {
           alert(
-            `이메일 발송 실패\n\n` +
-            `accepted:\n${JSON.stringify(result.accepted, null, 2)}\n\n` +
-            `rejected:\n${JSON.stringify(result.rejected, null, 2)}\n\n` +
-            `response:\n${result.response}`
+            `이메일 발송 결과\n\n` +
+            `accepted:\n${JSON.stringify(smtp.accepted ?? [])}\n\n` +
+            `rejected:\n${JSON.stringify(smtp.rejected ?? [])}\n\n` +
+            `response:\n${smtp.response ?? "-"}`
           );
         } else {
-          alert(`이메일 발송 실패: ${result?.error || "알 수 없는 오류"}`);
+          alert(`이메일 발송 실패: ${result?.message || result?.error || "알 수 없는 오류"}`);
         }
         return false;
       }
       
       const result = data?.results?.[0];
-      if (!result?.accepted || result.accepted.length === 0) {
+      const smtp = result?.smtp || {};
+      
+      if (!Array.isArray(smtp.accepted) || smtp.accepted.length === 0) {
         alert(
-          `이메일 발송 실패\n\n` +
-          `accepted:\n${JSON.stringify(result?.accepted, null, 2)}\n\n` +
-          `rejected:\n${JSON.stringify(result?.rejected, null, 2)}\n\n` +
-          `response:\n${result?.response}`
+          `이메일 발송 결과\n\n` +
+          `accepted:\n${JSON.stringify(smtp.accepted ?? [])}\n\n` +
+          `rejected:\n${JSON.stringify(smtp.rejected ?? [])}\n\n` +
+          `response:\n${smtp.response ?? "-"}`
         );
         return false;
       }
 
-      alert(`이메일 발송 완료\n수신 처리: ${result.accepted.join(", ")}\nmessageId: ${result.messageId}`);
+      alert(`이메일 발송 완료\n수신 처리: ${smtp.accepted.join(", ")}\nmessageId: ${smtp.messageId}`);
       return true;
     } catch (error) {
       console.error("notification email send failed:", error);

@@ -1525,10 +1525,12 @@ async function processNotifications({
           ok: true,
           recipient: recipientEmail,
           messageId,
-          accepted,
-          rejected,
-          response,
-          smtp: sendResult
+          smtp: {
+            accepted,
+            rejected,
+            response,
+            messageId: messageId || null
+          }
         });
       } else {
         const failureReason = JSON.stringify({
@@ -1554,11 +1556,12 @@ async function processNotifications({
           recipient: recipientEmail,
           error: "smtp_send_failed",
           message: "SMTP 서버가 수신자를 accepted 처리하지 않았습니다.",
-          accepted,
-          rejected,
-          response,
-          messageId,
-          smtp: sendResult
+          smtp: {
+            accepted,
+            rejected,
+            response: response || null,
+            messageId: messageId || null
+          }
         });
       }
     } catch (sendError) {
@@ -1581,7 +1584,14 @@ async function processNotifications({
         id: notification.id,
         ok: false,
         recipient: recipientEmail,
-        error: message,
+        error: "smtp_error",
+        message: message,
+        smtp: {
+          accepted: [],
+          rejected: [],
+          response: null,
+          messageId: null
+        }
       });
     }
   }
