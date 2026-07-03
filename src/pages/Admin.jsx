@@ -1815,7 +1815,10 @@ function sanitizeRecipientEmail(email) {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
       const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+      const baseUrl = SUPABASE_URL.replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "");
+      const functionUrl = `${baseUrl}/functions/v1/send-email`;
+
+      const res = await fetch(functionUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
