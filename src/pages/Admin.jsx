@@ -1835,7 +1835,13 @@ function sanitizeRecipientEmail(email) {
         alert(`이메일 발송 실패: ${data?.results?.[0]?.error || "알 수 없는 오류"}`);
         return false;
       }
-      alert(`이메일 발송 완료: ${event.recipient_email}`);
+      const result = data?.results?.[0];
+      if (!result?.accepted || result.accepted.length === 0) {
+        alert("이메일 발송 실패: SMTP 서버가 수신자를 정상 처리하지 않았습니다.");
+        return false;
+      }
+
+      alert(`이메일 발송 완료\n수신 처리: ${result.accepted.join(", ")}\nmessageId: ${result.messageId}`);
       return true;
     } catch (error) {
       console.error("notification email send failed:", error);
