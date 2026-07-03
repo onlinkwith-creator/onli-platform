@@ -44,6 +44,7 @@ class AdminErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error("Admin render failed:", error, info);
+    console.error("ErrorBoundary caught:", error);
   }
 
   render() {

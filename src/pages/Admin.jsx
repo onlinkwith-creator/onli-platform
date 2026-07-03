@@ -568,6 +568,24 @@ function Admin({ onBackClick }) {
     endDate: "",
   });
 
+const INVALID_RECIPIENT_EMAIL_PLACEHOLDERS = new Set([
+  "관리자 정보 없음",
+  "관리자",
+  "정보 없음",
+  "-",
+  "없음",
+  "이메일 없음",
+  "수신자 없음",
+]);
+
+function sanitizeRecipientEmail(email) {
+  const trimmed = String(email || "").trim();
+  if (!trimmed || !trimmed.includes("@") || INVALID_RECIPIENT_EMAIL_PLACEHOLDERS.has(trimmed)) {
+    return "";
+  }
+  return trimmed;
+}
+
   const fetchAdminData = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
@@ -628,14 +646,12 @@ function Admin({ onBackClick }) {
       const matchingData = getAdminData("matchings", matchingResult);
       const businessData = getAdminData("businesses", businessResult);
 
-      const hasRequiredFetchError =
-        requestResult.error ||
-        jobResult.error ||
-        interpreterResult.error ||
-        assignmentResult.error;
-      if (hasRequiredFetchError) {
-        setErrorMessage("관리자 데이터를 불러오지 못했습니다. Supabase RLS 정책 또는 DB migration 적용 상태를 확인해주세요.");
-      }
+      setRequests(requestData);
+      setJobs(jobData);
+      setInterpreters(interpreterData);
+      setAssignments(assignmentData);
+      setMatchings(matchingData);
+      setBusinesses(businessData);
 
       const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData);
       const jobApplicationData = jobApplicationResult.error
@@ -644,20 +660,14 @@ function Admin({ onBackClick }) {
       if (jobApplicationResult.error) {
         console.error("job_applications fetch failed:", jobApplicationResult.error);
       }
+      setJobApplications(jobApplicationData);
 
       console.log("loaded jobs:", jobData);
       console.log("loaded interpreters:", interpreterData);
       console.log("loaded applications:", jobApplicationData);
-      if (!requestResult.error) setRequests(requestData);
-      if (!jobResult.error) setJobs(jobData);
-      if (!interpreterResult.error) setInterpreters(interpreterData);
-      if (!assignmentResult.error) setAssignments(assignmentData);
-      if (!matchingResult.error) setMatchings(matchingData);
-      if (!jobApplicationResult.error) setJobApplications(jobApplicationData);
-      if (!businessResult.error) setBusinesses(businessData);
     } catch (error) {
       console.error("admin data fetch failed:", error);
-      setErrorMessage("관리자 데이터를 불러오지 못했습니다. Supabase RLS 정책 또는 DB migration 적용 상태를 확인해주세요.");
+      setErrorMessage("관리자 데이터를 불러오는데 실패했습니다. 새로고침 후 다시 시도해 주세요.");
     }
     if (supabase) {
       try {
@@ -1600,109 +1610,127 @@ function Admin({ onBackClick }) {
   const refreshAdminOperationsData = async () => {
     if (!supabase) return;
 
-    const [
-      notesResult,
-      logsResult,
-      notificationsResult,
-      operationalNotificationsResult,
-      paymentsResult,
-      paymentLogsResult,
-      settlementsResult,
-      settlementLogsResult,
-    ] = await Promise.all([
-      supabase
-        .from("admin_notes")
-        .select(ADMIN_NOTES_SELECT)
-        .order("created_at", { ascending: false })
-        .limit(300),
-      supabase
-        .from("admin_activity_logs")
-        .select(ADMIN_ACTIVITY_LOGS_SELECT)
-        .order("created_at", { ascending: false })
-        .limit(300),
-      supabase
-        .from("notification_events")
-        .select(NOTIFICATION_EVENTS_SELECT)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(300),
-      supabase
-        .from("notifications")
-        .select("id, recipient_type, recipient_id, recipient_name, recipient_email, recipient_phone, notification_type, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, deleted_at, created_at")
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(300),
-      supabase
-        .from("payments")
-        .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
-        .order("created_at", { ascending: false })
-        .limit(500),
-      supabase
-        .from("payment_logs")
-        .select("id, payment_id, previous_status, new_status, changed_by, memo, created_at")
-        .order("created_at", { ascending: false })
-        .limit(500),
-      supabase
-        .from("settlements")
-        .select(SETTLEMENTS_SELECT)
-        .order("created_at", { ascending: false })
-        .limit(500),
-      supabase
-        .from("settlement_logs")
-        .select("id, settlement_id, previous_status, new_status, changed_by, memo, created_at")
-        .order("created_at", { ascending: false })
-        .limit(500),
-    ]);
+    try {
+      const results = await Promise.allSettled([
+        supabase
+          .from("admin_notes")
+          .select(ADMIN_NOTES_SELECT)
+          .order("created_at", { ascending: false })
+          .limit(300),
+        supabase
+          .from("admin_activity_logs")
+          .select(ADMIN_ACTIVITY_LOGS_SELECT)
+          .order("created_at", { ascending: false })
+          .limit(300),
+        supabase
+          .from("notification_events")
+          .select(NOTIFICATION_EVENTS_SELECT)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(300),
+        supabase
+          .from("notifications")
+          .select("id, recipient_type, recipient_id, recipient_name, recipient_email, recipient_phone, notification_type, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, deleted_at, created_at")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(300),
+        supabase
+          .from("payments")
+          .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
+          .order("created_at", { ascending: false })
+          .limit(500),
+        supabase
+          .from("payment_logs")
+          .select("id, payment_id, previous_status, new_status, changed_by, memo, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500),
+        supabase
+          .from("settlements")
+          .select(SETTLEMENTS_SELECT)
+          .order("created_at", { ascending: false })
+          .limit(500),
+        supabase
+          .from("settlement_logs")
+          .select("id, settlement_id, previous_status, new_status, changed_by, memo, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500),
+      ]);
 
-    if (notesResult.error) {
-      console.error("admin notes refresh failed:", notesResult.error);
-    } else {
-      setAdminNotes(uniqueById(notesResult.data || []));
-    }
-    if (logsResult.error) {
-      console.error("admin activity logs refresh failed:", logsResult.error);
-    } else {
-      setAdminActivityLogs(logsResult.data || []);
-    }
-    if (notificationsResult.error) {
-      logSupabaseError("notification events refresh", notificationsResult.error);
-    }
-    if (operationalNotificationsResult.error) {
-      logSupabaseError("notifications refresh", operationalNotificationsResult.error);
-    }
-    setNotificationEvents(
-      uniqueById([
-        ...(notificationsResult.error ? [] : notificationsResult.data || []),
-        ...mapNotificationsToEvents(
-          operationalNotificationsResult.error ? [] : operationalNotificationsResult.data || []
-        ),
-      ])
-    );
-    setAdminDataErrors((current) => ({
-      ...current,
-      notifications: notificationsResult.error || operationalNotificationsResult.error || null,
-    }));
-    if (paymentsResult.error) {
-      console.error("payments refresh failed:", paymentsResult.error);
-    } else {
-      setPayments(uniqueById(paymentsResult.data || []));
-    }
-    if (paymentLogsResult.error) {
-      console.error("payment logs refresh failed:", paymentLogsResult.error);
-    } else {
-      setPaymentLogs(uniqueById(paymentLogsResult.data || []));
-    }
-    if (settlementsResult.error) {
-      logSupabaseError("settlements refresh", settlementsResult.error);
-      setAdminDataErrors((current) => ({ ...current, settlements: settlementsResult.error }));
-    } else {
-      setSettlements(uniqueById(settlementsResult.data || []));
-      setAdminDataErrors((current) => ({ ...current, settlements: null }));
-    }
-    if (settlementLogsResult.error) {
-      console.error("settlement logs refresh failed:", settlementLogsResult.error);
-    } else {
-      setSettlementLogs(uniqueById(settlementLogsResult.data || []));
+      const getResultVal = (res, label) => {
+        if (res.status === "fulfilled") {
+          return res.value;
+        }
+        console.error(`${label} query failed or rejected:`, res.reason);
+        return { data: [], error: res.reason };
+      };
+
+      const notesResult = getResultVal(results[0], "admin_notes");
+      const logsResult = getResultVal(results[1], "admin_activity_logs");
+      const notificationsResult = getResultVal(results[2], "notification_events");
+      const operationalNotificationsResult = getResultVal(results[3], "notifications");
+      const paymentsResult = getResultVal(results[4], "payments");
+      const paymentLogsResult = getResultVal(results[5], "payment_logs");
+      const settlementsResult = getResultVal(results[6], "settlements");
+      const settlementLogsResult = getResultVal(results[7], "settlement_logs");
+
+      if (notesResult.error) {
+        console.error("admin notes refresh failed:", notesResult.error);
+        setAdminNotes([]);
+      } else {
+        setAdminNotes(uniqueById(notesResult.data || []));
+      }
+      if (logsResult.error) {
+        console.error("admin activity logs refresh failed:", logsResult.error);
+        setAdminActivityLogs([]);
+      } else {
+        setAdminActivityLogs(logsResult.data || []);
+      }
+      if (notificationsResult.error) {
+        logSupabaseError("notification events refresh", notificationsResult.error);
+      }
+      if (operationalNotificationsResult.error) {
+        logSupabaseError("notifications refresh", operationalNotificationsResult.error);
+      }
+      setNotificationEvents(
+        uniqueById([
+          ...(notificationsResult.error ? [] : notificationsResult.data || []),
+          ...mapNotificationsToEvents(
+            operationalNotificationsResult.error ? [] : operationalNotificationsResult.data || []
+          ),
+        ])
+      );
+      setAdminDataErrors((current) => ({
+        ...current,
+        notifications: notificationsResult.error || operationalNotificationsResult.error || null,
+      }));
+      if (paymentsResult.error) {
+        console.error("payments refresh failed:", paymentsResult.error);
+        setPayments([]);
+      } else {
+        setPayments(uniqueById(paymentsResult.data || []));
+      }
+      if (paymentLogsResult.error) {
+        console.error("payment logs refresh failed:", paymentLogsResult.error);
+        setPaymentLogs([]);
+      } else {
+        setPaymentLogs(uniqueById(paymentLogsResult.data || []));
+      }
+      if (settlementsResult.error) {
+        logSupabaseError("settlements refresh", settlementsResult.error);
+        setSettlements([]);
+        setAdminDataErrors((current) => ({ ...current, settlements: settlementsResult.error }));
+      } else {
+        setSettlements(uniqueById(settlementsResult.data || []));
+        setAdminDataErrors((current) => ({ ...current, settlements: null }));
+      }
+      if (settlementLogsResult.error) {
+        console.error("settlement logs refresh failed:", settlementLogsResult.error);
+        setSettlementLogs([]);
+      } else {
+        setSettlementLogs(uniqueById(settlementLogsResult.data || []));
+      }
+    } catch (err) {
+      console.error("refreshAdminOperationsData fatal error:", err);
     }
   };
 
