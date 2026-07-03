@@ -85,16 +85,60 @@ function withoutOperationFlowColumns(payload) {
 }
 
 async function updateJobWithFallback(jobId, changes) {
-  let result = await supabase.from("jobs").update(changes).eq("id", jobId);
+  let previousJob = null;
+  if (changes.status) {
+    const { data } = await supabase.from("jobs").select("status").eq("id", jobId).single();
+    previousJob = data;
+  }
+
+  let result = await supabase.from("jobs").update(changes).eq("id", jobId).select("*").single();
+
+  const handleNotification = async (updatedJob) => {
+    if (previousJob && changes.status && previousJob.status !== updatedJob.status) {
+      try {
+        await supabase.from("notifications").insert({
+          notification_type: "status_changed",
+          title: "상태 변경 알림",
+          message: `${updatedJob.title || updatedJob.event_name || "의뢰"} 상태가 ${previousJob.status || "-"}에서 ${updatedJob.status}로 변경되었습니다.`,
+          channel: "internal",
+          recipient_type: "admin",
+          status: "pending",
+          related_type: "job",
+          related_id: updatedJob.id,
+          metadata: {
+            job_id: updatedJob.id,
+            request_no: updatedJob.request_no || updatedJob.code || null,
+            previous_status: previousJob.status,
+            next_status: updatedJob.status,
+            changed_at: new Date().toISOString()
+          }
+        });
+      } catch (err) {
+        console.error("Failed to insert status_changed notification", err);
+      }
+    }
+  };
+
+  if (!result.error && result.data) {
+    await handleNotification(result.data);
+  }
 
   if (result.error && isMissingColumnError(result.error)) {
     console.error("Failed to update job status", result.error);
     result = await supabase
       .from("jobs")
       .update(withoutOperationFlowColumns(changes))
-      .eq("id", jobId);
+      .eq("id", jobId)
+      .select("*")
+      .single();
+      
+    if (!result.error && result.data) {
+      await handleNotification(result.data);
+    }
   }
 
+  // To preserve backward compatibility with AdminJobs's usage of updateJobWithFallback
+  // which might expect `error` rather than `data.error`
   return result;
 }
 

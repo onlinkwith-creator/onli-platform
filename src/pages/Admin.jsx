@@ -15249,6 +15249,12 @@ function withoutOperationFlowColumns(payload) {
 }
 
 async function updateJobWithFallback(jobId, changes) {
+  let previousJob = null;
+  if (changes.status) {
+    const { data } = await supabase.from("jobs").select("status").eq("id", jobId).single();
+    previousJob = data;
+  }
+
   const { data, error } = await supabase
     .from("jobs")
     .update(changes)
@@ -15256,7 +15262,36 @@ async function updateJobWithFallback(jobId, changes) {
     .select("*")
     .single();
 
-  if (!error) return { data, error: null };
+  const handleNotification = async (updatedJob) => {
+    if (previousJob && changes.status && previousJob.status !== updatedJob.status) {
+      try {
+        await supabase.from("notifications").insert({
+          notification_type: "status_changed",
+          title: "상태 변경 알림",
+          message: `${updatedJob.title || updatedJob.event_name || "의뢰"} 상태가 ${previousJob.status || "-"}에서 ${updatedJob.status}로 변경되었습니다.`,
+          channel: "internal",
+          recipient_type: "admin",
+          status: "pending",
+          related_type: "job",
+          related_id: updatedJob.id,
+          metadata: {
+            job_id: updatedJob.id,
+            request_no: updatedJob.request_no || updatedJob.code || null,
+            previous_status: previousJob.status,
+            next_status: updatedJob.status,
+            changed_at: new Date().toISOString()
+          }
+        });
+      } catch (err) {
+        console.error("Failed to insert status_changed notification", err);
+      }
+    }
+  };
+
+  if (!error) {
+    await handleNotification(data);
+    return { data, error: null };
+  }
   if (!isMissingColumnError(error)) return { data: null, error };
 
   console.error("Failed to update job status", error);
@@ -15272,7 +15307,12 @@ async function updateJobWithFallback(jobId, changes) {
     .select("*")
     .single();
 
-  if (fallbackError) console.error("Failed to update job status", fallbackError);
+  if (fallbackError) {
+    console.error("Failed to update job status", fallbackError);
+  } else if (fallbackData) {
+    await handleNotification(fallbackData);
+  }
+  
   return { data: fallbackData, error: fallbackError };
 }
 
