@@ -787,7 +787,7 @@ function Admin({ onBackClick }) {
               .limit(300),
             supabase
               .from("notifications")
-              .select("id, recipient_type, recipient_id, recipient_email, recipient_phone, notification_type, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, deleted_at, created_at")
+              .select("id, recipient_type, recipient_id, recipient_email, recipient_phone, notification_type, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, provider_message_id, deleted_at, created_at")
               .is("deleted_at", null)
               .order("created_at", { ascending: false })
               .limit(300),
@@ -1786,7 +1786,7 @@ function Admin({ onBackClick }) {
         .limit(300),
       supabase
         .from("notifications")
-        .select("id, recipient_type, recipient_id, recipient_email, recipient_phone, notification_type, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, deleted_at, created_at")
+        .select("id, recipient_type, recipient_id, recipient_email, recipient_phone, notification_type, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, provider_message_id, deleted_at, created_at")
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(300),
@@ -1955,7 +1955,33 @@ function Admin({ onBackClick }) {
     }
   };
 
+  const markInternalNotificationsSent = async (notificationIds = []) => {
+    const ids = [...new Set(notificationIds.filter(Boolean))];
+    if (!supabase || ids.length === 0) return false;
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        error_message: null,
+      })
+      .in("id", ids)
+      .eq("channel", "internal");
+
+    if (error) {
+      console.error("internal notification status update failed:", error);
+      alert("알림 발송에 실패했습니다.");
+      return false;
+    }
+
+    await refreshAdminOperationsData();
+    return true;
+  };
+
   const retryNotification = async (event) => {
+    if (getNotificationChannel(event) !== "email") return false;
+
     const notificationId = event?.source_id || String(event?.id || "").replace(/^notification-/, "");
     if (!notificationId) return false;
 
@@ -2005,17 +2031,21 @@ function Admin({ onBackClick }) {
       user,
       adminProfile,
     });
+    const channel = String(draft.channel || "email").trim().toLowerCase() || "email";
+    const recipientEmail = normalizeNotificationEmail(resolvedRecipient.email);
+    const isEmailChannel = channel === "email";
+    const nowIso = new Date().toISOString();
     const basePayload = {
       recipient_type: draft.recipientType,
       recipient_id: resolvedRecipient.recipient_id || null,
-      recipient_email: resolvedRecipient.email || null,
+      recipient_email: recipientEmail || null,
       notification_type: draft.notificationType || "manual_admin_notification",
       title: String(draft.title || "").trim(),
       message: String(draft.message || "").trim(),
-      channel: draft.channel || "email",
-      status: resolvedRecipient.email ? "pending" : "failed",
-      sent_at: null,
-      error_message: resolvedRecipient.email ? null : "수신자 이메일이 없습니다.",
+      channel,
+      status: isEmailChannel ? (recipientEmail ? "pending" : "failed") : "sent",
+      sent_at: isEmailChannel ? null : nowIso,
+      error_message: isEmailChannel && !recipientEmail ? "수신자 이메일이 없습니다." : null,
     };
 
     if (!basePayload.title || !basePayload.message) {
@@ -2026,7 +2056,7 @@ function Admin({ onBackClick }) {
     const { data, error } = await supabase
       .from("notifications")
       .insert([basePayload])
-      .select("id, recipient_type, recipient_id, recipient_email, notification_type, title, message, channel, status, sent_at, error_message, deleted_at, created_at")
+      .select("id, recipient_type, recipient_id, recipient_email, notification_type, title, message, channel, status, sent_at, error_message, provider_message_id, deleted_at, created_at")
       .single();
 
     if (error) {
@@ -2037,14 +2067,14 @@ function Admin({ onBackClick }) {
 
     setNotificationEvents((current) => uniqueById([mapNotificationsToEvents([data])[0], ...current]));
 
-    if (!resolvedRecipient.email) {
+    if (isEmailChannel && !recipientEmail) {
       alert("알림 발송에 실패했습니다.");
       await refreshAdminOperationsData();
       return true;
     }
 
-    if (basePayload.channel !== "email") {
-      alert("알림이 발송 대기 상태로 저장되었습니다.");
+    if (!isEmailChannel) {
+      alert("내부 알림이 저장되었습니다.");
       await refreshAdminOperationsData();
       return true;
     }
@@ -2067,14 +2097,25 @@ function Admin({ onBackClick }) {
   };
 
   const processPendingNotificationsAndEvents = async () => {
-    const pendingNotificationIds = notificationEvents
-      .filter((event) => event.source_table === "notifications" && event.status === "pending")
+    const pendingNotificationItems = notificationEvents.filter(
+      (event) => event.source_table === "notifications" && event.status === "pending"
+    );
+    const pendingNotificationIds = pendingNotificationItems
+      .filter((event) => getNotificationChannel(event) === "email")
+      .map((event) => event.source_id)
+      .filter(Boolean);
+    const pendingInternalNotificationIds = pendingNotificationItems
+      .filter((event) => getNotificationChannel(event) === "internal")
       .map((event) => event.source_id)
       .filter(Boolean);
 
     const hasPendingEvents = notificationEvents.some(
       (event) => event.source_table !== "notifications" && event.status === "pending"
     );
+
+    if (pendingInternalNotificationIds.length > 0) {
+      await markInternalNotificationsSent(pendingInternalNotificationIds);
+    }
 
     let notificationResult = null;
     if (pendingNotificationIds.length > 0) {
@@ -4716,8 +4757,10 @@ function Admin({ onBackClick }) {
                 onCreateManualNotification={createManualNotification}
                 onProcessPending={processPendingNotificationsAndEvents}
                 onProcessEvent={(event) =>
-                  event.source_table === "notifications"
-                    ? processNotifications({ notificationIds: [event.source_id] })
+                  event.source_table === "notifications" && getNotificationChannel(event) === "internal"
+                    ? markInternalNotificationsSent([event.source_id])
+                    : event.source_table === "notifications"
+                      ? processNotifications({ notificationIds: [event.source_id] })
                     : processNotificationEvents({ eventIds: [event.id] })
                 }
                 onRetryEvent={(event) =>
@@ -11043,6 +11086,8 @@ function NotificationHistoryManagement({
     events,
     requests,
     interpreters,
+    businesses,
+    adminUsers,
     assignmentRows,
     jobApplications,
   });
@@ -11334,7 +11379,7 @@ function NotificationHistoryManagement({
                       >
                         상세
                       </button>
-                      {event.status === "failed" && (
+                      {event.status === "failed" && getNotificationChannel(event) === "email" && (
                         <button
                           type="button"
                           className="admin-save"
@@ -11409,8 +11454,9 @@ function NotificationEventDetailModal({
           <Info label="알림 종류" value={event.eventLabel} />
           <Info label="대상자" value={event.targetLabel} />
           <Info label="관련 번호" value={event.relatedLabel} />
-          <Info label="수신 이메일" value={event.recipient_email || "-"} />
+          <Info label="수신 이메일" value={event.recipient_email || "정보 없음"} />
           <Info label="상태" value={event.statusLabel} />
+          <Info label="Provider 메시지 ID" value={event.provider_message_id || "정보 없음"} />
           <Info label="생성일" value={formatDateTime(event.created_at)} />
           <Info label="처리일" value={formatDateTime(event.processed_at)} />
           <Info label="발송일" value={formatDateTime(event.sent_at)} />
@@ -11422,7 +11468,7 @@ function NotificationEventDetailModal({
           <button type="button" className="admin-secondary" onClick={onClose}>
             닫기
           </button>
-          {event.status === "failed" && (
+          {event.status === "failed" && getNotificationChannel(event) === "email" && (
             <button
               type="button"
               className="admin-save"
@@ -11432,7 +11478,7 @@ function NotificationEventDetailModal({
               재발송
             </button>
           )}
-          {event.status === "pending" && (
+          {event.status === "pending" && getNotificationChannel(event) === "email" && (
             <button
               type="button"
               className="admin-save"
@@ -13596,11 +13642,15 @@ function buildNotificationDisplayItems({
   events = [],
   requests = [],
   interpreters = [],
+  businesses = [],
+  adminUsers = [],
   assignmentRows = [],
   jobApplications = [],
 }) {
   const safeRequests = compactAdminRows(requests);
   const safeInterpreters = compactAdminRows(interpreters);
+  const safeBusinesses = compactAdminRows(businesses);
+  const safeAdminUsers = compactAdminRows(adminUsers);
   const safeAssignmentRows = compactAdminRows(assignmentRows);
   const safeJobApplications = compactAdminRows(jobApplications);
   const requestsById = new Map(safeRequests.map((request) => [String(request.id), request]));
@@ -13612,6 +13662,23 @@ function buildNotificationDisplayItems({
   const interpretersById = new Map(
     safeInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
   );
+  const interpretersByAuthUserId = new Map(
+    safeInterpreters
+      .filter((interpreter) => interpreter?.auth_user_id)
+      .map((interpreter) => [String(interpreter.auth_user_id), interpreter])
+  );
+  const businessesById = new Map(safeBusinesses.map((business) => [String(business.id), business]));
+  const businessesByAuthUserId = new Map(
+    safeBusinesses
+      .filter((business) => business?.auth_user_id)
+      .map((business) => [String(business.auth_user_id), business])
+  );
+  const adminUsersByAuthUserId = new Map(
+    safeAdminUsers
+      .filter((adminUser) => adminUser?.auth_user_id)
+      .map((adminUser) => [String(adminUser.auth_user_id), adminUser])
+  );
+  const adminUsersById = new Map(safeAdminUsers.map((adminUser) => [String(adminUser.id), adminUser]));
   const applicationsById = new Map(
     safeJobApplications.map((application) => [String(application.id), application])
   );
@@ -13644,12 +13711,35 @@ function buildNotificationDisplayItems({
       (payload.interpreter_id ? interpretersById.get(String(payload.interpreter_id)) : null) ||
       (application?.interpreter_id ? interpretersById.get(String(application.interpreter_id)) : null) ||
       null;
+    const recipientId = String(event.recipient_id || "");
+    const recipientType = String(event.recipient_type || "").trim().toLowerCase();
+    const recipientCompany =
+      ["company", "client"].includes(recipientType)
+        ? businessesById.get(recipientId) ||
+          businessesByAuthUserId.get(recipientId) ||
+          (request?.company_id ? businessesById.get(String(request.company_id)) : null) ||
+          (request?.company_auth_user_id ? businessesByAuthUserId.get(String(request.company_auth_user_id)) : null)
+        : null;
+    const recipientInterpreter =
+      recipientType === "interpreter"
+        ? interpretersById.get(recipientId) ||
+          interpretersByAuthUserId.get(recipientId) ||
+          (payload.interpreter_id ? interpretersById.get(String(payload.interpreter_id)) : null)
+        : null;
+    const recipientAdmin =
+      recipientType === "admin"
+        ? adminUsersByAuthUserId.get(recipientId) || adminUsersById.get(recipientId)
+        : null;
 
     return {
       ...event,
       eventLabel: getNotificationEventTypeLabel(event.event_type),
-      statusLabel: getNotificationStatusLabel(event.status),
-      recipientLabel: getNotificationRecipientLabel(event),
+      statusLabel: getNotificationStatusLabel(event.status, event.channel),
+      recipientLabel: getNotificationRecipientLabel(event, {
+        company: recipientCompany,
+        interpreter: recipientInterpreter,
+        adminUser: recipientAdmin,
+      }),
       targetLabel: getNotificationTargetLabel({
         targetType,
         payload,
@@ -13694,6 +13784,7 @@ function mapNotificationsToEvents(notifications = []) {
     recipient_type: notification.recipient_type,
     recipient_email: notification.recipient_email,
     recipient_phone: notification.recipient_phone,
+    provider_message_id: notification.provider_message_id,
     payload: {
       title: notification.title,
       message: notification.message,
@@ -13880,7 +13971,13 @@ function getNotificationChannelLabel(channel) {
   return labels[String(channel || "email").trim().toLowerCase()] || "이메일";
 }
 
-function getNotificationRecipientLabel(event = {}) {
+function normalizeNotificationEmail(value) {
+  const email = String(value || "").trim();
+  if (!email || email === "-" || !email.includes("@")) return "";
+  return email;
+}
+
+function getNotificationRecipientLabel(event = {}, recipient = {}) {
   const labels = {
     company: "기업",
     client: "기업",
@@ -13889,11 +13986,27 @@ function getNotificationRecipientLabel(event = {}) {
   };
   const type = String(event.recipient_type || "").trim().toLowerCase();
   const typeLabel = labels[type] || "대상";
-  const email = event.recipient_email ? ` / ${event.recipient_email}` : "";
-  return `${typeLabel}${email}`;
+  if (["company", "client"].includes(type)) {
+    return `${typeLabel} ${recipient.company?.company_name || recipient.company?.name || "정보 없음"}`;
+  }
+  if (type === "interpreter") {
+    return `${typeLabel} ${recipient.interpreter?.name || "정보 없음"}`;
+  }
+  if (type === "admin") {
+    const adminName =
+      recipient.adminUser?.name ||
+      recipient.adminUser?.display_name ||
+      recipient.adminUser?.email ||
+      (recipient.adminUser?.role ? `관리자 ${recipient.adminUser.role}` : "");
+    return `${typeLabel} ${adminName || "정보 없음"}`;
+  }
+  return typeLabel;
 }
 
-function getNotificationStatusLabel(status) {
+function getNotificationStatusLabel(status, channel = "email") {
+  if (String(channel || "").trim().toLowerCase() === "internal" && status === "sent") {
+    return "발송 처리됨";
+  }
   const labels = {
     pending: "발송 대기",
     sent: "발송 완료",

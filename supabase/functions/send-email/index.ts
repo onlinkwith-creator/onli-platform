@@ -62,6 +62,13 @@ type MailTransporter = {
   sendMail: (mailOptions: MailOptions) => Promise<unknown>;
 };
 
+type MailProviderResult = {
+  messageId?: string;
+  accepted?: string[];
+  rejected?: string[];
+  response?: string;
+};
+
 type NotificationEvent = {
   id: string;
   event_type: string;
@@ -98,6 +105,44 @@ function jsonResponse(body: unknown, status = 200) {
       "Content-Type": "application/json",
     },
   });
+}
+
+function getMailProviderResult(result: unknown): MailProviderResult {
+  if (!result || typeof result !== "object") return {};
+  const value = result as Record<string, unknown>;
+  return {
+    messageId: typeof value.messageId === "string" ? value.messageId : undefined,
+    accepted: Array.isArray(value.accepted)
+      ? value.accepted.filter((item): item is string => typeof item === "string")
+      : undefined,
+    rejected: Array.isArray(value.rejected)
+      ? value.rejected.filter((item): item is string => typeof item === "string")
+      : undefined,
+    response: typeof value.response === "string" ? value.response : undefined,
+  };
+}
+
+function assertMailProviderAccepted(result: unknown, recipientEmail: string) {
+  const provider = getMailProviderResult(result);
+  const recipient = recipientEmail.trim().toLowerCase();
+  const accepted = (provider.accepted || []).map((item) => item.trim().toLowerCase());
+  const rejected = (provider.rejected || []).map((item) => item.trim().toLowerCase());
+
+  if (rejected.includes(recipient)) {
+    throw new Error(`Email provider rejected recipient: ${recipientEmail}`);
+  }
+
+  if (provider.messageId || accepted.includes(recipient) || accepted.length > 0) {
+    return {
+      ok: true,
+      messageId: provider.messageId || "",
+      accepted: provider.accepted || [],
+      rejected: provider.rejected || [],
+      response: provider.response || "",
+    };
+  }
+
+  throw new Error("Email provider did not return messageId or accepted recipient.");
 }
 
 function getPayloadRequestId(payload: Payload) {
@@ -156,7 +201,15 @@ async function sendMailOnce({
   console.log("[MAIL_SEND_ONCE]", dedupeKey);
 
   const result = await transporter.sendMail(mailOptions);
-  return { sent: true, dedupeKey, result };
+  const provider = assertMailProviderAccepted(result, recipientEmail);
+  console.log("[MAIL_SEND_SUCCESS]", {
+    dedupeKey,
+    recipient,
+    messageId: provider.messageId,
+    accepted: provider.accepted,
+    response: provider.response,
+  });
+  return { sent: true, dedupeKey, result, provider };
 }
 
 function escapeHtml(value: unknown) {
@@ -1308,8 +1361,8 @@ async function processNotifications({
   supabaseUrl: string;
   serviceRoleKey: string;
   anonKey: string;
-  gmailUser: string;
-  gmailAppPassword: string;
+  gmailUser?: string | null;
+  gmailAppPassword?: string | null;
 }) {
   const adminCheck = await assertAdminCaller(request, supabaseUrl, anonKey, serviceRoleKey);
   if (!adminCheck.ok) {
@@ -1323,8 +1376,11 @@ async function processNotifications({
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const transporter = createGmailTransporter(gmailUser, gmailAppPassword);
-  const emailFrom = Deno.env.get("EMAIL_FROM") || `"ON-LI" <${gmailUser.trim()}>`;
+  const hasEmailSecrets = Boolean(gmailUser && gmailAppPassword);
+  const transporter = hasEmailSecrets ? createGmailTransporter(gmailUser!, gmailAppPassword!) : null;
+  const emailFrom = gmailUser
+    ? Deno.env.get("EMAIL_FROM") || `"ON-LI" <${gmailUser.trim()}>`
+    : Deno.env.get("EMAIL_FROM") || "ON-LI";
 
   const { data: notifications, error } = await supabase
     .from("notifications")
@@ -1338,13 +1394,45 @@ async function processNotifications({
   const results = [];
 
   for (const notification of (notifications || []) as NotificationRow[]) {
-    if (String(notification.channel || "email") !== "email") {
-      const errorMessage = `${notification.channel} channel is queued but not implemented yet.`;
+    const channel = String(notification.channel || "email").trim().toLowerCase() || "email";
+    if (channel === "internal") {
+      await supabase
+        .from("notifications")
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          error_message: null,
+        })
+        .eq("id", notification.id);
+      results.push({ id: notification.id, ok: true, channel });
+      continue;
+    }
+
+    if (channel !== "email") {
+      const errorMessage = `${channel} channel is queued but not implemented yet.`;
       await supabase
         .from("notifications")
         .update({ status: "failed", error_message: errorMessage, sent_at: null })
         .eq("id", notification.id);
       results.push({ id: notification.id, ok: false, error: errorMessage });
+      continue;
+    }
+
+    if (!transporter) {
+      const errorMessage = "Missing required email secrets";
+      await supabase
+        .from("notifications")
+        .update({
+          status: "failed",
+          sent_at: null,
+          error_message: errorMessage,
+        })
+        .eq("id", notification.id);
+      results.push({
+        id: notification.id,
+        ok: false,
+        error: errorMessage,
+      });
       continue;
     }
 
@@ -1354,14 +1442,14 @@ async function processNotifications({
         .from("notifications")
         .update({
           status: "failed",
-          error_message: "수신자 이메일이 없습니다.",
+          error_message: "recipient_email is missing",
           sent_at: null,
         })
         .eq("id", notification.id);
       results.push({
         id: notification.id,
         ok: false,
-        error: "수신자 이메일이 없습니다.",
+        error: "recipient_email is missing",
       });
       continue;
     }
@@ -1385,6 +1473,14 @@ async function processNotifications({
         subject,
         html,
       });
+      const provider = assertMailProviderAccepted(sendResult, recipientEmail);
+      console.log("[NOTIFICATION_EMAIL_SENT]", {
+        notificationId: notification.id,
+        recipientEmail,
+        messageId: provider.messageId,
+        accepted: provider.accepted,
+        response: provider.response,
+      });
 
       await supabase
         .from("notifications")
@@ -1392,6 +1488,7 @@ async function processNotifications({
           status: "sent",
           sent_at: new Date().toISOString(),
           error_message: null,
+          provider_message_id: provider.messageId || null,
         })
         .eq("id", notification.id);
 
@@ -1399,16 +1496,24 @@ async function processNotifications({
         id: notification.id,
         ok: true,
         recipient: recipientEmail,
-        result: sendResult,
+        messageId: provider.messageId,
+        accepted: provider.accepted,
+        response: provider.response,
       });
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message : String(sendError);
+      console.error("[NOTIFICATION_EMAIL_FAILED]", {
+        notificationId: notification.id,
+        recipientEmail,
+        error: message,
+      });
       await supabase
         .from("notifications")
         .update({
           status: "failed",
           sent_at: null,
           error_message: message,
+          provider_message_id: null,
         })
         .eq("id", notification.id);
       results.push({
@@ -1481,15 +1586,12 @@ Deno.serve(async (request) => {
       }, 500);
     }
 
-    if (!gmailUser || !gmailAppPassword || !supabaseUrl || !serviceRoleKey) {
-      console.error("SEND EMAIL FUNCTION ERROR", "Missing required email secrets");
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("SEND EMAIL FUNCTION ERROR", "Missing required Supabase secrets");
       return jsonResponse({
         ok: false,
-        source: "gmail",
-        error: "Missing required email secrets",
+        error: "Missing required Supabase secrets",
         missing: {
-          GMAIL_USER: !gmailUser,
-          GMAIL_APP_PASSWORD: !gmailAppPassword,
           SUPABASE_URL: !supabaseUrl,
           SUPABASE_SERVICE_ROLE_KEY: !serviceRoleKey,
         },
@@ -1499,6 +1601,17 @@ Deno.serve(async (request) => {
     if (action === "process_notification_events") {
       if (!anonKey) {
         return jsonResponse({ ok: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
+      }
+      if (!gmailUser || !gmailAppPassword) {
+        return jsonResponse({
+          ok: false,
+          source: "gmail",
+          error: "Missing required email secrets",
+          missing: {
+            GMAIL_USER: !gmailUser,
+            GMAIL_APP_PASSWORD: !gmailAppPassword,
+          },
+        }, 500);
       }
 
       return await processNotificationEvents({
@@ -1540,6 +1653,19 @@ Deno.serve(async (request) => {
 
     if (!(type in subjects)) {
       return jsonResponse({ error: `Unknown email type: ${type}` }, 400);
+    }
+
+    if (!gmailUser || !gmailAppPassword) {
+      console.error("SEND EMAIL FUNCTION ERROR", "Missing required email secrets");
+      return jsonResponse({
+        ok: false,
+        source: "gmail",
+        error: "Missing required email secrets",
+        missing: {
+          GMAIL_USER: !gmailUser,
+          GMAIL_APP_PASSWORD: !gmailAppPassword,
+        },
+      }, 500);
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
