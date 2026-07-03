@@ -10924,23 +10924,6 @@ function NotificationHistoryManagement({
                       >
                         상세
                       </button>
-                      {sanitizeRecipientEmail(event.recipient_email) ? (
-                        <>
-                          <button
-                            type="button"
-                            className="admin-save"
-                            onClick={() => onSendEmail?.(event)}
-                            disabled={processing}
-                          >
-                            {event.status === "sent" || event.sent_at ? "재발송" : "발송하기"}
-                          </button>
-                          {getNotificationChannel(event) === "internal" && (
-                            <span className="admin-text-muted" style={{ marginLeft: "4px" }}>이메일 대상(채널 오류)</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="admin-text-muted">수신 이메일 없음</span>
-                      )}
                       <button
                         type="button"
                         className="admin-icon-button danger"
@@ -11051,6 +11034,7 @@ function NotificationEventDetailModal({
         <dl className="admin-card-summary admin-notification-detail-list">
           <Info label="알림 종류" value={event.eventLabel} />
           <Info label="대상자" value={event.targetLabel} />
+          <Info label="채널" value={getNotificationChannelLabel(event.channel)} />
           <Info label="관련 번호" value={event.relatedLabel} />
           <Info label="수신 이메일" value={event.recipient_email || "-"} />
           <Info label="상태" value={event.statusLabel} />
