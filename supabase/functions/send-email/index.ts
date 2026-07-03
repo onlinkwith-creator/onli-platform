@@ -126,9 +126,14 @@ function assertMailProviderMessageId(result: unknown, recipientEmail: string) {
   const provider = getMailProviderResult(result);
   const recipient = recipientEmail.trim().toLowerCase();
   const rejected = (provider.rejected || []).map((item) => item.trim().toLowerCase());
+  const accepted = (provider.accepted || []).map((item) => item.trim().toLowerCase());
 
-  if (rejected.includes(recipient)) {
+  if (rejected.length > 0 || rejected.includes(recipient)) {
     throw new Error(`Email provider rejected recipient: ${recipientEmail}`);
+  }
+
+  if (accepted.length === 0 || !accepted.includes(recipient)) {
+    throw new Error(`SMTP server did not accept the recipient: ${recipientEmail}`);
   }
 
   if (provider.messageId) {
