@@ -122,27 +122,26 @@ function getMailProviderResult(result: unknown): MailProviderResult {
   };
 }
 
-function assertMailProviderAccepted(result: unknown, recipientEmail: string) {
+function assertMailProviderMessageId(result: unknown, recipientEmail: string) {
   const provider = getMailProviderResult(result);
   const recipient = recipientEmail.trim().toLowerCase();
-  const accepted = (provider.accepted || []).map((item) => item.trim().toLowerCase());
   const rejected = (provider.rejected || []).map((item) => item.trim().toLowerCase());
 
   if (rejected.includes(recipient)) {
     throw new Error(`Email provider rejected recipient: ${recipientEmail}`);
   }
 
-  if (provider.messageId || accepted.includes(recipient) || accepted.length > 0) {
+  if (provider.messageId) {
     return {
       ok: true,
-      messageId: provider.messageId || "",
+      messageId: provider.messageId,
       accepted: provider.accepted || [],
       rejected: provider.rejected || [],
       response: provider.response || "",
     };
   }
 
-  throw new Error("Email provider did not return messageId or accepted recipient.");
+  throw new Error("Email provider did not return messageId.");
 }
 
 function getPayloadRequestId(payload: Payload) {
@@ -201,7 +200,7 @@ async function sendMailOnce({
   console.log("[MAIL_SEND_ONCE]", dedupeKey);
 
   const result = await transporter.sendMail(mailOptions);
-  const provider = assertMailProviderAccepted(result, recipientEmail);
+  const provider = assertMailProviderMessageId(result, recipientEmail);
   console.log("[MAIL_SEND_SUCCESS]", {
     dedupeKey,
     recipient,
@@ -1270,15 +1269,31 @@ async function processNotificationEvents({
     }
 
     const currentEvent = lockedEvent as NotificationEvent;
-    if (String(currentEvent.channel || "email") !== "email") {
+    const currentChannel = String(currentEvent.channel || "email").trim().toLowerCase() || "email";
+    if (currentChannel === "internal") {
+      await updateNotificationStatus(supabase, currentEvent.id, {
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        error_message: null,
+      });
+      results.push({
+        id: currentEvent.id,
+        ok: true,
+        channel: currentChannel,
+        internal: true,
+      });
+      continue;
+    }
+
+    if (currentChannel !== "email") {
       await updateNotificationStatus(supabase, currentEvent.id, {
         status: "failed",
-        error_message: `${currentEvent.channel} channel is queued but not implemented yet.`,
+        error_message: `${currentChannel} channel is queued but not implemented yet.`,
       });
       results.push({
         id: currentEvent.id,
         ok: false,
-        error: `${currentEvent.channel} channel is not implemented.`,
+        error: `${currentChannel} channel is not implemented.`,
       });
       continue;
     }
@@ -1310,6 +1325,7 @@ async function processNotificationEvents({
         subject,
         html,
       });
+      const provider = assertMailProviderMessageId(sendResult, recipientEmail);
 
       await updateNotificationStatus(supabase, currentEvent.id, {
         status: "sent",
@@ -1320,7 +1336,9 @@ async function processNotificationEvents({
         id: currentEvent.id,
         ok: true,
         recipient: recipientEmail,
-        result: sendResult,
+        messageId: provider.messageId,
+        accepted: provider.accepted,
+        response: provider.response,
       });
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message : String(sendError);
@@ -1473,7 +1491,7 @@ async function processNotifications({
         subject,
         html,
       });
-      const provider = assertMailProviderAccepted(sendResult, recipientEmail);
+      const provider = assertMailProviderMessageId(sendResult, recipientEmail);
       console.log("[NOTIFICATION_EMAIL_SENT]", {
         notificationId: notification.id,
         recipientEmail,
@@ -1525,13 +1543,87 @@ async function processNotifications({
     }
   }
 
+  const sentResults = results.filter((result) => result.ok);
+  const failedResults = results.filter((result) => !result.ok);
+
   return jsonResponse({
     ok: true,
+    success: results.length > 0 && failedResults.length === 0,
+    messageId: sentResults.length === 1 ? sentResults[0].messageId || null : null,
     processedCount: results.length,
-    sentCount: results.filter((result) => result.ok).length,
-    failedCount: results.filter((result) => !result.ok).length,
+    sentCount: sentResults.length,
+    failedCount: failedResults.length,
     results,
   });
+}
+
+async function sendTestEmail({
+  request,
+  to,
+  supabaseUrl,
+  serviceRoleKey,
+  anonKey,
+  gmailUser,
+  gmailAppPassword,
+}: {
+  request: Request;
+  to: string;
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  anonKey: string;
+  gmailUser: string;
+  gmailAppPassword: string;
+}) {
+  const adminCheck = await assertAdminCaller(request, supabaseUrl, anonKey, serviceRoleKey);
+  if (!adminCheck.ok) {
+    return jsonResponse({ success: false, error: adminCheck.error }, adminCheck.status);
+  }
+
+  const recipientEmail = String(to || "").trim();
+  if (!recipientEmail || !recipientEmail.includes("@")) {
+    return jsonResponse({ success: false, error: "recipient_email is missing" }, 400);
+  }
+
+  const transporter = createGmailTransporter(gmailUser, gmailAppPassword);
+  const emailFrom = Deno.env.get("EMAIL_FROM") || `"ON-LI" <${gmailUser.trim()}>`;
+
+  try {
+    const sendResult = await transporter.sendMail({
+      from: emailFrom,
+      to: recipientEmail,
+      subject: "[ON-LI] 이메일 발송 테스트",
+      html: layout(
+        "[ON-LI] 이메일 발송 테스트",
+        `
+          <p>ON-LI send-email Edge Function에서 발송한 테스트 메일입니다.</p>
+          ${infoTable([
+            ["수신자", escapeHtml(recipientEmail)],
+            ["발송 시각", escapeHtml(new Date().toISOString())],
+          ])}
+        `
+      ),
+    });
+    const provider = assertMailProviderMessageId(sendResult, recipientEmail);
+    console.log("[TEST_EMAIL_SENT]", {
+      recipientEmail,
+      messageId: provider.messageId,
+      accepted: provider.accepted,
+      response: provider.response,
+    });
+    return jsonResponse({
+      success: true,
+      messageId: provider.messageId,
+      accepted: provider.accepted,
+      response: provider.response,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[TEST_EMAIL_FAILED]", {
+      recipientEmail,
+      error: message,
+    });
+    return jsonResponse({ success: false, error: message }, 500);
+  }
 }
 
 Deno.serve(async (request) => {
@@ -1639,6 +1731,32 @@ Deno.serve(async (request) => {
         notificationIds: Array.isArray(body?.notificationIds)
           ? body.notificationIds.map((id: unknown) => String(id)).filter(Boolean)
           : [],
+        supabaseUrl,
+        serviceRoleKey,
+        anonKey,
+        gmailUser,
+        gmailAppPassword,
+      });
+    }
+
+    if (action === "test_email") {
+      if (!anonKey) {
+        return jsonResponse({ success: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
+      }
+      if (!gmailUser || !gmailAppPassword) {
+        return jsonResponse({
+          success: false,
+          error: "Missing required email secrets",
+          missing: {
+            GMAIL_USER: !gmailUser,
+            GMAIL_APP_PASSWORD: !gmailAppPassword,
+          },
+        }, 500);
+      }
+
+      return await sendTestEmail({
+        request,
+        to: typeof body?.to === "string" ? body.to : "",
         supabaseUrl,
         serviceRoleKey,
         anonKey,
