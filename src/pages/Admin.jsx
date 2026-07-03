@@ -498,6 +498,9 @@ function Admin({ onBackClick }) {
   const [matchings, setMatchings] = useState([]);
   const [jobApplications, setJobApplications] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [paymentLogs, setPaymentLogs] = useState([]);
+  const [settlementLogs, setSettlementLogs] = useState([]);
   const [adminDataErrors, setAdminDataErrors] = useState({
     notifications: null,
     settlements: null,
@@ -869,7 +872,9 @@ function sanitizeRecipientEmail(email) {
   const assignmentsByRequest = useMemo(() => groupBy(assignments, "request_id"), [
     assignments,
   ]);
-  const settlementRows = settlements ?? [];
+  const safePayments = useMemo(() => (Array.isArray(payments) ? payments : []), [payments]);
+  const safeSettlements = useMemo(() => (Array.isArray(settlements) ? settlements : []), [settlements]);
+  const settlementRows = safeSettlements;
   const settlementRequestRows = useMemo(
     () => buildSettlementRequestRows({ settlements: settlementRows }),
     [settlementRows]
@@ -1151,7 +1156,7 @@ function sanitizeRecipientEmail(email) {
           )
         ).length,
         pendingAssignments: pendingAssignmentRequests.length,
-        settlementPending: settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "pending").length,
+        settlementPending: safeSettlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "pending").length,
         unconfirmedBusinesses,
         processingNotifications: failedNotifications + pendingNotifications,
       };
@@ -1269,12 +1274,12 @@ function sanitizeRecipientEmail(email) {
     if (subTabId === "verification_pending") return pendingResumeReviewInterpreters.length;
     if (subTabId === "interpreter_activity") return interpreters.length;
     if (subTabId === "all_businesses") return businesses.length;
-    if (subTabId === "company_payments") return payments.length;
-    if (subTabId === "settlement_pending") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "pending").length;
-    if (subTabId === "settlement_confirmed") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "confirmed").length;
-    if (subTabId === "settlement_completed") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "paid").length;
-    if (subTabId === "settlement_on_hold") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "withheld").length;
-    if (subTabId === "payment_history") return settlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "paid").length;
+    if (subTabId === "company_payments") return safePayments.length;
+    if (subTabId === "settlement_pending") return safeSettlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "pending").length;
+    if (subTabId === "settlement_confirmed") return safeSettlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "confirmed").length;
+    if (subTabId === "settlement_completed") return safeSettlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "paid").length;
+    if (subTabId === "settlement_on_hold") return safeSettlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "withheld").length;
+    if (subTabId === "payment_history") return safeSettlements.filter((item) => normalizeSettlementPayoutStatus(item.payout_status) === "paid").length;
     if (subTabId === "all_documents") return generatedDocuments.length;
     if (subTabId === "estimate_documents") {
       return generatedDocuments.filter((doc) => doc.document_type === "estimate").length;
@@ -4052,7 +4057,7 @@ function sanitizeRecipientEmail(email) {
                 documents={generatedDocuments}
                 filters={paymentFilters}
                 logs={paymentLogs}
-                payments={payments}
+                payments={safePayments}
                 requests={requests}
                 savingKey={savingKey}
                 setFilters={setPaymentFilters}
@@ -4287,7 +4292,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 savingKey={savingKey}
-                settlements={settlements}
+                settlements={safeSettlements}
                 setFilters={setSettlementFilters}
                 statusScope="pending"
                 title="정산 대기"
@@ -4304,7 +4309,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 savingKey={savingKey}
-                settlements={settlements}
+                settlements={safeSettlements}
                 setFilters={setSettlementFilters}
                 statusScope="confirmed"
                 title="지급 확정"
@@ -4321,7 +4326,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 savingKey={savingKey}
-                settlements={settlements}
+                settlements={safeSettlements}
                 setFilters={setSettlementFilters}
                 statusScope="paid"
                 title="지급 완료"
@@ -4338,7 +4343,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 savingKey={savingKey}
-                settlements={settlements}
+                settlements={safeSettlements}
                 setFilters={setSettlementFilters}
                 statusScope="withheld"
                 title="정산 보류"
@@ -4355,7 +4360,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 savingKey={savingKey}
-                settlements={settlements}
+                settlements={safeSettlements}
                 setFilters={setSettlementFilters}
                 statusScope="paid"
                 title="지급 기록"
@@ -6139,7 +6144,7 @@ function InterpreterSettlementManagement({
     [documents, filters, interpreterMap, requestMap, settlements, statusScope]
   );
   const selectedSettlement =
-    settlements.find((settlement) => settlement.id === selectedSettlementId) || null;
+    safeSettlements.find((settlement) => settlement.id === selectedSettlementId) || null;
   const selectedRequest = selectedSettlement
     ? requestMap.get(String(selectedSettlement.request_id)) || null
     : null;
