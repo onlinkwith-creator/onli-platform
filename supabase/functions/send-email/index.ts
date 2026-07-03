@@ -1792,6 +1792,27 @@ Deno.serve(async (request) => {
       });
     }
 
+    if (action === "send_notification") {
+      if (!anonKey) {
+        return jsonResponse({ success: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
+      }
+      
+      const notification_id = String(body?.notification_id || body?.notificationId || "");
+      if (!notification_id) {
+        return jsonResponse({ success: false, error: "Missing notification_id" }, 400);
+      }
+
+      return await sendSingleNotification({
+        request,
+        notification_id,
+        supabaseUrl,
+        serviceRoleKey,
+        anonKey,
+        gmailUser,
+        gmailAppPassword,
+      });
+    }
+
     if (action === "test_email") {
       if (!anonKey) {
         return jsonResponse({ success: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
@@ -1956,3 +1977,154 @@ Deno.serve(async (request) => {
     );
   }
 });
+
+async function sendSingleNotification({
+  request,
+  notification_id,
+  supabaseUrl,
+  serviceRoleKey,
+  anonKey,
+  gmailUser,
+  gmailAppPassword,
+}: {
+  request: Request;
+  notification_id: string;
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  anonKey: string;
+  gmailUser?: string;
+  gmailAppPassword?: string;
+}) {
+  const adminCheck = await assertAdminCaller(request, supabaseUrl, anonKey, serviceRoleKey);
+  if (!adminCheck.ok) {
+    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  
+  if (!gmailUser || !gmailAppPassword) {
+    return jsonResponse({ success: false, error: "Missing required email secrets" }, 500);
+  }
+
+  const { data: notification, error } = await supabase
+    .from("notifications")
+    .select("id,recipient_email,notification_type,title,message,recipient_type")
+    .eq("id", notification_id)
+    .single();
+
+  if (error || !notification) {
+    return jsonResponse({ success: false, error: "Notification not found" }, 404);
+  }
+
+  const to = String(notification.recipient_email || "").trim();
+  if (!to || !to.includes("@")) {
+    return jsonResponse({ success: false, error: "recipient_email is missing or invalid" }, 400);
+  }
+
+  const subject = notification.title || notificationSubject(notification.notification_type);
+  const html = layout(
+    notification.title || "ON-LI 알림",
+    `
+      <p>${escapeHtml(notification.message || "ON-LI 운영 알림이 도착했습니다.")}</p>
+      ${infoTable([
+        ["알림 종류", escapeHtml(notification.notification_type)],
+        ["대상", escapeHtml(notification.recipient_type)],
+      ])}
+    `
+  );
+
+  console.log("SEND EMAIL START", { notification_id, to, subject });
+
+  let transporter;
+  try {
+    transporter = createGmailTransporter(gmailUser, gmailAppPassword);
+  } catch (e) {
+    return jsonResponse({ success: false, error: "SMTP config error" }, 500);
+  }
+
+  try {
+    const result: any = await transporter.sendMail({
+      from: `"ON-LI" <${gmailUser}>`,
+      to,
+      subject,
+      html,
+    });
+
+    console.log("SMTP RESULT", JSON.stringify(result, null, 2));
+
+    const accepted = Array.isArray(result.accepted) ? result.accepted : [];
+    const rejected = Array.isArray(result.rejected) ? result.rejected : [];
+    const response = result.response ?? null;
+    const messageId = result.messageId ?? null;
+
+    if (accepted.length === 0) {
+      await supabase
+        .from("notifications")
+        .update({
+          status: "failed",
+          failure_reason: JSON.stringify({
+            error: "smtp_no_accepted_recipients",
+            accepted,
+            rejected,
+            response,
+            messageId
+          })
+        })
+        .eq("id", notification_id);
+
+      return jsonResponse({
+        success: false,
+        error: "smtp_no_accepted_recipients",
+        message: "SMTP accepted 수신자가 없습니다.",
+        smtp: {
+          accepted,
+          rejected,
+          response,
+          messageId
+        }
+      }, 502);
+    }
+
+    await supabase
+      .from("notifications")
+      .update({
+        status: "sent",
+        email_sent_at: new Date().toISOString(),
+        failure_reason: null,
+        email_message_id: messageId
+      })
+      .eq("id", notification_id);
+
+    return jsonResponse({
+      success: true,
+      message: "이메일 발송 완료",
+      smtp: {
+        accepted,
+        rejected,
+        response,
+        messageId
+      }
+    }, 200);
+  } catch (sendError) {
+    const message = sendError instanceof Error ? sendError.message : String(sendError);
+    await supabase
+      .from("notifications")
+      .update({
+        status: "failed",
+        failure_reason: message
+      })
+      .eq("id", notification_id);
+
+    return jsonResponse({
+      success: false,
+      error: "smtp_error",
+      message,
+      smtp: {
+        accepted: [],
+        rejected: [],
+        response: null,
+        messageId: null
+      }
+    }, 502);
+  }
+}

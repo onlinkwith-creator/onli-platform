@@ -1814,8 +1814,8 @@ function sanitizeRecipientEmail(email) {
     try {
       const { data, error } = await supabase.functions.invoke("send-email", {
         body: {
-          action: "process_notifications",
-          notificationIds: [event.source_id || event.id],
+          action: "send_notification",
+          notification_id: event.source_id || event.id,
         },
       });
 
@@ -1824,35 +1824,14 @@ function sanitizeRecipientEmail(email) {
         alert(`이메일 발송 실패: ${error.message || JSON.stringify(error)}`);
         return false;
       }
-      if (data?.error) {
-        console.error("send-email returned error:", data);
-        alert(`이메일 발송 실패: ${data.error}`);
-        return false;
-      }
 
       await refreshAdminOperationsData();
-      if (data?.failedCount > 0) {
-        const result = data?.results?.[0];
-        const smtp = result?.smtp || {};
-        if (result?.error === "smtp_send_failed") {
-          alert(
-            `이메일 발송 결과\n\n` +
-            `accepted:\n${JSON.stringify(smtp.accepted ?? [])}\n\n` +
-            `rejected:\n${JSON.stringify(smtp.rejected ?? [])}\n\n` +
-            `response:\n${smtp.response ?? "-"}`
-          );
-        } else {
-          alert(`이메일 발송 실패: ${result?.message || result?.error || "알 수 없는 오류"}`);
-        }
-        return false;
-      }
-      
-      const result = data?.results?.[0];
-      const smtp = result?.smtp || {};
-      
-      if (!Array.isArray(smtp.accepted) || smtp.accepted.length === 0) {
+
+      const smtp = data?.smtp ?? {};
+
+      if (!data?.success) {
         alert(
-          `이메일 발송 결과\n\n` +
+          `이메일 발송 실패: ${data?.message || data?.error || "알 수 없는 오류"}\n\n` +
           `accepted:\n${JSON.stringify(smtp.accepted ?? [])}\n\n` +
           `rejected:\n${JSON.stringify(smtp.rejected ?? [])}\n\n` +
           `response:\n${smtp.response ?? "-"}`
@@ -1860,7 +1839,17 @@ function sanitizeRecipientEmail(email) {
         return false;
       }
 
-      alert(`이메일 발송 완료\n수신 처리: ${smtp.accepted.join(", ")}\nmessageId: ${smtp.messageId}`);
+      if (!Array.isArray(smtp.accepted) || smtp.accepted.length === 0) {
+        alert(
+          `이메일 발송 실패: SMTP 서버가 수신자를 정상 처리하지 않았습니다.\n\n` +
+          `accepted:\n${JSON.stringify(smtp.accepted ?? [])}\n\n` +
+          `rejected:\n${JSON.stringify(smtp.rejected ?? [])}\n\n` +
+          `response:\n${smtp.response ?? "-"}`
+        );
+        return false;
+      }
+
+      alert(`이메일 발송 완료\n수신 처리: ${smtp.accepted.join(", ")}\nmessageId: ${smtp.messageId ?? "-"}`);
       return true;
     } catch (error) {
       console.error("notification email send failed:", error);
