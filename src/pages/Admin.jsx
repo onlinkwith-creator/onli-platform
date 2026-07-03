@@ -1812,16 +1812,30 @@ function sanitizeRecipientEmail(email) {
 
     setNotificationProcessing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-email", {
-        body: {
-          action: "send_notification",
-          notification_id: event.source_id || event.id,
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
         },
+        body: JSON.stringify({
+          action: "send_notification",
+          notification_id: event.source_id || event.id
+        })
       });
 
-      if (error) {
-        console.error("send-email invoke failed:", error);
-        alert(`이메일 발송 실패: ${error.message || JSON.stringify(error)}`);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        alert(
+          `이메일 발송 실패\n\n` +
+          `status: ${res.status}\n` +
+          `message: ${data?.message || data?.error || "상세 오류 없음"}\n` +
+          `smtp: ${JSON.stringify(data?.smtp || {}, null, 2)}`
+        );
         return false;
       }
 
