@@ -497,6 +497,11 @@ function Admin({ onBackClick }) {
   const [assignments, setAssignments] = useState([]);
   const [matchings, setMatchings] = useState([]);
   const [jobApplications, setJobApplications] = useState([]);
+  const [settlements, setSettlements] = useState([]);
+  const [adminDataErrors, setAdminDataErrors] = useState({
+    notifications: null,
+    settlements: null,
+  });
   const [adminNotes, setAdminNotes] = useState([]);
   const [adminActivityLogs, setAdminActivityLogs] = useState([]);
   const [notificationEvents, setNotificationEvents] = useState([]);
