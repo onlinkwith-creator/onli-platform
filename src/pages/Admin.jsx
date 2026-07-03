@@ -6144,7 +6144,7 @@ function InterpreterSettlementManagement({
     [documents, filters, interpreterMap, requestMap, settlements, statusScope]
   );
   const selectedSettlement =
-    safeSettlements.find((settlement) => settlement.id === selectedSettlementId) || null;
+    settlements.find((settlement) => settlement.id === selectedSettlementId) || null;
   const selectedRequest = selectedSettlement
     ? requestMap.get(String(selectedSettlement.request_id)) || null
     : null;
