@@ -1826,7 +1826,6 @@ function sanitizeRecipientEmail(email) {
           "apikey": SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
-          action: "send_notification",
           notification_id: event.source_id || event.id
         })
       });

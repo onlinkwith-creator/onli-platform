@@ -1792,12 +1792,13 @@ Deno.serve(async (request) => {
       });
     }
 
-    if (action === "send_notification") {
+    const notification_id = String(body?.notification_id || body?.notificationId || "");
+    
+    if (action === "send_notification" || (!action && notification_id)) {
       if (!anonKey) {
         return jsonResponse({ success: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
       }
       
-      const notification_id = String(body?.notification_id || body?.notificationId || "");
       if (!notification_id) {
         return jsonResponse({ success: false, error: "Missing notification_id" }, 400);
       }
