@@ -1840,132 +1840,26 @@ Deno.serve(async (request) => {
       });
     }
 
-    if (!type) {
+    // Fallback for default or missing action
+    const fallback_notification_id = String(body?.notification_id || body?.notificationId || "");
+    
+    if (!fallback_notification_id) {
       return jsonResponse({
-        error: "missing_type",
-        message: "알림 종류(type)가 지정되지 않았습니다.",
+        success: false,
+        error: "missing_notification_id",
+        message: "notification_id가 없습니다.",
       }, 400);
     }
 
-    if (!(type in subjects)) {
-      return jsonResponse({
-        error: "unknown_email_type",
-        message: `알 수 없는 알림 종류입니다: ${type}`,
-      }, 400);
-    }
-
-    if (!gmailUser || !gmailAppPassword) {
-      console.error("SEND EMAIL FUNCTION ERROR", "Missing required email secrets");
-      return jsonResponse({
-        ok: false,
-        source: "gmail",
-        error: "missing_email_secrets",
-        message: "이메일 발송 서버(SMTP) 설정이 누락되었습니다.",
-        missing: {
-          GMAIL_USER: !gmailUser,
-          GMAIL_APP_PASSWORD: !gmailAppPassword,
-        },
-      }, 500);
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
+    return await sendSingleNotification({
+      request,
+      notification_id: fallback_notification_id,
+      supabaseUrl,
+      serviceRoleKey,
+      anonKey,
+      gmailUser,
+      gmailAppPassword,
     });
-
-    if ((!to || (Array.isArray(to) && to.length === 0)) && type === "designated_request_received_interpreter") {
-      const interpreterId =
-        payload.interpreterId ||
-        payload.interpreter_id ||
-        payload.selected_interpreter_id ||
-        payload.designated_interpreter_id;
-
-      if (interpreterId) {
-        const { data: interpreter, error: interpreterError } = await supabase
-          .from("interpreters")
-          .select("email, name")
-          .eq("id", interpreterId)
-          .single();
-
-        if (interpreterError) {
-          console.error("DESIGNATED_INTERPRETER_EMAIL_LOOKUP_FAILED", interpreterError);
-        } else if (interpreter?.email) {
-          to = String(interpreter.email).trim();
-          if (!payload.interpreterName && interpreter.name) {
-            payload.interpreterName = interpreter.name;
-          }
-        }
-      }
-    }
-
-    if (!to || (Array.isArray(to) && to.length === 0)) {
-      console.warn("EMAIL SKIP", { type, reason: "Recipient email is empty." });
-      return jsonResponse({
-        error: "recipient_email_missing",
-        message: "수신 이메일이 없는 알림입니다.",
-      }, 400);
-    }
-
-    const html = buildHtml(type, payload);
-    const subject = subjects[type];
-
-    const recipients = (Array.isArray(to) ? to : [to])
-      .map((recipient) => recipient.trim())
-      .filter(Boolean);
-    const requestId = getPayloadRequestId(payload);
-    const relatedId = requestId || String(payload.dedupeKey || "");
-    const smtpUser = gmailUser.trim();
-    const smtpPassword = gmailAppPassword.replace(/\s+/g, "");
-    const transporter = createGmailTransporter(smtpUser, smtpPassword);
-
-    console.log("[EDGE_FUNCTION_START]", relatedId);
-
-    console.log("[MAIL_SEND_START]", {
-      type,
-      targetEmail: recipients,
-      relatedId,
-      createdAt: new Date().toISOString(),
-    });
-
-    const results = [];
-
-    for (const recipientEmail of recipients) {
-      const result = await sendMailOnce({
-        supabase,
-        transporter,
-        mailType: type,
-        relatedId,
-        recipientEmail,
-        mailOptions: {
-          from: `"ON-LI" <${smtpUser}>`,
-          to: recipientEmail,
-          subject,
-          html,
-        },
-      });
-
-      results.push({
-        recipient: recipientEmail,
-        ...result,
-      });
-    }
-
-    console.log("GMAIL SMTP RESPONSE", {
-      to: recipients,
-      results,
-    });
-
-    return jsonResponse({
-      ok: true,
-      source: "gmail",
-      results,
-      sentCount: results.filter((result) => "sent" in result && result.sent).length,
-      skippedCount: results.filter((result) =>
-        "skipped" in result && result.skipped
-      ).length,
-    }, 200);
   } catch (error) {
     console.error("FUNCTION ERROR", error);
     console.error("SEND EMAIL FUNCTION ERROR", error);
@@ -2009,12 +1903,12 @@ async function sendSingleNotification({
 
   const { data: notification, error } = await supabase
     .from("notifications")
-    .select("id,recipient_email,notification_type,title,message,recipient_type")
+    .select("*")
     .eq("id", notification_id)
     .single();
 
   if (error || !notification) {
-    return jsonResponse({ success: false, error: "Notification not found" }, 404);
+    return jsonResponse({ success: false, error: "notification_not_found", message: "알림을 찾을 수 없습니다." }, 404);
   }
 
   const to = String(notification.recipient_email || "").trim();
@@ -2022,14 +1916,20 @@ async function sendSingleNotification({
     return jsonResponse({ success: false, error: "recipient_email is missing or invalid" }, 400);
   }
 
-  const subject = notification.title || notificationSubject(notification.notification_type);
+  const type =
+    notification.type ||
+    notification.notification_type ||
+    notification.event_type ||
+    "general";
+
+  const subject = notification.title || notificationSubject(type as EmailType);
   const html = layout(
     notification.title || "ON-LI 알림",
     `
       <p>${escapeHtml(notification.message || "ON-LI 운영 알림이 도착했습니다.")}</p>
       ${infoTable([
-        ["알림 종류", escapeHtml(notification.notification_type)],
-        ["대상", escapeHtml(notification.recipient_type)],
+        ["알림 종류", escapeHtml(type)],
+        ["대상", escapeHtml(notification.recipient_type || "")],
       ])}
     `
   );
