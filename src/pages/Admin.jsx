@@ -168,7 +168,7 @@ const ADMIN_NOTES_SELECT =
 const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const NOTIFICATION_EVENTS_SELECT =
-  "id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at, deleted_at, deleted_by";
+  "id, event_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at, deleted_at, deleted_by";
 const SETTLEMENTS_SELECT =
   "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
@@ -699,7 +699,7 @@ function sanitizeRecipientEmail(email) {
               .limit(300),
             supabase
               .from("notifications")
-              .select("id, recipient_type, recipient_id, recipient_name, recipient_email, recipient_phone, notification_type, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, deleted_at, created_at")
+              .select("id, recipient_type, recipient_id, recipient_email, recipient_phone, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, deleted_at, created_at")
               .is("deleted_at", null)
               .order("created_at", { ascending: false })
               .limit(300),
@@ -1641,7 +1641,7 @@ function sanitizeRecipientEmail(email) {
           .limit(300),
         supabase
           .from("notifications")
-          .select("id, recipient_type, recipient_id, recipient_name, recipient_email, recipient_phone, notification_type, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, deleted_at, created_at")
+          .select("id, recipient_type, recipient_id, recipient_email, recipient_phone, title, message, related_request_id, related_document_id, channel, status, sent_at, error_message, deleted_at, created_at")
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(300),
@@ -13315,8 +13315,7 @@ function mapNotificationsToEvents(notifications = []) {
   return notifications.map((notification) => ({
     id: `notification-${notification.id}`,
     source_id: notification.id,
-    event_type: notification.notification_type,
-    notification_type: notification.notification_type,
+    event_type: "notification",
     title: notification.title,
     message: notification.message,
     channel: notification.channel,
@@ -13325,7 +13324,6 @@ function mapNotificationsToEvents(notifications = []) {
       ? String(notification.related_request_id)
       : String(notification.related_document_id || notification.id),
     recipient_type: notification.recipient_type,
-    recipient_name: notification.recipient_name,
     recipient_email: notification.recipient_email,
     recipient_phone: notification.recipient_phone,
     payload: {
