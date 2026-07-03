@@ -1235,7 +1235,7 @@ async function processNotificationEvents({
 
   const { data: events, error } = await query;
   if (error) {
-    return jsonResponse({ ok: false, error: error.message }, 500);
+    return jsonResponse({ ok: false, error: "database_error", message: error.message }, 500);
   }
 
   const results = [];
@@ -1766,11 +1766,17 @@ Deno.serve(async (request) => {
     }
 
     if (!type) {
-      return jsonResponse({ error: "Missing type" }, 400);
+      return jsonResponse({
+        error: "missing_type",
+        message: "알림 종류(type)가 지정되지 않았습니다.",
+      }, 400);
     }
 
     if (!(type in subjects)) {
-      return jsonResponse({ error: `Unknown email type: ${type}` }, 400);
+      return jsonResponse({
+        error: "unknown_email_type",
+        message: `알 수 없는 알림 종류입니다: ${type}`,
+      }, 400);
     }
 
     if (!gmailUser || !gmailAppPassword) {
@@ -1778,7 +1784,8 @@ Deno.serve(async (request) => {
       return jsonResponse({
         ok: false,
         source: "gmail",
-        error: "Missing required email secrets",
+        error: "missing_email_secrets",
+        message: "이메일 발송 서버(SMTP) 설정이 누락되었습니다.",
         missing: {
           GMAIL_USER: !gmailUser,
           GMAIL_APP_PASSWORD: !gmailAppPassword,
@@ -1820,7 +1827,10 @@ Deno.serve(async (request) => {
 
     if (!to || (Array.isArray(to) && to.length === 0)) {
       console.warn("EMAIL SKIP", { type, reason: "Recipient email is empty." });
-      return jsonResponse({ error: "Missing to" }, 400);
+      return jsonResponse({
+        error: "recipient_email_missing",
+        message: "수신 이메일이 없는 알림입니다.",
+      }, 400);
     }
 
     const html = buildHtml(type, payload);
