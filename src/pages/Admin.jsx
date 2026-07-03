@@ -15250,8 +15250,15 @@ function withoutOperationFlowColumns(payload) {
 
 async function updateJobWithFallback(jobId, changes) {
   let previousJob = null;
-  if (changes.status) {
-    const { data } = await supabase.from("jobs").select("status").eq("id", jobId).single();
+  const statusFields = ["status", "assignment_status", "operation_status", "settlement_status"];
+  const hasStatusChange = statusFields.some(field => field in changes);
+
+  if (hasStatusChange) {
+    const { data } = await supabase
+      .from("jobs")
+      .select("status, assignment_status, operation_status, settlement_status")
+      .eq("id", jobId)
+      .single();
     previousJob = data;
   }
 
@@ -15263,27 +15270,35 @@ async function updateJobWithFallback(jobId, changes) {
     .single();
 
   const handleNotification = async (updatedJob) => {
-    if (previousJob && changes.status && previousJob.status !== updatedJob.status) {
-      try {
-        await supabase.from("notifications").insert({
-          notification_type: "status_changed",
-          title: "상태 변경 알림",
-          message: `${updatedJob.title || updatedJob.event_name || "의뢰"} 상태가 ${previousJob.status || "-"}에서 ${updatedJob.status}로 변경되었습니다.`,
-          channel: "internal",
-          recipient_type: "admin",
-          status: "pending",
-          related_type: "job",
-          related_id: updatedJob.id,
-          metadata: {
-            job_id: updatedJob.id,
-            request_no: updatedJob.request_no || updatedJob.code || null,
-            previous_status: previousJob.status,
-            next_status: updatedJob.status,
-            changed_at: new Date().toISOString()
-          }
-        });
-      } catch (err) {
-        console.error("Failed to insert status_changed notification", err);
+    if (!previousJob) return;
+
+    for (const field of statusFields) {
+      if (field in changes && previousJob[field] !== updatedJob[field]) {
+        try {
+          const previousStatus = previousJob[field];
+          const nextStatus = updatedJob[field];
+          
+          await supabase.from("notifications").insert({
+            notification_type: "status_changed",
+            title: "상태 변경 알림",
+            message: `${updatedJob.title || updatedJob.event_name || "의뢰"} 상태가 ${previousStatus || "-"}에서 ${nextStatus}로 변경되었습니다.`,
+            channel: "internal",
+            recipient_type: "admin",
+            status: "pending",
+            related_type: "job",
+            related_id: updatedJob.id,
+            metadata: {
+              job_id: updatedJob.id,
+              request_no: updatedJob.request_no || updatedJob.code || null,
+              previous_status: previousStatus,
+              next_status: nextStatus,
+              changed_field: field,
+              changed_at: new Date().toISOString()
+            }
+          });
+        } catch (err) {
+          console.error("Failed to insert status_changed notification", err);
+        }
       }
     }
   };
