@@ -3002,15 +3002,7 @@ function sanitizeRecipientEmail(email) {
               channel: "internal",
               recipient_type: "admin",
               status: "pending",
-              related_request_id: updatedRequest.id,
-              metadata: {
-                request_id: updatedRequest.id,
-                request_no: updatedRequest.request_no || updatedRequest.code || null,
-                previous_status: previousStatus,
-                next_status: nextStatus,
-                changed_field: field,
-                changed_at: new Date().toISOString()
-              }
+              related_request_id: updatedRequest.id
             });
           } catch (err) {
             console.error("operational status notification insert failed:", err);
@@ -15343,15 +15335,7 @@ async function updateJobWithFallback(jobId, changes) {
             message: `${updatedJob.title || updatedJob.event_name || "의뢰"} 상태가 ${previousStatus || "-"}에서 ${nextStatus}로 변경되었습니다.`,
             channel: "internal",
             recipient_type: "admin",
-            status: "pending",
-            metadata: {
-              job_id: updatedJob.id,
-              request_no: updatedJob.request_no || updatedJob.code || null,
-              previous_status: previousStatus,
-              next_status: nextStatus,
-              changed_field: field,
-              changed_at: new Date().toISOString()
-            }
+            status: "pending"
           });
         } catch (err) {
           console.error("Failed to insert status_changed notification", err);
