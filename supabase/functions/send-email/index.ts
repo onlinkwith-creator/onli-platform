@@ -1743,107 +1743,8 @@ Deno.serve(async (request) => {
       }, 500);
     }
 
-    if (action === "process_notification_events") {
-      if (!anonKey) {
-        return jsonResponse({ ok: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
-      }
-      if (!gmailUser || !gmailAppPassword) {
-        return jsonResponse({
-          ok: false,
-          source: "gmail",
-          error: "Missing required email secrets",
-          missing: {
-            GMAIL_USER: !gmailUser,
-            GMAIL_APP_PASSWORD: !gmailAppPassword,
-          },
-        }, 500);
-      }
-
-      return await processNotificationEvents({
-        request,
-        limit: Number(body?.limit || 10),
-        eventIds: Array.isArray(body?.eventIds)
-          ? body.eventIds.map((id: unknown) => String(id)).filter(Boolean)
-          : [],
-        retryFailed: Boolean(body?.retryFailed),
-        supabaseUrl,
-        serviceRoleKey,
-        anonKey,
-        gmailUser,
-        gmailAppPassword,
-      });
-    }
-
-    if (action === "process_notifications") {
-      if (!anonKey) {
-        return jsonResponse({ ok: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
-      }
-
-      return await processNotifications({
-        request,
-        notificationIds: Array.isArray(body?.notificationIds)
-          ? body.notificationIds.map((id: unknown) => String(id)).filter(Boolean)
-          : [],
-        supabaseUrl,
-        serviceRoleKey,
-        anonKey,
-        gmailUser,
-        gmailAppPassword,
-      });
-    }
-
     const notification_id = String(body?.notification_id || body?.notificationId || "");
-    
-    if (action === "send_notification" || (!action && notification_id)) {
-      if (!anonKey) {
-        return jsonResponse({ success: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
-      }
-      
-      if (!notification_id) {
-        return jsonResponse({ success: false, error: "Missing notification_id" }, 400);
-      }
-
-      return await sendSingleNotification({
-        request,
-        notification_id,
-        supabaseUrl,
-        serviceRoleKey,
-        anonKey,
-        gmailUser,
-        gmailAppPassword,
-      });
-    }
-
-    if (action === "test_email") {
-      if (!anonKey) {
-        return jsonResponse({ success: false, error: "Missing SUPABASE_ANON_KEY" }, 500);
-      }
-      if (!gmailUser || !gmailAppPassword) {
-        return jsonResponse({
-          success: false,
-          error: "Missing required email secrets",
-          missing: {
-            GMAIL_USER: !gmailUser,
-            GMAIL_APP_PASSWORD: !gmailAppPassword,
-          },
-        }, 500);
-      }
-
-      return await sendTestEmail({
-        request,
-        to: typeof body?.to === "string" ? body.to : "",
-        supabaseUrl,
-        serviceRoleKey,
-        anonKey,
-        gmailUser,
-        gmailAppPassword,
-      });
-    }
-
-    // Fallback for default or missing action
-    const fallback_notification_id = String(body?.notification_id || body?.notificationId || "");
-    
-    if (!fallback_notification_id) {
+    if (!notification_id) {
       return jsonResponse({
         success: false,
         error: "missing_notification_id",
@@ -1853,7 +1754,7 @@ Deno.serve(async (request) => {
 
     return await sendSingleNotification({
       request,
-      notification_id: fallback_notification_id,
+      notification_id,
       supabaseUrl,
       serviceRoleKey,
       anonKey,
@@ -1907,6 +1808,15 @@ async function sendSingleNotification({
   }
 
   const to = String(notification.recipient_email || "").trim();
+  const channel = String(notification.channel || "").trim().toLowerCase();
+  if (channel !== "email") {
+    return jsonResponse({
+      success: false,
+      error: "not_email_notification",
+      message: "email 채널 알림만 메일 발송할 수 있습니다.",
+    }, 400);
+  }
+
   if (!to || !to.includes("@")) {
     return jsonResponse({ success: false, error: "recipient_email is missing or invalid" }, 400);
   }
@@ -2034,7 +1944,8 @@ async function sendSingleNotification({
         .from("notifications")
         .update({
           status: "failed",
-          failure_reason: JSON.stringify({
+          sent_at: null,
+          error_message: JSON.stringify({
             error: "smtp_no_accepted_recipients",
             accepted,
             rejected,
@@ -2067,9 +1978,8 @@ async function sendSingleNotification({
       .from("notifications")
       .update({
         status: "sent",
-        email_sent_at: new Date().toISOString(),
-        failure_reason: null,
-        email_message_id: messageId
+        sent_at: new Date().toISOString(),
+        error_message: null
       })
       .eq("id", notification_id);
 
@@ -2095,7 +2005,8 @@ async function sendSingleNotification({
       .from("notifications")
       .update({
         status: "failed",
-        failure_reason: message
+        sent_at: null,
+        error_message: message
       })
       .eq("id", notification_id);
 

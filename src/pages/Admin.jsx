@@ -15,7 +15,6 @@ import {
   Search,
   ShieldAlert,
   Star,
-  Trash2,
   WalletCards,
   User,
   X,
@@ -677,7 +676,7 @@ function sanitizeRecipientEmail(email) {
     }
     if (supabase) {
       try {
-        const [notesResult, logsResult, notificationsResult, operationalNotificationsResult, documentsResult] = (
+        const [notesResult, logsResult, notificationsResult, documentsResult] = (
           await Promise.allSettled([
             supabase
               .from("admin_notes")
@@ -687,11 +686,6 @@ function sanitizeRecipientEmail(email) {
             supabase
               .from("admin_activity_logs")
               .select(ADMIN_ACTIVITY_LOGS_SELECT)
-              .order("created_at", { ascending: false })
-              .limit(300),
-            supabase
-              .from("notification_events")
-              .select("*")
               .order("created_at", { ascending: false })
               .limit(300),
             supabase
@@ -726,26 +720,20 @@ function sanitizeRecipientEmail(email) {
         }
 
         if (notificationsResult.error) {
-          console.error("notification_events fetch failed:", notificationsResult.error);
-        }
-        if (operationalNotificationsResult.error) {
-          console.error("notifications fetch failed:", operationalNotificationsResult.error);
+          console.error("notifications fetch failed:", notificationsResult.error);
         }
         setNotificationEvents(
-          uniqueById([
-            ...(notificationsResult.error
-              ? []
-              : compactAdminRows(notificationsResult.data || []).filter((event) => !event.deleted_at)),
-            ...mapNotificationsToEvents(
-              operationalNotificationsResult.error
+          uniqueById(
+            mapNotificationsToEvents(
+              notificationsResult.error
                 ? []
-                : compactAdminRows(operationalNotificationsResult.data || []).filter((event) => !event.deleted_at)
-            ),
-          ])
+                : compactAdminRows(notificationsResult.data || []).filter((event) => !event.deleted_at)
+            )
+          )
         );
         setAdminDataErrors((current) => ({
           ...current,
-          notifications: operationalNotificationsResult.error || null,
+          notifications: notificationsResult.error || null,
         }));
 
         if (documentsResult.error) {
@@ -1586,17 +1574,19 @@ function sanitizeRecipientEmail(email) {
       actor_user_id: user?.id || null,
     };
     const notificationPayload = {
-      event_type: "memo_created",
-      target_type: targetType,
-      target_id: String(targetId),
+      notification_type: "memo_created",
+      title: "내부 메모 알림",
+      message: note,
+      channel: "internal",
       recipient_type: "admin",
-      payload: { note },
+      recipient_email: null,
       status: "pending",
+      related_request_id: targetType === "request" ? targetId : null,
     };
 
     const [activityResult, notificationResult] = await Promise.all([
       supabase.from("admin_activity_logs").insert([activityPayload]).select("*").single(),
-      supabase.from("notification_events").insert([notificationPayload]).select("*").single(),
+      supabase.from("notifications").insert([notificationPayload]).select("*").single(),
     ]);
 
     if (activityResult.error) {
@@ -1606,9 +1596,11 @@ function sanitizeRecipientEmail(email) {
     }
 
     if (notificationResult.error) {
-      console.warn("admin note notification event skipped:", notificationResult.error);
+      console.warn("admin note notification skipped:", notificationResult.error);
     } else if (notificationResult.data) {
-      setNotificationEvents((current) => uniqueById([notificationResult.data, ...current]));
+      setNotificationEvents((current) =>
+        uniqueById([...mapNotificationsToEvents([notificationResult.data]), ...current])
+      );
     }
 
     setAdminNotes((current) => (data ? uniqueById([data, ...current]) : current));
@@ -1630,11 +1622,6 @@ function sanitizeRecipientEmail(email) {
         supabase
           .from("admin_activity_logs")
           .select(ADMIN_ACTIVITY_LOGS_SELECT)
-          .order("created_at", { ascending: false })
-          .limit(300),
-        supabase
-          .from("notification_events")
-          .select("*")
           .order("created_at", { ascending: false })
           .limit(300),
         supabase
@@ -1674,12 +1661,11 @@ function sanitizeRecipientEmail(email) {
 
       const notesResult = getResultVal(results[0], "admin_notes");
       const logsResult = getResultVal(results[1], "admin_activity_logs");
-      const notificationsResult = getResultVal(results[2], "notification_events");
-      const operationalNotificationsResult = getResultVal(results[3], "notifications");
-      const paymentsResult = getResultVal(results[4], "payments");
-      const paymentLogsResult = getResultVal(results[5], "payment_logs");
-      const settlementsResult = getResultVal(results[6], "settlements");
-      const settlementLogsResult = getResultVal(results[7], "settlement_logs");
+      const notificationsResult = getResultVal(results[2], "notifications");
+      const paymentsResult = getResultVal(results[3], "payments");
+      const paymentLogsResult = getResultVal(results[4], "payment_logs");
+      const settlementsResult = getResultVal(results[5], "settlements");
+      const settlementLogsResult = getResultVal(results[6], "settlement_logs");
 
       if (notesResult.error) {
         console.error("admin notes refresh failed:", notesResult.error);
@@ -1694,26 +1680,20 @@ function sanitizeRecipientEmail(email) {
         setAdminActivityLogs(logsResult.data || []);
       }
       if (notificationsResult.error) {
-        console.error("notification_events refresh failed:", notificationsResult.error);
-      }
-      if (operationalNotificationsResult.error) {
-        console.error("notifications refresh failed:", operationalNotificationsResult.error);
+        console.error("notifications refresh failed:", notificationsResult.error);
       }
       setNotificationEvents(
-        uniqueById([
-          ...(notificationsResult.error
-            ? []
-            : compactAdminRows(notificationsResult.data || []).filter((event) => !event.deleted_at)),
-          ...mapNotificationsToEvents(
-            operationalNotificationsResult.error
+        uniqueById(
+          mapNotificationsToEvents(
+            notificationsResult.error
               ? []
-              : compactAdminRows(operationalNotificationsResult.data || []).filter((event) => !event.deleted_at)
-          ),
-        ])
+              : compactAdminRows(notificationsResult.data || []).filter((event) => !event.deleted_at)
+          )
+        )
       );
       setAdminDataErrors((current) => ({
         ...current,
-        notifications: operationalNotificationsResult.error || null,
+        notifications: notificationsResult.error || null,
       }));
       if (paymentsResult.error) {
         console.error("payments refresh failed:", paymentsResult.error);
@@ -1746,61 +1726,6 @@ function sanitizeRecipientEmail(email) {
     }
   };
 
-  const processNotificationEvents = async ({ eventIds = [], retryFailed = false } = {}) => {
-    if (!supabase) {
-      alert(supabaseConfigError.message);
-      return false;
-    }
-
-    setNotificationProcessing(true);
-    try {
-      if (retryFailed && eventIds.length > 0) {
-        const { error: resetError } = await supabase
-          .from("notification_events")
-          .update({
-            status: "pending",
-            error_message: null,
-            processed_at: null,
-          })
-          .in("id", eventIds);
-
-        if (resetError) throw resetError;
-      }
-
-      const { data, error } = await supabase.functions.invoke("send-email", {
-        body: {
-          action: "process_notification_events",
-          eventIds,
-          retryFailed,
-          limit: eventIds.length > 0 ? eventIds.length : 20,
-        },
-      });
-
-      if (error) {
-        console.error("send-email invoke failed:", error);
-        alert(`알림 처리 실패: ${error.message || JSON.stringify(error)}`);
-        return false;
-      }
-      if (data?.error) {
-        console.error("send-email returned error:", data);
-        alert(`알림 처리 실패: ${data.error}`);
-        return false;
-      }
-
-      await refreshAdminOperationsData();
-      alert(
-        `알림 처리 완료: 발송 ${data?.sentCount || 0}건, 실패 ${data?.failedCount || 0}건, 건너뜀 ${data?.skippedCount || 0}건`
-      );
-      return true;
-    } catch (error) {
-      console.error("notification processing failed:", error);
-      alert(`알림 처리 실패: ${error.message || "알 수 없는 오류"}`);
-      return false;
-    } finally {
-      setNotificationProcessing(false);
-    }
-  };
-
   const sendNotificationEmail = async (event) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
@@ -1808,6 +1733,10 @@ function sanitizeRecipientEmail(email) {
     }
     if (!event?.recipient_email) {
       alert("수신 이메일이 없어 발송할 수 없습니다.");
+      return false;
+    }
+    if (getNotificationChannel(event) !== "email") {
+      alert("이메일 채널 알림만 발송할 수 있습니다.");
       return false;
     }
 
@@ -1834,6 +1763,11 @@ function sanitizeRecipientEmail(email) {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
+        console.error("send-email non-2xx:", {
+          status: res.status,
+          body: data,
+          notification_id: event.source_id || event.id,
+        });
         alert(
           `이메일 발송 실패\n\n` +
           `status: ${res.status}\n` +
@@ -1875,51 +1809,6 @@ function sanitizeRecipientEmail(email) {
       return false;
     } finally {
       setNotificationProcessing(false);
-    }
-  };
-
-  const deleteNotificationEvents = async (eventIds = []) => {
-    const ids = [...new Set(eventIds.filter(Boolean))];
-    if (!supabase || ids.length === 0) return false;
-    const notificationIds = ids
-      .filter((id) => String(id).startsWith("notification-"))
-      .map((id) => String(id).replace(/^notification-/, ""));
-    const eventLogIds = ids.filter((id) => !String(id).startsWith("notification-"));
-
-    setSavingKey("notification-delete");
-    try {
-      const deletedAt = new Date().toISOString();
-      if (eventLogIds.length > 0) {
-        const { error } = await supabase
-          .from("notification_events")
-          .update({
-            deleted_at: deletedAt,
-            deleted_by: user?.id || null,
-          })
-          .in("id", eventLogIds);
-
-        if (error) throw error;
-      }
-
-      if (notificationIds.length > 0) {
-        const { error } = await supabase
-          .from("notifications")
-          .update({ deleted_at: deletedAt })
-          .in("id", notificationIds);
-
-        if (error) throw error;
-      }
-
-      setNotificationEvents((current) =>
-        current.filter((event) => !ids.includes(event.id))
-      );
-      return true;
-    } catch (error) {
-      console.error("notification delete failed:", error);
-      alert(`알림 삭제 실패: ${error.message || "알 수 없는 오류"}`);
-      return false;
-    } finally {
-      setSavingKey("");
     }
   };
 
@@ -4684,16 +4573,7 @@ function sanitizeRecipientEmail(email) {
                 filters={notificationFilters}
                 onFiltersChange={setNotificationFilters}
                 processing={notificationProcessing}
-                onProcessPending={() => processNotificationEvents()}
-                onProcessEvent={(event) =>
-                  processNotificationEvents({ eventIds: [event.id] })
-                }
-                onRetryEvent={(event) =>
-                  processNotificationEvents({ eventIds: [event.id], retryFailed: true })
-                }
                 onSendEmail={sendNotificationEmail}
-                onDeleteEvents={deleteNotificationEvents}
-                deleting={savingKey === "notification-delete"}
                 loadError={adminDataErrors.notifications}
               />
             )}
@@ -10976,16 +10856,10 @@ function NotificationHistoryManagement({
   },
   onFiltersChange,
   processing = false,
-  onProcessPending,
-  onProcessEvent,
-  onRetryEvent,
   onSendEmail,
-  onDeleteEvents,
-  deleting = false,
   loadError = null,
 }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [selectedEventIds, setSelectedEventIds] = useState([]);
   const notificationItems = buildNotificationDisplayItems({
     events,
     requests,
@@ -11020,42 +10894,12 @@ function NotificationHistoryManagement({
     }
     return true;
   });
-  const pendingCount = notificationItems.filter(
-    (event) => event.source_table !== "notifications" && event.status === "pending"
-  ).length;
   const failedCount = notificationItems.filter((event) => event.status === "failed").length;
-  const visibleEventIds = visibleEvents.map((event) => event.id);
-  const allVisibleSelected =
-    visibleEventIds.length > 0 && visibleEventIds.every((id) => selectedEventIds.includes(id));
   const updateFilter = (key, value) => {
     onFiltersChange?.({
       ...filters,
       [key]: value,
     });
-  };
-  const toggleSelectedEvent = (eventId) => {
-    setSelectedEventIds((current) =>
-      current.includes(eventId)
-        ? current.filter((id) => id !== eventId)
-        : [...current, eventId]
-    );
-  };
-  const toggleAllVisibleEvents = () => {
-    setSelectedEventIds((current) => {
-      if (allVisibleSelected) {
-        return current.filter((id) => !visibleEventIds.includes(id));
-      }
-      return [...new Set([...current, ...visibleEventIds])];
-    });
-  };
-  const confirmDeleteEvents = async (ids) => {
-    if (ids.length === 0) return;
-    if (!window.confirm("삭제하시겠습니까?")) return;
-    const deleted = await onDeleteEvents?.(ids);
-    if (deleted) {
-      setSelectedEventIds((current) => current.filter((id) => !ids.includes(id)));
-      setSelectedEvent((event) => (event && ids.includes(event.id) ? null : event));
-    }
   };
 
   return (
@@ -11111,22 +10955,6 @@ function NotificationHistoryManagement({
             aria-label="종료일"
           />
         </div>
-        <button
-          type="button"
-          className="admin-save"
-          disabled={processing || pendingCount === 0}
-          onClick={onProcessPending}
-        >
-          {processing ? "처리 중..." : `대기 알림 처리 (${pendingCount})`}
-        </button>
-        <button
-          type="button"
-          className="admin-link-button danger"
-          disabled={deleting || selectedEventIds.length === 0}
-          onClick={() => confirmDeleteEvents(selectedEventIds)}
-        >
-          선택 삭제 ({selectedEventIds.length})
-        </button>
       </div>
       {visibleEvents.length === 0 ? (
         <>
@@ -11148,14 +10976,6 @@ function NotificationHistoryManagement({
           <table className="admin-table admin-notification-log-table">
             <thead>
               <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleAllVisibleEvents}
-                    aria-label="알림 전체 선택"
-                  />
-                </th>
                 <th>생성일</th>
                 <th>대상</th>
                 <th>알림 종류</th>
@@ -11170,14 +10990,6 @@ function NotificationHistoryManagement({
             <tbody>
               {visibleEvents.map((event) => (
                 <tr key={event.id}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selectedEventIds.includes(event.id)}
-                      onChange={() => toggleSelectedEvent(event.id)}
-                      aria-label={`${event.eventLabel} 선택`}
-                    />
-                  </td>
                   <td>{formatDateTime(event.created_at)}</td>
                   <td>{event.recipientLabel}</td>
                   <td>{event.eventLabel}</td>
@@ -11198,16 +11010,6 @@ function NotificationHistoryManagement({
                         onClick={() => setSelectedEvent(event)}
                       >
                         상세
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-icon-button danger"
-                        onClick={() => confirmDeleteEvents([event.id])}
-                        disabled={deleting}
-                        aria-label="알림 삭제"
-                        title="삭제"
-                      >
-                        <Trash2 size={15} aria-hidden="true" />
                       </button>
                     </div>
                   </td>
@@ -11230,8 +11032,6 @@ function NotificationHistoryManagement({
           event={selectedEvent}
           processing={processing}
           onClose={() => setSelectedEvent(null)}
-          onProcessEvent={onProcessEvent}
-          onRetryEvent={onRetryEvent}
           onSendEmail={onSendEmail}
         />
       )}
@@ -11290,17 +11090,11 @@ function NotificationEventDetailModal({
   event,
   processing = false,
   onClose,
-  onProcessEvent,
-  onRetryEvent,
   onSendEmail,
 }) {
   const payloadText = getNotificationPayloadSummary(event);
-  const payload = getNotificationPayload(event);
-  const recipientType = String(event.recipient_type || "").trim().toLowerCase();
-  const targetRole = String(event.target_role || payload?.target_role || "").trim().toLowerCase();
-  const isCompanyEmailNotification =
+  const isEmailNotification =
     getNotificationChannel(event) === "email" &&
-    (recipientType === "company" || recipientType === "client" || targetRole === "company") &&
     Boolean(sanitizeRecipientEmail(event.recipient_email));
 
   return (
@@ -11339,17 +11133,7 @@ function NotificationEventDetailModal({
           <button type="button" className="admin-secondary" onClick={onClose}>
             닫기
           </button>
-          {event.source_table !== "notifications" && event.status === "pending" && (
-            <button
-              type="button"
-              className="admin-secondary"
-              disabled={processing}
-              onClick={() => onProcessEvent?.(event)}
-            >
-              발송 처리
-            </button>
-          )}
-          {isCompanyEmailNotification ? (
+          {isEmailNotification ? (
             <>
               <button
                 type="button"
@@ -11362,7 +11146,9 @@ function NotificationEventDetailModal({
             </>
           ) : (
             <span className="admin-card-meta">
-              {sanitizeRecipientEmail(event.recipient_email) ? "기업 이메일 알림만 발송할 수 있습니다." : "수신 이메일 없음"}
+              {getNotificationChannel(event) === "internal"
+                ? "내부 알림은 이메일 발송 대상이 아닙니다."
+                : "수신 이메일 없음"}
             </span>
           )}
         </div>
