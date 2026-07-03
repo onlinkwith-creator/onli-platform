@@ -2072,17 +2072,23 @@ async function sendSingleNotification({
         })
         .eq("id", notification_id);
 
-      return jsonResponse({
+      return new Response(JSON.stringify({
         success: false,
         error: "smtp_no_accepted_recipients",
         message: "SMTP accepted 수신자가 없습니다.",
         smtp: {
           accepted,
           rejected,
-          response,
-          messageId
+          response: result?.response ?? null,
+          messageId: result?.messageId ?? null
         }
-      }, 502);
+      }), {
+        status: 502,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
     }
 
     await supabase
@@ -2095,16 +2101,22 @@ async function sendSingleNotification({
       })
       .eq("id", notification_id);
 
-    return jsonResponse({
+    return new Response(JSON.stringify({
       success: true,
       message: "이메일 발송 완료",
       smtp: {
         accepted,
         rejected,
-        response,
-        messageId
+        response: result?.response ?? null,
+        messageId: result?.messageId ?? null
       }
-    }, 200);
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
   } catch (sendError) {
     const message = sendError instanceof Error ? sendError.message : String(sendError);
     await supabase
