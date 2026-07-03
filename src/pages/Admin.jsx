@@ -1775,7 +1775,17 @@ function sanitizeRecipientEmail(email) {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("send-email invoke failed:", error);
+        alert(`알림 처리 실패: ${error.message || JSON.stringify(error)}`);
+        return false;
+      }
+      if (data?.error) {
+        console.error("send-email returned error:", data);
+        alert(`알림 처리 실패: ${data.error}`);
+        return false;
+      }
+
       await refreshAdminOperationsData();
       alert(
         `알림 처리 완료: 발송 ${data?.sentCount || 0}건, 실패 ${data?.failedCount || 0}건, 건너뜀 ${data?.skippedCount || 0}건`
@@ -1814,7 +1824,16 @@ function sanitizeRecipientEmail(email) {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("send-email invoke failed:", error);
+        alert(`이메일 발송 실패: ${error.message || JSON.stringify(error)}`);
+        return false;
+      }
+      if (data?.error) {
+        console.error("send-email returned error:", data);
+        alert(`이메일 발송 실패: ${data.error}`);
+        return false;
+      }
 
       // notifications 테이블의 sent_at 업데이트
       if (event.source_table === "notifications" && event.source_id) {
