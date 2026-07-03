@@ -49,7 +49,7 @@ const getBusinessDocumentLabel = (documentType, title) => {
   return title || getDocumentTypeLabel(documentType);
 };
 
-const MATERIAL_BUCKET = "request-files";
+const MATERIAL_BUCKET = "reference_files";
 const MATERIAL_MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MATERIAL_ALLOWED_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
 const MATERIAL_ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -67,11 +67,16 @@ const createMaterialStoragePath = (requestId, extension) => {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
   const safeId = uuid.replace(/[^a-zA-Z0-9-]/g, "");
-  return `requests/reference_files/materials/${requestId}/${safeId}.${extension}`;
+  return `requests/materials/${requestId}/${safeId}.${extension}`;
 };
 
 const getMaterialDisplayName = (material = {}) =>
   material.original_file_name || material.file_name || "자료 파일";
+
+const getMaterialStorageBucket = (filePath = "") =>
+  String(filePath || "").startsWith("requests/reference_files/")
+    ? "request-files"
+    : MATERIAL_BUCKET;
 
 const getClientNotificationLabel = (eventType) => {
   switch (eventType) {
@@ -649,6 +654,7 @@ function BusinessMypage({
           file_path: filePath,
           file_size: file.size,
           file_type: materialCategory,
+          material_type: materialCategory,
           mime_type: file.type || null,
           company_id: business?.id || null,
           uploaded_by: user.id
@@ -658,7 +664,7 @@ function BusinessMypage({
 
       if (dbError) {
         // Cleanup storage file on db error
-        await supabase.storage.from(MATERIAL_BUCKET).remove([filePath]);
+        await supabase.storage.from(getMaterialStorageBucket(filePath)).remove([filePath]);
         throw dbError;
       }
 
@@ -669,7 +675,7 @@ function BusinessMypage({
       void fetchData();
     } catch (err) {
       console.error("Material upload failed", err);
-      alert("업로드에 실패했습니다. 파일명을 확인한 뒤 다시 시도해주세요.");
+      alert("업로드에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setUploadingMaterial(false);
       if (e.target) e.target.value = "";
@@ -690,7 +696,7 @@ function BusinessMypage({
       if (dbError) throw dbError;
 
       try {
-        await supabase.storage.from(MATERIAL_BUCKET).remove([filePath]);
+        await supabase.storage.from(getMaterialStorageBucket(filePath)).remove([filePath]);
       } catch (err) {
         console.warn("Storage deletion warning:", err);
       }
@@ -716,7 +722,7 @@ function BusinessMypage({
 
     try {
       const { data, error } = await supabase.storage
-        .from(MATERIAL_BUCKET)
+        .from(getMaterialStorageBucket(path))
         .createSignedUrl(path, 600, { download: name || true });
 
       if (error) throw error;
@@ -772,7 +778,7 @@ function BusinessMypage({
     }
 
     const { error } = await supabase.rpc("approve_estimate_and_create_payment", {
-      p_request_id: requestId,
+      p_request_id: Number(requestId),
       p_company_id: business.id,
       p_document_id: latestEstimate.id,
     });
@@ -1543,7 +1549,7 @@ function BusinessMypage({
                                   {filteredMaterials.map((mat) => (
                                     <tr key={mat.id}>
                                       <td>
-                                        <span className="material-type-pill">{mat.file_type}</span>
+                                        <span className="material-type-pill">{mat.material_type || mat.file_type}</span>
                                       </td>
                                       <td className="file-name-cell">
                                         <span className="clickable-file">

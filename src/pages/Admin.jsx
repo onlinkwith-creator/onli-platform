@@ -170,9 +170,9 @@ const ADMIN_ACTIVITY_LOGS_SELECT =
 const NOTIFICATION_EVENTS_SELECT =
   "id, event_type, notification_type, title, message, target_type, target_id, recipient_type, recipient_id, recipient_email, recipient_phone, related_request_id, related_document_id, channel, payload, status, retry_count, error_message, created_at, processed_at, sent_at, deleted_at, deleted_by";
 const SETTLEMENTS_SELECT =
-  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, applied_level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, applied_level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
 const SETTLEMENTS_SELECT_LEGACY =
-  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
 const SETTLEMENTS_SELECT_WITH_JOINS = `${SETTLEMENTS_SELECT}, request:requests!settlements_request_id_fkey(*), interpreter:interpreters!settlements_interpreter_id_fkey(id, name, email, phone, kakao_or_line, level, auth_user_id), payout_document:documents!settlements_payout_document_id_fkey(id, document_type, document_no, status, version, request_id, interpreter_id, settlement_id, title, amount, storage_bucket, file_path, metadata, created_at)`;
 const SETTLEMENTS_SELECT_WITH_JOINS_LEGACY = `${SETTLEMENTS_SELECT_LEGACY}, request:requests!settlements_request_id_fkey(*), interpreter:interpreters!settlements_interpreter_id_fkey(id, name, email, phone, kakao_or_line, level, auth_user_id), payout_document:documents!settlements_payout_document_id_fkey(id, document_type, document_no, status, version, request_id, interpreter_id, settlement_id, title, amount, storage_bucket, file_path, metadata, created_at)`;
 const INTERPRETER_UPDATE_COLUMNS = new Set([
@@ -2188,7 +2188,6 @@ function Admin({ onBackClick }) {
         amount: normalizeMoneyInput(changes.amount),
         payout_status: changes.payout_status,
         work_days: changes.work_days ? Number(changes.work_days) : null,
-        level: changes.applied_level || null,
         applied_level: changes.applied_level || null,
         daily_rate: changes.daily_rate ? normalizeMoneyInput(changes.daily_rate) : null,
         extra_amount: normalizeMoneyInput(changes.extra_amount),
@@ -6487,7 +6486,7 @@ function InterpreterSettlementManagement({
       amount: settlement.amount ?? 0,
       payout_status: settlement.payout_status || "pending",
       work_days: settlement.work_days || "",
-      applied_level: settlement.applied_level || settlement.level || "",
+      applied_level: settlement.applied_level || "",
       daily_rate: settlement.daily_rate || "",
       extra_amount: settlement.extra_amount || 0,
       deduction_amount: settlement.deduction_amount || 0,
@@ -13964,8 +13963,6 @@ function findPayoutDocumentForSettlement(documents = [], settlement = {}) {
 function getSettlementAppliedLevel({ settlement = {}, request = {}, interpreter = {} } = {}) {
   const value =
     settlement.applied_level ||
-    settlement.level ||
-    request.settlement_level ||
     interpreter.level;
   return String(value || "").trim() || "미설정";
 }
