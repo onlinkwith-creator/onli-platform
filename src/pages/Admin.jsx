@@ -864,6 +864,7 @@ function sanitizeRecipientEmail(email) {
   const assignmentsByRequest = useMemo(() => groupBy(assignments, "request_id"), [
     assignments,
   ]);
+  const settlementRows = settlements ?? [];
   const settlementRequestRows = useMemo(
     () => buildSettlementRequestRows({ settlements: settlementRows }),
     [settlementRows]
