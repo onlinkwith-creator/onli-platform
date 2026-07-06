@@ -326,71 +326,6 @@ function BusinessMypage({
               contact_visible: Boolean(assignment.contact_visible),
             }));
             console.log("assigned interpreter raw", baseAssignments);
-            const revealedInterpreterIds = [
-              ...new Set(
-                baseAssignments
-                  .filter(
-                    (assignment) =>
-                      assignment.interpreter_id &&
-                      Boolean(assignment.contact_visible)
-                  )
-                  .map((assignment) => assignment.interpreter_id)
-              ),
-            ];
-            let profileContactRows = [];
-            let profileContactError = null;
-
-            if (revealedInterpreterIds.length > 0) {
-              const profileResult = await supabase
-                .from("interpreter_profiles")
-                .select("id, interpreter_id, user_id, auth_user_id, phone, email, kakao_id")
-                .in("interpreter_id", revealedInterpreterIds);
-              profileContactRows = profileResult.data || [];
-              profileContactError = profileResult.error || null;
-              if (profileContactError && !isMissingColumnError(profileContactError)) {
-                console.error("Error fetching interpreter profile contacts:", {
-                  profileContactError,
-                  interpreterIds: revealedInterpreterIds,
-                });
-              }
-            }
-            const profileContactsByInterpreterId = new Map(
-              profileContactRows.map((profile) => [String(profile.interpreter_id), profile])
-            );
-            const revealedInterpreterAuthUserIds = [
-              ...new Set(
-                baseAssignments
-                  .filter((assignment) => assignment.contact_visible && assignment.interpreter?.auth_user_id)
-                  .map((assignment) => assignment.interpreter.auth_user_id)
-              ),
-            ];
-            let profileRows = [];
-
-            if (revealedInterpreterAuthUserIds.length > 0) {
-              let profileResult = await supabase
-                .from("profiles")
-                .select("id, auth_user_id, user_id, phone, email, kakao_id")
-                .in("auth_user_id", revealedInterpreterAuthUserIds);
-
-              if (profileResult.error) {
-                profileResult = await supabase
-                  .from("profiles")
-                  .select("id, phone, email, kakao_id")
-                  .in("id", revealedInterpreterAuthUserIds);
-              }
-
-              if (profileResult.error) {
-                console.warn("profiles contact fallback fetch skipped:", profileResult.error);
-              } else {
-                profileRows = profileResult.data || [];
-              }
-            }
-            const profileContactsByAuthUserId = new Map();
-            profileRows.forEach((profile) => {
-              [profile.auth_user_id, profile.user_id, profile.id].filter(Boolean).forEach((id) => {
-                profileContactsByAuthUserId.set(String(id), profile);
-              });
-            });
             let revealedContactRows = [];
             const revealedContactResult = await supabase.rpc(
               "get_company_assignment_interpreter_contacts",
@@ -405,10 +340,6 @@ function BusinessMypage({
 
             const revealedContactsByAssignmentId = new Map(
               revealedContactRows.map((contact) => [String(contact.assignment_id), contact])
-            );
-            const contactQueryFailed = Boolean(
-              profileContactError &&
-              !isMissingColumnError(profileContactError)
             );
             const missingInterpreterIds = [
               ...new Set(
@@ -441,9 +372,7 @@ function BusinessMypage({
             const publicInterpreterById = new Map(
               publicInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
             );
-            const getContactSourceTable = ({ profileContact, profileFallback, interpreter }) => {
-              if (profileContact) return "interpreter_profiles";
-              if (profileFallback) return "profiles";
+            const getContactSourceTable = ({ interpreter }) => {
               if (interpreter?.phone || interpreter?.email || interpreter?.kakao_id || interpreter?.kakao_or_line) {
                 return "interpreters";
               }
@@ -451,32 +380,22 @@ function BusinessMypage({
             };
             const mergedAssignments = baseAssignments.map((assignment) => {
               const isContactVisible = Boolean(assignment.contact_visible);
-              const profileContact =
-                profileContactsByInterpreterId.get(String(assignment.interpreter_id)) || null;
               const interpreter =
                 assignment.interpreter ||
                 publicInterpreterById.get(String(assignment.interpreter_id)) ||
                 null;
-              const profileFallback =
-                profileContactsByAuthUserId.get(String(interpreter?.auth_user_id || "")) || null;
               const revealedContact =
                 revealedContactsByAssignmentId.get(String(assignment.id)) || null;
               const visiblePhone =
                 revealedContact?.phone ||
-                profileContact?.phone ||
-                profileFallback?.phone ||
                 interpreter?.phone ||
                 null;
               const visibleEmail =
                 revealedContact?.email ||
-                profileContact?.email ||
-                profileFallback?.email ||
                 interpreter?.email ||
                 null;
               const visibleKakao =
                 revealedContact?.kakao_or_line ||
-                profileContact?.kakao_id ||
-                profileFallback?.kakao_id ||
                 interpreter?.kakao_id ||
                 interpreter?.kakao_or_line ||
                 null;
@@ -492,8 +411,8 @@ function BusinessMypage({
                   : interpreter;
               const contactFetchFailed =
                 isContactVisible &&
-                contactQueryFailed &&
-                !profileContact;
+                revealedContactResult.error &&
+                !revealedContact;
               const displayInterpreter = mergedInterpreter
                 ? { ...mergedInterpreter, _contact_fetch_failed: contactFetchFailed }
                 : mergedInterpreter;
@@ -503,16 +422,12 @@ function BusinessMypage({
                 request_id: assignment.request_id,
                 interpreter_id: assignment.interpreter_id,
                 contact_source_table: revealedContact?.contact_source || getContactSourceTable({
-                  profileContact,
-                  profileFallback,
                   interpreter,
                 }),
                 contact_visible: assignment.contact_visible,
                 effective_contact_visible: isContactVisible,
                 joined_interpreter: assignment.interpreter,
                 revealed_contact_row: revealedContact,
-                profile_contact_row: profileContact,
-                profile_fallback_row: profileFallback,
                 phone: displayInterpreter?.phone ?? null,
                 email: displayInterpreter?.email ?? null,
                 kakao: displayInterpreter?.kakao_or_line ?? null,
@@ -522,14 +437,8 @@ function BusinessMypage({
                 requestId: assignment.request_id,
                 assignmentId: assignment.id,
                 interpreterId: assignment.interpreter_id,
-                interpreterUserId:
-                  profileContact?.auth_user_id ||
-                  profileContact?.user_id ||
-                  null,
-                profileId: profileContact?.id || null,
                 assignment,
                 interpreter: displayInterpreter,
-                profile: profileContact || null,
               });
 
               return {
@@ -963,6 +872,14 @@ function BusinessMypage({
       return;
     }
 
+    console.log("approve_estimate_and_create_payment payload", {
+      request_id: Number(requestId),
+      company_id: business.id,
+      estimate_id: latestEstimate.id,
+      latestEstimate,
+      business,
+    });
+
     const { error } = await supabase.rpc("approve_estimate_and_create_payment", {
       p_request_id: Number(requestId),
       p_company_id: business.id,
@@ -971,7 +888,7 @@ function BusinessMypage({
 
     if (error) {
       console.error("approve_estimate_and_create_payment failed:", error);
-      alert("견적 승인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      alert(`견적 승인에 실패했습니다: ${error.message || "원인을 확인할 수 없습니다."}`);
       return;
     }
 
