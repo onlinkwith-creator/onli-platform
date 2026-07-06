@@ -734,6 +734,21 @@ function sanitizeRecipientEmail(email) {
               if (!result.error || !isMissingColumnError(result.error)) return result;
 
               console.warn("request_interpreters assignment column fallback:", result.error);
+              const contactVisibleResult = await publicSupabase
+                .from("request_interpreters")
+                .select(
+                  "id, request_id, interpreter_id, assigned_at, contact_visible, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
+                )
+                .order("id", { ascending: false });
+
+              if (!contactVisibleResult.error || !isMissingColumnError(contactVisibleResult.error)) {
+                return contactVisibleResult;
+              }
+
+              console.warn(
+                "request_interpreters contact_visible column fallback:",
+                contactVisibleResult.error
+              );
               return publicSupabase
                 .from("request_interpreters")
                 .select(
@@ -5172,10 +5187,6 @@ function RequestActionModal({
             const assignmentId =
               typeof assignmentOrId === "object" ? assignmentOrId?.id : assignmentOrId;
             try {
-              if (assignment && assignment._supports_contact_visible === false) {
-                alert("연락처 공개 컬럼이 아직 적용되지 않았습니다. migration 적용 후 다시 시도해주세요.");
-                return;
-              }
               const nextVisible = !currentVal;
               const payload = { contact_visible: nextVisible };
               if (!assignmentId) {
@@ -12912,7 +12923,6 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
     <div className="admin-assignment-list">
       {items.map((item) => {
         const isVisible = Boolean(item.assignment?.contact_visible);
-        const supportsContactVisible = item.assignment?._supports_contact_visible !== false;
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
@@ -12921,7 +12931,6 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
                 <input
                   type="checkbox"
                   checked={isVisible}
-                  disabled={!supportsContactVisible}
                   onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
                   style={{ cursor: "pointer" }}
                 />

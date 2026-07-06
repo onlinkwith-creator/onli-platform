@@ -20,6 +20,7 @@ function DateRangeInput({
   error = "",
 }) {
   const pickerRef = useRef(null);
+  const draftStartRef = useRef(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const normalizedStart = normalizeDateToISO(startDate);
   const normalizedEnd = normalizeDateToISO(endDate);
@@ -54,7 +55,34 @@ function DateRangeInput({
     updateRange(start, end);
   };
 
-  const handleSelect = (range) => {
+  const handlePickerToggle = () => {
+    setIsPickerOpen((current) => {
+      if (!current) draftStartRef.current = null;
+      return !current;
+    });
+  };
+
+  const handleSelect = (range, selectedDay) => {
+    const selectedDate = isoFromDate(selectedDay);
+
+    if (!singleDateMode && selectedDate) {
+      if (!draftStartRef.current) {
+        draftStartRef.current = selectedDate;
+        updateRange(selectedDate, "");
+        return;
+      }
+
+      const rangeStart = draftStartRef.current;
+      const rangeEnd = selectedDate;
+      const [nextStartDate, nextEndDate] =
+        rangeEnd < rangeStart ? [rangeEnd, rangeStart] : [rangeStart, rangeEnd];
+
+      draftStartRef.current = null;
+      updateRange(nextStartDate, nextEndDate);
+      setIsPickerOpen(false);
+      return;
+    }
+
     const nextStartDate = isoFromDate(range?.from);
     const nextEndDate = singleDateMode
       ? nextStartDate
@@ -72,6 +100,7 @@ function DateRangeInput({
 
     const handlePointerDown = (event) => {
       if (pickerRef.current?.contains(event.target)) return;
+      draftStartRef.current = null;
       setIsPickerOpen(false);
     };
 
@@ -94,14 +123,14 @@ function DateRangeInput({
             label={singleDateMode ? "날짜" : "시작일"}
             value={normalizedStart}
             active={isPickerOpen}
-            onClick={() => setIsPickerOpen((current) => !current)}
+            onClick={handlePickerToggle}
           />
           {!singleDateMode && (
             <DatePickerButton
               label="종료일"
               value={normalizedEnd}
               active={isPickerOpen}
-              onClick={() => setIsPickerOpen((current) => !current)}
+              onClick={handlePickerToggle}
             />
           )}
         </div>
@@ -117,7 +146,6 @@ function DateRangeInput({
               numberOfMonths={1}
               weekStartsOn={1}
               fixedWeeks
-              resetOnSelect
               showOutsideDays
             />
           </div>

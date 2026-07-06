@@ -297,6 +297,32 @@ function BusinessMypage({
                 request_id,
                 interpreter_id,
                 assigned_at,
+                contact_visible,
+                interpreter:interpreters (
+                  id,
+                  name,
+                  level,
+                  approved,
+                  jlpt,
+                  specialties,
+                  experience_count,
+                  phone,
+                  kakao_or_line,
+                  email
+                )
+              `)
+              .in("request_id", requestIds);
+          }
+
+          if (assignmentResult.error && isMissingColumnError(assignmentResult.error)) {
+            console.error("business assignments legacy fallback:", assignmentResult.error);
+            assignmentResult = await supabase
+              .from("request_interpreters")
+              .select(`
+                id,
+                request_id,
+                interpreter_id,
+                assigned_at,
                 interpreter:interpreters (
                   id,
                   name,
