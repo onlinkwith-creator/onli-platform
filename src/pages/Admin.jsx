@@ -725,8 +725,9 @@ function sanitizeRecipientEmail(email) {
             publicSupabase
               .from("request_interpreters")
               .select(
-                "id, request_id, interpreter_id, assigned_at, contact_visible, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
+                "id, request_id, interpreter_id, status, assigned_at, contact_visible, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
               )
+              .eq("status", "assigned")
               .order("id", { ascending: false }),
             publicSupabase
               .from("matchings")
@@ -3515,12 +3516,14 @@ function sanitizeRecipientEmail(email) {
     const payload = {
       request_id: requestId,
       interpreter_id: interpreterId,
+      status: "assigned",
+      contact_visible: false,
     };
     const { data: assignmentData, error } = await supabase
       .from("request_interpreters")
       .insert([payload])
       .select(
-        "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
+        "id, request_id, interpreter_id, status, assigned_at, contact_visible, interpreter:interpreters(id, name, level, status, approved)"
       )
       .single();
 
@@ -3549,11 +3552,20 @@ function sanitizeRecipientEmail(email) {
         id: `${requestId}-${interpreterId}`,
         request_id: requestId,
         interpreter_id: interpreterId,
+        status: "assigned",
+        contact_visible: false,
         assigned_at: new Date().toISOString(),
         interpreter,
       }),
       interpreter: assignmentData?.interpreter || interpreter,
     };
+    console.log("assignment created debug", {
+      request_id: nextAssignment.request_id,
+      assignment_id: nextAssignment.id,
+      interpreter_id: nextAssignment.interpreter_id,
+      status: nextAssignment.status,
+      contact_visible: nextAssignment.contact_visible,
+    });
     const matchingData = await createMatchingScheduleSnapshot({
       request,
       selectedJob,
@@ -5112,28 +5124,19 @@ function RequestActionModal({
               typeof assignmentOrId === "object" ? assignmentOrId?.id : assignmentOrId;
             try {
               const nextVisible = !currentVal;
-              let query = supabase
-                .from("request_interpreters")
-                .update({ contact_visible: nextVisible });
-              if (assignment?.request_id && assignment?.interpreter_id) {
-                query = query
-                  .eq("request_id", assignment.request_id)
-                  .eq("interpreter_id", assignment.interpreter_id);
-              } else {
-                query = query.eq("id", assignmentId);
+              const payload = { contact_visible: nextVisible };
+              if (!assignmentId) {
+                throw new Error("Missing assignment id for contact visibility update");
               }
 
-              const { error } = await query;
+              const { error } = await supabase
+                .from("request_interpreters")
+                .update(payload)
+                .eq("id", assignmentId);
               if (error) throw error;
               setAssignments(current =>
                 current.map(item =>
-                  item.id === assignmentId ||
-                  (
-                    assignment?.request_id &&
-                    assignment?.interpreter_id &&
-                    String(item.request_id) === String(assignment.request_id) &&
-                    String(item.interpreter_id) === String(assignment.interpreter_id)
-                  )
+                  String(item.id) === String(assignmentId)
                     ? {
                         ...item,
                         contact_visible: nextVisible,
@@ -5142,7 +5145,13 @@ function RequestActionModal({
                 )
               );
             } catch (err) {
-              console.error("contact visibility update failed:", err);
+              console.error("contact visibility update failed:", {
+                payload: { contact_visible: !currentVal },
+                assignmentId,
+                requestId: assignment?.request_id || null,
+                interpreterId: assignment?.interpreter_id || null,
+                error: err,
+              });
               alert("연락처 공개 설정 변경에 실패했습니다. 콘솔 에러를 확인하세요.");
             }
           }}
