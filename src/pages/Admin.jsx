@@ -8141,8 +8141,8 @@ function RequestDetailPanel({
             <div className="admin-date-range-panel">
               {(() => {
                 const [dateRange, setDateRange] = useState({
-                  from: request.start_date ? new Date(request.start_date) : undefined,
-                  to: request.end_date ? new Date(request.end_date) : undefined
+                  from: request?.start_date ? new Date(request.start_date) : undefined,
+                  to: request?.end_date ? new Date(request.end_date) : undefined
                 });
 
                 const handleSave = () => {
@@ -8154,11 +8154,16 @@ function RequestDetailPanel({
                     return;
                   }
                   
-                  updateRequest(request.id, {
-                    start_date: normalizeDateToISO(startDate) || "",
-                    end_date: normalizeDateToISO(endDate) || "",
-                    event_date: normalizeDateToISO(startDate) || "",
-                  });
+                  const payload = {};
+                  if (startDate) {
+                    payload.start_date = normalizeDateToISO(startDate);
+                    payload.event_date = normalizeDateToISO(startDate);
+                  }
+                  if (endDate || startDate) {
+                    payload.end_date = normalizeDateToISO(endDate ?? startDate);
+                  }
+                  
+                  updateRequest(request.id, payload);
                 };
 
                 return (
@@ -8168,7 +8173,7 @@ function RequestDetailPanel({
                         시작일: 
                         <input 
                           readOnly 
-                          value={dateRange.from ? formatDisplayDate(dateRange.from) : ""} 
+                          value={dateRange?.from ? formatDisplayDate(dateRange.from) : ""} 
                           style={{ marginLeft: "8px", padding: "4px", borderRadius: "4px", border: "1px solid #ccc", width: "100px" }}
                         />
                       </div>
@@ -8177,7 +8182,7 @@ function RequestDetailPanel({
                         종료일: 
                         <input 
                           readOnly 
-                          value={dateRange.to ? formatDisplayDate(dateRange.to) : ""} 
+                          value={dateRange?.to ? formatDisplayDate(dateRange.to) : ""} 
                           style={{ marginLeft: "8px", padding: "4px", borderRadius: "4px", border: "1px solid #ccc", width: "100px" }}
                         />
                       </div>
@@ -8188,10 +8193,15 @@ function RequestDetailPanel({
                     <div className="admin-calendar-wrapper" style={{ border: "1px solid #ddd", padding: "10px", borderRadius: "8px", display: "inline-block" }}>
                       <DayPicker
                         mode="range"
-                        selected={dateRange}
-                        onSelect={setDateRange}
+                        selected={dateRange?.from ? dateRange : undefined}
+                        onSelect={(range) => {
+                          setDateRange({
+                            from: range?.from,
+                            to: range?.to ?? range?.from
+                          });
+                        }}
                         locale={ko}
-                        defaultMonth={dateRange.from || new Date()}
+                        defaultMonth={dateRange?.from || new Date()}
                         numberOfMonths={2}
                       />
                     </div>
@@ -12910,16 +12920,20 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
             {onToggleContactVisibility && (
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
-                <input
-                  type="checkbox"
-                  checked={isVisible}
-                  disabled={!item.assignment?.id}
-                  onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
-                  style={{ cursor: "pointer" }}
-                />
-                <span>연락처 공개</span>
-              </label>
+              item.assignment?.id ? (
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
+                  <input
+                    type="checkbox"
+                    checked={isVisible}
+                    disabled={!item.assignment?.id}
+                    onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  <span>연락처 공개</span>
+                </label>
+              ) : (
+                <span style={{ fontSize: "12px", color: "#94a3b8" }}>미배정</span>
+              )
             )}
             <button
               type="button"

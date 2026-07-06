@@ -29,8 +29,9 @@ export function normalizeDateToISO(dateValue) {
 }
 
 export function formatDisplayDate(dateValue) {
+  if (!dateValue) return "";
   const isoDate = normalizeDateToISO(dateValue);
-  if (!isoDate) return dateValue ? String(dateValue) : "날짜 미입력";
+  if (!isoDate) return String(dateValue);
   return isoDate.replaceAll("-", ".");
 }
 
