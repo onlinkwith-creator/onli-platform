@@ -722,13 +722,25 @@ function sanitizeRecipientEmail(email) {
             publicSupabase.from("interpreters").select("*").order("id", {
               ascending: false,
             }),
-            publicSupabase
-              .from("request_interpreters")
-              .select(
-                "id, request_id, interpreter_id, status, assigned_at, contact_visible, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
-              )
-              .eq("status", "assigned")
-              .order("id", { ascending: false }),
+            (async () => {
+              const result = await publicSupabase
+                .from("request_interpreters")
+                .select(
+                  "id, request_id, interpreter_id, status, assigned_at, contact_visible, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
+                )
+                .eq("status", "assigned")
+                .order("id", { ascending: false });
+
+              if (!result.error || !isMissingColumnError(result.error)) return result;
+
+              console.warn("request_interpreters assignment column fallback:", result.error);
+              return publicSupabase
+                .from("request_interpreters")
+                .select(
+                  "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
+                )
+                .order("id", { ascending: false });
+            })(),
             publicSupabase
               .from("matchings")
               .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
@@ -754,7 +766,20 @@ function sanitizeRecipientEmail(email) {
       const requestData = getAdminData("requests", requestResult);
       const jobData = getAdminData("jobs", jobResult);
       const interpreterData = getAdminData("interpreters", interpreterResult);
-      const assignmentData = getAdminData("request_interpreters", assignmentResult);
+      const assignmentData = getAdminData("request_interpreters", assignmentResult).map((assignment) => {
+        const supportsContactVisible = Object.prototype.hasOwnProperty.call(
+          assignment,
+          "contact_visible"
+        );
+        return {
+          ...assignment,
+          status: assignment.status || "assigned",
+          _supports_contact_visible: supportsContactVisible,
+          ...(supportsContactVisible
+            ? { contact_visible: Boolean(assignment.contact_visible) }
+            : {}),
+        };
+      });
       const matchingData = getAdminData("matchings", matchingResult);
       const businessData = getAdminData("businesses", businessResult);
 
@@ -3517,15 +3542,34 @@ function sanitizeRecipientEmail(email) {
       request_id: requestId,
       interpreter_id: interpreterId,
       status: "assigned",
-      contact_visible: false,
     };
-    const { data: assignmentData, error } = await supabase
+    let { data: assignmentData, error } = await supabase
       .from("request_interpreters")
       .insert([payload])
       .select(
-        "id, request_id, interpreter_id, status, assigned_at, contact_visible, interpreter:interpreters(id, name, level, status, approved)"
+        "id, request_id, interpreter_id, status, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
       )
       .single();
+
+    if (error && isMissingColumnError(error)) {
+      console.warn("request_interpreters insert status column fallback:", {
+        payload,
+        error,
+      });
+      const legacyPayload = {
+        request_id: requestId,
+        interpreter_id: interpreterId,
+      };
+      const legacyResult = await supabase
+        .from("request_interpreters")
+        .insert([legacyPayload])
+        .select(
+          "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
+        )
+        .single();
+      assignmentData = legacyResult.data;
+      error = legacyResult.error;
+    }
 
     if (error) {
       setSavingKey("");
@@ -3552,11 +3596,16 @@ function sanitizeRecipientEmail(email) {
         id: `${requestId}-${interpreterId}`,
         request_id: requestId,
         interpreter_id: interpreterId,
-        status: "assigned",
-        contact_visible: false,
         assigned_at: new Date().toISOString(),
         interpreter,
       }),
+      status: assignmentData?.status || "assigned",
+      ...(Object.prototype.hasOwnProperty.call(assignmentData || {}, "contact_visible")
+        ? {
+            contact_visible: Boolean(assignmentData?.contact_visible),
+            _supports_contact_visible: true,
+          }
+        : { _supports_contact_visible: false }),
       interpreter: assignmentData?.interpreter || interpreter,
     };
     console.log("assignment created debug", {
@@ -5123,6 +5172,10 @@ function RequestActionModal({
             const assignmentId =
               typeof assignmentOrId === "object" ? assignmentOrId?.id : assignmentOrId;
             try {
+              if (assignment && assignment._supports_contact_visible === false) {
+                alert("연락처 공개 컬럼이 아직 적용되지 않았습니다. migration 적용 후 다시 시도해주세요.");
+                return;
+              }
               const nextVisible = !currentVal;
               const payload = { contact_visible: nextVisible };
               if (!assignmentId) {
@@ -12859,6 +12912,7 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
     <div className="admin-assignment-list">
       {items.map((item) => {
         const isVisible = Boolean(item.assignment?.contact_visible);
+        const supportsContactVisible = item.assignment?._supports_contact_visible !== false;
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
@@ -12867,6 +12921,7 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
                 <input
                   type="checkbox"
                   checked={isVisible}
+                  disabled={!supportsContactVisible}
                   onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
                   style={{ cursor: "pointer" }}
                 />

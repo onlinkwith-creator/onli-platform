@@ -296,8 +296,7 @@ function BusinessMypage({
                 id,
                 request_id,
                 interpreter_id,
-                status,
-                contact_visible,
+                assigned_at,
                 interpreter:interpreters (
                   id,
                   name,
@@ -311,8 +310,7 @@ function BusinessMypage({
                   email
                 )
               `)
-              .in("request_id", requestIds)
-              .eq("status", "assigned");
+              .in("request_id", requestIds);
           }
 
           const assignData = assignmentResult.data;
@@ -321,7 +319,11 @@ function BusinessMypage({
           if (assignError) {
             console.error("Error fetching assignments:", assignError);
           } else {
-            const baseAssignments = assignData || [];
+            const baseAssignments = (assignData || []).map((assignment) => ({
+              ...assignment,
+              status: assignment.status || "assigned",
+              contact_visible: Boolean(assignment.contact_visible),
+            }));
             const { data: contactRows = [], error: contactError } = await supabase.rpc(
               "get_company_assignment_interpreter_contacts",
               { p_request_ids: requestIds }
