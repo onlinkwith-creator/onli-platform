@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
+import { DayPicker } from "react-day-picker";
+import { ko } from "react-day-picker/locale";
 import MonthFilterInput from "../components/MonthFilterInput";
 import AdminJobs from "./AdminJobs";
 import { normalizeJobVisibility } from "../utils/jobStatus";
@@ -41,7 +43,7 @@ import {
   normalizeMatchingStatus,
 } from "../utils/status";
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
-import { isDateRangeOverlappingMonth, normalizeDateToISO } from "../utils/date";
+import { isDateRangeOverlappingMonth, normalizeDateToISO, formatDisplayDate } from "../utils/date";
 import {
   ACTIVE_MATCHING_STATUSES,
   checkInterpreterScheduleConflict,
@@ -71,6 +73,7 @@ import {
   normalizeAssignmentStatus,
   normalizeOperationStatus,
   normalizeSettlementFlowStatus,
+  getSettlementTabStatus,
 } from "../utils/operationsStatus";
 import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import {
@@ -360,10 +363,7 @@ const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
   "취소": "cancelled",
 };
 const SETTLEMENT_STATUS_GROUPS = {
-  pending: [null, "", "pending", "settlement_pending", "waiting", "wait", "ready", "unsettled", "정산대기", "정산 대기", "미정산"],
-  confirmed: ["confirmed", "settlement_confirmed", "fixed", "finalized", "정산확정", "정산 확정"],
-  completed: ["completed", "paid", "settlement_completed", "settled", "정산완료", "정산 완료", "지급완료", "지급 완료"],
-  hold: ["hold", "on_hold", "withheld", "settlement_hold", "settlement_on_hold", "보류", "정산보류", "정산 보류"],
+  // Now managed via getSettlementTabStatus in operationsStatus.js
 };
 const SETTLEMENT_PAYOUT_METHOD_OPTIONS = [
   { value: "", label: "미입력" },
@@ -731,30 +731,8 @@ function sanitizeRecipientEmail(email) {
                 .eq("status", "assigned")
                 .order("id", { ascending: false });
 
-              if (!result.error || !isMissingColumnError(result.error)) return result;
-
-              console.warn("request_interpreters assignment column fallback:", result.error);
-              const contactVisibleResult = await publicSupabase
-                .from("request_interpreters")
-                .select(
-                  "id, request_id, interpreter_id, assigned_at, contact_visible, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
-                )
-                .order("id", { ascending: false });
-
-              if (!contactVisibleResult.error || !isMissingColumnError(contactVisibleResult.error)) {
-                return contactVisibleResult;
-              }
-
-              console.warn(
-                "request_interpreters contact_visible column fallback:",
-                contactVisibleResult.error
-              );
-              return publicSupabase
-                .from("request_interpreters")
-                .select(
-                  "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
-                )
-                .order("id", { ascending: false });
+              if (result.error) return result;
+              return result;
             })(),
             publicSupabase
               .from("matchings")
@@ -782,17 +760,10 @@ function sanitizeRecipientEmail(email) {
       const jobData = getAdminData("jobs", jobResult);
       const interpreterData = getAdminData("interpreters", interpreterResult);
       const assignmentData = getAdminData("request_interpreters", assignmentResult).map((assignment) => {
-        const supportsContactVisible = Object.prototype.hasOwnProperty.call(
-          assignment,
-          "contact_visible"
-        );
         return {
           ...assignment,
           status: assignment.status || "assigned",
-          _supports_contact_visible: supportsContactVisible,
-          ...(supportsContactVisible
-            ? { contact_visible: Boolean(assignment.contact_visible) }
-            : {}),
+          contact_visible: Boolean(assignment.contact_visible),
         };
       });
       const matchingData = getAdminData("matchings", matchingResult);
@@ -3300,6 +3271,7 @@ function sanitizeRecipientEmail(email) {
       interpreter_id: Number(interpreterId),
       assignment_id: assignment?.id || request._settlement?.assignment_id,
       amount,
+      status: payload.settlement_status,
       payout_status: mapSettlementFlowStatusToPayoutStatus(payload.settlement_status),
       work_days: workDays,
       level: payload.settlement_level || request.settlement_level || request.requested_level || request.required_level || null,
@@ -3560,26 +3532,6 @@ function sanitizeRecipientEmail(email) {
       )
       .single();
 
-    if (error && isMissingColumnError(error)) {
-      console.warn("request_interpreters insert status column fallback:", {
-        payload,
-        error,
-      });
-      const legacyPayload = {
-        request_id: requestId,
-        interpreter_id: interpreterId,
-      };
-      const legacyResult = await supabase
-        .from("request_interpreters")
-        .insert([legacyPayload])
-        .select(
-          "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
-        )
-        .single();
-      assignmentData = legacyResult.data;
-      error = legacyResult.error;
-    }
-
     if (error) {
       setSavingKey("");
       console.error("매칭 저장 디버그:", {
@@ -3609,12 +3561,7 @@ function sanitizeRecipientEmail(email) {
         interpreter,
       }),
       status: assignmentData?.status || "assigned",
-      ...(Object.prototype.hasOwnProperty.call(assignmentData || {}, "contact_visible")
-        ? {
-            contact_visible: Boolean(assignmentData?.contact_visible),
-            _supports_contact_visible: true,
-          }
-        : { _supports_contact_visible: false }),
+      contact_visible: Boolean(assignmentData?.contact_visible),
       interpreter: assignmentData?.interpreter || interpreter,
     };
     console.log("assignment created debug", {
@@ -8192,23 +8139,65 @@ function RequestDetailPanel({
           <div>
             <h3>행사 기간 수정</h3>
             <div className="admin-date-range-panel">
-              <DateRangeInput
-                required
-                label="행사 기간"
-                startDate={getDateRangeStart(request.start_date, request.event_date)}
-                endDate={getDateRangeEnd(request.end_date, request.event_date)}
-                onChange={({ startDate, endDate }) => {
+              {(() => {
+                const [dateRange, setDateRange] = useState({
+                  from: request.start_date ? new Date(request.start_date) : undefined,
+                  to: request.end_date ? new Date(request.end_date) : undefined
+                });
+
+                const handleSave = () => {
+                  const startDate = dateRange?.from;
+                  const endDate = dateRange?.to ?? dateRange?.from;
+                  
                   if (startDate && endDate && endDate < startDate) {
                     alert("종료일은 시작일보다 빠를 수 없습니다.");
                     return;
                   }
+                  
                   updateRequest(request.id, {
-                    start_date: startDate,
-                    end_date: endDate,
-                    event_date: startDate,
+                    start_date: normalizeDateToISO(startDate) || "",
+                    end_date: normalizeDateToISO(endDate) || "",
+                    event_date: normalizeDateToISO(startDate) || "",
                   });
-                }}
-              />
+                };
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      <div>
+                        시작일: 
+                        <input 
+                          readOnly 
+                          value={dateRange.from ? formatDisplayDate(dateRange.from) : ""} 
+                          style={{ marginLeft: "8px", padding: "4px", borderRadius: "4px", border: "1px solid #ccc", width: "100px" }}
+                        />
+                      </div>
+                      <span>~</span>
+                      <div>
+                        종료일: 
+                        <input 
+                          readOnly 
+                          value={dateRange.to ? formatDisplayDate(dateRange.to) : ""} 
+                          style={{ marginLeft: "8px", padding: "4px", borderRadius: "4px", border: "1px solid #ccc", width: "100px" }}
+                        />
+                      </div>
+                      <button type="button" className="admin-primary-button" onClick={handleSave} style={{ marginLeft: "10px" }}>
+                        저장
+                      </button>
+                    </div>
+                    <div className="admin-calendar-wrapper" style={{ border: "1px solid #ddd", padding: "10px", borderRadius: "8px", display: "inline-block" }}>
+                      <DayPicker
+                        mode="range"
+                        selected={dateRange}
+                        onSelect={setDateRange}
+                        locale={ko}
+                        defaultMonth={dateRange.from || new Date()}
+                        numberOfMonths={2}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -12925,6 +12914,7 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
                 <input
                   type="checkbox"
                   checked={isVisible}
+                  disabled={!item.assignment?.id}
                   onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
                   style={{ cursor: "pointer" }}
                 />
@@ -15309,22 +15299,6 @@ function getSettlementStatusGroup(request = {}) {
   return getSettlementTabStatus(request, request._settlement);
 }
 
-function getSettlementTabStatus(request = {}, settlement = null) {
-  const requestGroup = getSettlementStatusGroupFromValue(request.settlement_status);
-  if (requestGroup) return requestGroup;
-
-  const settlementStatusValue =
-    settlement?.status ??
-    settlement?.settlement_status ??
-    settlement?.payout_status ??
-    request.payout_status;
-  const settlementGroup = getSettlementStatusGroupFromValue(settlementStatusValue);
-  if (settlementGroup) return settlementGroup;
-
-  if (isSettlementManagementCandidate(request)) return "pending";
-  return null;
-}
-
 function getSettlementStatusGroupFromPayoutStatus(status) {
   if (status === undefined || status === null || String(status).trim() === "") return null;
   const normalized = normalizeSettlementPayoutStatus(status);
@@ -15335,15 +15309,6 @@ function getSettlementStatusGroupFromPayoutStatus(status) {
   return null;
 }
 
-function getSettlementStatusGroupFromValue(value) {
-  if (value === undefined || value === null || String(value).trim() === "") return "pending";
-  const status = normalizeText(value);
-  return (
-    Object.entries(SETTLEMENT_STATUS_GROUPS).find(([, values]) =>
-      values.some((candidate) => normalizeText(candidate) === status)
-    )?.[0] || null
-  );
-}
 
 function getSettlementPaymentStatusValue(request = {}) {
   const status = normalizeText(request.payment_status);

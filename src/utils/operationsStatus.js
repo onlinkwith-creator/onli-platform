@@ -134,3 +134,46 @@ function getStatusValue(value) {
 function getOptionLabel(options, value, fallback) {
   return options.find((option) => option.value === value)?.label || fallback;
 }
+
+export function getSettlementTabStatus(request, settlement) {
+  const reqStatus = getStatusValue(request?.settlement_status);
+  const stlStatus = getStatusValue(settlement?.status || settlement?.settlement_status);
+  
+  // 1순위: request.settlement_status
+  let statusToEvaluate = reqStatus;
+
+  // 2순위: settlement.status 또는 settlement.settlement_status
+  if (!statusToEvaluate) {
+    statusToEvaluate = stlStatus;
+  }
+
+  // 3순위: settlement row 없음 + 완료/배정완료 의뢰이면 pending
+  if (!statusToEvaluate && !settlement) {
+    const opStatus = getStatusValue(request?.operation_status || request?.status);
+    const assignStatus = getStatusValue(request?.assignment_status || request?.matching_status);
+    
+    if (
+      ["completed", "운영완료", "업무완료", "완료"].includes(opStatus) ||
+      ["assigned", "배정완료", "매칭완료"].includes(assignStatus)
+    ) {
+      statusToEvaluate = "pending";
+    }
+  }
+
+  // 상태 매핑
+  if (["pending", "settlement_pending", "정산대기", "waiting", "wait"].includes(statusToEvaluate) || statusToEvaluate === "") {
+    return "pending";
+  }
+  if (["confirmed", "settlement_confirmed", "정산확정", "fixed", "finalized"].includes(statusToEvaluate)) {
+    return "confirmed";
+  }
+  if (["completed", "paid", "settlement_completed", "정산완료", "지급완료", "settled"].includes(statusToEvaluate)) {
+    return "completed";
+  }
+  if (["hold", "on_hold", "withheld", "settlement_hold", "settlement_on_hold", "정산보류", "보류"].includes(statusToEvaluate)) {
+    return "hold";
+  }
+
+  // 4순위: 그 외 none
+  return "none";
+}
