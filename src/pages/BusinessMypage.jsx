@@ -44,6 +44,29 @@ const getDocumentStatusLabel = (status) => {
   return status || "-";
 };
 
+const CONTACT_VISIBLE_ASSIGNMENT_STATUSES = new Set([
+  "assigned",
+  "confirmed",
+  "completed",
+  "matched",
+  "배정완료",
+  "배정 완료",
+  "확정",
+  "완료",
+]);
+
+const canShowAssignedInterpreterContact = (request = {}) => {
+  const statusValues = [
+    request.assignment_status,
+    request.status,
+    request.operation_status,
+  ]
+    .map((status) => String(status || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  return statusValues.some((status) => CONTACT_VISIBLE_ASSIGNMENT_STATUSES.has(status));
+};
+
 const getBusinessDocumentLabel = (documentType, title) => {
   if (documentType === "completion") return "업무확인서";
   return title || getDocumentTypeLabel(documentType);
@@ -270,6 +293,7 @@ function BusinessMypage({
               id,
               request_id,
               interpreter_id,
+              contact_visible,
               is_contact_visible,
               contact_revealed,
               contact_revealed_at,
@@ -342,7 +366,11 @@ function BusinessMypage({
                   .filter(
                     (assignment) =>
                       assignment.interpreter_id &&
-                      (Boolean(assignment.is_contact_visible) || Boolean(assignment.contact_revealed))
+                      (
+                        Boolean(assignment.contact_visible) ||
+                        Boolean(assignment.is_contact_visible) ||
+                        Boolean(assignment.contact_revealed)
+                      )
                   )
                   .map((assignment) => assignment.interpreter_id)
               ),
@@ -419,7 +447,9 @@ function BusinessMypage({
             };
             const mergedAssignments = baseAssignments.map((assignment) => {
               const isContactVisible =
-                Boolean(assignment.is_contact_visible) || Boolean(assignment.contact_revealed);
+                Boolean(assignment.contact_visible) ||
+                Boolean(assignment.is_contact_visible) ||
+                Boolean(assignment.contact_revealed);
               const contactRow =
                 contactRowsByAssignmentId.get(String(assignment.id)) ||
                 contactRowsByRequestInterpreter.get(
@@ -472,6 +502,7 @@ function BusinessMypage({
                   joinedInterpreter: assignment.interpreter,
                 }),
                 contact_revealed: assignment.contact_revealed,
+                contact_visible: assignment.contact_visible,
                 is_contact_visible: assignment.is_contact_visible,
                 effective_contact_visible: isContactVisible,
                 joined_interpreter: assignment.interpreter,
@@ -485,6 +516,7 @@ function BusinessMypage({
 
               return {
                 ...assignment,
+                contact_visible: isContactVisible,
                 is_contact_visible: isContactVisible,
                 contact_revealed: isContactVisible,
                 contact_revealed_at: assignment.contact_revealed_at || contactRow?.contact_revealed_at || null,
@@ -544,6 +576,7 @@ function BusinessMypage({
                     joinedInterpreter: publicInterpreter,
                   }),
                   contact_revealed: Boolean(contactRow?.contact_revealed),
+                  contact_visible: Boolean(contactRow?.contact_revealed),
                   rpc_contact_row: contactRow,
                   direct_contact_row: directContact,
                   phone: interpreter.phone ?? null,
@@ -557,6 +590,7 @@ function BusinessMypage({
                   request_id: request.id,
                   interpreter_id: request.assigned_interpreter_id,
                   is_contact_visible: Boolean(contactRow?.contact_revealed),
+                  contact_visible: Boolean(contactRow?.contact_revealed),
                   contact_revealed: Boolean(contactRow?.contact_revealed),
                   contact_revealed_at: contactRow?.contact_revealed_at || null,
                   interpreter,
@@ -671,8 +705,13 @@ function BusinessMypage({
   }, [user, authLoading]);
 
   const visibleAssignments = useMemo(
-    () => assignments.filter((assignment) => assignment?.interpreter),
-    [assignments]
+    () =>
+      assignments.filter((assignment) => {
+        if (!assignment?.interpreter) return false;
+        const request = requests.find((item) => String(item.id) === String(assignment.request_id));
+        return canShowAssignedInterpreterContact(request);
+      }),
+    [assignments, requests]
   );
 
   const getSelectedMaterialRequest = () =>
@@ -1517,8 +1556,14 @@ function BusinessMypage({
                     {visibleAssignments.map((assign) => {
                       const req = requests.find((r) => r.id === assign.request_id);
                       const interpreter = assign.interpreter;
-                      const getContactDisplayValue = (value) =>
-                        interpreter?._contact_fetch_failed ? "조회 실패" : value || "미등록";
+                      const isContactVisible =
+                        Boolean(assign.contact_visible) ||
+                        Boolean(assign.is_contact_visible) ||
+                        Boolean(assign.contact_revealed);
+                      const getContactDisplayValue = (value) => {
+                        if (!isContactVisible) return "관리자 공개 전";
+                        return interpreter?._contact_fetch_failed ? "조회 실패" : value || "미등록";
+                      };
 
                       const isCertified = isOnliCertified(interpreter);
                       const displayLanguages =
@@ -1588,11 +1633,11 @@ function BusinessMypage({
                               <div className="protected-contacts-box">
                                 <h4>
                                   연락처 정보
-                                  <span className={`contact-status-pill ${assign.is_contact_visible ? "visible" : "masked"}`}>
-                                    {assign.is_contact_visible ? "연락 가능" : "공개 대기"}
+                                  <span className={`contact-status-pill ${isContactVisible ? "visible" : "masked"}`}>
+                                    {isContactVisible ? "연락 가능" : "관리자 공개 전"}
                                   </span>
                                 </h4>
-                                {assign.is_contact_visible ? (
+                                {isContactVisible ? (
                                   <div className="contacts-grid">
                                     <div className="contact-item">
                                       <span className="contact-label">전화번호</span>
@@ -1610,7 +1655,7 @@ function BusinessMypage({
                                 ) : (
                                   <div className="contacts-masked">
                                     <span className="masked-icon">🔒</span>
-                                    <p>관리자 승인 대기 중</p>
+                                    <p>관리자 공개 전</p>
                                     <small>원활한 조율을 위해 매칭 확정 후 연락처가 공개됩니다.</small>
                                   </div>
                                 )}

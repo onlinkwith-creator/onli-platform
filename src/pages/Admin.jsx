@@ -5103,33 +5103,73 @@ function RequestActionModal({
           onCreateNote={onCreateNote}
           onOpenDocumentPreview={onOpenDocumentPreview}
           generatedDocuments={generatedDocuments}
-          toggleContactVisibility={async (assignmentId, currentVal) => {
+          toggleContactVisibility={async (assignmentOrId, currentVal) => {
+            const assignment =
+              typeof assignmentOrId === "object"
+                ? assignmentOrId
+                : assignments.find((item) => String(item.id) === String(assignmentOrId));
+            const assignmentId =
+              typeof assignmentOrId === "object" ? assignmentOrId?.id : assignmentOrId;
             try {
               const nextVisible = !currentVal;
-              const { error } = await supabase
-                .from("request_interpreters")
-                .update({
+              const revealedAt = nextVisible ? new Date().toISOString() : null;
+              const contactPayloads = [
+                {
+                  contact_visible: nextVisible,
                   is_contact_visible: nextVisible,
                   contact_revealed: nextVisible,
-                  contact_revealed_at: nextVisible ? new Date().toISOString() : null,
-                })
-                .eq("id", assignmentId);
+                  contact_revealed_at: revealedAt,
+                },
+                {
+                  is_contact_visible: nextVisible,
+                  contact_revealed: nextVisible,
+                  contact_revealed_at: revealedAt,
+                },
+                {
+                  is_contact_visible: nextVisible,
+                },
+              ];
+              let error = null;
+
+              for (const payload of contactPayloads) {
+                let query = supabase.from("request_interpreters").update(payload);
+                if (assignment?.request_id && assignment?.interpreter_id) {
+                  query = query
+                    .eq("request_id", assignment.request_id)
+                    .eq("interpreter_id", assignment.interpreter_id);
+                } else {
+                  query = query.eq("id", assignmentId);
+                }
+
+                const result = await query;
+                error = result.error;
+                if (!error) break;
+                if (!isMissingColumnError(error)) break;
+              }
+
               if (error) throw error;
               setAssignments(current =>
                 current.map(item =>
-                  item.id === assignmentId
+                  item.id === assignmentId ||
+                  (
+                    assignment?.request_id &&
+                    assignment?.interpreter_id &&
+                    String(item.request_id) === String(assignment.request_id) &&
+                    String(item.interpreter_id) === String(assignment.interpreter_id)
+                  )
                     ? {
                         ...item,
+                        contact_visible: nextVisible,
                         is_contact_visible: nextVisible,
                         contact_revealed: nextVisible,
-                        contact_revealed_at: nextVisible ? new Date().toISOString() : null,
+                        contact_revealed_at: revealedAt,
                       }
                     : item
                 )
               );
             } catch (err) {
-              console.error("Error toggling contact visibility:", err);
-              alert("연락처 공개 설정 변경에 실패했습니다.");
+              console.error("contact visibility update failed:", err);
+              alert("연락처 공개 설정 변경에 실패했습니다. 콘솔 에러를 확인하세요.");
             }
           }}
         />
@@ -12835,7 +12875,10 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
   return (
     <div className="admin-assignment-list">
       {items.map((item) => {
-        const isVisible = item.assignment?.is_contact_visible || false;
+        const isVisible =
+          Boolean(item.assignment?.contact_visible) ||
+          Boolean(item.assignment?.is_contact_visible) ||
+          Boolean(item.assignment?.contact_revealed);
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
@@ -12844,7 +12887,7 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
                 <input
                   type="checkbox"
                   checked={isVisible}
-                  onChange={() => onToggleContactVisibility(item.id, isVisible)}
+                  onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
                   style={{ cursor: "pointer" }}
                 />
                 <span>연락처 공개</span>
