@@ -322,6 +322,17 @@ function logSupabaseError(label, error) {
     error,
   });
 }
+function logRequestUpdateFailure(label, { payload, requestId, error } = {}) {
+  console.error(label, {
+    payload,
+    requestId,
+    error,
+    code: error?.code || null,
+    message: error?.message || null,
+    details: error?.details || null,
+    hint: error?.hint || null,
+  });
+}
 const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
   pending: "pending",
   settlement_pending: "pending",
@@ -389,6 +400,86 @@ const STATUS_LABELS = {
   accepted: "수락",
   rejected: "거절",
 };
+const REQUEST_UPDATE_COLUMN_ALLOWLIST = new Set([
+  "event_name",
+  "company_name",
+  "request_no",
+  "request_type",
+  "start_date",
+  "end_date",
+  "event_date",
+  "event_location",
+  "requested_people_count",
+  "required_count",
+  "requested_level",
+  "required_level",
+  "preferred_gender",
+  "status",
+  "assignment_status",
+  "operation_status",
+  "settlement_status",
+  "contact_status",
+  "payment_status",
+  "estimate_status",
+  "company_internal_memo",
+  "is_public",
+  "is_job_public",
+  "client_price",
+  "interpreter_price",
+  "profit",
+  "company_amount",
+  "interpreter_payment",
+  "platform_profit",
+  "assigned_interpreter_id",
+  "assigned_interpreter_name",
+  "matched_interpreter_id",
+  "matched_interpreter_name",
+  "admin_checked",
+  "checked_at",
+  "settlement_work_days",
+  "settlement_level",
+  "settlement_base_amount",
+  "settlement_extra_amount",
+  "settlement_deduction_amount",
+  "settlement_final_amount",
+  "company_fee",
+  "interpreter_fee",
+  "settlement_memo",
+  "settlement_confirmed_at",
+  "settlement_completed_at",
+  "event_start_time",
+  "event_end_time",
+  "language_direction",
+  "materials_available",
+]);
+const REQUEST_MONEY_FIELDS = new Set([
+  "price",
+  "client_price",
+  "company_amount",
+  "company_fee",
+  "interpreter_price",
+  "interpreter_payment",
+  "interpreter_fee",
+  "settlement_final_amount",
+  "settlement_base_amount",
+  "settlement_extra_amount",
+  "settlement_deduction_amount",
+]);
+
+function filterRequestUpdatePayload(payload = {}, request = null) {
+  const requestKeys = request ? new Set(Object.keys(request)) : null;
+  return Object.entries(payload).reduce((nextPayload, [key, value]) => {
+    if (value === undefined) return nextPayload;
+    if (requestKeys ? requestKeys.has(key) : REQUEST_UPDATE_COLUMN_ALLOWLIST.has(key)) {
+      nextPayload[key] = value;
+    }
+    return nextPayload;
+  }, {});
+}
+
+function hasRequestMoneyChange(changes = {}) {
+  return Object.keys(changes).some((key) => REQUEST_MONEY_FIELDS.has(key));
+}
 
 async function fetchJobApplicationsWithJobs(jobs = []) {
   const joinedResult = await publicSupabase
@@ -2323,20 +2414,35 @@ function sanitizeRecipientEmail(email) {
     }
 
     const request = requests.find((item) => item.id === id);
-    const nextClientPrice = getCompanyAmount({ ...request, ...changes });
-    const nextInterpreterPrice = getInterpreterPayment({ ...request, ...changes });
-    const payload = {
+    const shouldUpdateMoney = hasRequestMoneyChange(changes);
+    const nextClientPrice = shouldUpdateMoney ? getCompanyAmount({ ...request, ...changes }) : null;
+    const nextInterpreterPrice = shouldUpdateMoney ? getInterpreterPayment({ ...request, ...changes }) : null;
+    const rawPayload = {
       ...changes,
       ...(Object.prototype.hasOwnProperty.call(changes, "request_type")
         ? { request_type: normalizeRequestType(changes.request_type) }
         : {}),
-      company_amount: nextClientPrice,
-      interpreter_payment: nextInterpreterPrice,
-      platform_profit: nextClientPrice - nextInterpreterPrice,
-      client_price: nextClientPrice,
-      interpreter_price: nextInterpreterPrice,
-      profit: nextClientPrice - nextInterpreterPrice,
+      ...(shouldUpdateMoney
+        ? {
+            company_amount: nextClientPrice,
+            interpreter_payment: nextInterpreterPrice,
+            platform_profit: nextClientPrice - nextInterpreterPrice,
+            client_price: nextClientPrice,
+            interpreter_price: nextInterpreterPrice,
+            profit: nextClientPrice - nextInterpreterPrice,
+          }
+        : {}),
     };
+    const payload = filterRequestUpdatePayload(rawPayload, request);
+
+    if (Object.keys(payload).length === 0) {
+      console.warn("Request update skipped: empty payload after filtering", {
+        requestId: id,
+        changes,
+        rawPayload,
+      });
+      return;
+    }
 
     setSavingKey(`request-${id}`);
     let { data, error } = await supabase
@@ -2347,12 +2453,20 @@ function sanitizeRecipientEmail(email) {
       .single();
 
     if (error && isMissingColumnError(error)) {
-      console.error("request update column fallback:", error);
+      logRequestUpdateFailure("Request update column fallback", {
+        payload,
+        requestId: id,
+        error,
+      });
       const legacyPayload = {
         ...changes,
-        client_price: nextClientPrice,
-        interpreter_price: nextInterpreterPrice,
-        profit: nextClientPrice - nextInterpreterPrice,
+        ...(shouldUpdateMoney
+          ? {
+              client_price: nextClientPrice,
+              interpreter_price: nextInterpreterPrice,
+              profit: nextClientPrice - nextInterpreterPrice,
+            }
+          : {}),
       };
       delete legacyPayload.company_amount;
       delete legacyPayload.interpreter_payment;
@@ -2381,7 +2495,11 @@ function sanitizeRecipientEmail(email) {
     setSavingKey("");
 
     if (error) {
-      console.error(error);
+      logRequestUpdateFailure("Request update failed", {
+        payload,
+        requestId: id,
+        error,
+      });
       alert("의뢰 정보 변경에 실패했습니다.");
       return;
     }
@@ -2420,6 +2538,9 @@ function sanitizeRecipientEmail(email) {
         location: request?.event_location || "",
       });
     }
+
+    await fetchAdminData();
+    await refreshAdminOperationsData();
   };
 
   const confirmNewRequest = async (request) => {
@@ -2661,7 +2782,7 @@ function sanitizeRecipientEmail(email) {
     const request = activeRequest || requests.find((item) => item.id === draft.id) || {};
     const peopleCount = Number(draft.people_count || 1);
     const clientPrice = normalizeMoneyInput(draft.price);
-    const requestPayload = {
+    const requestPayload = filterRequestUpdatePayload({
       event_name: draft.event_name,
       company_name: draft.company_name,
       request_no: draft.request_no,
@@ -2687,7 +2808,7 @@ function sanitizeRecipientEmail(email) {
       is_job_public: draft.is_public === "true",
       client_price: clientPrice,
       assigned_interpreter_name: draft.assigned_interpreter,
-    };
+    }, request);
     const jobPayload = {
       event_name: draft.event_name,
       title: draft.event_name
@@ -2717,6 +2838,15 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`request-edit-${draft.id}`);
     try {
+      if (Object.keys(requestPayload).length === 0) {
+        console.warn("Request edit skipped: empty payload after filtering", {
+          requestId: draft.id,
+          draft,
+        });
+        alert("수정할 수 있는 의뢰 항목이 없습니다.");
+        return;
+      }
+
       const { data: updatedRequests, error: requestError } = await supabase
         .from("requests")
         .update(requestPayload)
@@ -2724,7 +2854,12 @@ function sanitizeRecipientEmail(email) {
         .select();
 
       if (requestError) {
-        alert(`수정 실패: ${requestError.message}`);
+        logRequestUpdateFailure("Request update failed", {
+          payload: requestPayload,
+          requestId: draft.id,
+          error: requestError,
+        });
+        alert("의뢰 수정에 실패했습니다.");
         return;
       }
 
@@ -2762,6 +2897,11 @@ function sanitizeRecipientEmail(email) {
       closeRequestModal();
       alert("공고 정보가 저장되었습니다.");
     } catch (error) {
+      logRequestUpdateFailure("Request update failed", {
+        payload: requestPayload,
+        requestId: draft.id,
+        error,
+      });
       console.error("공고 수정 실패:", {
         requestId: draft.id,
         jobId: request.job_id,
@@ -2856,7 +2996,17 @@ function sanitizeRecipientEmail(email) {
   const updateRequestWithFallback = async (requestId, changes) => {
     let previousRequest = null;
     const statusFields = ["status", "assignment_status", "operation_status", "settlement_status", "estimate_status", "payment_status"];
-    const hasStatusChange = statusFields.some(field => field in changes);
+    const request = requests.find((item) => String(item.id) === String(requestId));
+    const payload = filterRequestUpdatePayload(changes, request);
+    const hasStatusChange = statusFields.some(field => field in payload);
+
+    if (Object.keys(payload).length === 0) {
+      console.warn("Request update skipped: empty payload after filtering", {
+        requestId,
+        changes,
+      });
+      return { data: null, error: null };
+    }
 
     if (hasStatusChange) {
       const { data } = await supabase
@@ -2869,7 +3019,7 @@ function sanitizeRecipientEmail(email) {
 
     const { data, error } = await supabase
       .from("requests")
-      .update(changes)
+      .update(payload)
       .eq("id", requestId)
       .select("*")
       .single();
@@ -2878,7 +3028,7 @@ function sanitizeRecipientEmail(email) {
       if (!previousRequest) return;
 
       for (const field of statusFields) {
-        if (field in changes && previousRequest[field] !== updatedRequest[field]) {
+        if (field in payload && previousRequest[field] !== updatedRequest[field]) {
           try {
             const previousStatus = previousRequest[field];
             const nextStatus = updatedRequest[field];
@@ -2981,12 +3131,16 @@ function sanitizeRecipientEmail(email) {
       return { data, error: null };
     }
 
-    console.error("request update error:", error);
+    logRequestUpdateFailure("Request update failed", {
+      payload,
+      requestId,
+      error,
+    });
     if (!isMissingColumnError(error)) return { data: null, error };
 
     const legacyChanges = {};
-    if (changes.is_public !== undefined) legacyChanges.is_public = Boolean(changes.is_public);
-    if (changes.event_date !== undefined) legacyChanges.event_date = changes.event_date;
+    if (payload.is_public !== undefined) legacyChanges.is_public = Boolean(payload.is_public);
+    if (payload.event_date !== undefined) legacyChanges.event_date = payload.event_date;
     if (Object.keys(legacyChanges).length === 0) return { data: null, error: null };
 
     const { data: fallbackData, error: fallbackError } = await supabase
@@ -2997,7 +3151,11 @@ function sanitizeRecipientEmail(email) {
       .single();
 
     if (fallbackError) {
-      console.error("request update fallback error:", fallbackError);
+      logRequestUpdateFailure("Request update fallback failed", {
+        payload: legacyChanges,
+        requestId,
+        error: fallbackError,
+      });
     } else if (fallbackData) {
       await handleNotification(fallbackData);
     }
@@ -3119,9 +3277,11 @@ function sanitizeRecipientEmail(email) {
   };
 
   const updateRequestSettlementRow = async (requestId, payload) => {
+    const request = requests.find((item) => String(item.id) === String(requestId));
+    const safePayload = filterRequestUpdatePayload(payload, request);
     const { data, error } = await supabase
       .from("requests")
-      .update(payload)
+      .update(safePayload)
       .eq("id", requestId)
       .select("*")
       .single();
@@ -3129,10 +3289,9 @@ function sanitizeRecipientEmail(email) {
     if (!error) return { data, error: null };
     if (!isMissingColumnError(error)) return { data: null, error };
 
-    console.error("request settlement column fallback:", {
-      table: "requests",
-      id: requestId,
-      payload,
+    logRequestUpdateFailure("Request settlement update column fallback", {
+      payload: safePayload,
+      requestId,
       error,
     });
     const legacyPayload = {
@@ -3674,9 +3833,11 @@ function sanitizeRecipientEmail(email) {
     changes,
     fallbackChanges
   ) => {
+    const request = requests.find((item) => String(item.id) === String(requestId));
+    const payload = filterRequestUpdatePayload(changes, request);
     const { data, error } = await supabase
       .from("requests")
-      .update(changes)
+      .update(payload)
       .eq("id", requestId)
       .select("*")
       .single();
@@ -3684,13 +3845,26 @@ function sanitizeRecipientEmail(email) {
     if (!error) return { data, error: null };
     if (!isMissingColumnError(error)) return { data: null, error };
 
-    console.error("request assignment column fallback:", error);
+    logRequestUpdateFailure("Request assignment update column fallback", {
+      payload,
+      requestId,
+      error,
+    });
+    const safeFallbackChanges = filterRequestUpdatePayload(fallbackChanges, request);
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("requests")
-      .update(fallbackChanges)
+      .update(safeFallbackChanges)
       .eq("id", requestId)
       .select("*")
       .single();
+
+    if (fallbackError) {
+      logRequestUpdateFailure("Request assignment update fallback failed", {
+        payload: safeFallbackChanges,
+        requestId,
+        error: fallbackError,
+      });
+    }
 
     return { data: fallbackData, error: fallbackError };
   };
