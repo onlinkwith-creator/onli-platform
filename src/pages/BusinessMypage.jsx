@@ -325,7 +325,7 @@ function BusinessMypage({
               { p_request_ids: requestIds }
             );
             if (contactError) {
-              console.error("Error fetching revealed interpreter contacts:", contactError);
+              console.debug("Revealed interpreter contact RPC unavailable, trying direct RLS query:", contactError);
             }
             const contactRowsByAssignmentId = new Map(
               (contactRows || []).map((row) => [String(row.assignment_id), row])
@@ -336,6 +336,39 @@ function BusinessMypage({
                 row,
               ])
             );
+            const revealedInterpreterIds = [
+              ...new Set(
+                baseAssignments
+                  .filter(
+                    (assignment) =>
+                      assignment.interpreter_id &&
+                      (Boolean(assignment.is_contact_visible) || Boolean(assignment.contact_revealed))
+                  )
+                  .map((assignment) => assignment.interpreter_id)
+              ),
+            ];
+            let directContactRows = [];
+            let directContactError = null;
+
+            if (revealedInterpreterIds.length > 0) {
+              const directResult = await supabase
+                .from("interpreters")
+                .select("id, name, level, approved, jlpt, specialties, experience_count, phone, email, kakao_or_line")
+                .in("id", revealedInterpreterIds);
+              directContactRows = directResult.data || [];
+              directContactError = directResult.error || null;
+              if (directContactError) {
+                console.error("Error fetching revealed interpreter contacts:", {
+                  rpcError: contactError,
+                  directContactError,
+                  interpreterIds: revealedInterpreterIds,
+                });
+              }
+            }
+            const directContactsById = new Map(
+              directContactRows.map((interpreter) => [String(interpreter.id), interpreter])
+            );
+            const contactQueryFailed = Boolean(contactError && directContactError);
             const missingInterpreterIds = [
               ...new Set(
                 [
@@ -383,22 +416,33 @@ function BusinessMypage({
                 null;
               const interpreter =
                 assignment.interpreter ||
+                directContactsById.get(String(assignment.interpreter_id)) ||
                 publicInterpreterById.get(String(assignment.interpreter_id)) ||
                 null;
+              const directContact = directContactsById.get(String(assignment.interpreter_id)) || null;
               const mergedInterpreter =
-                interpreter && isContactVisible && contactRow
+                interpreter && isContactVisible && (contactRow || directContact)
                   ? {
                       ...interpreter,
-                      phone: contactRow.phone ?? interpreter.phone ?? null,
-                      email: contactRow.email ?? interpreter.email ?? null,
-                      kakao_or_line: contactRow.kakao_or_line ?? interpreter.kakao_or_line ?? null,
-                      name: interpreter.name || contactRow.interpreter_name || "배정 통역사",
+                      phone: contactRow?.phone ?? directContact?.phone ?? interpreter.phone ?? null,
+                      email: contactRow?.email ?? directContact?.email ?? interpreter.email ?? null,
+                      kakao_or_line:
+                        contactRow?.kakao_or_line ??
+                        directContact?.kakao_or_line ??
+                        interpreter.kakao_or_line ??
+                        null,
+                      name:
+                        interpreter.name ||
+                        contactRow?.interpreter_name ||
+                        directContact?.name ||
+                        "배정 통역사",
                     }
                   : interpreter;
               const contactFetchFailed =
                 isContactVisible &&
-                Boolean(contactError) &&
+                contactQueryFailed &&
                 !contactRow &&
+                !directContact &&
                 !assignment.interpreter?.phone &&
                 !assignment.interpreter?.email &&
                 !assignment.interpreter?.kakao_or_line;
@@ -415,6 +459,7 @@ function BusinessMypage({
                 effective_contact_visible: isContactVisible,
                 joined_interpreter: assignment.interpreter,
                 rpc_contact_row: contactRow,
+                direct_contact_row: directContact,
                 phone: displayInterpreter?.phone ?? null,
                 email: displayInterpreter?.email ?? null,
                 kakao: displayInterpreter?.kakao_or_line ?? null,
@@ -441,24 +486,36 @@ function BusinessMypage({
                   ) || null;
                 const publicInterpreter =
                   publicInterpreterById.get(String(request.assigned_interpreter_id)) || {};
+                const directContact =
+                  directContactsById.get(String(request.assigned_interpreter_id)) || null;
                 const interpreter = {
                   id: request.assigned_interpreter_id,
                   name:
                     publicInterpreter.name ||
                     contactRow?.interpreter_name ||
+                    directContact?.name ||
                     request.assigned_interpreter_name ||
                     "배정 통역사",
-                  level: publicInterpreter.level || request.required_level || request.requested_level || "",
+                  level:
+                    publicInterpreter.level ||
+                    directContact?.level ||
+                    request.required_level ||
+                    request.requested_level ||
+                    "",
                   ...publicInterpreter,
-                  ...(contactRow
+                  ...directContact,
+                  ...(contactRow || directContact
                     ? {
-                        phone: contactRow.phone ?? publicInterpreter.phone ?? null,
-                        email: contactRow.email ?? publicInterpreter.email ?? null,
+                        phone: contactRow?.phone ?? directContact?.phone ?? publicInterpreter.phone ?? null,
+                        email: contactRow?.email ?? directContact?.email ?? publicInterpreter.email ?? null,
                         kakao_or_line:
-                          contactRow.kakao_or_line ?? publicInterpreter.kakao_or_line ?? null,
+                          contactRow?.kakao_or_line ??
+                          directContact?.kakao_or_line ??
+                          publicInterpreter.kakao_or_line ??
+                          null,
                       }
                     : {}),
-                  _contact_fetch_failed: Boolean(contactError && !contactRow),
+                  _contact_fetch_failed: Boolean(contactQueryFailed && !contactRow && !directContact),
                 };
 
                 console.debug("BusinessMypage request fallback contact debug", {
@@ -466,6 +523,7 @@ function BusinessMypage({
                   interpreter_id: request.assigned_interpreter_id,
                   contact_revealed: Boolean(contactRow?.contact_revealed),
                   rpc_contact_row: contactRow,
+                  direct_contact_row: directContact,
                   phone: interpreter.phone ?? null,
                   email: interpreter.email ?? null,
                   kakao: interpreter.kakao_or_line ?? null,

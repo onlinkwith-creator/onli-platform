@@ -4811,14 +4811,26 @@ function RequestActionModal({
           generatedDocuments={generatedDocuments}
           toggleContactVisibility={async (assignmentId, currentVal) => {
             try {
+              const nextVisible = !currentVal;
               const { error } = await supabase
                 .from("request_interpreters")
-                .update({ is_contact_visible: !currentVal })
+                .update({
+                  is_contact_visible: nextVisible,
+                  contact_revealed: nextVisible,
+                  contact_revealed_at: nextVisible ? new Date().toISOString() : null,
+                })
                 .eq("id", assignmentId);
               if (error) throw error;
               setAssignments(current =>
                 current.map(item =>
-                  item.id === assignmentId ? { ...item, is_contact_visible: !currentVal } : item
+                  item.id === assignmentId
+                    ? {
+                        ...item,
+                        is_contact_visible: nextVisible,
+                        contact_revealed: nextVisible,
+                        contact_revealed_at: nextVisible ? new Date().toISOString() : null,
+                      }
+                    : item
                 )
               );
             } catch (err) {

@@ -27,18 +27,31 @@ as $$
     ri.interpreter_id,
     (coalesce(ri.contact_revealed, false) or coalesce(ri.is_contact_visible, false)) as contact_revealed,
     ri.contact_revealed_at,
-    i.phone,
-    i.email,
-    i.kakao_or_line,
+    coalesce(to_jsonb(i)->>'phone', to_jsonb(i)->>'phone_number', to_jsonb(i)->>'contact_phone') as phone,
+    coalesce(to_jsonb(i)->>'email', to_jsonb(i)->>'user_email') as email,
+    coalesce(
+      to_jsonb(i)->>'kakao_or_line',
+      to_jsonb(i)->>'kakao_id',
+      to_jsonb(i)->>'kakao',
+      to_jsonb(i)->>'kakao_talk_id'
+    ) as kakao_or_line,
     i.name as interpreter_name
   from public.request_interpreters ri
   join public.requests r
     on r.id = ri.request_id
-  join public.interpreters i
+  left join public.interpreters i
     on i.id = ri.interpreter_id
   where
     auth.uid() is not null
-    and r.company_auth_user_id = auth.uid()
+    and (
+      r.company_auth_user_id = auth.uid()
+      or exists (
+        select 1
+        from public.businesses b
+        where b.auth_user_id = auth.uid()
+          and nullif(to_jsonb(r)->>'company_id', '')::bigint = b.id
+      )
+    )
     and (p_request_ids is null or ri.request_id = any(p_request_ids))
     and (coalesce(ri.contact_revealed, false) = true or coalesce(ri.is_contact_visible, false) = true)
     and exists (
@@ -54,11 +67,17 @@ as $$
         'confirmed',
         'completed',
         'matched',
+        'preparing',
+        'ready',
+        'in_progress',
         '배정',
         '배정완료',
         '매칭완료',
         '확정',
         '완료',
+        '업무준비중',
+        '진행예정',
+        '운영중',
         '업무완료'
       )
     );
@@ -77,7 +96,15 @@ using (
     from public.request_interpreters ri
     join public.requests r on r.id = ri.request_id
     where ri.interpreter_id = interpreters.id
-      and r.company_auth_user_id = auth.uid()
+      and (
+        r.company_auth_user_id = auth.uid()
+        or exists (
+          select 1
+          from public.businesses b
+          where b.auth_user_id = auth.uid()
+            and nullif(to_jsonb(r)->>'company_id', '')::bigint = b.id
+        )
+      )
       and (coalesce(ri.contact_revealed, false) = true or coalesce(ri.is_contact_visible, false) = true)
       and exists (
         select 1
@@ -92,11 +119,17 @@ using (
           'confirmed',
           'completed',
           'matched',
+          'preparing',
+          'ready',
+          'in_progress',
           '배정',
           '배정완료',
           '매칭완료',
           '확정',
           '완료',
+          '업무준비중',
+          '진행예정',
+          '운영중',
           '업무완료'
         )
       )
