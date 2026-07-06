@@ -73,7 +73,6 @@ import {
   normalizeAssignmentStatus,
   normalizeOperationStatus,
   normalizeSettlementFlowStatus,
-  getSettlementTabStatus,
 } from "../utils/operationsStatus";
 import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
 import {
@@ -170,7 +169,7 @@ const ADMIN_NOTES_SELECT =
 const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const SETTLEMENTS_SELECT =
-  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, status, settlement_status, payout_status, work_days, level, daily_rate, extra_amount, deduction_amount, paid_at, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -363,7 +362,7 @@ const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
   "취소": "cancelled",
 };
 const SETTLEMENT_STATUS_GROUPS = {
-  // Now managed via getSettlementTabStatus in operationsStatus.js
+  // Settlement management grouping is handled by getSettlementGroup below.
 };
 const SETTLEMENT_PAYOUT_METHOD_OPTIONS = [
   { value: "", label: "미입력" },
@@ -727,7 +726,7 @@ function sanitizeRecipientEmail(email) {
               const result = await publicSupabase
                 .from("request_interpreters")
                 .select(
-                  "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
+                  "id, request_id, interpreter_id, contact_visible, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
                 )
                 .order("id", { ascending: false });
 
@@ -761,6 +760,17 @@ function sanitizeRecipientEmail(email) {
       const interpreterData = getAdminData("interpreters", interpreterResult);
       const assignmentData = uniqueRequestInterpreterAssignments(
         getAdminData("request_interpreters", assignmentResult)
+      ).map((assignment) => ({
+        ...assignment,
+        contact_visible: Boolean(assignment.contact_visible),
+      }));
+      console.table(
+        assignmentData.map((item) => ({
+          request_interpreter_id: item.id,
+          request_id: item.request_id,
+          interpreter_id: item.interpreter_id,
+          contact_visible: item.contact_visible,
+        }))
       );
       const matchingData = getAdminData("matchings", matchingResult);
       const businessData = getAdminData("businesses", businessResult);
@@ -3508,7 +3518,7 @@ function sanitizeRecipientEmail(email) {
     setSavingKey(`assign-${requestId}`);
     const { data: existingAssignments, error: existingAssignmentError } = await supabase
       .from("request_interpreters")
-      .select("id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)")
+      .select("id, request_id, interpreter_id, contact_visible, assigned_at, interpreter:interpreters(id, name, level, status, approved)")
       .eq("request_id", requestId)
       .eq("interpreter_id", interpreterId)
       .limit(1);
@@ -3526,6 +3536,7 @@ function sanitizeRecipientEmail(email) {
     if (existingAssignment) {
       const nextAssignment = {
         ...existingAssignment,
+        contact_visible: Boolean(existingAssignment.contact_visible),
         interpreter: existingAssignment.interpreter || interpreter,
       };
       const nextAssignments = uniqueRequestInterpreterAssignments([
@@ -3583,7 +3594,7 @@ function sanitizeRecipientEmail(email) {
       .from("request_interpreters")
       .insert([payload])
       .select(
-        "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
+        "id, request_id, interpreter_id, contact_visible, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
       )
       .single();
 
@@ -3615,6 +3626,7 @@ function sanitizeRecipientEmail(email) {
         assigned_at: new Date().toISOString(),
         interpreter,
       }),
+      contact_visible: Boolean(assignmentData?.contact_visible),
       interpreter: assignmentData?.interpreter || interpreter,
     };
     console.log("assignment created debug", {
@@ -3943,6 +3955,33 @@ function sanitizeRecipientEmail(email) {
       );
     }
     alert("매칭이 취소되었습니다.");
+  };
+
+  const handleContactVisibleChange = async (id, checked) => {
+    if (!id) return;
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    console.log("contact visible update payload", { id, checked });
+
+    const { error } = await supabase
+      .from("request_interpreters")
+      .update({ contact_visible: checked })
+      .eq("id", id);
+
+    if (error) {
+      console.error("contact visible update failed", error);
+      alert(`연락처 공개 설정 변경에 실패했습니다: ${error.message}`);
+      return;
+    }
+
+    setAssignments((current) =>
+      current.map((item) =>
+        String(item.id) === String(id) ? { ...item, contact_visible: checked } : item
+      )
+    );
   };
 
   const updateMatchingApplicationStatus = async (request, interpreter, status) => {
@@ -5046,6 +5085,7 @@ function sanitizeRecipientEmail(email) {
                 onChangeDraft={updateRequestEditDraft}
                 onClose={closeRequestModal}
                 onRemoveAssignment={removeAssignment}
+                onToggleContactVisibility={handleContactVisibleChange}
                 onSaveEdit={saveRequestEditDraft}
                 saveSettlement={saveSettlement}
                 toggleRequestJobPublic={toggleRequestJobPublic}
@@ -5091,6 +5131,7 @@ function RequestActionModal({
   onChangeDraft,
   onClose,
   onRemoveAssignment,
+  onToggleContactVisibility,
   onSaveEdit,
   saveSettlement,
   toggleRequestJobPublic,
@@ -5162,6 +5203,7 @@ function RequestActionModal({
           settlementTouched={settlementTouched}
           saveSettlement={saveSettlement}
           removeAssignment={onRemoveAssignment}
+          onToggleContactVisibility={onToggleContactVisibility}
           updateRequest={updateRequest}
           updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
@@ -8255,6 +8297,7 @@ function RequestDetailPanel({
                 ),
               }))}
               onRemove={removeAssignment}
+              onToggleContactVisibility={onToggleContactVisibility}
             />
             <div className="admin-assign-row">
               <select
@@ -12903,7 +12946,7 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove }) {
+function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
@@ -12911,9 +12954,23 @@ function AssignmentList({ emptyText, items, onRemove }) {
   return (
     <div className="admin-assignment-list">
       {items.map((item) => {
+        const requestInterpreter = item.assignment;
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
+            {requestInterpreter?.id && onToggleContactVisibility && (
+              <label className="contact-visible-control" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(requestInterpreter.contact_visible)}
+                  onChange={(event) =>
+                    onToggleContactVisibility(requestInterpreter.id, event.target.checked)
+                  }
+                  style={{ cursor: "pointer" }}
+                />
+                연락처 공개
+              </label>
+            )}
             <button
               type="button"
               className="admin-link-button danger"
@@ -14272,7 +14329,9 @@ function buildRevenueSummary({ settlementRowsByScope = {} } = {}) {
   const confirmedRows = settlementRowsByScope.confirmed || [];
   const completedRows = settlementRowsByScope.completed || [];
   const billingRows = [...pendingRows, ...confirmedRows, ...completedRows];
-  const payoutRows = [...pendingRows, ...confirmedRows];
+  const payoutRows = [...pendingRows, ...confirmedRows].filter(
+    (request) => !isSettlementPaid(request)
+  );
 
   const companyAmount = billingRows.reduce(
     (sum, request) => sum + getCompanyAmount(request),
@@ -14288,6 +14347,15 @@ function buildRevenueSummary({ settlementRowsByScope = {} } = {}) {
     interpreterAmount,
     profit: companyAmount - interpreterAmount,
   };
+}
+
+function isSettlementPaid(request = {}) {
+  const settlement = request._settlement || {};
+  return (
+    request.group === "completed" ||
+    normalizeSettlementPayoutStatus(settlement.payout_status || request.payout_status) === "paid" ||
+    Boolean(settlement.paid_at || request.paid_at || request.settlement_completed_at)
+  );
 }
 
 function buildRecentActivityItems({
@@ -15259,54 +15327,62 @@ function buildSettlementManagementRows({ requests = [], jobs = [], settlements =
     ...jobRows,
   ]).map((row) => {
     const settlement = settlementByRequestId.get(String(row.id || row.request_id || ""));
-    if (!settlement) return row;
-    const amount = normalizeMoneyInput(
-      settlement.amount ??
-        row.settlement_final_amount ??
-        row.interpreter_payment ??
-        row.interpreter_price ??
-        0
-    );
+    const baseRow = settlement
+      ? (() => {
+          const amount = normalizeMoneyInput(
+            settlement.amount ??
+              row.settlement_final_amount ??
+              row.interpreter_payment ??
+              row.interpreter_price ??
+              0
+          );
+          return {
+            ...row,
+            _settlement_id: settlement.id,
+            _settlement: settlement,
+            payout_status: settlement.payout_status || row.payout_status,
+            paid_at: settlement.paid_at || row.paid_at,
+            settlement_final_amount: amount || row.settlement_final_amount,
+            interpreter_payment: amount || row.interpreter_payment,
+            interpreter_price: amount || row.interpreter_price,
+            settlement_completed_at: settlement.paid_at || row.settlement_completed_at,
+            assigned_interpreter_id:
+              settlement.interpreter_id || row.assigned_interpreter_id || row.matched_interpreter_id,
+            matched_interpreter_id:
+              settlement.interpreter_id || row.matched_interpreter_id || row.assigned_interpreter_id,
+          };
+        })()
+      : row;
+    const group = getSettlementGroup(row, settlement);
     return {
-      ...row,
-      _settlement_id: settlement.id,
-      _settlement: settlement,
-      payout_status: settlement.payout_status || row.payout_status,
-      paid_at: settlement.paid_at || row.paid_at,
-      settlement_final_amount: amount || row.settlement_final_amount,
-      interpreter_payment: amount || row.interpreter_payment,
-      interpreter_price: amount || row.interpreter_price,
-      settlement_completed_at: settlement.paid_at || row.settlement_completed_at,
-      assigned_interpreter_id:
-        settlement.interpreter_id || row.assigned_interpreter_id || row.matched_interpreter_id,
-      matched_interpreter_id:
-        settlement.interpreter_id || row.matched_interpreter_id || row.assigned_interpreter_id,
+      ...baseRow,
+      group,
+      request_status: row.status || row.matching_status || "",
+      request_settlement_status: row.settlement_status ?? row.settlementStatus ?? null,
+      settlement_status:
+        settlement?.settlement_status ||
+        settlement?.status ||
+        settlement?.payout_status ||
+        "",
     };
   });
   const settlementCandidates = rows.filter(isSettlementManagementCandidate);
   if (settlementCandidates.length > 0) {
     console.table(
-      settlementCandidates.map((request) => {
-        const settlement = request._settlement || null;
-        return {
-          request_code: request.request_no || request.management_no || request.id,
-          request_id: request.id || request.request_id,
-          request_status: request.status || "",
-          assignment_status: request.assignment_status || "",
-          request_settlement_status: request.settlement_status ?? null,
-          settlement_id: settlement?.id || "",
-          settlement_status:
-            settlement?.status ||
-            settlement?.settlement_status ||
-            settlement?.payout_status ||
-            "",
-          computed_tab_status: getSettlementTabStatus(request, settlement),
-        };
-      })
+      settlementCandidates.map((row) => ({
+        request_code: row.request_no || row.management_no || row.id,
+        request_status: row.request_status || row.status || "",
+        assignment_status: row.assignment_status || "",
+        request_settlement_status: row.request_settlement_status,
+        settlement_id: row._settlement_id || "",
+        settlement_status: row.settlement_status || "",
+        computed_group: row.group,
+      }))
     );
   }
 
   return {
+    rows: sortSettlementRows(settlementCandidates),
     pending: sortSettlementRows(settlementCandidates.filter(isSettlementPendingManagementRow)),
     confirmed: sortSettlementRows(settlementCandidates.filter(isSettlementConfirmedManagementRow)),
     completed: sortSettlementRows(settlementCandidates.filter(isSettlementCompletedManagementRow)),
@@ -15316,19 +15392,19 @@ function buildSettlementManagementRows({ requests = [], jobs = [], settlements =
 }
 
 function isSettlementPendingManagementRow(request = {}) {
-  return getSettlementStatusGroup(request) === "pending";
+  return request.group === "pending";
 }
 
 function isSettlementConfirmedManagementRow(request = {}) {
-  return getSettlementStatusGroup(request) === "confirmed";
+  return request.group === "confirmed";
 }
 
 function isSettlementCompletedManagementRow(request = {}) {
-  return getSettlementStatusGroup(request) === "completed";
+  return request.group === "completed";
 }
 
 function isSettlementHoldManagementRow(request = {}) {
-  return getSettlementStatusGroup(request) === "hold";
+  return request.group === "hold";
 }
 
 function isSettlementPaymentHistoryRow(request = {}) {
@@ -15340,7 +15416,20 @@ function isSettlementPaymentHistoryRow(request = {}) {
 function isSettlementManagementCandidate(request = {}) {
   if (!request?.id) return false;
   if (request._settlement?.id) return true;
-  return isSettlementOperationCompleted(request) || isCompletedRequest(request);
+  return (
+    isSettlementOperationCompleted(request) ||
+    isCompletedRequest(request) ||
+    isSettlementAssignmentReady(request)
+  );
+}
+
+function isSettlementAssignmentReady(request = {}) {
+  const assignmentStatus = normalizeAssignmentStatus(request);
+  return [
+    ASSIGNMENT_STATUS.ASSIGNED,
+    ASSIGNMENT_STATUS.PREPARING,
+    ASSIGNMENT_STATUS.READY,
+  ].includes(assignmentStatus);
 }
 
 function isSettlementOperationCompleted(request = {}) {
@@ -15354,7 +15443,7 @@ function isSettlementOperationCompleted(request = {}) {
 }
 
 function getSettlementStatusValue(request = {}) {
-  const group = getSettlementTabStatus(request, request._settlement);
+  const group = getSettlementGroup(request, request._settlement);
   if (group === "confirmed") return SETTLEMENT_FLOW_STATUS.CONFIRMED;
   if (group === "completed") return SETTLEMENT_FLOW_STATUS.COMPLETED;
   if (group === "hold") return SETTLEMENT_FLOW_STATUS.ON_HOLD;
@@ -15363,7 +15452,88 @@ function getSettlementStatusValue(request = {}) {
 }
 
 function getSettlementStatusGroup(request = {}) {
-  return getSettlementTabStatus(request, request._settlement);
+  return getSettlementGroup(request, request._settlement);
+}
+
+function getSettlementGroup(request = {}, settlement = null) {
+  if (request.settlement_status !== undefined) {
+    const requestStatus = normalizeSettlementGroupValue(request.settlement_status);
+    if (requestStatus) return requestStatus;
+  }
+
+  if (request.settlementStatus !== undefined) {
+    const requestCamelStatus = normalizeSettlementGroupValue(request.settlementStatus);
+    if (requestCamelStatus) return requestCamelStatus;
+  }
+
+  if (settlement?.settlement_status !== undefined) {
+    const settlementFlowStatus = normalizeSettlementGroupValue(settlement.settlement_status);
+    if (settlementFlowStatus) return settlementFlowStatus;
+  }
+
+  if (settlement?.status !== undefined) {
+    const settlementStatus = normalizeSettlementGroupValue(settlement.status);
+    if (settlementStatus) return settlementStatus;
+  }
+
+  const settlementPayoutStatus = getSettlementStatusGroupFromPayoutStatus(settlement?.payout_status);
+  if (settlementPayoutStatus) return settlementPayoutStatus;
+
+  if (!settlement?.id && isSettlementAssignmentReady(request)) return "pending";
+  if (!settlement?.id && (isSettlementOperationCompleted(request) || isCompletedRequest(request))) return "pending";
+
+  return "pending";
+}
+
+function normalizeSettlementGroupValue(status) {
+  if (status === undefined || status === null || String(status).trim() === "") return "pending";
+  const value = normalizeText(status).replace(/\s+/g, "_");
+  if (
+    [
+      "pending",
+      "settlement_pending",
+      "waiting",
+      "wait",
+      "정산대기",
+    ].includes(value)
+  ) {
+    return "pending";
+  }
+  if (
+    [
+      "confirmed",
+      "settlement_confirmed",
+      "finalized",
+      "fixed",
+      "정산확정",
+    ].includes(value)
+  ) {
+    return "confirmed";
+  }
+  if (
+    [
+      "completed",
+      "paid",
+      "settlement_completed",
+      "payment_completed",
+      "정산완료",
+      "지급완료",
+    ].includes(value)
+  ) {
+    return "completed";
+  }
+  if (
+    [
+      "hold",
+      "on_hold",
+      "settlement_hold",
+      "withheld",
+      "정산보류",
+    ].includes(value)
+  ) {
+    return "hold";
+  }
+  return null;
 }
 
 function getSettlementStatusGroupFromPayoutStatus(status) {
@@ -15576,19 +15746,19 @@ function normalizePaymentStatus(status) {
 
 function doesRequestMatchSettlementManagementFilter(request = {}, filter = "all") {
   if (filter === "all") return true;
-  const settlementStatus = getSettlementStatusValue(request);
+  const group = request.group || getSettlementGroup(request, request._settlement);
 
   if (filter === "settlement_pending") {
-    return settlementStatus === SETTLEMENT_FLOW_STATUS.PENDING;
+    return group === "pending";
   }
   if (filter === "settlement_confirmed") {
-    return settlementStatus === SETTLEMENT_FLOW_STATUS.CONFIRMED;
+    return group === "confirmed";
   }
   if (filter === "settlement_completed") {
-    return settlementStatus === SETTLEMENT_FLOW_STATUS.COMPLETED;
+    return group === "completed";
   }
   if (filter === "settlement_on_hold") {
-    return settlementStatus === SETTLEMENT_FLOW_STATUS.ON_HOLD;
+    return group === "hold";
   }
   return true;
 }

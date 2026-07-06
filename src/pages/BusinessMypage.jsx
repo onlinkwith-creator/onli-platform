@@ -270,7 +270,6 @@ function BusinessMypage({
               id,
               request_id,
               interpreter_id,
-              status,
               contact_visible,
               interpreter:interpreters (
                 id,
@@ -285,59 +284,7 @@ function BusinessMypage({
                 email
               )
             `)
-            .in("request_id", requestIds)
-            .eq("status", "assigned");
-
-          if (assignmentResult.error && isMissingColumnError(assignmentResult.error)) {
-            console.error("business assignments contact column fallback:", assignmentResult.error);
-            assignmentResult = await supabase
-              .from("request_interpreters")
-              .select(`
-                id,
-                request_id,
-                interpreter_id,
-                assigned_at,
-                contact_visible,
-                interpreter:interpreters (
-                  id,
-                  name,
-                  level,
-                  approved,
-                  jlpt,
-                  specialties,
-                  experience_count,
-                  phone,
-                  kakao_or_line,
-                  email
-                )
-              `)
-              .in("request_id", requestIds);
-          }
-
-          if (assignmentResult.error && isMissingColumnError(assignmentResult.error)) {
-            console.error("business assignments legacy fallback:", assignmentResult.error);
-            assignmentResult = await supabase
-              .from("request_interpreters")
-              .select(`
-                id,
-                request_id,
-                interpreter_id,
-                assigned_at,
-                interpreter:interpreters (
-                  id,
-                  name,
-                  level,
-                  approved,
-                  jlpt,
-                  specialties,
-                  experience_count,
-                  phone,
-                  kakao_or_line,
-                  email
-                )
-              `)
-              .in("request_id", requestIds);
-          }
+            .in("request_id", requestIds);
 
           const assignData = assignmentResult.data;
           const assignError = assignmentResult.error;
@@ -347,25 +294,8 @@ function BusinessMypage({
           } else {
             const baseAssignments = (assignData || []).map((assignment) => ({
               ...assignment,
-              status: assignment.status || "assigned",
               contact_visible: Boolean(assignment.contact_visible),
             }));
-            const { data: contactRows = [], error: contactError } = await supabase.rpc(
-              "get_company_assignment_interpreter_contacts",
-              { p_request_ids: requestIds }
-            );
-            if (contactError) {
-              console.debug("Revealed interpreter contact RPC unavailable, trying direct RLS query:", contactError);
-            }
-            const contactRowsByAssignmentId = new Map(
-              (contactRows || []).map((row) => [String(row.assignment_id), row])
-            );
-            const contactRowsByRequestInterpreter = new Map(
-              (contactRows || []).map((row) => [
-                `${String(row.request_id)}:${String(row.interpreter_id)}`,
-                row,
-              ])
-            );
             const revealedInterpreterIds = [
               ...new Set(
                 baseAssignments
@@ -377,8 +307,6 @@ function BusinessMypage({
                   .map((assignment) => assignment.interpreter_id)
               ),
             ];
-            let directContactRows = [];
-            let directContactError = null;
             let profileContactRows = [];
             let profileContactError = null;
 
@@ -391,35 +319,15 @@ function BusinessMypage({
               profileContactError = profileResult.error || null;
               if (profileContactError && !isMissingColumnError(profileContactError)) {
                 console.error("Error fetching interpreter profile contacts:", {
-                  rpcError: contactError,
                   profileContactError,
                   interpreterIds: revealedInterpreterIds,
                 });
               }
-
-              const directResult = await supabase
-                .from("interpreters")
-                .select("id, name, level, approved, jlpt, specialties, experience_count, phone, email, kakao_or_line")
-                .in("id", revealedInterpreterIds);
-              directContactRows = directResult.data || [];
-              directContactError = directResult.error || null;
-              if (directContactError) {
-                console.error("Error fetching revealed interpreter contacts:", {
-                  rpcError: contactError,
-                  directContactError,
-                  interpreterIds: revealedInterpreterIds,
-                });
-              }
             }
-            const directContactsById = new Map(
-              directContactRows.map((interpreter) => [String(interpreter.id), interpreter])
-            );
             const profileContactsByInterpreterId = new Map(
               profileContactRows.map((profile) => [String(profile.interpreter_id), profile])
             );
             const contactQueryFailed = Boolean(
-              contactError &&
-              directContactError &&
               profileContactError &&
               !isMissingColumnError(profileContactError)
             );
@@ -454,74 +362,32 @@ function BusinessMypage({
             const publicInterpreterById = new Map(
               publicInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
             );
-            const getContactSourceTable = ({ profileContact, contactRow, directContact, joinedInterpreter }) => {
+            const getContactSourceTable = ({ profileContact }) => {
               if (profileContact) return "interpreter_profiles";
-              if (contactRow?.contact_source) return `rpc:get_company_assignment_interpreter_contacts/${contactRow.contact_source}`;
-              if (contactRow) return "rpc:get_company_assignment_interpreter_contacts";
-              if (directContact) return "interpreters";
-              if (
-                joinedInterpreter?.phone ||
-                joinedInterpreter?.email ||
-                joinedInterpreter?.kakao_or_line
-              ) {
-                return "request_interpreters.join.interpreters";
-              }
               return null;
             };
             const mergedAssignments = baseAssignments.map((assignment) => {
               const isContactVisible = Boolean(assignment.contact_visible);
-              const contactRow =
-                contactRowsByAssignmentId.get(String(assignment.id)) ||
-                contactRowsByRequestInterpreter.get(
-                  `${String(assignment.request_id)}:${String(assignment.interpreter_id)}`
-                ) ||
-                null;
               const profileContact =
                 profileContactsByInterpreterId.get(String(assignment.interpreter_id)) || null;
               const interpreter =
                 assignment.interpreter ||
-                directContactsById.get(String(assignment.interpreter_id)) ||
                 publicInterpreterById.get(String(assignment.interpreter_id)) ||
                 null;
-              const directContact = directContactsById.get(String(assignment.interpreter_id)) || null;
               const mergedInterpreter =
-                interpreter && isContactVisible && (profileContact || contactRow || directContact)
+                interpreter && isContactVisible
                   ? {
                       ...interpreter,
-                      phone:
-                        profileContact?.phone ??
-                        contactRow?.phone ??
-                        directContact?.phone ??
-                        interpreter.phone ??
-                        null,
-                      email:
-                        profileContact?.email ??
-                        contactRow?.email ??
-                        directContact?.email ??
-                        interpreter.email ??
-                        null,
-                      kakao_or_line:
-                        profileContact?.kakao_id ??
-                        contactRow?.kakao_or_line ??
-                        directContact?.kakao_or_line ??
-                        interpreter.kakao_or_line ??
-                        null,
-                      name:
-                        interpreter.name ||
-                        contactRow?.interpreter_name ||
-                        directContact?.name ||
-                        "배정 통역사",
+                      phone: profileContact?.phone || null,
+                      email: profileContact?.email || null,
+                      kakao_or_line: profileContact?.kakao_id || null,
+                      name: interpreter.name || "배정 통역사",
                     }
                   : interpreter;
               const contactFetchFailed =
                 isContactVisible &&
                 contactQueryFailed &&
-                !profileContact &&
-                !contactRow &&
-                !directContact &&
-                !assignment.interpreter?.phone &&
-                !assignment.interpreter?.email &&
-                !assignment.interpreter?.kakao_or_line;
+                !profileContact;
               const displayInterpreter = mergedInterpreter
                 ? { ...mergedInterpreter, _contact_fetch_failed: contactFetchFailed }
                 : mergedInterpreter;
@@ -532,16 +398,11 @@ function BusinessMypage({
                 interpreter_id: assignment.interpreter_id,
                 contact_source_table: getContactSourceTable({
                   profileContact,
-                  contactRow,
-                  directContact,
-                  joinedInterpreter: assignment.interpreter,
                 }),
                 contact_visible: assignment.contact_visible,
                 effective_contact_visible: isContactVisible,
                 joined_interpreter: assignment.interpreter,
                 profile_contact_row: profileContact,
-                rpc_contact_row: contactRow,
-                direct_contact_row: directContact,
                 phone: displayInterpreter?.phone ?? null,
                 email: displayInterpreter?.email ?? null,
                 kakao: displayInterpreter?.kakao_or_line ?? null,
@@ -554,9 +415,8 @@ function BusinessMypage({
                 interpreterUserId:
                   profileContact?.auth_user_id ||
                   profileContact?.user_id ||
-                  contactRow?.interpreter_user_id ||
                   null,
-                profileId: profileContact?.id || contactRow?.profile_id || null,
+                profileId: profileContact?.id || null,
                 assignment,
                 interpreter: displayInterpreter,
                 profile: profileContact || null,
@@ -565,12 +425,20 @@ function BusinessMypage({
               return {
                 ...assignment,
                 contact_visible: isContactVisible,
-                contact_revealed_at: contactRow?.contact_revealed_at || null,
                 interpreter: displayInterpreter,
               };
             });
             const assignmentRequestIds = new Set(
               mergedAssignments.map((assignment) => String(assignment.request_id))
+            );
+            console.table(
+              mergedAssignments.map((item) => ({
+                request_interpreter_id: item.id,
+                contact_visible: item.contact_visible,
+                phone: item.interpreter?.phone || null,
+                email: item.interpreter?.email || null,
+                kakao_id: item.interpreter?.kakao_or_line || null,
+              }))
             );
             console.log("business assignments debug", {
               count: mergedAssignments.length,
@@ -578,7 +446,6 @@ function BusinessMypage({
                 request_id: assignment.request_id,
                 assignment_id: assignment.id,
                 interpreter_id: assignment.interpreter_id,
-                status: assignment.status,
                 contact_visible: assignment.contact_visible,
               })),
               requestIdsWithAssignments: Array.from(assignmentRequestIds),
@@ -692,7 +559,7 @@ function BusinessMypage({
   const visibleAssignments = useMemo(
     () =>
       assignments.filter(
-        (assignment) => assignment?.interpreter && String(assignment.status || "") === "assigned"
+        (assignment) => assignment?.id && assignment?.interpreter
       ),
     [assignments]
   );
@@ -1542,7 +1409,7 @@ function BusinessMypage({
                       const isContactVisible = Boolean(assign.contact_visible);
                       const getContactDisplayValue = (value) => {
                         if (!isContactVisible) return "관리자 공개 전";
-                        return interpreter?._contact_fetch_failed ? "조회 실패" : value || "미등록";
+                        return value || "미등록";
                       };
 
                       const isCertified = isOnliCertified(interpreter);
