@@ -53,34 +53,7 @@ as $$
       )
     )
     and (p_request_ids is null or ri.request_id = any(p_request_ids))
-    and (coalesce(ri.contact_revealed, false) = true or coalesce(ri.is_contact_visible, false) = true)
-    and exists (
-      select 1
-      from unnest(array[
-        r.assignment_status,
-        r.matching_status,
-        r.status,
-        r.operation_status
-      ]) as status_value(value)
-      where lower(trim(coalesce(status_value.value, ''))) in (
-        'assigned',
-        'confirmed',
-        'completed',
-        'matched',
-        'preparing',
-        'ready',
-        'in_progress',
-        '배정',
-        '배정완료',
-        '매칭완료',
-        '확정',
-        '완료',
-        '업무준비중',
-        '진행예정',
-        '운영중',
-        '업무완료'
-      )
-    );
+    and (coalesce(ri.contact_revealed, false) = true or coalesce(ri.is_contact_visible, false) = true);
 $$;
 
 grant execute on function public.get_company_assignment_interpreter_contacts(bigint[]) to authenticated;
@@ -106,33 +79,6 @@ using (
         )
       )
       and (coalesce(ri.contact_revealed, false) = true or coalesce(ri.is_contact_visible, false) = true)
-      and exists (
-        select 1
-        from unnest(array[
-          r.assignment_status,
-          r.matching_status,
-          r.status,
-          r.operation_status
-        ]) as status_value(value)
-        where lower(trim(coalesce(status_value.value, ''))) in (
-          'assigned',
-          'confirmed',
-          'completed',
-          'matched',
-          'preparing',
-          'ready',
-          'in_progress',
-          '배정',
-          '배정완료',
-          '매칭완료',
-          '확정',
-          '완료',
-          '업무준비중',
-          '진행예정',
-          '운영중',
-          '업무완료'
-        )
-      )
   )
 );
 

@@ -465,16 +465,25 @@ const REQUEST_MONEY_FIELDS = new Set([
   "settlement_extra_amount",
   "settlement_deduction_amount",
 ]);
+const REQUEST_DATE_FIELDS = new Set(["start_date", "end_date", "event_date"]);
 
 function filterRequestUpdatePayload(payload = {}, request = null) {
   const requestKeys = request ? new Set(Object.keys(request)) : null;
   return Object.entries(payload).reduce((nextPayload, [key, value]) => {
     if (value === undefined) return nextPayload;
-    if (requestKeys ? requestKeys.has(key) : REQUEST_UPDATE_COLUMN_ALLOWLIST.has(key)) {
-      nextPayload[key] = value;
+    const isAllowedRequestColumn =
+      REQUEST_UPDATE_COLUMN_ALLOWLIST.has(key) || requestKeys?.has(key);
+    if (isAllowedRequestColumn) {
+      nextPayload[key] = REQUEST_DATE_FIELDS.has(key) ? toDbDate(value) : value;
     }
     return nextPayload;
   }, {});
+}
+
+function toDbDate(value) {
+  if (value === null || value === "") return null;
+  const normalized = normalizeDateToISO(value);
+  return normalized || null;
 }
 
 function hasRequestMoneyChange(changes = {}) {
@@ -2481,6 +2490,11 @@ function sanitizeRecipientEmail(email) {
       delete legacyPayload.event_end_time;
       delete legacyPayload.language_direction;
       delete legacyPayload.materials_available;
+      REQUEST_DATE_FIELDS.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(legacyPayload, field)) {
+          legacyPayload[field] = toDbDate(legacyPayload[field]);
+        }
+      });
 
       const fallbackResult = await supabase
         .from("requests")
@@ -2495,12 +2509,13 @@ function sanitizeRecipientEmail(email) {
     setSavingKey("");
 
     if (error) {
+      console.error("request update failed:", error);
       logRequestUpdateFailure("Request update failed", {
         payload,
         requestId: id,
         error,
       });
-      alert("의뢰 정보 변경에 실패했습니다.");
+      alert("의뢰 정보 변경에 실패했습니다. 콘솔 에러를 확인하세요.");
       return;
     }
 
@@ -3196,6 +3211,88 @@ function sanitizeRecipientEmail(email) {
     );
   };
 
+  const saveSettlementRecordForRequest = async (request, payload) => {
+    const requestAssignments = assignmentsByRequest.get(request.id) || [];
+    const assignment = requestAssignments.find((item) => item.interpreter_id) || requestAssignments[0] || null;
+    const interpreterId =
+      request.assigned_interpreter_id ||
+      request.matched_interpreter_id ||
+      request._settlement?.interpreter_id ||
+      assignment?.interpreter_id;
+
+    if (!interpreterId) {
+      console.warn("settlement row sync skipped: missing interpreter_id", {
+        requestId: request.id,
+        payload,
+      });
+      return { data: null, error: null, skipped: true };
+    }
+
+    const existingSettlement =
+      safeSettlements.find(
+        (item) =>
+          String(item.request_id) === String(request.id) &&
+          String(item.interpreter_id) === String(interpreterId)
+      ) ||
+      safeSettlements.find((item) => String(item.request_id) === String(request.id)) ||
+      null;
+
+    let settlementRow = existingSettlement;
+    if (!settlementRow?.id) {
+      const { data, error } = await supabase
+        .from("settlements")
+        .select(SETTLEMENTS_SELECT)
+        .eq("request_id", request.id)
+        .eq("interpreter_id", interpreterId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("settlement row lookup failed:", {
+          requestId: request.id,
+          interpreterId,
+          payload,
+          error,
+        });
+        return { data: null, error };
+      }
+      settlementRow = data;
+    }
+
+    const workDays = Math.max(1, Number(payload.settlement_work_days || 1));
+    const amount = normalizeMoneyInput(payload.settlement_final_amount);
+    const settlementPayload = Object.entries({
+      request_id: Number(request.id),
+      interpreter_id: Number(interpreterId),
+      assignment_id: assignment?.id || request._settlement?.assignment_id,
+      amount,
+      payout_status: mapSettlementFlowStatusToPayoutStatus(payload.settlement_status),
+      work_days: workDays,
+      level: payload.settlement_level || request.settlement_level || request.requested_level || request.required_level || null,
+      daily_rate: workDays > 0 ? amount / workDays : amount,
+      extra_amount: normalizeMoneyInput(payload.settlement_extra_amount),
+      deduction_amount: normalizeMoneyInput(payload.settlement_deduction_amount),
+      admin_memo: payload.settlement_memo || "",
+    }).reduce((nextPayload, [key, value]) => {
+      if (value !== undefined) nextPayload[key] = value;
+      return nextPayload;
+    }, {});
+
+    if (settlementRow?.id) {
+      return supabase
+        .from("settlements")
+        .update(settlementPayload)
+        .eq("id", settlementRow.id)
+        .select(SETTLEMENTS_SELECT)
+        .single();
+    }
+
+    return supabase
+      .from("settlements")
+      .insert(settlementPayload)
+      .select(SETTLEMENTS_SELECT)
+      .single();
+  };
+
   const saveSettlement = async (request) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
@@ -3206,6 +3303,13 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`request-${request.id}`);
     const { data, error } = await updateRequestSettlementRow(request.id, payload);
+    let settlementResult = { data: null, error: null };
+    if (!error) {
+      settlementResult = await saveSettlementRecordForRequest(
+        { ...request, ...payload, ...(data || {}) },
+        payload
+      );
+    }
     setSavingKey("");
 
     if (error) {
@@ -3219,6 +3323,17 @@ function sanitizeRecipientEmail(email) {
       return;
     }
 
+    if (settlementResult.error) {
+      console.error("정산 레코드 저장 실패:", {
+        table: "settlements",
+        requestId: request.id,
+        payload,
+        error: settlementResult.error,
+      });
+      alert(`정산 레코드 저장에 실패했습니다: ${settlementResult.error.message || "원인을 확인해주세요."}`);
+      return;
+    }
+
     setRequests((current) =>
       current.map((item) =>
         item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
@@ -3227,6 +3342,11 @@ function sanitizeRecipientEmail(email) {
     setSelectedRequest((current) =>
       current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
     );
+    if (settlementResult.data) {
+      setSettlements((current) => upsertById(current, settlementResult.data));
+    }
+    await fetchAdminData();
+    await refreshAdminOperationsData();
     alert("정산 정보가 저장되었습니다.");
   };
 

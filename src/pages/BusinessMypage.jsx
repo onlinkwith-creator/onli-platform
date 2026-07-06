@@ -405,6 +405,18 @@ function BusinessMypage({
             const publicInterpreterById = new Map(
               publicInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
             );
+            const getContactSourceTable = ({ contactRow, directContact, joinedInterpreter }) => {
+              if (contactRow) return "rpc:get_company_assignment_interpreter_contacts/interpreters";
+              if (directContact) return "interpreters";
+              if (
+                joinedInterpreter?.phone ||
+                joinedInterpreter?.email ||
+                joinedInterpreter?.kakao_or_line
+              ) {
+                return "request_interpreters.join.interpreters";
+              }
+              return null;
+            };
             const mergedAssignments = baseAssignments.map((assignment) => {
               const isContactVisible =
                 Boolean(assignment.is_contact_visible) || Boolean(assignment.contact_revealed);
@@ -454,6 +466,11 @@ function BusinessMypage({
                 assignment_id: assignment.id,
                 request_id: assignment.request_id,
                 interpreter_id: assignment.interpreter_id,
+                contact_source_table: getContactSourceTable({
+                  contactRow,
+                  directContact,
+                  joinedInterpreter: assignment.interpreter,
+                }),
                 contact_revealed: assignment.contact_revealed,
                 is_contact_visible: assignment.is_contact_visible,
                 effective_contact_visible: isContactVisible,
@@ -521,6 +538,11 @@ function BusinessMypage({
                 console.debug("BusinessMypage request fallback contact debug", {
                   request_id: request.id,
                   interpreter_id: request.assigned_interpreter_id,
+                  contact_source_table: getContactSourceTable({
+                    contactRow,
+                    directContact,
+                    joinedInterpreter: publicInterpreter,
+                  }),
                   contact_revealed: Boolean(contactRow?.contact_revealed),
                   rpc_contact_row: contactRow,
                   direct_contact_row: directContact,
@@ -1496,7 +1518,7 @@ function BusinessMypage({
                       const req = requests.find((r) => r.id === assign.request_id);
                       const interpreter = assign.interpreter;
                       const getContactDisplayValue = (value) =>
-                        interpreter?._contact_fetch_failed ? "조회 실패" : value || "정보 없음";
+                        interpreter?._contact_fetch_failed ? "조회 실패" : value || "미등록";
 
                       const isCertified = isOnliCertified(interpreter);
                       const displayLanguages =
