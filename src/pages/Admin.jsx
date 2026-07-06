@@ -725,9 +725,7 @@ function sanitizeRecipientEmail(email) {
             (async () => {
               const result = await publicSupabase
                 .from("request_interpreters")
-                .select(
-                  "id, request_id, interpreter_id, contact_visible, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
-                )
+                .select("id, request_id, interpreter_id")
                 .order("id", { ascending: false });
 
               if (result.error) return result;
@@ -760,17 +758,6 @@ function sanitizeRecipientEmail(email) {
       const interpreterData = getAdminData("interpreters", interpreterResult);
       const assignmentData = uniqueRequestInterpreterAssignments(
         getAdminData("request_interpreters", assignmentResult)
-      ).map((assignment) => ({
-        ...assignment,
-        contact_visible: Boolean(assignment.contact_visible),
-      }));
-      console.table(
-        assignmentData.map((item) => ({
-          request_interpreter_id: item.id,
-          request_id: item.request_id,
-          interpreter_id: item.interpreter_id,
-          contact_visible: item.contact_visible,
-        }))
       );
       const matchingData = getAdminData("matchings", matchingResult);
       const businessData = getAdminData("businesses", businessResult);
@@ -3518,7 +3505,7 @@ function sanitizeRecipientEmail(email) {
     setSavingKey(`assign-${requestId}`);
     const { data: existingAssignments, error: existingAssignmentError } = await supabase
       .from("request_interpreters")
-      .select("id, request_id, interpreter_id, contact_visible, assigned_at, interpreter:interpreters(id, name, level, status, approved)")
+      .select("id, request_id, interpreter_id")
       .eq("request_id", requestId)
       .eq("interpreter_id", interpreterId)
       .limit(1);
@@ -3536,7 +3523,6 @@ function sanitizeRecipientEmail(email) {
     if (existingAssignment) {
       const nextAssignment = {
         ...existingAssignment,
-        contact_visible: Boolean(existingAssignment.contact_visible),
         interpreter: existingAssignment.interpreter || interpreter,
       };
       const nextAssignments = uniqueRequestInterpreterAssignments([
@@ -3593,9 +3579,7 @@ function sanitizeRecipientEmail(email) {
     let { data: assignmentData, error } = await supabase
       .from("request_interpreters")
       .insert([payload])
-      .select(
-        "id, request_id, interpreter_id, contact_visible, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
-      )
+      .select("id, request_id, interpreter_id")
       .single();
 
     if (error) {
@@ -3626,7 +3610,6 @@ function sanitizeRecipientEmail(email) {
         assigned_at: new Date().toISOString(),
         interpreter,
       }),
-      contact_visible: Boolean(assignmentData?.contact_visible),
       interpreter: assignmentData?.interpreter || interpreter,
     };
     console.log("assignment created debug", {
@@ -3955,33 +3938,6 @@ function sanitizeRecipientEmail(email) {
       );
     }
     alert("매칭이 취소되었습니다.");
-  };
-
-  const handleContactVisibleChange = async (id, checked) => {
-    if (!id) return;
-    if (!supabase) {
-      alert(supabaseConfigError.message);
-      return;
-    }
-
-    console.log("contact visible update payload", { id, checked });
-
-    const { error } = await supabase
-      .from("request_interpreters")
-      .update({ contact_visible: checked })
-      .eq("id", id);
-
-    if (error) {
-      console.error("contact visible update failed", error);
-      alert(`연락처 공개 설정 변경에 실패했습니다: ${error.message}`);
-      return;
-    }
-
-    setAssignments((current) =>
-      current.map((item) =>
-        String(item.id) === String(id) ? { ...item, contact_visible: checked } : item
-      )
-    );
   };
 
   const updateMatchingApplicationStatus = async (request, interpreter, status) => {
@@ -7788,8 +7744,6 @@ function RequestDetailPanel({
 }) {
   const safeRequest = request || {};
   const requestInterpreters = Array.isArray(assignments) ? assignments : [];
-  const assignedInterpreter =
-    getAssignmentInterpreter(requestInterpreters?.[0] || {}, interpreters) || null;
   const flowSource = getRequestFlowSource(safeRequest, job);
   const requestType = getDesignatedRequestType(safeRequest);
   const designatedInterpreterName = getDesignatedInterpreterName([safeRequest], interpreters);
@@ -7819,26 +7773,6 @@ function RequestDetailPanel({
   const [expandedLogIds, setExpandedLogIds] = useState(() => new Set());
   const [businessProfile, setBusinessProfile] = useState(null);
   const [uploadedMaterials, setUploadedMaterials] = useState([]);
-  const [eventDateRange, setEventDateRange] = useState({
-    from: undefined,
-    to: undefined,
-  });
-
-  useEffect(() => {
-    setEventDateRange({
-      from: parseAdminEventDate(safeRequest?.start_date || safeRequest?.event_date),
-      to: parseAdminEventDate(safeRequest?.end_date || safeRequest?.event_date || safeRequest?.start_date),
-    });
-  }, [safeRequest?.id, safeRequest?.start_date, safeRequest?.end_date, safeRequest?.event_date]);
-
-  useEffect(() => {
-    if (activeTab !== "operation") return;
-    console.error("operation tab error source check", {
-      request: safeRequest,
-      requestInterpreters,
-      assignedInterpreter,
-    });
-  }, [activeTab, assignedInterpreter, requestInterpreters, safeRequest]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -8217,43 +8151,81 @@ function RequestDetailPanel({
           <div>
             <h3>행사 기간 수정</h3>
             <div className="admin-date-range-panel">
-              <DateRangeInput
-                required
-                label="행사 기간"
-                startDate={formatDateForDb(eventDateRange.from)}
-                endDate={formatDateForDb(eventDateRange.to)}
-                onChange={({ startDate, endDate }) => {
-                  const nextFrom = parseAdminEventDate(startDate);
-                  const nextTo = parseAdminEventDate(endDate || startDate);
+              <div className="admin-modal-edit-grid">
+                <FieldControl label="시작일">
+                  <input
+                    type="date"
+                    value={normalizeDateToISO(safeRequest.start_date || safeRequest.event_date) || ""}
+                    onChange={(event) => {
+                      const nextStartDate = normalizeDateToISO(event.target.value);
+                      const currentEndDate = normalizeDateToISO(
+                        safeRequest.end_date || safeRequest.event_date || safeRequest.start_date
+                      );
 
-                  if (nextFrom && nextTo && nextTo < nextFrom) {
-                    alert("종료일은 시작일보다 빠를 수 없습니다.");
-                    return;
-                  }
+                      if (nextStartDate && currentEndDate && currentEndDate < nextStartDate) {
+                        alert("종료일은 시작일보다 빠를 수 없습니다.");
+                        return;
+                      }
 
-                  setEventDateRange({
-                    from: nextFrom,
-                    to: nextTo || nextFrom,
-                  });
-                }}
-              />
+                      if (safeRequest?.id) {
+                        updateRequest(safeRequest.id, {
+                          start_date: nextStartDate,
+                          event_date: nextStartDate,
+                          end_date: currentEndDate || nextStartDate,
+                        });
+                      }
+                    }}
+                  />
+                </FieldControl>
+                <FieldControl label="종료일">
+                  <input
+                    type="date"
+                    value={
+                      normalizeDateToISO(
+                        safeRequest.end_date || safeRequest.event_date || safeRequest.start_date
+                      ) || ""
+                    }
+                    onChange={(event) => {
+                      const nextEndDate = normalizeDateToISO(event.target.value);
+                      const currentStartDate = normalizeDateToISO(
+                        safeRequest.start_date || safeRequest.event_date
+                      );
+
+                      if (currentStartDate && nextEndDate && nextEndDate < currentStartDate) {
+                        alert("종료일은 시작일보다 빠를 수 없습니다.");
+                        return;
+                      }
+
+                      if (safeRequest?.id) {
+                        updateRequest(safeRequest.id, {
+                          end_date: nextEndDate || currentStartDate,
+                        });
+                      }
+                    }}
+                  />
+                </FieldControl>
+              </div>
               <div className="admin-detail-action-row">
                 <button
                   type="button"
                   className="admin-save"
-                  disabled={savingKey === `request-${safeRequest?.id}` || !eventDateRange.from}
+                  disabled={savingKey === `request-${safeRequest?.id}`}
                   onClick={() => {
-                    const payload = {
-                      start_date: formatDateForDb(eventDateRange.from),
-                      end_date: formatDateForDb(eventDateRange.to ?? eventDateRange.from),
-                    };
+                    const startDate = normalizeDateToISO(safeRequest.start_date || safeRequest.event_date);
+                    const endDate = normalizeDateToISO(
+                      safeRequest.end_date || safeRequest.event_date || safeRequest.start_date
+                    );
 
-                    console.log("event date range save payload", {
-                      requestId: safeRequest?.id,
-                      from: eventDateRange.from,
-                      to: eventDateRange.to,
-                      payload,
-                    });
+                    if (startDate && endDate && endDate < startDate) {
+                      alert("종료일은 시작일보다 빠를 수 없습니다.");
+                      return;
+                    }
+
+                    const payload = {
+                      start_date: startDate || "",
+                      end_date: endDate || startDate || "",
+                      event_date: startDate || "",
+                    };
 
                     if (safeRequest?.id) updateRequest(safeRequest.id, payload);
                   }}
@@ -14497,24 +14469,6 @@ function parseRequestDateOnly(value) {
   if (Number.isNaN(date.getTime())) return null;
   date.setHours(0, 0, 0, 0);
   return date;
-}
-
-function parseAdminEventDate(value) {
-  const isoDate = normalizeDateToISO(value);
-  if (!isoDate) return undefined;
-
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
-function formatDateForDb(value) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
-
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function isDateInRange(date, startDate, endDate, fallbackDate) {
