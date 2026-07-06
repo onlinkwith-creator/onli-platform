@@ -725,7 +725,7 @@ function sanitizeRecipientEmail(email) {
             publicSupabase
               .from("request_interpreters")
               .select(
-                "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
+                "id, request_id, interpreter_id, assigned_at, contact_visible, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
               )
               .order("id", { ascending: false }),
             publicSupabase
@@ -5112,41 +5112,18 @@ function RequestActionModal({
               typeof assignmentOrId === "object" ? assignmentOrId?.id : assignmentOrId;
             try {
               const nextVisible = !currentVal;
-              const revealedAt = nextVisible ? new Date().toISOString() : null;
-              const contactPayloads = [
-                {
-                  contact_visible: nextVisible,
-                  is_contact_visible: nextVisible,
-                  contact_revealed: nextVisible,
-                  contact_revealed_at: revealedAt,
-                },
-                {
-                  is_contact_visible: nextVisible,
-                  contact_revealed: nextVisible,
-                  contact_revealed_at: revealedAt,
-                },
-                {
-                  is_contact_visible: nextVisible,
-                },
-              ];
-              let error = null;
-
-              for (const payload of contactPayloads) {
-                let query = supabase.from("request_interpreters").update(payload);
-                if (assignment?.request_id && assignment?.interpreter_id) {
-                  query = query
-                    .eq("request_id", assignment.request_id)
-                    .eq("interpreter_id", assignment.interpreter_id);
-                } else {
-                  query = query.eq("id", assignmentId);
-                }
-
-                const result = await query;
-                error = result.error;
-                if (!error) break;
-                if (!isMissingColumnError(error)) break;
+              let query = supabase
+                .from("request_interpreters")
+                .update({ contact_visible: nextVisible });
+              if (assignment?.request_id && assignment?.interpreter_id) {
+                query = query
+                  .eq("request_id", assignment.request_id)
+                  .eq("interpreter_id", assignment.interpreter_id);
+              } else {
+                query = query.eq("id", assignmentId);
               }
 
+              const { error } = await query;
               if (error) throw error;
               setAssignments(current =>
                 current.map(item =>
@@ -5160,9 +5137,6 @@ function RequestActionModal({
                     ? {
                         ...item,
                         contact_visible: nextVisible,
-                        is_contact_visible: nextVisible,
-                        contact_revealed: nextVisible,
-                        contact_revealed_at: revealedAt,
                       }
                     : item
                 )
@@ -12875,10 +12849,7 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
   return (
     <div className="admin-assignment-list">
       {items.map((item) => {
-        const isVisible =
-          Boolean(item.assignment?.contact_visible) ||
-          Boolean(item.assignment?.is_contact_visible) ||
-          Boolean(item.assignment?.contact_revealed);
+        const isVisible = Boolean(item.assignment?.contact_visible);
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>

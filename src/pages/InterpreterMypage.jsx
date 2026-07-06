@@ -369,6 +369,13 @@ function InterpreterMypage({
       console.error("Failed to update interpreter profile. Error details:", error);
       alert(`프로필 수정에 실패했습니다. (사유: ${error.message || "알 수 없는 오류"})`);
     } else {
+      await syncInterpreterContactProfile({
+        interpreterId: interpreter.id,
+        userId: user?.id,
+        phone: data?.phone || interpreter.phone || "",
+        email: data?.email || interpreter.email || user?.email || "",
+        kakaoId: data?.kakao_or_line || payload.kakao_or_line || "",
+      });
       setInterpreter(data);
       setIsEditingProfile(false);
       alert("프로필 정보가 성공적으로 수정되었습니다.");
@@ -2548,6 +2555,39 @@ async function updateOptionalUserWithdrawalTables(user, withdrawnAt) {
       }
     })
   );
+}
+
+async function syncInterpreterContactProfile({
+  interpreterId,
+  userId,
+  phone,
+  email,
+  kakaoId,
+}) {
+  if (!supabase || !interpreterId) return;
+
+  const { error } = await supabase
+    .from("interpreter_profiles")
+    .upsert(
+      {
+        interpreter_id: interpreterId,
+        user_id: userId || null,
+        auth_user_id: userId || null,
+        phone: phone || null,
+        email: normalizeEmail(email) || null,
+        kakao_id: kakaoId || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "interpreter_id" }
+    );
+
+  if (error && !isMissingTableOrColumnError(error)) {
+    console.warn("Interpreter contact profile sync skipped", {
+      interpreterId,
+      userId,
+      error,
+    });
+  }
 }
 
 function isMissingTableOrColumnError(error) {

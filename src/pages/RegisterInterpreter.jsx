@@ -333,6 +333,14 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       return;
     }
 
+    await syncInterpreterContactProfile({
+      interpreterId: data?.id || existingInterpreter?.id,
+      userId: user.id,
+      phone: profilePayload.phone,
+      email: profilePayload.email,
+      kakaoId: profilePayload.kakao_or_line,
+    });
+
     console.log("INTERPRETER REGISTER SUCCESS");
     console.log("REGISTER FORM EMAIL CHECK", {
       email: form.email,
@@ -713,6 +721,39 @@ function pickExistingInterpreterProfile(profiles = [], user, email) {
     profiles.find((profile) => normalizeEmail(profile.email) === exactEmail) ||
     null
   );
+}
+
+async function syncInterpreterContactProfile({
+  interpreterId,
+  userId,
+  phone,
+  email,
+  kakaoId,
+}) {
+  if (!interpreterId) return;
+
+  const { error } = await supabase
+    .from("interpreter_profiles")
+    .upsert(
+      {
+        interpreter_id: interpreterId,
+        user_id: userId,
+        auth_user_id: userId,
+        phone: phone || null,
+        email: normalizeEmail(email) || null,
+        kakao_id: kakaoId || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "interpreter_id" }
+    );
+
+  if (error) {
+    console.warn("Interpreter contact profile sync skipped:", {
+      interpreterId,
+      userId,
+      error,
+    });
+  }
 }
 
 async function updateExistingInterpreter(id, payload) {
