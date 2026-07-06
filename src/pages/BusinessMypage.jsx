@@ -275,6 +275,7 @@ function BusinessMypage({
                 id,
                 name,
                 level,
+                auth_user_id,
                 approved,
                 jlpt,
                 specialties,
@@ -301,6 +302,7 @@ function BusinessMypage({
                   id,
                   name,
                   level,
+                  auth_user_id,
                   approved,
                   jlpt,
                   specialties,
@@ -354,6 +356,40 @@ function BusinessMypage({
             const profileContactsByInterpreterId = new Map(
               profileContactRows.map((profile) => [String(profile.interpreter_id), profile])
             );
+            const revealedInterpreterAuthUserIds = [
+              ...new Set(
+                baseAssignments
+                  .filter((assignment) => assignment.contact_visible && assignment.interpreter?.auth_user_id)
+                  .map((assignment) => assignment.interpreter.auth_user_id)
+              ),
+            ];
+            let profileRows = [];
+
+            if (revealedInterpreterAuthUserIds.length > 0) {
+              let profileResult = await supabase
+                .from("profiles")
+                .select("id, auth_user_id, user_id, phone, email, kakao_id")
+                .in("auth_user_id", revealedInterpreterAuthUserIds);
+
+              if (profileResult.error) {
+                profileResult = await supabase
+                  .from("profiles")
+                  .select("id, phone, email, kakao_id")
+                  .in("id", revealedInterpreterAuthUserIds);
+              }
+
+              if (profileResult.error) {
+                console.warn("profiles contact fallback fetch skipped:", profileResult.error);
+              } else {
+                profileRows = profileResult.data || [];
+              }
+            }
+            const profileContactsByAuthUserId = new Map();
+            profileRows.forEach((profile) => {
+              [profile.auth_user_id, profile.user_id, profile.id].filter(Boolean).forEach((id) => {
+                profileContactsByAuthUserId.set(String(id), profile);
+              });
+            });
             const contactQueryFailed = Boolean(
               profileContactError &&
               !isMissingColumnError(profileContactError)
@@ -389,8 +425,12 @@ function BusinessMypage({
             const publicInterpreterById = new Map(
               publicInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
             );
-            const getContactSourceTable = ({ profileContact }) => {
+            const getContactSourceTable = ({ profileContact, profileFallback, interpreter }) => {
               if (profileContact) return "interpreter_profiles";
+              if (profileFallback) return "profiles";
+              if (interpreter?.phone || interpreter?.email || interpreter?.kakao_id || interpreter?.kakao_or_line) {
+                return "interpreters";
+              }
               return null;
             };
             const mergedAssignments = baseAssignments.map((assignment) => {
@@ -401,13 +441,31 @@ function BusinessMypage({
                 assignment.interpreter ||
                 publicInterpreterById.get(String(assignment.interpreter_id)) ||
                 null;
+              const profileFallback =
+                profileContactsByAuthUserId.get(String(interpreter?.auth_user_id || "")) || null;
+              const visiblePhone =
+                profileContact?.phone ||
+                profileFallback?.phone ||
+                interpreter?.phone ||
+                null;
+              const visibleEmail =
+                profileContact?.email ||
+                profileFallback?.email ||
+                interpreter?.email ||
+                null;
+              const visibleKakao =
+                profileContact?.kakao_id ||
+                profileFallback?.kakao_id ||
+                interpreter?.kakao_id ||
+                interpreter?.kakao_or_line ||
+                null;
               const mergedInterpreter =
                 interpreter && isContactVisible
                   ? {
                       ...interpreter,
-                      phone: profileContact?.phone || null,
-                      email: profileContact?.email || null,
-                      kakao_or_line: profileContact?.kakao_id || null,
+                      phone: visiblePhone,
+                      email: visibleEmail,
+                      kakao_or_line: visibleKakao,
                       name: interpreter.name || "배정 통역사",
                     }
                   : interpreter;
@@ -425,11 +483,14 @@ function BusinessMypage({
                 interpreter_id: assignment.interpreter_id,
                 contact_source_table: getContactSourceTable({
                   profileContact,
+                  profileFallback,
+                  interpreter,
                 }),
                 contact_visible: assignment.contact_visible,
                 effective_contact_visible: isContactVisible,
                 joined_interpreter: assignment.interpreter,
                 profile_contact_row: profileContact,
+                profile_fallback_row: profileFallback,
                 phone: displayInterpreter?.phone ?? null,
                 email: displayInterpreter?.email ?? null,
                 kakao: displayInterpreter?.kakao_or_line ?? null,
@@ -452,6 +513,9 @@ function BusinessMypage({
               return {
                 ...assignment,
                 contact_visible: isContactVisible,
+                phone: displayInterpreter?.phone || null,
+                email: displayInterpreter?.email || null,
+                kakao_id: displayInterpreter?.kakao_or_line || null,
                 interpreter: displayInterpreter,
               };
             });
@@ -462,9 +526,10 @@ function BusinessMypage({
               mergedAssignments.map((item) => ({
                 request_interpreter_id: item.id,
                 contact_visible: item.contact_visible,
-                phone: item.interpreter?.phone || null,
-                email: item.interpreter?.email || null,
-                kakao_id: item.interpreter?.kakao_or_line || null,
+                interpreter_id: item.interpreter_id,
+                phone: item.phone || null,
+                email: item.email || null,
+                kakao_id: item.kakao_id || null,
               }))
             );
             console.log("business assignments debug", {

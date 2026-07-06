@@ -7860,6 +7860,8 @@ function RequestDetailPanel({
   const [uploadedMaterials, setUploadedMaterials] = useState([]);
   const [eventStartDate, setEventStartDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
+  const [openEventDatePicker, setOpenEventDatePicker] = useState(null);
+  const eventDatePickerRef = useRef(null);
 
   useEffect(() => {
     if (!request) return;
@@ -7868,6 +7870,18 @@ function RequestDetailPanel({
     setEventStartDate(startDate);
     setEventEndDate(normalizeDateToISO(request.end_date || startDate));
   }, [request?.id, request?.start_date, request?.end_date, request?.event_date]);
+
+  useEffect(() => {
+    if (!openEventDatePicker) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (eventDatePickerRef.current?.contains(event.target)) return;
+      setOpenEventDatePicker(null);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [openEventDatePicker]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -8246,21 +8260,74 @@ function RequestDetailPanel({
           <div>
             <h3>행사 기간 수정</h3>
             <div className="admin-date-range-panel">
-              <div className="admin-modal-edit-grid">
-                <FieldControl label="시작일">
-                  <input
-                    type="date"
+              <div className="date-range-picker-shell" ref={eventDatePickerRef}>
+                <div className="date-range-fields">
+                  <EventDatePickerButton
+                    label="시작일"
                     value={eventStartDate}
-                    onChange={(event) => setEventStartDate(event.target.value)}
+                    active={openEventDatePicker === "start"}
+                    placeholder="시작일 선택"
+                    onClick={() =>
+                      setOpenEventDatePicker((current) =>
+                        current === "start" ? null : "start"
+                      )
+                    }
                   />
-                </FieldControl>
-                <FieldControl label="종료일">
-                  <input
-                    type="date"
+                  <EventDatePickerButton
+                    label="종료일"
                     value={eventEndDate}
-                    onChange={(event) => setEventEndDate(event.target.value)}
+                    active={openEventDatePicker === "end"}
+                    placeholder="종료일 선택"
+                    onClick={() =>
+                      setOpenEventDatePicker((current) =>
+                        current === "end" ? null : "end"
+                      )
+                    }
                   />
-                </FieldControl>
+                </div>
+
+                {openEventDatePicker && (
+                  <div className="date-range-calendar-panel">
+                    <DayPicker
+                      mode="single"
+                      locale={ko}
+                      selected={adminDateFromISO(
+                        openEventDatePicker === "start" ? eventStartDate : eventEndDate
+                      )}
+                      defaultMonth={
+                        adminDateFromISO(
+                          openEventDatePicker === "start" ? eventStartDate : eventEndDate
+                        ) ||
+                        adminDateFromISO(eventStartDate) ||
+                        new Date()
+                      }
+                      disabled={
+                        openEventDatePicker === "end" && eventStartDate
+                          ? (date) => date < adminDateFromISO(eventStartDate)
+                          : undefined
+                      }
+                      onSelect={(date) => {
+                        const value = adminISOFromDate(date);
+                        if (!value) return;
+
+                        if (openEventDatePicker === "start") {
+                          setEventStartDate(value);
+                          if (!eventEndDate || eventEndDate < value) {
+                            setEventEndDate(value);
+                          }
+                        } else {
+                          setEventEndDate(value);
+                        }
+
+                        setOpenEventDatePicker(null);
+                      }}
+                      numberOfMonths={1}
+                      weekStartsOn={1}
+                      fixedWeeks
+                      showOutsideDays
+                    />
+                  </div>
+                )}
               </div>
               <div className="admin-detail-action-row">
                 <button
@@ -13026,6 +13093,22 @@ function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange
   );
 }
 
+function EventDatePickerButton({ label, value, active, placeholder, onClick }) {
+  return (
+    <div className="date-picker-card">
+      <span>{label}</span>
+      <button
+        type="button"
+        className={active ? "is-active" : ""}
+        onClick={onClick}
+        aria-expanded={active}
+      >
+        {formatDisplayDate(value) || placeholder}
+      </button>
+    </div>
+  );
+}
+
 function MessageBox({ text }) {
   return <div className="admin-message">{text}</div>;
 }
@@ -14546,6 +14629,24 @@ function parseRequestDateOnly(value) {
   if (Number.isNaN(date.getTime())) return null;
   date.setHours(0, 0, 0, 0);
   return date;
+}
+
+function adminDateFromISO(value) {
+  const isoDate = normalizeDateToISO(value);
+  if (!isoDate) return undefined;
+
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function adminISOFromDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function isDateInRange(date, startDate, endDate, fallbackDate) {
