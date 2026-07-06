@@ -727,9 +727,8 @@ function sanitizeRecipientEmail(email) {
               const result = await publicSupabase
                 .from("request_interpreters")
                 .select(
-                  "id, request_id, interpreter_id, status, assigned_at, contact_visible, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
+                  "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, auth_user_id, name, level, status, approved)"
                 )
-                .eq("status", "assigned")
                 .order("id", { ascending: false });
 
               if (result.error) return result;
@@ -760,13 +759,9 @@ function sanitizeRecipientEmail(email) {
       const requestData = getAdminData("requests", requestResult);
       const jobData = getAdminData("jobs", jobResult);
       const interpreterData = getAdminData("interpreters", interpreterResult);
-      const assignmentData = getAdminData("request_interpreters", assignmentResult).map((assignment) => {
-        return {
-          ...assignment,
-          status: assignment.status || "assigned",
-          contact_visible: Boolean(assignment.contact_visible),
-        };
-      });
+      const assignmentData = uniqueRequestInterpreterAssignments(
+        getAdminData("request_interpreters", assignmentResult)
+      );
       const matchingData = getAdminData("matchings", matchingResult);
       const businessData = getAdminData("businesses", businessResult);
 
@@ -976,9 +971,10 @@ function sanitizeRecipientEmail(email) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeRequestModal, closeRequestModal]);
 
-  const assignmentsByRequest = useMemo(() => groupBy(assignments, "request_id"), [
-    assignments,
-  ]);
+  const assignmentsByRequest = useMemo(
+    () => groupBy(uniqueRequestInterpreterAssignments(assignments), "request_id"),
+    [assignments]
+  );
   const safePayments = useMemo(() => (Array.isArray(payments) ? payments : []), [payments]);
   const safeSettlements = useMemo(() => (Array.isArray(settlements) ? settlements : []), [settlements]);
   const settlementManagementRows = useMemo(
@@ -3509,6 +3505,63 @@ function sanitizeRecipientEmail(email) {
       (item) => Number(item.id) === interpreterId
     );
 
+    setSavingKey(`assign-${requestId}`);
+    const { data: existingAssignments, error: existingAssignmentError } = await supabase
+      .from("request_interpreters")
+      .select("id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)")
+      .eq("request_id", requestId)
+      .eq("interpreter_id", interpreterId)
+      .limit(1);
+
+    if (existingAssignmentError) {
+      setSavingKey("");
+      console.error("기존 통역사 배정 확인 실패:", existingAssignmentError);
+      alert(`통역사 배정 확인에 실패했습니다: ${existingAssignmentError.message}`);
+      return false;
+    }
+
+    const existingAssignment = Array.isArray(existingAssignments)
+      ? existingAssignments[0]
+      : null;
+    if (existingAssignment) {
+      const nextAssignment = {
+        ...existingAssignment,
+        interpreter: existingAssignment.interpreter || interpreter,
+      };
+      const nextAssignments = uniqueRequestInterpreterAssignments([
+        ...currentAssignments,
+        nextAssignment,
+      ]);
+      const requestChanges = buildAssignmentRequestChanges(nextAssignments, requiredCount);
+      const { data: requestData, error: requestError } = await updateRequestAssignmentRow(requestId, requestChanges, {
+        status: requestChanges.status,
+      });
+      if (!requestError) {
+        await updateLinkedJobAssignmentStatus(
+          request,
+          nextAssignments.length,
+          requiredCount,
+          nextAssignments
+        );
+        const nextRequest = { ...requestChanges, ...(requestData || {}) };
+        setRequests((current) =>
+          current.map((item) =>
+            item.id === requestId ? { ...item, ...nextRequest } : item
+          )
+        );
+        setSelectedRequest((current) =>
+          current?.id === requestId ? { ...current, ...nextRequest } : current
+        );
+      } else {
+        console.error("기존 배정 상태 동기화 실패:", requestError);
+      }
+      setAssignments((current) => upsertAssignment(current, nextAssignment));
+      setAssignmentDrafts((current) => ({ ...current, [requestId]: "" }));
+      setSavingKey("");
+      alert("이미 배정된 통역사입니다.");
+      return false;
+    }
+
     const conflictCheck = await confirmScheduleConflictOverride({
       interpreterId,
       scheduleRange,
@@ -3517,19 +3570,20 @@ function sanitizeRecipientEmail(email) {
       interpreter,
     });
 
-    if (!conflictCheck.shouldProceed) return false;
+    if (!conflictCheck.shouldProceed) {
+      setSavingKey("");
+      return false;
+    }
 
-    setSavingKey(`assign-${requestId}`);
     const payload = {
       request_id: requestId,
       interpreter_id: interpreterId,
-      status: "assigned",
     };
     let { data: assignmentData, error } = await supabase
       .from("request_interpreters")
       .insert([payload])
       .select(
-        "id, request_id, interpreter_id, status, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
+        "id, request_id, interpreter_id, assigned_at, interpreter:interpreters(id, name, level, status, approved)"
       )
       .single();
 
@@ -3561,16 +3615,12 @@ function sanitizeRecipientEmail(email) {
         assigned_at: new Date().toISOString(),
         interpreter,
       }),
-      status: assignmentData?.status || "assigned",
-      contact_visible: Boolean(assignmentData?.contact_visible),
       interpreter: assignmentData?.interpreter || interpreter,
     };
     console.log("assignment created debug", {
       request_id: nextAssignment.request_id,
       assignment_id: nextAssignment.id,
       interpreter_id: nextAssignment.interpreter_id,
-      status: nextAssignment.status,
-      contact_visible: nextAssignment.contact_visible,
     });
     const matchingData = await createMatchingScheduleSnapshot({
       request,
@@ -3582,7 +3632,10 @@ function sanitizeRecipientEmail(email) {
       await logScheduleConflictOverride(matchingData.id, conflictCheck.conflicts);
     }
 
-    const nextAssignments = [...currentAssignments, nextAssignment];
+    const nextAssignments = uniqueRequestInterpreterAssignments([
+      ...currentAssignments,
+      nextAssignment,
+    ]);
     const requestChanges = buildAssignmentRequestChanges(nextAssignments, requiredCount);
     const { data: requestData, error: requestError } =
       await updateRequestAssignmentRow(requestId, requestChanges, {
@@ -5004,13 +5057,8 @@ function sanitizeRecipientEmail(email) {
                 noteDrafts={adminNoteDrafts}
                 onChangeNoteDraft={updateAdminNoteDraft}
                 onCreateNote={createAdminNote}
-                setAssignments={setAssignments}
                 onOpenDocumentPreview={openDocumentPreview}
                 generatedDocuments={generatedDocuments}
-                toggleContactVisibility={async (assignmentOrId, currentVal) => {
-                  alert("연락처 공개 기능은 현재 비활성화되어 있습니다.");
-                  return;
-                }}
               />
             )}
           
@@ -5052,7 +5100,6 @@ function RequestActionModal({
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
-  setAssignments,
   onOpenDocumentPreview,
   generatedDocuments = [],
 }) {
@@ -5125,10 +5172,6 @@ function RequestActionModal({
           onCreateNote={onCreateNote}
           onOpenDocumentPreview={onOpenDocumentPreview}
           generatedDocuments={generatedDocuments}
-          toggleContactVisibility={async (assignmentOrId, currentVal) => {
-            alert("연락처 공개 기능은 현재 비활성화되어 있습니다.");
-            return;
-          }}
         />
       )}
 
@@ -7701,7 +7744,6 @@ function RequestDetailPanel({
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
-  toggleContactVisibility,
   onOpenDocumentPreview,
   generatedDocuments = [],
 }) {
@@ -7734,6 +7776,17 @@ function RequestDetailPanel({
   const [expandedLogIds, setExpandedLogIds] = useState(() => new Set());
   const [businessProfile, setBusinessProfile] = useState(null);
   const [uploadedMaterials, setUploadedMaterials] = useState([]);
+  const [eventDateRange, setEventDateRange] = useState({
+    from: undefined,
+    to: undefined,
+  });
+
+  useEffect(() => {
+    setEventDateRange({
+      from: parseAdminEventDate(request?.start_date || request?.event_date),
+      to: parseAdminEventDate(request?.end_date || request?.event_date || request?.start_date),
+    });
+  }, [request?.id, request?.start_date, request?.end_date, request?.event_date]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -8111,21 +8164,47 @@ function RequestDetailPanel({
               <DateRangeInput
                 required
                 label="행사 기간"
-                startDate={getDateRangeStart(request.start_date, request.event_date)}
-                endDate={getDateRangeEnd(request.end_date, request.event_date)}
+                startDate={formatDateForDb(eventDateRange.from)}
+                endDate={formatDateForDb(eventDateRange.to)}
                 onChange={({ startDate, endDate }) => {
-                  if (startDate && endDate && endDate < startDate) {
+                  const nextFrom = parseAdminEventDate(startDate);
+                  const nextTo = parseAdminEventDate(endDate || startDate);
+
+                  if (nextFrom && nextTo && nextTo < nextFrom) {
                     alert("종료일은 시작일보다 빠를 수 없습니다.");
                     return;
                   }
-                  
-                  updateRequest(request.id, {
-                    start_date: normalizeDateToISO(startDate) || "",
-                    end_date: normalizeDateToISO(endDate) || "",
-                    event_date: normalizeDateToISO(startDate) || "",
+
+                  setEventDateRange({
+                    from: nextFrom,
+                    to: nextTo || nextFrom,
                   });
                 }}
               />
+              <div className="admin-detail-action-row">
+                <button
+                  type="button"
+                  className="admin-save"
+                  disabled={savingKey === `request-${request.id}` || !eventDateRange.from}
+                  onClick={() => {
+                    const payload = {
+                      start_date: formatDateForDb(eventDateRange.from),
+                      end_date: formatDateForDb(eventDateRange.to ?? eventDateRange.from),
+                    };
+
+                    console.log("event date range save payload", {
+                      requestId: request.id,
+                      from: eventDateRange.from,
+                      to: eventDateRange.to,
+                      payload,
+                    });
+
+                    updateRequest(request.id, payload);
+                  }}
+                >
+                  행사 기간 저장
+                </button>
+              </div>
             </div>
           </div>
 
@@ -8176,7 +8255,6 @@ function RequestDetailPanel({
                 ),
               }))}
               onRemove={removeAssignment}
-              onToggleContactVisibility={toggleContactVisibility}
             />
             <div className="admin-assign-row">
               <select
@@ -12825,7 +12903,7 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility }) {
+function AssignmentList({ emptyText, items, onRemove }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
@@ -12833,21 +12911,9 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
   return (
     <div className="admin-assignment-list">
       {items.map((item) => {
-        const isVisible = Boolean(item.assignment?.contact_visible);
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
-            {onToggleContactVisibility && (
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
-                <input
-                  type="checkbox"
-                  checked={isVisible}
-                  onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
-                  style={{ cursor: "pointer" }}
-                />
-                <span>연락처 공개</span>
-              </label>
-            )}
             <button
               type="button"
               className="admin-link-button danger"
@@ -14366,6 +14432,24 @@ function parseRequestDateOnly(value) {
   return date;
 }
 
+function parseAdminEventDate(value) {
+  const isoDate = normalizeDateToISO(value);
+  if (!isoDate) return undefined;
+
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function formatDateForDb(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function isDateInRange(date, startDate, endDate, fallbackDate) {
   const start = startDate || fallbackDate;
   const end = endDate || fallbackDate;
@@ -14653,9 +14737,22 @@ function getAssignedInterpreterName(request = {}, assignments = [], interpreters
 }
 
 function getAssignedInterpreterNames(request = {}, assignments = [], interpreters = []) {
-  const names = assignments
-    .map((assignment) => getAssignmentInterpreterName(assignment, interpreters))
-    .filter(Boolean);
+  const assignedInterpreterMap = new Map();
+  assignments.forEach((assignment, index) => {
+    const interpreter = getAssignmentInterpreter(assignment, interpreters);
+    const interpreterId =
+      assignment?.interpreter_id ||
+      assignment?.assigned_interpreter_id ||
+      assignment?.matched_interpreter_id ||
+      interpreter?.id;
+    const name = getAssignmentInterpreterName(assignment, interpreters);
+    if (!name) return;
+    assignedInterpreterMap.set(
+      interpreterId ? String(interpreterId) : `name:${name}:${index}`,
+      name
+    );
+  });
+  const names = Array.from(assignedInterpreterMap.values());
 
   if (names.length > 0) return Array.from(new Set(names));
 
@@ -14974,11 +15071,54 @@ function upsertAssignment(items, nextAssignment) {
   if (!nextAssignment?.id) return items;
   const exists = items.some((item) => item.id === nextAssignment.id);
   if (exists) {
-    return items.map((item) =>
-      item.id === nextAssignment.id ? { ...item, ...nextAssignment } : item
+    return uniqueRequestInterpreterAssignments(
+      items.map((item) =>
+        item.id === nextAssignment.id ? { ...item, ...nextAssignment } : item
+      )
     );
   }
-  return [nextAssignment, ...items];
+  return uniqueRequestInterpreterAssignments([nextAssignment, ...items]);
+}
+
+function uniqueRequestInterpreterAssignments(items = []) {
+  const assignmentsByPair = new Map();
+
+  items.filter(Boolean).forEach((assignment, index) => {
+    const requestId = assignment.request_id;
+    const interpreterId = assignment.interpreter_id;
+    const key =
+      requestId && interpreterId
+        ? `${requestId}:${interpreterId}`
+        : `assignment:${assignment.id || index}`;
+    const existing = assignmentsByPair.get(key);
+    if (!existing) {
+      assignmentsByPair.set(key, assignment);
+      return;
+    }
+
+    assignmentsByPair.set(key, pickLatestAssignment(existing, assignment));
+  });
+
+  return Array.from(assignmentsByPair.values());
+}
+
+function pickLatestAssignment(current = {}, incoming = {}) {
+  const currentId = Number(current.id);
+  const incomingId = Number(incoming.id);
+  const incomingIsNewerId =
+    Number.isFinite(incomingId) &&
+    (!Number.isFinite(currentId) || incomingId > currentId);
+  const currentAssignedAt = current.assigned_at ? new Date(current.assigned_at).getTime() : 0;
+  const incomingAssignedAt = incoming.assigned_at ? new Date(incoming.assigned_at).getTime() : 0;
+  const incomingIsNewerDate = incomingAssignedAt > currentAssignedAt;
+  const newer = incomingIsNewerId || incomingIsNewerDate ? incoming : current;
+  const older = newer === incoming ? current : incoming;
+
+  return {
+    ...older,
+    ...newer,
+    interpreter: newer.interpreter || older.interpreter,
+  };
 }
 
 function normalizeMoneyInput(value) {
