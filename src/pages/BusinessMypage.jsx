@@ -286,6 +286,33 @@ function BusinessMypage({
             `)
             .in("request_id", requestIds);
 
+          if (assignmentResult.error) {
+            console.error(
+              "request_interpreters contact_visible select failed",
+              assignmentResult.error
+            );
+            assignmentResult = await supabase
+              .from("request_interpreters")
+              .select(`
+                id,
+                request_id,
+                interpreter_id,
+                interpreter:interpreters (
+                  id,
+                  name,
+                  level,
+                  approved,
+                  jlpt,
+                  specialties,
+                  experience_count,
+                  phone,
+                  kakao_or_line,
+                  email
+                )
+              `)
+              .in("request_id", requestIds);
+          }
+
           const assignData = assignmentResult.data;
           const assignError = assignmentResult.error;
 

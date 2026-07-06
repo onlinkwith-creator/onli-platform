@@ -725,11 +725,27 @@ function sanitizeRecipientEmail(email) {
             (async () => {
               const result = await publicSupabase
                 .from("request_interpreters")
+                .select("id, request_id, interpreter_id, contact_visible")
+                .order("id", { ascending: false });
+
+              if (!result.error) {
+                return {
+                  ...result,
+                  data: normalizeRequestInterpreterRows(result.data),
+                };
+              }
+
+              console.error("request_interpreters contact_visible select failed", result.error);
+              const fallbackResult = await publicSupabase
+                .from("request_interpreters")
                 .select("id, request_id, interpreter_id")
                 .order("id", { ascending: false });
 
-              if (result.error) return result;
-              return result;
+              if (fallbackResult.error) return fallbackResult;
+              return {
+                ...fallbackResult,
+                data: normalizeRequestInterpreterRows(fallbackResult.data),
+              };
             })(),
             publicSupabase
               .from("matchings")
@@ -757,7 +773,7 @@ function sanitizeRecipientEmail(email) {
       const jobData = getAdminData("jobs", jobResult);
       const interpreterData = getAdminData("interpreters", interpreterResult);
       const assignmentData = uniqueRequestInterpreterAssignments(
-        getAdminData("request_interpreters", assignmentResult)
+        normalizeRequestInterpreterRows(getAdminData("request_interpreters", assignmentResult))
       );
       const matchingData = getAdminData("matchings", matchingResult);
       const businessData = getAdminData("businesses", businessResult);
@@ -3503,12 +3519,28 @@ function sanitizeRecipientEmail(email) {
     );
 
     setSavingKey(`assign-${requestId}`);
-    const { data: existingAssignments, error: existingAssignmentError } = await supabase
+    let existingAssignmentResult = await supabase
       .from("request_interpreters")
-      .select("id, request_id, interpreter_id")
+      .select("id, request_id, interpreter_id, contact_visible")
       .eq("request_id", requestId)
       .eq("interpreter_id", interpreterId)
       .limit(1);
+
+    if (existingAssignmentResult.error) {
+      console.error(
+        "request_interpreters contact_visible select failed",
+        existingAssignmentResult.error
+      );
+      existingAssignmentResult = await supabase
+        .from("request_interpreters")
+        .select("id, request_id, interpreter_id")
+        .eq("request_id", requestId)
+        .eq("interpreter_id", interpreterId)
+        .limit(1);
+    }
+
+    const existingAssignments = normalizeRequestInterpreterRows(existingAssignmentResult.data);
+    const existingAssignmentError = existingAssignmentResult.error;
 
     if (existingAssignmentError) {
       setSavingKey("");
@@ -3579,8 +3611,24 @@ function sanitizeRecipientEmail(email) {
     let { data: assignmentData, error } = await supabase
       .from("request_interpreters")
       .insert([payload])
-      .select("id, request_id, interpreter_id")
+      .select("id, request_id, interpreter_id, contact_visible")
       .single();
+
+    if (error && isMissingColumnError(error)) {
+      console.error("request_interpreters contact_visible select failed", error);
+      const insertFallbackResult = await supabase
+        .from("request_interpreters")
+        .select("id, request_id, interpreter_id")
+        .eq("request_id", requestId)
+        .eq("interpreter_id", interpreterId)
+        .limit(1)
+        .maybeSingle();
+
+      if (!insertFallbackResult.error && insertFallbackResult.data) {
+        assignmentData = { ...insertFallbackResult.data, contact_visible: false };
+        error = null;
+      }
+    }
 
     if (error) {
       setSavingKey("");
@@ -3610,6 +3658,7 @@ function sanitizeRecipientEmail(email) {
         assigned_at: new Date().toISOString(),
         interpreter,
       }),
+      contact_visible: Boolean(assignmentData?.contact_visible),
       interpreter: assignmentData?.interpreter || interpreter,
     };
     console.log("assignment created debug", {
@@ -3938,6 +3987,33 @@ function sanitizeRecipientEmail(email) {
       );
     }
     alert("매칭이 취소되었습니다.");
+  };
+
+  const handleContactVisibleChange = async (requestInterpreterId, checked) => {
+    if (!requestInterpreterId) return;
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("request_interpreters")
+      .update({ contact_visible: checked })
+      .eq("id", requestInterpreterId);
+
+    if (error) {
+      console.error("contact visibility update failed", error);
+      alert("연락처 공개 설정 저장에 실패했습니다. Supabase migration 적용 여부를 확인하세요.");
+      return;
+    }
+
+    setAssignments((current) =>
+      current.map((item) =>
+        String(item.id) === String(requestInterpreterId)
+          ? { ...item, contact_visible: checked }
+          : item
+      )
+    );
   };
 
   const updateMatchingApplicationStatus = async (request, interpreter, status) => {
@@ -5041,6 +5117,7 @@ function sanitizeRecipientEmail(email) {
                 onChangeDraft={updateRequestEditDraft}
                 onClose={closeRequestModal}
                 onRemoveAssignment={removeAssignment}
+                onToggleContactVisibility={handleContactVisibleChange}
                 onSaveEdit={saveRequestEditDraft}
                 saveSettlement={saveSettlement}
                 toggleRequestJobPublic={toggleRequestJobPublic}
@@ -5086,6 +5163,7 @@ function RequestActionModal({
   onChangeDraft,
   onClose,
   onRemoveAssignment,
+  onToggleContactVisibility,
   onSaveEdit,
   saveSettlement,
   toggleRequestJobPublic,
@@ -5157,6 +5235,7 @@ function RequestActionModal({
           settlementTouched={settlementTouched}
           saveSettlement={saveSettlement}
           removeAssignment={onRemoveAssignment}
+          onToggleContactVisibility={onToggleContactVisibility}
           updateRequest={updateRequest}
           updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
@@ -7773,6 +7852,16 @@ function RequestDetailPanel({
   const [expandedLogIds, setExpandedLogIds] = useState(() => new Set());
   const [businessProfile, setBusinessProfile] = useState(null);
   const [uploadedMaterials, setUploadedMaterials] = useState([]);
+  const [eventStartDate, setEventStartDate] = useState("");
+  const [eventEndDate, setEventEndDate] = useState("");
+
+  useEffect(() => {
+    if (!request) return;
+
+    const startDate = normalizeDateToISO(request.start_date || request.event_date);
+    setEventStartDate(startDate);
+    setEventEndDate(normalizeDateToISO(request.end_date || startDate));
+  }, [request?.id, request?.start_date, request?.end_date, request?.event_date]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -8155,53 +8244,15 @@ function RequestDetailPanel({
                 <FieldControl label="시작일">
                   <input
                     type="date"
-                    value={normalizeDateToISO(safeRequest.start_date || safeRequest.event_date) || ""}
-                    onChange={(event) => {
-                      const nextStartDate = normalizeDateToISO(event.target.value);
-                      const currentEndDate = normalizeDateToISO(
-                        safeRequest.end_date || safeRequest.event_date || safeRequest.start_date
-                      );
-
-                      if (nextStartDate && currentEndDate && currentEndDate < nextStartDate) {
-                        alert("종료일은 시작일보다 빠를 수 없습니다.");
-                        return;
-                      }
-
-                      if (safeRequest?.id) {
-                        updateRequest(safeRequest.id, {
-                          start_date: nextStartDate,
-                          event_date: nextStartDate,
-                          end_date: currentEndDate || nextStartDate,
-                        });
-                      }
-                    }}
+                    value={eventStartDate}
+                    onChange={(event) => setEventStartDate(event.target.value)}
                   />
                 </FieldControl>
                 <FieldControl label="종료일">
                   <input
                     type="date"
-                    value={
-                      normalizeDateToISO(
-                        safeRequest.end_date || safeRequest.event_date || safeRequest.start_date
-                      ) || ""
-                    }
-                    onChange={(event) => {
-                      const nextEndDate = normalizeDateToISO(event.target.value);
-                      const currentStartDate = normalizeDateToISO(
-                        safeRequest.start_date || safeRequest.event_date
-                      );
-
-                      if (currentStartDate && nextEndDate && nextEndDate < currentStartDate) {
-                        alert("종료일은 시작일보다 빠를 수 없습니다.");
-                        return;
-                      }
-
-                      if (safeRequest?.id) {
-                        updateRequest(safeRequest.id, {
-                          end_date: nextEndDate || currentStartDate,
-                        });
-                      }
-                    }}
+                    value={eventEndDate}
+                    onChange={(event) => setEventEndDate(event.target.value)}
                   />
                 </FieldControl>
               </div>
@@ -8210,11 +8261,9 @@ function RequestDetailPanel({
                   type="button"
                   className="admin-save"
                   disabled={savingKey === `request-${safeRequest?.id}`}
-                  onClick={() => {
-                    const startDate = normalizeDateToISO(safeRequest.start_date || safeRequest.event_date);
-                    const endDate = normalizeDateToISO(
-                      safeRequest.end_date || safeRequest.event_date || safeRequest.start_date
-                    );
+                  onClick={async () => {
+                    const startDate = normalizeDateToISO(eventStartDate);
+                    const endDate = normalizeDateToISO(eventEndDate) || startDate;
 
                     if (startDate && endDate && endDate < startDate) {
                       alert("종료일은 시작일보다 빠를 수 없습니다.");
@@ -8227,7 +8276,7 @@ function RequestDetailPanel({
                       event_date: startDate || "",
                     };
 
-                    if (safeRequest?.id) updateRequest(safeRequest.id, payload);
+                    if (safeRequest?.id) await updateRequest(safeRequest.id, payload);
                   }}
                 >
                   행사 기간 저장
@@ -8283,6 +8332,7 @@ function RequestDetailPanel({
                 ),
               }))}
               onRemove={removeAssignment}
+              onToggleContactVisibility={onToggleContactVisibility}
             />
             <div className="admin-assign-row">
               <select
@@ -12931,7 +12981,7 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove }) {
+function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
@@ -12939,9 +12989,23 @@ function AssignmentList({ emptyText, items, onRemove }) {
   return (
     <div className="admin-assignment-list">
       {items.map((item) => {
+        const requestInterpreter = item.assignment;
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
+            {requestInterpreter?.id && (
+              <label className="contact-visible-control" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(requestInterpreter.contact_visible)}
+                  onChange={(event) =>
+                    onToggleContactVisibility?.(requestInterpreter.id, event.target.checked)
+                  }
+                  style={{ cursor: "pointer" }}
+                />
+                연락처 공개
+              </label>
+            )}
             <button
               type="button"
               className="admin-link-button danger"
@@ -13743,6 +13807,13 @@ function normalizeAdminTargetType(targetType) {
 
 function compactAdminRows(items = []) {
   return Array.isArray(items) ? items.filter(Boolean) : [];
+}
+
+function normalizeRequestInterpreterRows(items = []) {
+  return compactAdminRows(items).map((item) => ({
+    ...item,
+    contact_visible: Boolean(item.contact_visible),
+  }));
 }
 
 function logSupabaseFetchError(label, error) {
