@@ -325,6 +325,7 @@ function BusinessMypage({
               ...assignment,
               contact_visible: Boolean(assignment.contact_visible),
             }));
+            console.log("assigned interpreter raw", baseAssignments);
             const revealedInterpreterIds = [
               ...new Set(
                 baseAssignments
@@ -390,6 +391,21 @@ function BusinessMypage({
                 profileContactsByAuthUserId.set(String(id), profile);
               });
             });
+            let revealedContactRows = [];
+            const revealedContactResult = await supabase.rpc(
+              "get_company_assignment_interpreter_contacts",
+              { p_request_ids: requestIds }
+            );
+
+            if (revealedContactResult.error) {
+              console.error("company assignment interpreter contacts fetch failed", revealedContactResult.error);
+            } else {
+              revealedContactRows = revealedContactResult.data || [];
+            }
+
+            const revealedContactsByAssignmentId = new Map(
+              revealedContactRows.map((contact) => [String(contact.assignment_id), contact])
+            );
             const contactQueryFailed = Boolean(
               profileContactError &&
               !isMissingColumnError(profileContactError)
@@ -443,17 +459,22 @@ function BusinessMypage({
                 null;
               const profileFallback =
                 profileContactsByAuthUserId.get(String(interpreter?.auth_user_id || "")) || null;
+              const revealedContact =
+                revealedContactsByAssignmentId.get(String(assignment.id)) || null;
               const visiblePhone =
+                revealedContact?.phone ||
                 profileContact?.phone ||
                 profileFallback?.phone ||
                 interpreter?.phone ||
                 null;
               const visibleEmail =
+                revealedContact?.email ||
                 profileContact?.email ||
                 profileFallback?.email ||
                 interpreter?.email ||
                 null;
               const visibleKakao =
+                revealedContact?.kakao_or_line ||
                 profileContact?.kakao_id ||
                 profileFallback?.kakao_id ||
                 interpreter?.kakao_id ||
@@ -481,7 +502,7 @@ function BusinessMypage({
                 assignment_id: assignment.id,
                 request_id: assignment.request_id,
                 interpreter_id: assignment.interpreter_id,
-                contact_source_table: getContactSourceTable({
+                contact_source_table: revealedContact?.contact_source || getContactSourceTable({
                   profileContact,
                   profileFallback,
                   interpreter,
@@ -489,6 +510,7 @@ function BusinessMypage({
                 contact_visible: assignment.contact_visible,
                 effective_contact_visible: isContactVisible,
                 joined_interpreter: assignment.interpreter,
+                revealed_contact_row: revealedContact,
                 profile_contact_row: profileContact,
                 profile_fallback_row: profileFallback,
                 phone: displayInterpreter?.phone ?? null,
@@ -525,11 +547,15 @@ function BusinessMypage({
             console.table(
               mergedAssignments.map((item) => ({
                 request_interpreter_id: item.id,
-                contact_visible: item.contact_visible,
                 interpreter_id: item.interpreter_id,
-                phone: item.phone || null,
-                email: item.email || null,
-                kakao_id: item.kakao_id || null,
+                contact_visible: item.contact_visible,
+                raw_phone: item.phone || null,
+                nested_interpreter_phone: item.interpreter?.phone || null,
+                nested_profile_phone: item.profile?.phone || null,
+                nested_interpreter_profile_phone: item.interpreter_profile?.phone || null,
+                final_phone: item.phone || null,
+                final_email: item.email || null,
+                final_kakao: item.kakao_id || null,
               }))
             );
             console.log("business assignments debug", {
