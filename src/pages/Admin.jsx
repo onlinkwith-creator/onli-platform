@@ -3996,6 +3996,11 @@ function sanitizeRecipientEmail(email) {
       return;
     }
 
+    console.log("contact visible update payload", {
+      requestInterpreterId,
+      checked,
+    });
+
     const { error } = await supabase
       .from("request_interpreters")
       .update({ contact_visible: checked })
@@ -5117,7 +5122,7 @@ function sanitizeRecipientEmail(email) {
                 onChangeDraft={updateRequestEditDraft}
                 onClose={closeRequestModal}
                 onRemoveAssignment={removeAssignment}
-                onToggleContactVisibility={handleContactVisibleChange}
+                handleContactVisibleChange={handleContactVisibleChange}
                 onSaveEdit={saveRequestEditDraft}
                 saveSettlement={saveSettlement}
                 toggleRequestJobPublic={toggleRequestJobPublic}
@@ -5163,7 +5168,7 @@ function RequestActionModal({
   onChangeDraft,
   onClose,
   onRemoveAssignment,
-  onToggleContactVisibility,
+  handleContactVisibleChange,
   onSaveEdit,
   saveSettlement,
   toggleRequestJobPublic,
@@ -5235,7 +5240,7 @@ function RequestActionModal({
           settlementTouched={settlementTouched}
           saveSettlement={saveSettlement}
           removeAssignment={onRemoveAssignment}
-          onToggleContactVisibility={onToggleContactVisibility}
+          handleContactVisibleChange={handleContactVisibleChange}
           updateRequest={updateRequest}
           updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
@@ -7812,6 +7817,7 @@ function RequestDetailPanel({
   settlementTouched = {},
   saveSettlement,
   removeAssignment,
+  handleContactVisibleChange,
   updateRequest,
   updateApplicationStatus,
   updateRequestFlowStatus,
@@ -8332,7 +8338,7 @@ function RequestDetailPanel({
                 ),
               }))}
               onRemove={removeAssignment}
-              onToggleContactVisibility={onToggleContactVisibility}
+              handleContactVisibleChange={handleContactVisibleChange}
             />
             <div className="admin-assign-row">
               <select
@@ -12981,7 +12987,7 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility }) {
+function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
@@ -12999,7 +13005,7 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
                   type="checkbox"
                   checked={Boolean(requestInterpreter.contact_visible)}
                   onChange={(event) =>
-                    onToggleContactVisibility?.(requestInterpreter.id, event.target.checked)
+                    handleContactVisibleChange?.(requestInterpreter.id, event.target.checked)
                   }
                   style={{ cursor: "pointer" }}
                 />
