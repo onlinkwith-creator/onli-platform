@@ -5085,7 +5085,6 @@ function sanitizeRecipientEmail(email) {
                 onChangeDraft={updateRequestEditDraft}
                 onClose={closeRequestModal}
                 onRemoveAssignment={removeAssignment}
-                onToggleContactVisibility={handleContactVisibleChange}
                 onSaveEdit={saveRequestEditDraft}
                 saveSettlement={saveSettlement}
                 toggleRequestJobPublic={toggleRequestJobPublic}
@@ -5131,7 +5130,6 @@ function RequestActionModal({
   onChangeDraft,
   onClose,
   onRemoveAssignment,
-  onToggleContactVisibility,
   onSaveEdit,
   saveSettlement,
   toggleRequestJobPublic,
@@ -5203,7 +5201,6 @@ function RequestActionModal({
           settlementTouched={settlementTouched}
           saveSettlement={saveSettlement}
           removeAssignment={onRemoveAssignment}
-          onToggleContactVisibility={onToggleContactVisibility}
           updateRequest={updateRequest}
           updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
@@ -7789,17 +7786,21 @@ function RequestDetailPanel({
   onOpenDocumentPreview,
   generatedDocuments = [],
 }) {
-  const flowSource = getRequestFlowSource(request, job);
-  const requestType = getDesignatedRequestType(request);
-  const designatedInterpreterName = getDesignatedInterpreterName([request], interpreters);
-  const designatedRequestCheckStatus = getDesignatedRequestCheckStatus(request, assignments);
+  const safeRequest = request || {};
+  const requestInterpreters = Array.isArray(assignments) ? assignments : [];
+  const assignedInterpreter =
+    getAssignmentInterpreter(requestInterpreters?.[0] || {}, interpreters) || null;
+  const flowSource = getRequestFlowSource(safeRequest, job);
+  const requestType = getDesignatedRequestType(safeRequest);
+  const designatedInterpreterName = getDesignatedInterpreterName([safeRequest], interpreters);
+  const designatedRequestCheckStatus = getDesignatedRequestCheckStatus(safeRequest, requestInterpreters);
   const assignedInterpreterName = getAssignedInterpreterName(
-    request,
-    assignments,
+    safeRequest,
+    requestInterpreters,
     interpreters
   );
   const assignedInterpreterIds = new Set(
-    assignments.map((assignment) => String(assignment.interpreter_id))
+    requestInterpreters.map((assignment) => String(assignment?.interpreter_id || ""))
   );
   const assignableInterpreters = interpreters.filter(
     (interpreter) =>
@@ -7807,11 +7808,11 @@ function RequestDetailPanel({
       interpreter.status !== "suspended" &&
       !assignedInterpreterIds.has(String(interpreter.id))
   );
-  const scheduleRange = getAssignmentScheduleRange(request, job);
-  const requestDescription = getRequestDescription(request);
-  const referenceFile = getRequestReferenceFile(request, requestDescription);
+  const scheduleRange = getAssignmentScheduleRange(safeRequest, job);
+  const requestDescription = getRequestDescription(safeRequest);
+  const referenceFile = getRequestReferenceFile(safeRequest, requestDescription);
   const visibleRequestDescription = removeRequestReferenceFileMeta(requestDescription);
-  const companyHistory = getCompanyHistory(request, requests, assignments, interpreters);
+  const companyHistory = getCompanyHistory(safeRequest, requests, requestInterpreters, interpreters);
 
   const [activeTab, setActiveTab] = useState("basic");
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -7825,14 +7826,23 @@ function RequestDetailPanel({
 
   useEffect(() => {
     setEventDateRange({
-      from: parseAdminEventDate(request?.start_date || request?.event_date),
-      to: parseAdminEventDate(request?.end_date || request?.event_date || request?.start_date),
+      from: parseAdminEventDate(safeRequest?.start_date || safeRequest?.event_date),
+      to: parseAdminEventDate(safeRequest?.end_date || safeRequest?.event_date || safeRequest?.start_date),
     });
-  }, [request?.id, request?.start_date, request?.end_date, request?.event_date]);
+  }, [safeRequest?.id, safeRequest?.start_date, safeRequest?.end_date, safeRequest?.event_date]);
+
+  useEffect(() => {
+    if (activeTab !== "operation") return;
+    console.error("operation tab error source check", {
+      request: safeRequest,
+      requestInterpreters,
+      assignedInterpreter,
+    });
+  }, [activeTab, assignedInterpreter, requestInterpreters, safeRequest]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
-      if (!request.company_auth_user_id) {
+      if (!safeRequest?.company_auth_user_id) {
         setBusinessProfile(null);
         return;
       }
@@ -7841,7 +7851,7 @@ function RequestDetailPanel({
           const { data, error } = await supabase
             .from("businesses")
             .select("*")
-            .eq("auth_user_id", request.company_auth_user_id)
+            .eq("auth_user_id", safeRequest.company_auth_user_id)
             .maybeSingle();
           if (!error && data) {
             setBusinessProfile(data);
@@ -7855,16 +7865,20 @@ function RequestDetailPanel({
       };
       fetchBiz();
     });
-  }, [request.company_auth_user_id]);
+  }, [safeRequest.company_auth_user_id]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
+      if (!safeRequest?.id) {
+        setUploadedMaterials([]);
+        return;
+      }
       const fetchMaterials = async () => {
         try {
           const { data, error } = await supabase
             .from("request_materials")
             .select("*")
-            .eq("request_id", request.id)
+            .eq("request_id", safeRequest.id)
             .order("created_at", { ascending: false });
           if (!error) {
             setUploadedMaterials(data || []);
@@ -7875,7 +7889,7 @@ function RequestDetailPanel({
       };
       fetchMaterials();
     });
-  }, [request.id]);
+  }, [safeRequest.id]);
 
   const companyPreviousRequests = requests.filter(r => 
     r.id !== request.id && 
@@ -8227,7 +8241,7 @@ function RequestDetailPanel({
                 <button
                   type="button"
                   className="admin-save"
-                  disabled={savingKey === `request-${request.id}` || !eventDateRange.from}
+                  disabled={savingKey === `request-${safeRequest?.id}` || !eventDateRange.from}
                   onClick={() => {
                     const payload = {
                       start_date: formatDateForDb(eventDateRange.from),
@@ -8235,13 +8249,13 @@ function RequestDetailPanel({
                     };
 
                     console.log("event date range save payload", {
-                      requestId: request.id,
+                      requestId: safeRequest?.id,
                       from: eventDateRange.from,
                       to: eventDateRange.to,
                       payload,
                     });
 
-                    updateRequest(request.id, payload);
+                    if (safeRequest?.id) updateRequest(safeRequest.id, payload);
                   }}
                 >
                   행사 기간 저장
@@ -8258,27 +8272,27 @@ function RequestDetailPanel({
               </p>
               <NumberControl
                 label="기업 금액"
-                value={getCompanyAmount(request)}
-                onChange={(value) => handlePriceDraft(request.id, "company_amount", value)}
+                value={getCompanyAmount(safeRequest)}
+                onChange={(value) => safeRequest?.id && handlePriceDraft(safeRequest.id, "company_amount", value)}
               />
               <NumberControl
                 label="통역사 지급액"
-                value={getInterpreterPayment(request)}
+                value={getInterpreterPayment(safeRequest)}
                 onChange={(value) =>
-                  handlePriceDraft(request.id, "interpreter_payment", value)
+                  safeRequest?.id && handlePriceDraft(safeRequest.id, "interpreter_payment", value)
                 }
               />
               <div className="admin-profit">
                 <span>플랫폼 수익</span>
-                <strong className={getPlatformProfit(request) < 0 ? "is-negative" : ""}>
-                  {formatJPY(getPlatformProfit(request))}
+                <strong className={getPlatformProfit(safeRequest) < 0 ? "is-negative" : ""}>
+                  {formatJPY(getPlatformProfit(safeRequest))}
                 </strong>
               </div>
               <button
                 type="button"
                 className="admin-save"
-                disabled={savingKey === `request-${request.id}`}
-                onClick={() => saveSettlement(request)}
+                disabled={savingKey === `request-${safeRequest?.id}`}
+                onClick={() => saveSettlement(safeRequest)}
               >
                 정산 저장
               </button>
@@ -8297,15 +8311,14 @@ function RequestDetailPanel({
                 ),
               }))}
               onRemove={removeAssignment}
-              onToggleContactVisibility={onToggleContactVisibility}
             />
             <div className="admin-assign-row">
               <select
-                value={assignmentDrafts[request.id] || ""}
+                value={assignmentDrafts[safeRequest?.id] || ""}
                 onChange={(event) =>
                   setAssignmentDrafts((current) => ({
                     ...current,
-                    [request.id]: event.target.value,
+                    [safeRequest?.id]: event.target.value,
                   }))
                 }
               >
@@ -8323,7 +8336,7 @@ function RequestDetailPanel({
                   </option>
                 ))}
               </select>
-              <button type="button" onClick={() => assignInterpreter(request.id)}>
+              <button type="button" onClick={() => safeRequest?.id && assignInterpreter(safeRequest.id)}>
                 배정
               </button>
             </div>
@@ -12946,7 +12959,7 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility }) {
+function AssignmentList({ emptyText, items, onRemove }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
@@ -12954,23 +12967,9 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
   return (
     <div className="admin-assignment-list">
       {items.map((item) => {
-        const requestInterpreter = item.assignment;
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
-            {requestInterpreter?.id && onToggleContactVisibility && (
-              <label className="contact-visible-control" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(requestInterpreter.contact_visible)}
-                  onChange={(event) =>
-                    onToggleContactVisibility(requestInterpreter.id, event.target.checked)
-                  }
-                  style={{ cursor: "pointer" }}
-                />
-                연락처 공개
-              </label>
-            )}
             <button
               type="button"
               className="admin-link-button danger"
