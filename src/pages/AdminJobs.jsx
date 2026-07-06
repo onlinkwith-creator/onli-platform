@@ -1185,12 +1185,14 @@ function JobApplicantsModal({
             닫기
           </button>
         </div>
-        <JobApplicationsPanel
-          applications={applications}
-          getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
-          job={job || {}}
-          onStatusChange={onStatusChange}
-        />
+        <div className="admin-modal-body">
+          <JobApplicationsPanel
+            applications={applications}
+            getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
+            job={job || {}}
+            onStatusChange={onStatusChange}
+          />
+        </div>
       </section>
     </div>
   );

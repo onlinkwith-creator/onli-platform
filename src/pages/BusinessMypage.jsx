@@ -320,6 +320,22 @@ function BusinessMypage({
             console.error("Error fetching assignments:", assignError);
           } else {
             const baseAssignments = assignData || [];
+            const { data: contactRows = [], error: contactError } = await supabase.rpc(
+              "get_company_assignment_interpreter_contacts",
+              { p_request_ids: requestIds }
+            );
+            if (contactError) {
+              console.error("Error fetching revealed interpreter contacts:", contactError);
+            }
+            const contactRowsByAssignmentId = new Map(
+              (contactRows || []).map((row) => [String(row.assignment_id), row])
+            );
+            const contactRowsByRequestInterpreter = new Map(
+              (contactRows || []).map((row) => [
+                `${String(row.request_id)}:${String(row.interpreter_id)}`,
+                row,
+              ])
+            );
             const missingInterpreterIds = [
               ...new Set(
                 [
@@ -356,33 +372,116 @@ function BusinessMypage({
             const publicInterpreterById = new Map(
               publicInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
             );
-            const mergedAssignments = baseAssignments.map((assignment) => ({
+            const mergedAssignments = baseAssignments.map((assignment) => {
+              const isContactVisible =
+                Boolean(assignment.is_contact_visible) || Boolean(assignment.contact_revealed);
+              const contactRow =
+                contactRowsByAssignmentId.get(String(assignment.id)) ||
+                contactRowsByRequestInterpreter.get(
+                  `${String(assignment.request_id)}:${String(assignment.interpreter_id)}`
+                ) ||
+                null;
+              const interpreter =
+                assignment.interpreter ||
+                publicInterpreterById.get(String(assignment.interpreter_id)) ||
+                null;
+              const mergedInterpreter =
+                interpreter && isContactVisible && contactRow
+                  ? {
+                      ...interpreter,
+                      phone: contactRow.phone ?? interpreter.phone ?? null,
+                      email: contactRow.email ?? interpreter.email ?? null,
+                      kakao_or_line: contactRow.kakao_or_line ?? interpreter.kakao_or_line ?? null,
+                      name: interpreter.name || contactRow.interpreter_name || "배정 통역사",
+                    }
+                  : interpreter;
+              const contactFetchFailed =
+                isContactVisible &&
+                Boolean(contactError) &&
+                !contactRow &&
+                !assignment.interpreter?.phone &&
+                !assignment.interpreter?.email &&
+                !assignment.interpreter?.kakao_or_line;
+              const displayInterpreter = mergedInterpreter
+                ? { ...mergedInterpreter, _contact_fetch_failed: contactFetchFailed }
+                : mergedInterpreter;
+
+              console.debug("BusinessMypage assignment contact debug", {
+                assignment_id: assignment.id,
+                request_id: assignment.request_id,
+                interpreter_id: assignment.interpreter_id,
+                contact_revealed: assignment.contact_revealed,
+                is_contact_visible: assignment.is_contact_visible,
+                effective_contact_visible: isContactVisible,
+                joined_interpreter: assignment.interpreter,
+                rpc_contact_row: contactRow,
+                phone: displayInterpreter?.phone ?? null,
+                email: displayInterpreter?.email ?? null,
+                kakao: displayInterpreter?.kakao_or_line ?? null,
+                contact_fetch_failed: contactFetchFailed,
+              });
+
+              return {
                 ...assignment,
-                is_contact_visible:
-                  Boolean(assignment.is_contact_visible) || Boolean(assignment.contact_revealed),
-                interpreter:
-                  assignment.interpreter ||
-                  publicInterpreterById.get(String(assignment.interpreter_id)) ||
-                  null,
-              }));
+                is_contact_visible: isContactVisible,
+                contact_revealed: isContactVisible,
+                contact_revealed_at: assignment.contact_revealed_at || contactRow?.contact_revealed_at || null,
+                interpreter: displayInterpreter,
+              };
+            });
             const assignmentRequestIds = new Set(
               mergedAssignments.map((assignment) => String(assignment.request_id))
             );
             const requestFallbackAssignments = fetchedRequests
               .filter((request) => request.assigned_interpreter_id && !assignmentRequestIds.has(String(request.id)))
-              .map((request) => ({
-                id: `request-assigned-${request.id}`,
-                request_id: request.id,
-                interpreter_id: request.assigned_interpreter_id,
-                is_contact_visible: false,
-                interpreter:
-                  publicInterpreterById.get(String(request.assigned_interpreter_id)) ||
-                  {
-                    id: request.assigned_interpreter_id,
-                    name: request.assigned_interpreter_name || "배정 통역사",
-                    level: request.required_level || request.requested_level || "",
-                  },
-              }));
+              .map((request) => {
+                const contactRow =
+                  contactRowsByRequestInterpreter.get(
+                    `${String(request.id)}:${String(request.assigned_interpreter_id)}`
+                  ) || null;
+                const publicInterpreter =
+                  publicInterpreterById.get(String(request.assigned_interpreter_id)) || {};
+                const interpreter = {
+                  id: request.assigned_interpreter_id,
+                  name:
+                    publicInterpreter.name ||
+                    contactRow?.interpreter_name ||
+                    request.assigned_interpreter_name ||
+                    "배정 통역사",
+                  level: publicInterpreter.level || request.required_level || request.requested_level || "",
+                  ...publicInterpreter,
+                  ...(contactRow
+                    ? {
+                        phone: contactRow.phone ?? publicInterpreter.phone ?? null,
+                        email: contactRow.email ?? publicInterpreter.email ?? null,
+                        kakao_or_line:
+                          contactRow.kakao_or_line ?? publicInterpreter.kakao_or_line ?? null,
+                      }
+                    : {}),
+                  _contact_fetch_failed: Boolean(contactError && !contactRow),
+                };
+
+                console.debug("BusinessMypage request fallback contact debug", {
+                  request_id: request.id,
+                  interpreter_id: request.assigned_interpreter_id,
+                  contact_revealed: Boolean(contactRow?.contact_revealed),
+                  rpc_contact_row: contactRow,
+                  phone: interpreter.phone ?? null,
+                  email: interpreter.email ?? null,
+                  kakao: interpreter.kakao_or_line ?? null,
+                  contact_fetch_failed: interpreter._contact_fetch_failed,
+                });
+
+                return {
+                  id: `request-assigned-${request.id}`,
+                  request_id: request.id,
+                  interpreter_id: request.assigned_interpreter_id,
+                  is_contact_visible: Boolean(contactRow?.contact_revealed),
+                  contact_revealed: Boolean(contactRow?.contact_revealed),
+                  contact_revealed_at: contactRow?.contact_revealed_at || null,
+                  interpreter,
+                };
+              });
             setAssignments(
               [...mergedAssignments, ...requestFallbackAssignments]
             );
@@ -1338,6 +1437,8 @@ function BusinessMypage({
                     {visibleAssignments.map((assign) => {
                       const req = requests.find((r) => r.id === assign.request_id);
                       const interpreter = assign.interpreter;
+                      const getContactDisplayValue = (value) =>
+                        interpreter?._contact_fetch_failed ? "조회 실패" : value || "정보 없음";
 
                       const isCertified = isOnliCertified(interpreter);
                       const displayLanguages =
@@ -1415,15 +1516,15 @@ function BusinessMypage({
                                   <div className="contacts-grid">
                                     <div className="contact-item">
                                       <span className="contact-label">전화번호</span>
-                                      <span className="contact-value">{interpreter.phone || "정보 없음"}</span>
+                                      <span className="contact-value">{getContactDisplayValue(interpreter.phone)}</span>
                                     </div>
                                     <div className="contact-item">
                                       <span className="contact-label">이메일</span>
-                                      <span className="contact-value">{interpreter.email || "정보 없음"}</span>
+                                      <span className="contact-value">{getContactDisplayValue(interpreter.email)}</span>
                                     </div>
                                     <div className="contact-item">
                                       <span className="contact-label">카카오톡</span>
-                                      <span className="contact-value">{interpreter.kakao_or_line || "정보 없음"}</span>
+                                      <span className="contact-value">{getContactDisplayValue(interpreter.kakao_or_line)}</span>
                                     </div>
                                   </div>
                                 ) : (

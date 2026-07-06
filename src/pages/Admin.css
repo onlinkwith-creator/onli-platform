@@ -6592,3 +6592,93 @@
   border-color: #c084fc !important;
   box-shadow: 0 4px 20px rgba(192, 132, 252, 0.15) !important;
 }
+
+/* --- Admin Detail Modal Scroll Layout --- */
+.admin-modal-card,
+.admin-request-detail-modal,
+.admin-interpreter-detail-modal,
+.admin-payment-detail-modal,
+.admin-document-detail-modal,
+.admin-jobs-applicant-modal,
+.admin-notification-detail-modal,
+.admin-task-detail-modal,
+.admin-urgent-detail-modal {
+  max-height: calc(100vh - 80px) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.admin-modal-head,
+.admin-interpreter-modal-head,
+.admin-detail-tabs,
+.modal-tabs {
+  flex-shrink: 0;
+}
+
+.admin-modal-body,
+.admin-interpreter-detail-body,
+.admin-detail-tab-panel,
+.admin-detail-content,
+.detail-content {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-modal-body,
+.admin-interpreter-detail-body {
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-request-detail-modal .admin-modal-body {
+  padding-bottom: 24px;
+}
+
+.admin-request-detail-modal .admin-detail-tab-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-request-detail-modal .admin-detail-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.admin-notification-detail-modal .admin-notification-detail-list,
+.admin-task-detail-modal .admin-task-modal-list,
+.admin-urgent-detail-modal .admin-urgent-detail-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-notification-detail-modal .admin-notification-modal-actions {
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-modal-overlay {
+    padding: 16px !important;
+  }
+
+  .admin-modal-card,
+  .admin-request-detail-modal,
+  .admin-interpreter-detail-modal,
+  .admin-payment-detail-modal,
+  .admin-document-detail-modal,
+  .admin-jobs-applicant-modal,
+  .admin-notification-detail-modal,
+  .admin-task-detail-modal,
+  .admin-urgent-detail-modal {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 32px) !important;
+  }
+}
