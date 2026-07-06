@@ -586,86 +586,6 @@ function getAdminPathForSubTab(subTabId) {
   return `${path}?tab=${encodeURIComponent(subTabId)}`;
 }
 
-function AdminEventDateEditor({ request, updateRequest }) {
-  const [dateRange, setDateRange] = useState({
-    from: undefined,
-    to: undefined,
-  });
-
-  useEffect(() => {
-    if (!request) return;
-    setDateRange({
-      from: request.start_date ? new Date(request.start_date) : undefined,
-      to: request.end_date ? new Date(request.end_date) : undefined,
-    });
-  }, [request?.id, request?.start_date, request?.end_date]);
-
-  const handleSave = () => {
-    const startDate = dateRange?.from;
-    const endDate = dateRange?.to ?? dateRange?.from;
-    
-    if (startDate && endDate && endDate < startDate) {
-      alert("종료일은 시작일보다 빠를 수 없습니다.");
-      return;
-    }
-    
-    const payload = {};
-    if (startDate) {
-      payload.start_date = normalizeDateToISO(startDate);
-      payload.event_date = normalizeDateToISO(startDate);
-    }
-    if (endDate || startDate) {
-      payload.end_date = normalizeDateToISO(endDate ?? startDate);
-    }
-    
-    updateRequest(request.id, payload);
-  };
-
-  if (!request) return null;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-        <div>
-          시작일: 
-          <input 
-            readOnly 
-            value={dateRange?.from ? formatDisplayDate(dateRange.from) : ""} 
-            style={{ marginLeft: "8px", padding: "4px", borderRadius: "4px", border: "1px solid #ccc", width: "100px" }}
-          />
-        </div>
-        <span>~</span>
-        <div>
-          종료일: 
-          <input 
-            readOnly 
-            value={dateRange?.to ? formatDisplayDate(dateRange.to) : ""} 
-            style={{ marginLeft: "8px", padding: "4px", borderRadius: "4px", border: "1px solid #ccc", width: "100px" }}
-          />
-        </div>
-        <button type="button" className="admin-primary-button" onClick={handleSave} style={{ marginLeft: "10px" }}>
-          저장
-        </button>
-      </div>
-      <div className="admin-calendar-wrapper" style={{ border: "1px solid #ddd", padding: "10px", borderRadius: "8px", display: "inline-block" }}>
-        <DayPicker
-          mode="range"
-          selected={dateRange?.from ? dateRange : undefined}
-          onSelect={(range) => {
-            setDateRange({
-              from: range?.from,
-              to: range?.to ?? range?.from
-            });
-          }}
-          locale={ko}
-          defaultMonth={dateRange?.from || new Date()}
-          numberOfMonths={2}
-        />
-      </div>
-    </div>
-  );
-}
-
 
 function Admin({ onBackClick }) {
   const { user, signOut, adminProfile, loading: authLoading, isAdmin } = useAuth();
@@ -5087,6 +5007,10 @@ function sanitizeRecipientEmail(email) {
                 setAssignments={setAssignments}
                 onOpenDocumentPreview={openDocumentPreview}
                 generatedDocuments={generatedDocuments}
+                toggleContactVisibility={async (assignmentOrId, currentVal) => {
+                  alert("연락처 공개 기능은 현재 비활성화되어 있습니다.");
+                  return;
+                }}
               />
             )}
           
@@ -5202,44 +5126,8 @@ function RequestActionModal({
           onOpenDocumentPreview={onOpenDocumentPreview}
           generatedDocuments={generatedDocuments}
           toggleContactVisibility={async (assignmentOrId, currentVal) => {
-            const assignment =
-              typeof assignmentOrId === "object"
-                ? assignmentOrId
-                : assignments.find((item) => String(item.id) === String(assignmentOrId));
-            const assignmentId =
-              typeof assignmentOrId === "object" ? assignmentOrId?.id : assignmentOrId;
-            try {
-              const nextVisible = !currentVal;
-              const payload = { contact_visible: nextVisible };
-              if (!assignmentId) {
-                throw new Error("Missing assignment id for contact visibility update");
-              }
-
-              const { error } = await supabase
-                .from("request_interpreters")
-                .update(payload)
-                .eq("id", assignmentId);
-              if (error) throw error;
-              setAssignments(current =>
-                current.map(item =>
-                  String(item.id) === String(assignmentId)
-                    ? {
-                        ...item,
-                        contact_visible: nextVisible,
-                      }
-                    : item
-                )
-              );
-            } catch (err) {
-              console.error("contact visibility update failed:", {
-                payload: { contact_visible: !currentVal },
-                assignmentId,
-                requestId: assignment?.request_id || null,
-                interpreterId: assignment?.interpreter_id || null,
-                error: err,
-              });
-              alert("연락처 공개 설정 변경에 실패했습니다. 콘솔 에러를 확인하세요.");
-            }
+            alert("연락처 공개 기능은 현재 비활성화되어 있습니다.");
+            return;
           }}
         />
       )}
@@ -8220,7 +8108,24 @@ function RequestDetailPanel({
           <div>
             <h3>행사 기간 수정</h3>
             <div className="admin-date-range-panel">
-              <AdminEventDateEditor request={request} updateRequest={updateRequest} />
+              <DateRangeInput
+                required
+                label="행사 기간"
+                startDate={getDateRangeStart(request.start_date, request.event_date)}
+                endDate={getDateRangeEnd(request.end_date, request.event_date)}
+                onChange={({ startDate, endDate }) => {
+                  if (startDate && endDate && endDate < startDate) {
+                    alert("종료일은 시작일보다 빠를 수 없습니다.");
+                    return;
+                  }
+                  
+                  updateRequest(request.id, {
+                    start_date: normalizeDateToISO(startDate) || "",
+                    end_date: normalizeDateToISO(endDate) || "",
+                    event_date: normalizeDateToISO(startDate) || "",
+                  });
+                }}
+              />
             </div>
           </div>
 
@@ -12933,20 +12838,15 @@ function AssignmentList({ emptyText, items, onRemove, onToggleContactVisibility 
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
             {onToggleContactVisibility && (
-              item.assignment?.id ? (
-                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
-                  <input
-                    type="checkbox"
-                    checked={isVisible}
-                    disabled={!item.assignment?.id}
-                    onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
-                    style={{ cursor: "pointer" }}
-                  />
-                  <span>연락처 공개</span>
-                </label>
-              ) : (
-                <span style={{ fontSize: "12px", color: "#94a3b8" }}>미배정</span>
-              )
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
+                <input
+                  type="checkbox"
+                  checked={isVisible}
+                  onChange={() => onToggleContactVisibility(item.assignment || item.id, isVisible)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>연락처 공개</span>
+              </label>
             )}
             <button
               type="button"
