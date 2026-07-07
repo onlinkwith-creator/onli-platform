@@ -49,6 +49,8 @@ const TABS = [
 
 
 const SETTLEMENT_DOCUMENT_BUCKET = "resume-files";
+const REQUEST_REFERENCE_BUCKET = "request-files";
+const REQUEST_MATERIAL_BUCKET = "reference_files";
 const SETTLEMENT_DOCUMENT_MAX_SIZE = 10 * 1024 * 1024;
 const SETTLEMENT_DOCUMENT_TYPES = {
   bankbook: {
@@ -2217,11 +2219,12 @@ function InterpreterMypage({
                     {loadingData ? (
                       <p className="loading-text">업무 준비 정보를 불러오는 중...</p>
                     ) : (() => {
-                      const prepItems = matchings.filter(
-                        (m) =>
-                          m.request_assignment_status === "preparing" ||
-                          m.request_assignment_status === "ready" ||
-                          m.request_assignment_status === "assigned"
+                      const prepItems = getUniquePreparationItems(
+                        matchings.filter(
+                          (m) =>
+                            isAssignedPreparationStatus(m.request_assignment_status) &&
+                            hasMatchedApplicationForAssignment(m, applications)
+                        )
                       );
                       if (prepItems.length === 0) {
                         return (
@@ -3146,12 +3149,13 @@ function mapMyAssignmentRow(row = {}) {
     request_assignment_status: row.request_assignment_status || "assigned",
     is_contact_visible: row.is_contact_visible || false,
     company_contact: {
-      companyName: row.company_name || "",
-      contactName: row.company_contact_name || "",
-      phone: row.company_contact_phone || "",
-      email: row.company_contact_email || "",
-      messenger: row.company_contact_messenger || "",
+      companyName: row.company_name ?? null,
+      contactName: row.company_contact_name ?? null,
+      phone: row.company_contact_phone ?? null,
+      email: row.company_contact_email ?? null,
+      messenger: row.company_contact_messenger ?? null,
     },
+    reference_file: getAssignmentReferenceFile(row),
     jobs: mapPublicJobFromMypageRow(row),
   };
 }
@@ -3177,6 +3181,56 @@ function isAssignedPreparationStatus(status) {
   return ["assigned", "preparing", "ready"].includes(String(status || "").trim());
 }
 
+function isMatchedApplicationStatus(status) {
+  return String(status || "").trim() === "매칭완료";
+}
+
+function hasMatchedApplicationForAssignment(assignment, applications = []) {
+  const job = assignment?.jobs;
+  if (!assignment?.job_id || !job?.id) return false;
+  return applications.some(
+    (app) =>
+      isMatchedApplicationStatus(app.status) &&
+      String(app.job_id) === String(job.id)
+  );
+}
+
+function getUniquePreparationItems(items = []) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = item.request_id
+      ? `request:${item.request_id}`
+      : `job:${item.job_id || item.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getAssignmentReferenceFile(row = {}) {
+  const fileName = row.reference_file_name || "";
+  const filePath = row.reference_file_path || row.reference_file_url || "";
+  if (!fileName && !filePath) return null;
+
+  return {
+    id: `reference-${row.request_id || row.assignment_id || filePath}`,
+    file_name: fileName || filePath.split("/").pop() || "첨부 파일",
+    original_file_name: fileName || filePath.split("/").pop() || "첨부 파일",
+    file_path: getStoragePathFromUrl(filePath, REQUEST_REFERENCE_BUCKET) || filePath,
+    file_type: "참고 자료",
+  };
+}
+
+function getRequestMaterialBucket(filePath = "") {
+  const path = String(filePath || "");
+  if (path.startsWith("requests/reference_files/")) return REQUEST_REFERENCE_BUCKET;
+  return REQUEST_MATERIAL_BUCKET;
+}
+
+function getDisplayValue(value) {
+  return value == null ? "-" : String(value);
+}
+
 function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
   const [materials, setMaterials] = useState([]);
   const [loadingMats, setLoadingMats] = useState(false);
@@ -3189,12 +3243,19 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     Promise.resolve().then(async () => {
       setLoadingMats(true);
       try {
+        const referenceFile = mat.reference_file ? [mat.reference_file] : [];
         const { data, error } = await supabase
           .from("request_materials")
           .select("*")
           .eq("request_id", mat.request_id)
           .order("created_at", { ascending: false });
-        if (!error) setMaterials(data || []);
+        if (error) {
+          setMaterials(referenceFile);
+          return;
+        }
+        if (!error) {
+          setMaterials([...referenceFile, ...(data || [])]);
+        }
       } catch (err) {
         console.error("Error fetching prep materials:", err);
       } finally {
@@ -3205,10 +3266,16 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
 
 
   const handleDownload = async (filePath, fileName) => {
+    if (!filePath) return;
+    if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+      window.open(filePath, "_blank", "noopener,noreferrer");
+      return;
+    }
+
     try {
       const { data, error } = await supabase.storage
-        .from("request-files")
-        .createSignedUrl(filePath, 600, { download: fileName || true });
+        .from(getRequestMaterialBucket(filePath))
+        .createSignedUrl(filePath, 600, { download: false });
       if (error) throw error;
       window.open(data.signedUrl, "_blank", "noopener,noreferrer");
     } catch (err) {
@@ -3263,7 +3330,7 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
                 {contactRows.map(([label, value]) => (
                   <div key={label}>
                     <dt>{label}</dt>
-                    <dd>{value || "-"}</dd>
+                    <dd>{getDisplayValue(value)}</dd>
                   </div>
                 ))}
               </dl>
@@ -3286,7 +3353,7 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
               <ul className="prep-mat-list">
                 {materials.map((mat) => (
                   <li key={mat.id} className="prep-mat-item">
-                    <span className="prep-mat-type">{mat.file_type || "자료"}</span>
+                    <span className="prep-mat-type">{mat.material_type || mat.file_type || "자료"}</span>
                     <button
                       type="button"
                       className="prep-mat-download"
