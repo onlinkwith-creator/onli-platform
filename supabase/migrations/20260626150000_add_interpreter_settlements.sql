@@ -10,7 +10,6 @@ create table if not exists public.settlements (
   payout_status text not null default 'pending'
     check (payout_status in ('pending', 'confirmed', 'paid', 'withheld', 'cancelled')),
   work_days integer,
-  level text,
   daily_rate numeric,
   extra_amount numeric not null default 0,
   deduction_amount numeric not null default 0,
@@ -138,7 +137,6 @@ begin
     amount,
     payout_status,
     work_days,
-    level,
     daily_rate,
     extra_amount,
     deduction_amount,
@@ -152,7 +150,6 @@ begin
     coalesce(request_record.settlement_final_amount, request_record.interpreter_payment, 0),
     public.map_request_settlement_status_to_payout(coalesce(request_record.settlement_status, 'pending')),
     request_record.settlement_work_days,
-    request_record.settlement_level,
     case
       when coalesce(request_record.settlement_work_days, 0) > 0
         then round(coalesce(request_record.settlement_base_amount, request_record.interpreter_payment, 0)::numeric / request_record.settlement_work_days, 0)
@@ -171,7 +168,6 @@ begin
       else public.settlements.amount
     end,
     work_days = coalesce(public.settlements.work_days, excluded.work_days),
-    level = coalesce(public.settlements.level, excluded.level),
     daily_rate = coalesce(public.settlements.daily_rate, excluded.daily_rate),
     extra_amount = case
       when public.settlements.extra_amount = 0 then excluded.extra_amount
@@ -190,7 +186,6 @@ begin
     amount,
     payout_status,
     work_days,
-    level,
     daily_rate,
     extra_amount,
     deduction_amount,
@@ -204,7 +199,6 @@ begin
     coalesce(request_record.settlement_final_amount, request_record.interpreter_payment, 0),
     public.map_request_settlement_status_to_payout(coalesce(request_record.settlement_status, 'pending')),
     request_record.settlement_work_days,
-    request_record.settlement_level,
     case
       when coalesce(request_record.settlement_work_days, 0) > 0
         then round(coalesce(request_record.settlement_base_amount, request_record.interpreter_payment, 0)::numeric / request_record.settlement_work_days, 0)
@@ -229,7 +223,6 @@ begin
       else public.settlements.amount
     end,
     work_days = coalesce(public.settlements.work_days, excluded.work_days),
-    level = coalesce(public.settlements.level, excluded.level),
     daily_rate = coalesce(public.settlements.daily_rate, excluded.daily_rate),
     extra_amount = case
       when public.settlements.extra_amount = 0 then excluded.extra_amount
@@ -300,7 +293,6 @@ insert into public.settlements (
   amount,
   payout_status,
   work_days,
-  level,
   daily_rate,
   extra_amount,
   deduction_amount,
@@ -314,7 +306,6 @@ select
   coalesce(r.settlement_final_amount, r.interpreter_payment, 0),
   public.map_request_settlement_status_to_payout(coalesce(r.settlement_status, 'pending')),
   r.settlement_work_days,
-  r.settlement_level,
   case
     when coalesce(r.settlement_work_days, 0) > 0
       then round(coalesce(r.settlement_base_amount, r.interpreter_payment, 0)::numeric / r.settlement_work_days, 0)
@@ -340,7 +331,6 @@ insert into public.settlements (
   amount,
   payout_status,
   work_days,
-  level,
   daily_rate,
   extra_amount,
   deduction_amount,
@@ -354,7 +344,6 @@ select
   coalesce(r.settlement_final_amount, r.interpreter_payment, 0),
   public.map_request_settlement_status_to_payout(coalesce(r.settlement_status, 'pending')),
   r.settlement_work_days,
-  r.settlement_level,
   case
     when coalesce(r.settlement_work_days, 0) > 0
       then round(coalesce(r.settlement_base_amount, r.interpreter_payment, 0)::numeric / r.settlement_work_days, 0)
@@ -551,7 +540,7 @@ as $$
     end as settlement_status,
     coalesce(to_jsonb(r)->>'payment_status', 'unpaid') as payment_status,
     s.work_days as settlement_work_days,
-    s.level as settlement_level,
+    coalesce(r.settlement_level, i.level, r.required_level, r.requested_level) as settlement_level,
     (coalesce(s.daily_rate, 0) * coalesce(s.work_days, 0))::bigint as settlement_base_amount,
     coalesce(s.extra_amount, 0)::bigint as settlement_extra_amount,
     coalesce(s.deduction_amount, 0)::bigint as settlement_deduction_amount,

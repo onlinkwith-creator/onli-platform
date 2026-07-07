@@ -118,7 +118,6 @@ begin
     amount,
     payout_status,
     work_days,
-    level,
     daily_rate,
     extra_amount,
     deduction_amount,
@@ -132,7 +131,6 @@ begin
     v_amount,
     public.map_request_settlement_status_to_payout(coalesce(request_record.settlement_status, 'pending')),
     v_work_days,
-    coalesce(request_record.settlement_level, request_record.requested_level, request_record.required_level),
     v_daily_rate,
     coalesce(request_record.settlement_extra_amount, 0),
     coalesce(request_record.settlement_deduction_amount, 0),
@@ -148,7 +146,6 @@ begin
       else public.settlements.amount
     end,
     work_days = coalesce(public.settlements.work_days, excluded.work_days),
-    level = coalesce(public.settlements.level, excluded.level),
     daily_rate = coalesce(public.settlements.daily_rate, excluded.daily_rate),
     extra_amount = case
       when public.settlements.extra_amount = 0 then excluded.extra_amount
@@ -167,7 +164,6 @@ begin
     amount,
     payout_status,
     work_days,
-    level,
     daily_rate,
     extra_amount,
     deduction_amount,
@@ -181,7 +177,6 @@ begin
     v_amount,
     public.map_request_settlement_status_to_payout(coalesce(request_record.settlement_status, 'pending')),
     v_work_days,
-    coalesce(request_record.settlement_level, request_record.requested_level, request_record.required_level),
     v_daily_rate,
     coalesce(request_record.settlement_extra_amount, 0),
     coalesce(request_record.settlement_deduction_amount, 0),
@@ -203,7 +198,6 @@ begin
       else public.settlements.amount
     end,
     work_days = coalesce(public.settlements.work_days, excluded.work_days),
-    level = coalesce(public.settlements.level, excluded.level),
     daily_rate = coalesce(public.settlements.daily_rate, excluded.daily_rate),
     extra_amount = case
       when public.settlements.extra_amount = 0 then excluded.extra_amount

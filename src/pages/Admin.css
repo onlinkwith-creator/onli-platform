@@ -2422,6 +2422,71 @@
   white-space: normal;
 }
 
+.admin-settlement-card-list {
+  display: none;
+}
+
+.admin-settlement-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.admin-settlement-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-settlement-card-head strong {
+  display: block;
+  color: #111827;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.admin-settlement-card-head span:not(.status-badge) {
+  display: block;
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.admin-settlement-card dl {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0 0;
+}
+
+.admin-settlement-card dl > div {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.admin-settlement-card dt {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-settlement-card dd {
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.admin-settlement-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .admin-payment-detail-grid {
   display: grid;
   gap: 18px;
@@ -4272,6 +4337,19 @@
   .admin-table-wrap {
     border-radius: 10px;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-table-wrap:has(.admin-settlement-table) {
+    overflow: visible;
+  }
+
+  .admin-settlement-table {
+    display: none;
+  }
+
+  .admin-settlement-card-list {
+    display: grid;
+    gap: 12px;
   }
 
   .admin-table {
