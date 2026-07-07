@@ -68,7 +68,6 @@ import {
   getAssignmentStatusLabel,
   getAssignmentStatusBadgeClass,
   getOperationStatusBadgeClass,
-  getSettlementFlowStatusBadgeClass,
   getSettlementFlowStatusLabel,
   normalizeAssignmentStatus,
   normalizeOperationStatus,
@@ -86,6 +85,12 @@ import {
   addManagementNumber,
   isManagementNumberConflict,
 } from "../utils/managementNumber";
+import {
+  SETTLEMENT_STATUS_OPTIONS,
+  getSettlementStatusBadgeClass,
+  getSettlementStatusLabel,
+  normalizeAdminSettlementStatus,
+} from "../utils/settlementStatus";
 import {
   buildCompletionDraft,
   buildEstimateDraft,
@@ -288,10 +293,7 @@ const POST_ACCEPTANCE_STATUS_VALUES = new Set([
 ]);
 const SETTLEMENT_MANAGEMENT_FILTERS = [
   { value: "all", label: "전체" },
-  { value: "settlement_waiting", label: "정산 대기" },
-  { value: "settlement_confirmed", label: "정산 확정" },
-  { value: "settlement_paying", label: "통역사 지급" },
-  { value: "settlement_completed", label: "정산 완료" },
+  ...SETTLEMENT_STATUS_OPTIONS,
 ];
 const COMPANY_PAYMENT_STATUS_OPTIONS = [
   { value: "unpaid", label: "미입금" },
@@ -306,12 +308,7 @@ const COMPANY_PAYMENT_METHOD_OPTIONS = [
   { value: "cash", label: "현금" },
   { value: "other", label: "기타" },
 ];
-const SETTLEMENT_PAYOUT_STATUS_OPTIONS = [
-  { value: "settlement_waiting", label: "정산 대기" },
-  { value: "settlement_confirmed", label: "정산 확정" },
-  { value: "settlement_paying", label: "통역사 지급" },
-  { value: "settlement_completed", label: "정산 완료" },
-];
+const SETTLEMENT_PAYOUT_STATUS_OPTIONS = SETTLEMENT_STATUS_OPTIONS;
 
 function logSupabaseError(label, error) {
   if (!error) return;
@@ -334,12 +331,6 @@ function logRequestUpdateFailure(label, { payload, requestId, error } = {}) {
     hint: error?.hint || null,
   });
 }
-const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
-  settlement_waiting: "settlement_waiting",
-  settlement_confirmed: "settlement_confirmed",
-  settlement_paying: "settlement_paying",
-  settlement_completed: "settlement_completed",
-};
 const SETTLEMENT_PAYOUT_METHOD_OPTIONS = [
   { value: "", label: "미입력" },
   { value: "bank_transfer", label: "계좌이체" },
@@ -1942,9 +1933,15 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`settlement-${settlementId}`);
     try {
+      const nextSettlementStatus =
+        changes.settlement_status !== undefined
+          ? normalizeAdminSettlementStatus(changes.settlement_status)
+          : null;
       const payload = {
         amount: normalizeMoneyInput(changes.amount),
-        payout_status: changes.payout_status,
+        payout_status: changes.payout_status
+          ? mapAdminSettlementStatusToPayoutStatus(changes.payout_status)
+          : undefined,
         work_days: changes.work_days ? Number(changes.work_days) : null,
         daily_rate: changes.daily_rate ? normalizeMoneyInput(changes.daily_rate) : null,
         extra_amount: normalizeMoneyInput(changes.extra_amount),
@@ -1954,14 +1951,34 @@ function sanitizeRecipientEmail(email) {
         admin_memo: changes.admin_memo || null,
       };
 
-      const { data, error } = await supabase
-        .from("settlements")
-        .update(payload)
-        .eq("id", settlementId)
-        .select(SETTLEMENTS_SELECT)
-        .single();
+      const cleanPayload = Object.fromEntries(
+        Object.entries(payload).filter(([, value]) => value !== undefined)
+      );
 
-      if (error) throw error;
+      let data = null;
+      if (Object.keys(cleanPayload).length > 0) {
+        const updateResult = await supabase
+          .from("settlements")
+          .update(cleanPayload)
+          .eq("id", settlementId)
+          .select(SETTLEMENTS_SELECT)
+          .single();
+
+        if (updateResult.error) throw updateResult.error;
+        data = updateResult.data;
+      }
+
+      if (nextSettlementStatus) {
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          "admin_update_settlement_status",
+          {
+            p_settlement_id: settlementId,
+            p_next_status: nextSettlementStatus,
+          }
+        );
+        if (rpcError) throw rpcError;
+        data = rpcData;
+      }
 
       setSettlements((current) =>
         current.map((settlement) =>
@@ -4549,6 +4566,7 @@ function sanitizeRecipientEmail(email) {
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 interpreters={interpreters}
                 requests={filteredRequests}
+                settlements={safeSettlements}
                 sectionCount={requests.length}
                 sectionTitle="전체 의뢰"
                 savingKey={savingKey}
@@ -4569,6 +4587,7 @@ function sanitizeRecipientEmail(email) {
                 updateApplicationStatus={updateJobApplicationStatus}
                 deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
+                updateSettlementManagementStatus={updateSettlementManagementStatus}
                 updateRequestFlowStatus={updateRequestFlowStatus}
                 onOpenDocumentPreview={openDocumentPreview}
               />
@@ -4639,6 +4658,7 @@ function sanitizeRecipientEmail(email) {
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
                 interpreters={interpreters}
                 requests={filteredCompletedRequests}
+                settlements={safeSettlements}
                 sectionCount={completedRequests.length}
                 sectionTitle="완료 의뢰"
                 savingKey={savingKey}
@@ -4659,6 +4679,7 @@ function sanitizeRecipientEmail(email) {
                 updateApplicationStatus={updateJobApplicationStatus}
                 deleteRequest={deleteRequest}
                 toggleRequestJobPublic={toggleRequestJobPublic}
+                updateSettlementManagementStatus={updateSettlementManagementStatus}
                 updateRequestFlowStatus={updateRequestFlowStatus}
                 onOpenDocumentPreview={openDocumentPreview}
               />
@@ -4980,6 +5001,7 @@ function sanitizeRecipientEmail(email) {
                 job={activeRequestJob}
                 request={activeRequest}
                 requests={requests}
+                settlements={safeSettlements}
                 savingKey={savingKey}
                 setAssignmentDrafts={setAssignmentDrafts}
                 assignInterpreter={assignInterpreter}
@@ -4995,6 +5017,7 @@ function sanitizeRecipientEmail(email) {
                 toggleRequestJobPublic={toggleRequestJobPublic}
                 updateApplicationStatus={updateJobApplicationStatus}
                 updateRequest={updateRequest}
+                updateSettlementManagementStatus={updateSettlementManagementStatus}
                 updateRequestFlowStatus={updateRequestFlowStatus}
                 adminNotes={adminNotes}
                 adminActivityLogs={adminActivityLogs}
@@ -5026,6 +5049,7 @@ function RequestActionModal({
   job,
   request,
   requests = [],
+  settlements = [],
   savingKey,
   setAssignmentDrafts,
   assignInterpreter,
@@ -5041,6 +5065,7 @@ function RequestActionModal({
   toggleRequestJobPublic,
   updateApplicationStatus,
   updateRequest,
+  updateSettlementManagementStatus,
   updateRequestFlowStatus,
   noteDrafts = {},
   onChangeNoteDraft,
@@ -5094,6 +5119,7 @@ function RequestActionModal({
         <RequestDetailPanel
           request={request}
           requests={requests}
+          settlements={settlements}
           job={job}
           applications={applications}
           assignmentDrafts={assignmentDrafts}
@@ -5109,6 +5135,7 @@ function RequestActionModal({
           removeAssignment={onRemoveAssignment}
           handleContactVisibleChange={handleContactVisibleChange}
           updateRequest={updateRequest}
+          updateSettlementManagementStatus={updateSettlementManagementStatus}
           updateRequestFlowStatus={updateRequestFlowStatus}
           updateApplicationStatus={updateApplicationStatus}
           adminNotes={adminNotes}
@@ -7198,6 +7225,7 @@ function RequestManagement({
   jobApplicationsByJob,
   onJobsAdminClick,
   requests,
+  settlements = [],
   sectionCount,
   sectionTitle = "의뢰 관리",
   savingKey,
@@ -7213,6 +7241,7 @@ function RequestManagement({
   updateApplicationStatus,
   deleteRequest,
   toggleRequestJobPublic,
+  updateSettlementManagementStatus,
   updateRequestFlowStatus,
   onOpenDocumentPreview,
 }) {
@@ -7314,6 +7343,7 @@ function RequestManagement({
               requestsByJobId={requestsByJobId}
               onJobsAdminClick={onJobsAdminClick}
               request={request}
+              settlements={settlements}
               savingKey={savingKey}
               setAssignmentDrafts={setAssignmentDrafts}
               setApplicationsRequestId={setApplicationsRequestId}
@@ -7323,6 +7353,7 @@ function RequestManagement({
               saveSettlement={saveSettlement}
               removeAssignment={removeAssignment}
               updateRequest={updateRequest}
+              updateSettlementManagementStatus={updateSettlementManagementStatus}
               updateRequestFlowStatus={updateRequestFlowStatus}
               updateApplicationStatus={updateApplicationStatus}
               deleteRequest={deleteRequest}
@@ -7345,8 +7376,10 @@ function AdminRequestCard({
   jobsById,
   requestsByJobId,
   request,
+  settlements = [],
   savingKey,
   updateRequest,
+  updateSettlementManagementStatus,
   updateRequestFlowStatus,
   openRequestModal,
   onOpenDocumentPreview,
@@ -7357,19 +7390,34 @@ function AdminRequestCard({
   const moreMenuRef = useRef(null);
   const job = request.job_id ? jobsById.get(request.job_id) : null;
   const linkedRequest = request.job_id ? requestsByJobId.get(String(request.job_id)) : null;
-  const flowSource = getRequestFlowSource(request, job);
+  const settlement = findSettlementForRequest(request, settlements);
+  const settlementAwareRequest = settlement
+    ? {
+        ...request,
+        _settlement: settlement,
+        _settlement_id: settlement.id,
+        settlement_status: normalizeAdminSettlementStatus(
+          settlement.settlement_status || settlement.status || settlement.payout_status
+        ),
+      }
+    : request;
+  const flowSource = getRequestFlowSource(settlementAwareRequest, job);
   const jobPublicState = getRequestJobPublicState(request, job);
   const designatedInterpreterName = getDesignatedInterpreterName(
     [request, job, linkedRequest],
     interpreters
   );
   const assignedInterpreterName = getAssignedInterpreterName(
-    request,
+    settlementAwareRequest,
     assignments,
     interpreters
   );
   const statuses = getOperationFlowStatuses(flowSource);
+  const settlementStatus = getRequestSettlementControlStatus(settlementAwareRequest);
   const headlineStatus = getRequestHeadlineStatus(flowSource);
+  const isStatusSaving =
+    savingKey === `request-${request.id}` ||
+    savingKey === `settlement-request-${getSettlementRequestRowKey(settlementAwareRequest)}`;
   const requestDate = formatDateRange(
     request.start_date,
     request.end_date,
@@ -7456,8 +7504,8 @@ function AdminRequestCard({
           />
           <FlowStatusBadge
             type="settlement"
-            value={statuses.settlement_status}
-            label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
+            value={settlementStatus}
+            label={getSettlementPayoutStatusLabel(settlementStatus)}
           />
         </div>
 
@@ -7483,8 +7531,12 @@ function AdminRequestCard({
 
             <OperationFlowStatusControls
               item={flowSource}
-              disabled={savingKey === `request-${request.id}`}
+              disabled={isStatusSaving}
               onChange={(changes) => updateRequestFlowStatus(request, changes)}
+              settlementValue={settlementStatus}
+              onSettlementChange={(value) =>
+                updateSettlementManagementStatus(settlementAwareRequest, { settlement_status: value })
+              }
             />
 
             {/* Row 1: Primary Actions (지원자 확인, 상세보기) */}
@@ -7779,6 +7831,7 @@ function RequestDetailPanel({
   job,
   request,
   requests = [],
+  settlements = [],
   savingKey,
   setAssignmentDrafts,
   assignInterpreter,
@@ -7788,6 +7841,7 @@ function RequestDetailPanel({
   removeAssignment,
   handleContactVisibleChange,
   updateRequest,
+  updateSettlementManagementStatus,
   updateApplicationStatus,
   updateRequestFlowStatus,
   noteDrafts = {},
@@ -7797,8 +7851,19 @@ function RequestDetailPanel({
   generatedDocuments = [],
 }) {
   const safeRequest = request || {};
+  const settlement = findSettlementForRequest(safeRequest, settlements);
+  const settlementAwareRequest = settlement
+    ? {
+        ...safeRequest,
+        _settlement: settlement,
+        _settlement_id: settlement.id,
+        settlement_status: normalizeAdminSettlementStatus(
+          settlement.settlement_status || settlement.status || settlement.payout_status
+        ),
+      }
+    : safeRequest;
   const requestInterpreters = Array.isArray(assignments) ? assignments : [];
-  const flowSource = getRequestFlowSource(safeRequest, job);
+  const flowSource = getRequestFlowSource(settlementAwareRequest, job);
   const requestType = getDesignatedRequestType(safeRequest);
   const designatedInterpreterName = getDesignatedInterpreterName([safeRequest], interpreters);
   const designatedRequestCheckStatus = getDesignatedRequestCheckStatus(safeRequest, requestInterpreters);
@@ -8221,8 +8286,15 @@ function RequestDetailPanel({
             <h3>운영 단계</h3>
             <OperationFlowStatusControls
               item={flowSource}
-              disabled={savingKey === `request-${request.id}`}
-              onChange={(changes) => updateRequestFlowStatus(request, changes)}
+              disabled={
+                savingKey === `request-${request.id}` ||
+                savingKey === `settlement-request-${getSettlementRequestRowKey(settlementAwareRequest)}`
+              }
+              onChange={(changes) => updateRequestFlowStatus(settlementAwareRequest, changes)}
+              settlementValue={getRequestSettlementControlStatus(settlementAwareRequest)}
+              onSettlementChange={(value) =>
+                updateSettlementManagementStatus(settlementAwareRequest, { settlement_status: value })
+              }
             />
           </div>
 
@@ -12741,8 +12813,17 @@ function InlineSelect({ options, value, onChange, disabled = false }) {
   );
 }
 
-function OperationFlowStatusControls({ disabled = false, item, onChange }) {
+function OperationFlowStatusControls({
+  disabled = false,
+  item,
+  onChange,
+  onSettlementChange = null,
+  settlementValue = null,
+}) {
   const statuses = getOperationFlowStatuses(item);
+  const settlementStatus = onSettlementChange
+    ? normalizeAdminSettlementStatus(settlementValue)
+    : statuses.settlement_status;
 
   return (
     <div className="admin-flow-status-controls" aria-label="운영 단계 상태 변경">
@@ -12762,10 +12843,14 @@ function OperationFlowStatusControls({ disabled = false, item, onChange }) {
       />
       <OperationFlowSelect
         disabled={disabled}
-        options={SETTLEMENT_FLOW_STATUS_OPTIONS}
+        options={onSettlementChange ? SETTLEMENT_STATUS_OPTIONS : SETTLEMENT_FLOW_STATUS_OPTIONS}
         type="settlement"
-        value={statuses.settlement_status}
-        onChange={(value) => onChange(getSettlementFlowStatusChanges({ ...item, settlement_status: value }))}
+        value={settlementStatus}
+        onChange={(value) =>
+          onSettlementChange
+            ? onSettlementChange(value)
+            : onChange(getSettlementFlowStatusChanges({ ...item, settlement_status: value }))
+        }
       />
     </div>
   );
@@ -14179,26 +14264,15 @@ function getCompanyPaymentBadgeClass(status) {
 }
 
 function getSettlementPayoutStatusLabel(status) {
-  const normalized = normalizeSettlementPayoutStatus(status);
-  const option = SETTLEMENT_PAYOUT_STATUS_OPTIONS.find(
-    (item) => item.value === normalized
-  );
-  return option?.label || "정산 대기";
+  return getSettlementStatusLabel(status);
 }
 
 function getSettlementPayoutBadgeClass(status) {
-  const classes = {
-    settlement_waiting: "badge-yellow",
-    settlement_confirmed: "badge-blue",
-    settlement_paying: "badge-purple",
-    settlement_completed: "badge-green",
-  };
-  return classes[normalizeSettlementPayoutStatus(status)] || "badge-yellow";
+  return getSettlementStatusBadgeClass(status);
 }
 
 function normalizeSettlementPayoutStatus(status) {
-  const normalized = String(status || "settlement_waiting").trim().toLowerCase();
-  return SETTLEMENT_PAYOUT_STATUS_ALIASES[normalized] || normalized || "settlement_waiting";
+  return normalizeAdminSettlementStatus(status);
 }
 
 function findPayoutDocumentForSettlement(documents = [], settlement = {}) {
@@ -15438,23 +15512,6 @@ function mapSettlementFlowStatusToPayoutStatus(status) {
   return "pending";
 }
 
-function normalizeAdminSettlementStatus(status) {
-  const value = String(status || "").trim().toLowerCase().replace(/\s+/g, "_");
-  if (!value || value === "settlement_waiting") {
-    return "settlement_waiting";
-  }
-  if (value === "settlement_confirmed") {
-    return "settlement_confirmed";
-  }
-  if (value === "settlement_paying") {
-    return "settlement_paying";
-  }
-  if (value === "settlement_completed") {
-    return "settlement_completed";
-  }
-  return "settlement_waiting";
-}
-
 function mapAdminSettlementStatusToPayoutStatus(status) {
   const normalized = normalizeAdminSettlementStatus(status);
   if (normalized === "settlement_completed") return "paid";
@@ -15671,54 +15728,10 @@ function getSettlementGroup(request = {}, settlement = null) {
     return "pending";
   }
 
-  if (request.settlement_status !== undefined) {
-    const requestStatus = normalizeSettlementGroupValue(request.settlement_status);
-    if (requestStatus) return requestStatus;
-  }
-
-  if (request.settlementStatus !== undefined) {
-    const requestCamelStatus = normalizeSettlementGroupValue(request.settlementStatus);
-    if (requestCamelStatus) return requestCamelStatus;
-  }
-
   if (!settlement?.id && isSettlementAssignmentReady(request)) return "pending";
   if (!settlement?.id && (isSettlementOperationCompleted(request) || isCompletedRequest(request))) return "pending";
 
   return "pending";
-}
-
-function normalizeSettlementGroupValue(status) {
-  if (status === undefined || status === null || String(status).trim() === "") return "pending";
-  const value = normalizeText(status).replace(/\s+/g, "_");
-  if (
-    [
-      "settlement_waiting",
-    ].includes(value)
-  ) {
-    return "pending";
-  }
-  if (
-    [
-      "settlement_confirmed",
-    ].includes(value)
-  ) {
-    return "confirmed";
-  }
-  if (
-    [
-      "settlement_paying",
-    ].includes(value)
-  ) {
-    return "paying";
-  }
-  if (
-    [
-      "settlement_completed",
-    ].includes(value)
-  ) {
-    return "completed";
-  }
-  return null;
 }
 
 function sortSettlementRows(rows = []) {
@@ -15737,6 +15750,43 @@ function getSettlementRowSortTime(request = {}) {
       request.created_at ||
       0
   ).getTime();
+}
+
+function findSettlementForRequest(request = {}, settlements = []) {
+  const requestId = String(request.id || request.request_id || "");
+  if (!requestId) return null;
+
+  const targetInterpreterId = String(
+    request.assigned_interpreter_id ||
+      request.matched_interpreter_id ||
+      request.interpreter_id ||
+      ""
+  );
+  const assignmentId = request._assignment_id ? `request_interpreters:${request._assignment_id}` : "";
+
+  const matches = compactAdminRows(settlements).filter(
+    (settlement) => String(settlement.request_id || "") === requestId
+  );
+  if (matches.length === 0) return null;
+
+  return (
+    (assignmentId &&
+      matches.find((settlement) => String(settlement.assignment_id || "") === assignmentId)) ||
+    (targetInterpreterId &&
+      matches.find((settlement) => String(settlement.interpreter_id || "") === targetInterpreterId)) ||
+    matches.sort((a, b) => getSettlementRowSortTime(b) - getSettlementRowSortTime(a))[0] ||
+    null
+  );
+}
+
+function getRequestSettlementControlStatus(request = {}) {
+  const settlement = request._settlement || null;
+  if (settlement) {
+    return normalizeAdminSettlementStatus(
+      settlement.settlement_status || settlement.status || settlement.payout_status
+    );
+  }
+  return "settlement_waiting";
 }
 
 function buildSettlementPreviewFromRequest(request = {}, settlements = []) {
@@ -16135,7 +16185,7 @@ function getJobStatusPayloadFromFlow(item = {}) {
 function getOperationFlowBadgeClass(type, value) {
   if (type === "assignment") return getAssignmentStatusBadgeClass(value);
   if (type === "operation") return getOperationStatusBadgeClass(value);
-  return getSettlementFlowStatusBadgeClass(value);
+  return getSettlementPayoutBadgeClass(value);
 }
 
 function getOperationStatusOptionLabel(options, value) {
