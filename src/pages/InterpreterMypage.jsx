@@ -1195,13 +1195,7 @@ function InterpreterMypage({
                 <div className="stat-details">
                   <span className="stat-label">배정 완료</span>
                   <span className="stat-value">
-                    {
-                      matchings.filter((m) =>
-                        ["assigned", "confirmed", "in_progress", "completed", "settled"].includes(
-                          String(m.status || "").toLowerCase()
-                        )
-                      ).length
-                    }건
+                    {getVisiblePreparationItems(matchings, applications).length}건
                   </span>
                 </div>
               </div>
@@ -1243,13 +1237,7 @@ function InterpreterMypage({
                   <span className="stat-label">배정 완료</span>
                 </div>
                 <span className="stat-value">
-                  {
-                    matchings.filter((m) =>
-                      ["assigned", "confirmed", "in_progress", "completed", "settled"].includes(
-                        String(m.status || "").toLowerCase()
-                      )
-                    ).length
-                  }건
+                  {getVisiblePreparationItems(matchings, applications).length}건
                 </span>
               </div>
               
@@ -2219,13 +2207,7 @@ function InterpreterMypage({
                     {loadingData ? (
                       <p className="loading-text">업무 준비 정보를 불러오는 중...</p>
                     ) : (() => {
-                      const prepItems = getUniquePreparationItems(
-                        matchings.filter(
-                          (m) =>
-                            isAssignedPreparationStatus(m.request_assignment_status) &&
-                            hasMatchedApplicationForAssignment(m, applications)
-                        )
-                      );
+                      const prepItems = getVisiblePreparationItems(matchings, applications);
                       if (prepItems.length === 0) {
                         return (
                           <div className="interpreter-empty-state">
@@ -3181,6 +3163,21 @@ function isAssignedPreparationStatus(status) {
   return ["assigned", "preparing", "ready"].includes(String(status || "").trim());
 }
 
+function isAssignedMatchingStatus(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  return [
+    "assigned",
+    "confirmed",
+    "in_progress",
+    "completed",
+    "settled",
+    "배정",
+    "배정완료",
+    "운영완료",
+    "정산대기",
+  ].includes(normalized);
+}
+
 function isMatchedApplicationStatus(status) {
   return String(status || "").trim() === "매칭완료";
 }
@@ -3193,6 +3190,18 @@ function hasMatchedApplicationForAssignment(assignment, applications = []) {
       isMatchedApplicationStatus(app.status) &&
       String(app.job_id) === String(job.id)
   );
+}
+
+function getPreparationAssignments(matchings = [], applications = []) {
+  return matchings.filter(
+    (matching) =>
+      isAssignedMatchingStatus(matching.status) ||
+      hasMatchedApplicationForAssignment(matching, applications)
+  );
+}
+
+function getVisiblePreparationItems(matchings = [], applications = []) {
+  return getUniquePreparationItems(getPreparationAssignments(matchings, applications));
 }
 
 function getUniquePreparationItems(items = []) {
