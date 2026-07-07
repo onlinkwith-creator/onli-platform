@@ -7,9 +7,9 @@ export const ASSIGNMENT_STATUS = {
 };
 
 export const OPERATION_STATUS = {
+  BEFORE_OPERATION: "operation_before",
   PREPARING: "operation_preparing",
   SCHEDULED: "operation_scheduled",
-  BEFORE_OPERATION: "operation_before",
   IN_PROGRESS: "operation_in_progress",
   COMPLETED: "operation_completed",
 };
@@ -31,11 +31,11 @@ export const ASSIGNMENT_STATUS_OPTIONS = [
 ];
 
 export const OPERATION_STATUS_OPTIONS = [
-  { value: OPERATION_STATUS.PREPARING, label: "운영 준비중" },
-  { value: OPERATION_STATUS.SCHEDULED, label: "운영 예정" },
-  { value: OPERATION_STATUS.BEFORE_OPERATION, label: "운영전" },
-  { value: OPERATION_STATUS.IN_PROGRESS, label: "운영중" },
-  { value: OPERATION_STATUS.COMPLETED, label: "업무완료" },
+  { value: OPERATION_STATUS.BEFORE_OPERATION, label: "운영전", companyLabel: "" },
+  { value: OPERATION_STATUS.PREPARING, label: "운영 준비중", companyLabel: "업무 준비중" },
+  { value: OPERATION_STATUS.SCHEDULED, label: "운영 예정", companyLabel: "진행 예정" },
+  { value: OPERATION_STATUS.IN_PROGRESS, label: "운영중", companyLabel: "진행중" },
+  { value: OPERATION_STATUS.COMPLETED, label: "업무완료", companyLabel: "업무완료" },
 ];
 
 export const SETTLEMENT_FLOW_STATUS_OPTIONS = [
@@ -64,7 +64,11 @@ export function normalizeAssignmentStatus(item = {}) {
 }
 
 export function normalizeOperationStatus(item = {}) {
-  const value = getStatusValue(item.operation_status || item.status || item.matching_status);
+  const value = getStatusValue(
+    typeof item === "string"
+      ? item
+      : item.operation_status || item.status || item.matching_status
+  );
   if (["operation_completed", "completed", "settled", "done", "finished", "운영완료", "업무완료", "완료", "정산완료"].includes(value)) {
     return OPERATION_STATUS.COMPLETED;
   }
@@ -103,6 +107,11 @@ export function getAssignmentStatusLabel(status) {
 
 export function getOperationStatusLabel(status) {
   return getOptionLabel(OPERATION_STATUS_OPTIONS, status, "운영전");
+}
+
+export function getOperationCompanyStatusLabel(status) {
+  const normalized = normalizeOperationStatus(status);
+  return OPERATION_STATUS_OPTIONS.find((option) => option.value === normalized)?.companyLabel || "";
 }
 
 export function getSettlementFlowStatusLabel(status) {
