@@ -49,6 +49,34 @@ const getBusinessDocumentLabel = (documentType, title) => {
   return title || getDocumentTypeLabel(documentType);
 };
 
+const normalizeOperationStatus = (status) => {
+  const value = String(status || "").trim().toLowerCase();
+  if (["operation_preparing", "preparing", "업무준비중", "업무 준비중", "운영준비중", "운영 준비중"].includes(value)) {
+    return "operation_preparing";
+  }
+  if (["operation_scheduled", "ready", "scheduled", "진행예정", "진행 예정", "운영예정", "운영 예정"].includes(value)) {
+    return "operation_scheduled";
+  }
+  if (["operation_in_progress", "in_progress", "operating", "운영중", "진행중"].includes(value)) {
+    return "operation_in_progress";
+  }
+  if (["operation_completed", "completed", "done", "finished", "업무완료", "운영완료", "완료"].includes(value)) {
+    return "operation_completed";
+  }
+  return "operation_before";
+};
+
+const getBusinessOperationStatusLabel = (status) => {
+  const labels = {
+    operation_preparing: "업무 준비중",
+    operation_scheduled: "진행 예정",
+    operation_before: "운영전",
+    operation_in_progress: "진행중",
+    operation_completed: "업무완료",
+  };
+  return labels[normalizeOperationStatus(status)] || "운영전";
+};
+
 const MATERIAL_BUCKET = "reference_files";
 const MATERIAL_MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MATERIAL_ALLOWED_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
@@ -971,14 +999,8 @@ function BusinessMypage({
     if (req.matching_status === "cancelled" || req.status === "cancelled") {
       return "취소됨";
     }
-    if (req.operation_status === "completed") {
-      return "진행 완료";
-    }
-    if (req.assignment_status === "ready") {
-      return "진행 예정";
-    }
-    if (req.assignment_status === "preparing") {
-      return "업무 준비중";
+    if (req.operation_status !== undefined && req.operation_status !== null && req.operation_status !== "") {
+      return getBusinessOperationStatusLabel(req.operation_status);
     }
     if (req.assignment_status === "assigned") {
       return "배정 완료";
@@ -1000,14 +1022,16 @@ function BusinessMypage({
       "배정 완료": "badge-purple",
       "업무 준비중": "badge-teal",
       "진행 예정": "badge-cyan",
-      "진행 완료": "badge-green",
+      "운영전": "badge-gray",
+      "진행중": "badge-orange",
+      "업무완료": "badge-green",
       "취소됨": "badge-red",
     };
     return classes[statusLabel] || "badge-blue";
   };
 
   const getStatusStepIndex = (statusLabel) => {
-    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "업무 준비중", "진행 예정", "진행 완료"];
+    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "운영전", "업무 준비중", "진행 예정", "진행중", "업무완료"];
     return steps.indexOf(statusLabel);
   };
 
@@ -1047,7 +1071,7 @@ function BusinessMypage({
     }
 
     const currentIndex = getStatusStepIndex(statusLabel);
-    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "업무 준비중", "진행 예정", "진행 완료"];
+    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "운영전", "업무 준비중", "진행 예정", "진행중", "업무완료"];
 
     return (
       <div className="status-timeline">
@@ -1442,7 +1466,7 @@ function BusinessMypage({
                           </div>
 
                           {/* Action Button: Duplicate Request */}
-                          {req.operation_status === "completed" && (
+                          {normalizeOperationStatus(req.operation_status) === "operation_completed" && (
                             <div className="request-card-actions">
                               <button
                                 type="button"

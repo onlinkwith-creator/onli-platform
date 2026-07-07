@@ -7,9 +7,11 @@ export const ASSIGNMENT_STATUS = {
 };
 
 export const OPERATION_STATUS = {
-  BEFORE_OPERATION: "before_operation",
-  IN_PROGRESS: "in_progress",
-  COMPLETED: "completed",
+  PREPARING: "operation_preparing",
+  SCHEDULED: "operation_scheduled",
+  BEFORE_OPERATION: "operation_before",
+  IN_PROGRESS: "operation_in_progress",
+  COMPLETED: "operation_completed",
 };
 
 export const SETTLEMENT_FLOW_STATUS = {
@@ -29,6 +31,8 @@ export const ASSIGNMENT_STATUS_OPTIONS = [
 ];
 
 export const OPERATION_STATUS_OPTIONS = [
+  { value: OPERATION_STATUS.PREPARING, label: "운영 준비중" },
+  { value: OPERATION_STATUS.SCHEDULED, label: "운영 예정" },
   { value: OPERATION_STATUS.BEFORE_OPERATION, label: "운영전" },
   { value: OPERATION_STATUS.IN_PROGRESS, label: "운영중" },
   { value: OPERATION_STATUS.COMPLETED, label: "업무완료" },
@@ -61,11 +65,17 @@ export function normalizeAssignmentStatus(item = {}) {
 
 export function normalizeOperationStatus(item = {}) {
   const value = getStatusValue(item.operation_status || item.status || item.matching_status);
-  if (["completed", "settled", "운영완료", "업무완료", "완료", "정산완료"].includes(value)) {
+  if (["operation_completed", "completed", "settled", "done", "finished", "운영완료", "업무완료", "완료", "정산완료"].includes(value)) {
     return OPERATION_STATUS.COMPLETED;
   }
-  if (["in_progress", "matching", "운영중", "진행중"].includes(value)) {
+  if (["operation_in_progress", "in_progress", "operating", "matching", "운영중", "진행중"].includes(value)) {
     return OPERATION_STATUS.IN_PROGRESS;
+  }
+  if (["operation_scheduled", "ready", "scheduled", "진행예정", "진행 예정", "운영예정", "운영 예정"].includes(value)) {
+    return OPERATION_STATUS.SCHEDULED;
+  }
+  if (["operation_preparing", "preparing", "업무준비중", "업무 준비중", "운영준비중", "운영 준비중"].includes(value)) {
+    return OPERATION_STATUS.PREPARING;
   }
   return OPERATION_STATUS.BEFORE_OPERATION;
 }
@@ -111,6 +121,8 @@ export function getAssignmentStatusBadgeClass(status) {
 
 export function getOperationStatusBadgeClass(status) {
   return {
+    [OPERATION_STATUS.PREPARING]: "flow-badge-teal",
+    [OPERATION_STATUS.SCHEDULED]: "flow-badge-cyan",
     [OPERATION_STATUS.BEFORE_OPERATION]: "flow-badge-gray",
     [OPERATION_STATUS.IN_PROGRESS]: "flow-badge-orange",
     [OPERATION_STATUS.COMPLETED]: "flow-badge-green",
@@ -153,7 +165,7 @@ export function getSettlementTabStatus(request, settlement) {
     const assignStatus = getStatusValue(request?.assignment_status || request?.matching_status);
     
     if (
-      ["completed", "운영완료", "업무완료", "완료"].includes(opStatus) ||
+      ["operation_completed", "completed", "운영완료", "업무완료", "완료"].includes(opStatus) ||
       ["assigned", "배정완료", "매칭완료"].includes(assignStatus)
     ) {
       statusToEvaluate = "pending";

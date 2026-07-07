@@ -199,9 +199,11 @@ const INTERPRETER_STATUS_VALUES = new Set(INTERPRETER_STATUSES);
 const REQUEST_MANAGEMENT_FILTERS = [
   { value: "all", label: "전체" },
   { value: "new_request", label: "신규 의뢰" },
-  { value: "before_operation", label: "운영 전" },
-  { value: "operation_in_progress", label: "운영 중" },
-  { value: "operation_completed", label: "운영 종료" },
+  { value: OPERATION_STATUS.BEFORE_OPERATION, label: "운영전" },
+  { value: OPERATION_STATUS.PREPARING, label: "운영 준비중" },
+  { value: OPERATION_STATUS.SCHEDULED, label: "운영 예정" },
+  { value: OPERATION_STATUS.IN_PROGRESS, label: "운영중" },
+  { value: OPERATION_STATUS.COMPLETED, label: "업무완료" },
 ];
 const ESTIMATE_STATUS_OPTIONS = [
   { value: "estimate_preparing", label: "견적 준비중" },
@@ -1389,7 +1391,7 @@ function sanitizeRecipientEmail(email) {
       tone: "blue",
       icon: Star,
       targetTab: "all_requests",
-      requestStatus: "before_operation",
+      requestStatus: OPERATION_STATUS.BEFORE_OPERATION,
     },
     {
       label: "정산 대기",
@@ -2600,9 +2602,59 @@ function sanitizeRecipientEmail(email) {
     });
   };
 
+  const updateRequestOperationStatus = async (request, nextStatus) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const operationStatus = normalizeOperationStatus({ operation_status: nextStatus });
+    const payload = {
+      operation_status: operationStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    setSavingKey(`request-${request.id}`);
+    try {
+      const { data, error } = await supabase
+        .from("requests")
+        .update(payload)
+        .eq("id", request.id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
+        )
+      );
+      setSelectedRequest((current) =>
+        current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
+      );
+      await fetchAdminData();
+      await refreshAdminOperationsData();
+    } catch (error) {
+      console.error("operation status update error:", error);
+      alert(`운영 상태 변경 실패: ${error.message || "알 수 없는 오류"}`);
+    } finally {
+      setSavingKey("");
+    }
+  };
+
   const updateRequestFlowStatus = async (request, changes) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
+      return;
+    }
+
+    const changeKeys = Object.keys(changes || {});
+    if (
+      changeKeys.includes("operation_status") &&
+      !changeKeys.some((key) => ["assignment_status", "settlement_status", "status", "matching_status"].includes(key))
+    ) {
+      await updateRequestOperationStatus(request, changes.operation_status);
       return;
     }
 
@@ -2665,7 +2717,7 @@ function sanitizeRecipientEmail(email) {
       await refreshAdminOperationsData();
     } catch (error) {
       console.error("operation flow status update error:", error);
-      alert("운영 단계 상태 변경에 실패했습니다.");
+      alert(`운영 단계 상태 변경 실패: ${error.message || "알 수 없는 오류"}`);
     } finally {
       setSavingKey("");
     }
@@ -12912,6 +12964,11 @@ function getAdminStatusDisplayValue(value) {
     pending: "대기",
     waiting: "대기",
     assigning: "중",
+    operation_preparing: "준비중",
+    operation_scheduled: "예정",
+    operation_before: "전",
+    operation_in_progress: "중",
+    operation_completed: "완료",
     before_operation: "전",
     not_required: "불필요",
     unpaid: "미결제",
@@ -15906,6 +15963,15 @@ function getRequestHeadlineStatus(item = {}) {
   if (statuses.operation_status === OPERATION_STATUS.IN_PROGRESS) {
     return { type: "operation", value: statuses.operation_status, label: "운영중" };
   }
+  if (statuses.operation_status === OPERATION_STATUS.SCHEDULED) {
+    return { type: "operation", value: statuses.operation_status, label: "운영 예정" };
+  }
+  if (statuses.operation_status === OPERATION_STATUS.PREPARING) {
+    return { type: "operation", value: statuses.operation_status, label: "운영 준비중" };
+  }
+  if (statuses.operation_status === OPERATION_STATUS.BEFORE_OPERATION) {
+    return { type: "operation", value: statuses.operation_status, label: "운영전" };
+  }
   if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNED) {
     return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
   }
@@ -15959,17 +16025,7 @@ function getAssignmentStatusChanges(item = {}) {
 
 function getOperationStatusChanges(item = {}) {
   const value = normalizeOperationStatus(item);
-  const changes = { operation_status: value };
-  if (value === OPERATION_STATUS.IN_PROGRESS) {
-    changes.status = MATCHING_STATUS.IN_PROGRESS;
-    changes.matching_status = MATCHING_STATUS.IN_PROGRESS;
-  }
-  if (value === OPERATION_STATUS.COMPLETED) {
-    changes.status = MATCHING_STATUS.COMPLETED;
-    changes.matching_status = MATCHING_STATUS.COMPLETED;
-    changes.settlement_status = SETTLEMENT_FLOW_STATUS.PENDING;
-  }
-  return changes;
+  return { operation_status: value };
 }
 
 function getSettlementFlowStatusChanges(item = {}) {
@@ -16651,13 +16707,19 @@ function isNewRequest(request = {}) {
 function doesRequestMatchManagementStatusFilter(request = {}, filter = "all") {
   if (filter === "all") return true;
   if (filter === "new_request") return isNewRequest(request);
-  if (filter === "before_operation") {
+  if (filter === OPERATION_STATUS.BEFORE_OPERATION) {
     return normalizeOperationStatus(request) === OPERATION_STATUS.BEFORE_OPERATION;
   }
-  if (filter === "operation_in_progress") {
+  if (filter === OPERATION_STATUS.PREPARING) {
+    return normalizeOperationStatus(request) === OPERATION_STATUS.PREPARING;
+  }
+  if (filter === OPERATION_STATUS.SCHEDULED) {
+    return normalizeOperationStatus(request) === OPERATION_STATUS.SCHEDULED;
+  }
+  if (filter === OPERATION_STATUS.IN_PROGRESS) {
     return normalizeOperationStatus(request) === OPERATION_STATUS.IN_PROGRESS;
   }
-  if (filter === "operation_completed") {
+  if (filter === OPERATION_STATUS.COMPLETED) {
     return normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED;
   }
 

@@ -1108,6 +1108,15 @@ function getRequestHeadlineStatus(item = {}) {
   if (statuses.operation_status === OPERATION_STATUS.IN_PROGRESS) {
     return { type: "operation", value: statuses.operation_status, label: "운영중" };
   }
+  if (statuses.operation_status === OPERATION_STATUS.SCHEDULED) {
+    return { type: "operation", value: statuses.operation_status, label: "운영 예정" };
+  }
+  if (statuses.operation_status === OPERATION_STATUS.PREPARING) {
+    return { type: "operation", value: statuses.operation_status, label: "운영 준비중" };
+  }
+  if (statuses.operation_status === OPERATION_STATUS.BEFORE_OPERATION) {
+    return { type: "operation", value: statuses.operation_status, label: "운영전" };
+  }
   if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNED) {
     return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
   }

@@ -1648,3 +1648,61 @@
   line-height: 1.5;
   text-align: left;
 }
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge.badge-blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-badge.badge-yellow {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.badge-orange {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.status-badge.badge-purple {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.status-badge.badge-teal {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.status-badge.badge-cyan {
+  background: #cffafe;
+  color: #0e7490;
+}
+
+.status-badge.badge-gray {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.status-badge.badge-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-badge.badge-red {
+  background: #fee2e2;
+  color: #b91c1c;
+}
