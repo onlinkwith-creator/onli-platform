@@ -85,9 +85,15 @@ function withoutOperationFlowColumns(payload) {
 }
 
 async function updateJobWithFallback(jobId, changes) {
+  const jobChanges = { ...(changes || {}) };
+  delete jobChanges.updated_at;
   let previousJob = null;
   const statusFields = ["status", "assignment_status", "operation_status", "settlement_status"];
-  const hasStatusChange = statusFields.some(field => field in changes);
+  const hasStatusChange = statusFields.some(field => field in jobChanges);
+
+  if (Object.keys(jobChanges).length === 0) {
+    return { data: null, error: null };
+  }
 
   if (hasStatusChange) {
     const { data } = await supabase
@@ -98,13 +104,13 @@ async function updateJobWithFallback(jobId, changes) {
     previousJob = data;
   }
 
-  let result = await supabase.from("jobs").update(changes).eq("id", jobId).select("*").single();
+  let result = await supabase.from("jobs").update(jobChanges).eq("id", jobId).select("*").single();
 
   const handleNotification = async (updatedJob) => {
     if (!previousJob) return;
 
     for (const field of statusFields) {
-      if (field in changes && previousJob[field] !== updatedJob[field]) {
+      if (field in jobChanges && previousJob[field] !== updatedJob[field]) {
         try {
           const previousStatus = previousJob[field];
           const nextStatus = updatedJob[field];
@@ -130,9 +136,11 @@ async function updateJobWithFallback(jobId, changes) {
 
   if (result.error && isMissingColumnError(result.error)) {
     console.error("Failed to update job status", result.error);
+    const legacyChanges = withoutOperationFlowColumns(jobChanges);
+    delete legacyChanges.updated_at;
     result = await supabase
       .from("jobs")
-      .update(withoutOperationFlowColumns(changes))
+      .update(legacyChanges)
       .eq("id", jobId)
       .select("*")
       .single();
@@ -1120,6 +1128,13 @@ function getRequestHeadlineStatus(item = {}) {
   if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNED) {
     return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
   }
+  if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNING) {
+    return {
+      type: "assignment",
+      value: statuses.assignment_status,
+      label: isDesignatedRequest(item) ? "통역사 확인중" : "배정중",
+    };
+  }
   return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
 }
 
@@ -1530,6 +1545,16 @@ function getJobStatusPayloadFromFlow(item = {}) {
       operation_status: operationStatus,
       settlement_status: settlementStatus,
       status: JOB_STATUS.ASSIGNED,
+      is_urgent: false,
+    };
+  }
+
+  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNING) {
+    return {
+      assignment_status: assignmentStatus,
+      operation_status: operationStatus,
+      settlement_status: settlementStatus,
+      status: JOB_STATUS.ASSIGNING,
       is_urgent: false,
     };
   }

@@ -3160,7 +3160,7 @@ function mapMySettlementRow(row = {}) {
 }
 
 function isAssignedPreparationStatus(status) {
-  return ["assigned", "preparing", "ready"].includes(String(status || "").trim());
+  return ["assignment_completed", "assigned", "preparing", "ready"].includes(String(status || "").trim());
 }
 
 function isAssignedMatchingStatus(status) {

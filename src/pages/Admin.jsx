@@ -2628,8 +2628,11 @@ function sanitizeRecipientEmail(email) {
 
     const operationStatus = normalizeOperationStatus({ operation_status: nextStatus });
     const linkedJobId = request?.job_id || null;
-    const payload = {
+    const jobPayload = {
       operation_status: operationStatus,
+    };
+    const requestPayload = {
+      ...jobPayload,
       updated_at: new Date().toISOString(),
     };
 
@@ -2643,14 +2646,14 @@ function sanitizeRecipientEmail(email) {
 
       let updatedJob = null;
       if (linkedJobId) {
-        const { data, error } = await updateJobWithFallback(linkedJobId, payload);
+        const { data, error } = await updateJobWithFallback(linkedJobId, jobPayload);
         if (error) throw error;
         updatedJob = data;
       }
 
       const { data, error } = await supabase
         .from("requests")
-        .update(payload)
+        .update(requestPayload)
         .eq("id", request.id)
         .select("*")
         .single();
@@ -2661,18 +2664,18 @@ function sanitizeRecipientEmail(email) {
         setJobs((current) =>
           current.map((job) =>
             String(job.id) === String(linkedJobId)
-              ? { ...job, ...payload, ...updatedJob }
+              ? { ...job, ...jobPayload, ...updatedJob }
               : job
           )
         );
       }
       setRequests((current) =>
         current.map((item) =>
-          item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
+          item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
         )
       );
       setSelectedRequest((current) =>
-        current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
+        current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
       );
       await fetchAdminData();
       await refreshAdminOperationsData();
@@ -2692,8 +2695,11 @@ function sanitizeRecipientEmail(email) {
 
     const assignmentStatus = normalizeAssignmentStatus({ assignment_status: nextStatus });
     const linkedJobId = request?.job_id || null;
-    const payload = {
+    const jobPayload = {
       assignment_status: assignmentStatus,
+    };
+    const requestPayload = {
+      ...jobPayload,
       updated_at: new Date().toISOString(),
     };
 
@@ -2707,14 +2713,14 @@ function sanitizeRecipientEmail(email) {
 
       let updatedJob = null;
       if (linkedJobId) {
-        const { data, error } = await updateJobWithFallback(linkedJobId, payload);
+        const { data, error } = await updateJobWithFallback(linkedJobId, jobPayload);
         if (error) throw error;
         updatedJob = data;
       }
 
       const { data, error } = await supabase
         .from("requests")
-        .update(payload)
+        .update(requestPayload)
         .eq("id", request.id)
         .select("*")
         .single();
@@ -2725,18 +2731,18 @@ function sanitizeRecipientEmail(email) {
         setJobs((current) =>
           current.map((job) =>
             String(job.id) === String(linkedJobId)
-              ? { ...job, ...payload, ...updatedJob }
+              ? { ...job, ...jobPayload, ...updatedJob }
               : job
           )
         );
       }
       setRequests((current) =>
         current.map((item) =>
-          item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
+          item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
         )
       );
       setSelectedRequest((current) =>
-        current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
+        current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
       );
       await fetchAdminData();
       await refreshAdminOperationsData();
@@ -4187,7 +4193,7 @@ function sanitizeRecipientEmail(email) {
     const status = isAssigned ? JOB_STATUS.ASSIGNED : JOB_STATUS.ASSIGNING;
     const assignmentStatus = isAssigned
       ? ASSIGNMENT_STATUS.ASSIGNED
-      : ASSIGNMENT_STATUS.WAITING;
+      : ASSIGNMENT_STATUS.ASSIGNING;
     const { data, error } = await updateJobWithFallback(request.job_id, {
       status,
       assignment_status: assignmentStatus,
@@ -8586,7 +8592,7 @@ function RequestDetailPanel({
             />
           </div>
 
-          {["assigned", "preparing", "ready"].includes(request.assignment_status) && (
+          {["assignment_completed", "assigned", "preparing", "ready"].includes(request.assignment_status) && (
             <PreparationChecklistPanel requestId={request.id} />
           )}
         </div>
@@ -10669,7 +10675,8 @@ function AssignmentManagement({
         >
           <option value="all">전체</option>
           <option value="assignment_pending">배정 대기</option>
-          <option value="assigned">배정 완료</option>
+          <option value="assignment_in_progress">배정중</option>
+          <option value="assignment_completed">배정 완료</option>
           <option value="completed">완료</option>
           <option value="cancelled">취소</option>
         </select>
@@ -13559,7 +13566,7 @@ function getApplicationAssignmentStatus(application = {}) {
       ["assigning", "matching", "배정중", "매칭중", "진행중"].includes(status)
     )
   ) {
-    return ASSIGNMENT_STATUS.WAITING;
+    return ASSIGNMENT_STATUS.ASSIGNING;
   }
   return ASSIGNMENT_STATUS.WAITING;
 }
@@ -15444,7 +15451,7 @@ function buildAssignmentRequestChanges(assignments = [], requiredCount = 1) {
     status: hasAssignments ? MATCHING_STATUS.ASSIGNED : MATCHING_STATUS.DRAFT,
     matching_status: hasAssignments ? MATCHING_STATUS.ASSIGNED : MATCHING_STATUS.DRAFT,
     assignment_status: hasAssignments
-      ? (isFullyAssigned ? ASSIGNMENT_STATUS.ASSIGNED : ASSIGNMENT_STATUS.WAITING)
+      ? (isFullyAssigned ? ASSIGNMENT_STATUS.ASSIGNED : ASSIGNMENT_STATUS.ASSIGNING)
       : ASSIGNMENT_STATUS.WAITING,
     assigned_interpreter_id: interpreterId,
     assigned_interpreter_name: interpreterName,
@@ -16109,6 +16116,13 @@ function getRequestHeadlineStatus(item = {}) {
   if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNED) {
     return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
   }
+  if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNING) {
+    return {
+      type: "assignment",
+      value: statuses.assignment_status,
+      label: isDesignatedRequest(item) ? "통역사 확인중" : "배정중",
+    };
+  }
   return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
 }
 
@@ -16229,6 +16243,16 @@ function getJobStatusPayloadFromFlow(item = {}) {
       operation_status: operationStatus,
       settlement_status: settlementStatus,
       status: JOB_STATUS.ASSIGNED,
+      is_urgent: false,
+    };
+  }
+
+  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNING) {
+    return {
+      assignment_status: assignmentStatus,
+      operation_status: operationStatus,
+      settlement_status: settlementStatus,
+      status: JOB_STATUS.ASSIGNING,
       is_urgent: false,
     };
   }
@@ -16455,9 +16479,15 @@ function withoutOperationFlowColumns(payload) {
 }
 
 async function updateJobWithFallback(jobId, changes) {
+  const jobChanges = { ...(changes || {}) };
+  delete jobChanges.updated_at;
   let previousJob = null;
   const statusFields = ["status", "assignment_status", "operation_status", "settlement_status"];
-  const hasStatusChange = statusFields.some(field => field in changes);
+  const hasStatusChange = statusFields.some(field => field in jobChanges);
+
+  if (Object.keys(jobChanges).length === 0) {
+    return { data: null, error: null };
+  }
 
   if (hasStatusChange) {
     const { data } = await supabase
@@ -16470,7 +16500,7 @@ async function updateJobWithFallback(jobId, changes) {
 
   const { data, error } = await supabase
     .from("jobs")
-    .update(changes)
+    .update(jobChanges)
     .eq("id", jobId)
     .select("*")
     .single();
@@ -16479,7 +16509,7 @@ async function updateJobWithFallback(jobId, changes) {
     if (!previousJob) return;
 
     for (const field of statusFields) {
-      if (field in changes && previousJob[field] !== updatedJob[field]) {
+      if (field in jobChanges && previousJob[field] !== updatedJob[field]) {
         try {
           const previousStatus = previousJob[field];
           const nextStatus = updatedJob[field];
@@ -16507,6 +16537,7 @@ async function updateJobWithFallback(jobId, changes) {
 
   console.error("Failed to update job status", error);
   const legacyChanges = withoutOperationFlowColumns(changes);
+  delete legacyChanges.updated_at;
   if (Object.keys(legacyChanges).length === 0) {
     return { data: null, error: null };
   }

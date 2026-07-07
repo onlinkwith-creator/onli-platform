@@ -982,10 +982,10 @@ function BusinessMypage({
         return getOperationCompanyStatusLabel(operationStatus);
       }
     }
-    if (req.assignment_status === "assigned") {
+    if (["assignment_completed", "assigned"].includes(req.assignment_status)) {
       return "배정 완료";
     }
-    if (req.assignment_status === "assigning") {
+    if (["assignment_in_progress", "assigning"].includes(req.assignment_status)) {
       return "통역사 모집중";
     }
     if (req.admin_checked) {
