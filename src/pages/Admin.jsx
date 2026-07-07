@@ -109,7 +109,6 @@ const MAIN_TABS = [
   { id: "requests", label: "의뢰 관리", defaultSubTab: "all_requests" },
   { id: "interpreters", label: "통역사 관리", defaultSubTab: "registered_interpreters" },
   { id: "businesses", label: "기업 관리", defaultSubTab: "all_businesses" },
-  { id: "payments", label: "결제 관리", defaultSubTab: "company_payments" },
   { id: "settlements", label: "정산 관리", defaultSubTab: "settlement_pending" },
   { id: "documents", label: "문서 관리", defaultSubTab: "all_documents" },
   { id: "internal", label: "내부 관리", defaultSubTab: "admin_memos" },
@@ -139,7 +138,8 @@ const SUB_TABS = {
   settlements: [
     { id: "settlement_pending", label: "정산 대기" },
     { id: "settlement_confirmed", label: "정산 확정" },
-    { id: "settlement_paid", label: "지급 완료" },
+    { id: "settlement_paying", label: "통역사 지급" },
+    { id: "settlement_completed", label: "정산 완료" },
   ],
   documents: [
     { id: "all_documents", label: "전체 문서" },
@@ -167,7 +167,7 @@ const ADMIN_NOTES_SELECT =
 const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const SETTLEMENTS_SELECT =
-  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, confirmed_by, paid_at, paid_by, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, payment_started_at, paid_at, confirmed_by, payment_started_by, completed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -227,9 +227,9 @@ const ADMIN_TAB_ALIASES = {
   requests: "all_requests",
   interpreters: "registered_interpreters",
   businesses: "all_businesses",
-  payments: "company_payments",
+  payments: "settlement_pending",
   settlement: "settlement_pending",
-  settlement_completed: "settlement_paid",
+  settlement_paid: "settlement_completed",
   interpreter_applications: "applications",
   new_applications: "new_interpreters",
   completed_requests: "all_requests",
@@ -287,9 +287,10 @@ const POST_ACCEPTANCE_STATUS_VALUES = new Set([
 ]);
 const SETTLEMENT_MANAGEMENT_FILTERS = [
   { value: "all", label: "전체" },
-  { value: "settlement_pending", label: "정산대기" },
-  { value: "settlement_confirmed", label: "정산확정" },
-  { value: "settlement_paid", label: "지급완료" },
+  { value: "settlement_pending", label: "정산 대기" },
+  { value: "settlement_confirmed", label: "정산 확정" },
+  { value: "settlement_paying", label: "통역사 지급" },
+  { value: "settlement_completed", label: "정산 완료" },
 ];
 const COMPANY_PAYMENT_STATUS_OPTIONS = [
   { value: "unpaid", label: "미입금" },
@@ -307,7 +308,8 @@ const COMPANY_PAYMENT_METHOD_OPTIONS = [
 const SETTLEMENT_PAYOUT_STATUS_OPTIONS = [
   { value: "settlement_pending", label: "정산 대기" },
   { value: "settlement_confirmed", label: "정산 확정" },
-  { value: "settlement_paid", label: "지급 완료" },
+  { value: "settlement_paying", label: "통역사 지급" },
+  { value: "settlement_completed", label: "정산 완료" },
 ];
 
 function logSupabaseError(label, error) {
@@ -340,14 +342,19 @@ const SETTLEMENT_PAYOUT_STATUS_ALIASES = {
   confirmed: "settlement_confirmed",
   settlement_confirmed: "settlement_confirmed",
   "정산확정": "settlement_confirmed",
+  paying: "settlement_paying",
+  payment_started: "settlement_paying",
+  settlement_paying: "settlement_paying",
+  "통역사지급": "settlement_paying",
+  "통역사 지급": "settlement_paying",
   "지급확정": "settlement_confirmed",
-  paid: "settlement_paid",
-  completed: "settlement_paid",
-  settlement_completed: "settlement_paid",
-  settlement_paid: "settlement_paid",
-  settled: "settlement_paid",
-  "정산완료": "settlement_paid",
-  "지급완료": "settlement_paid",
+  paid: "settlement_completed",
+  completed: "settlement_completed",
+  settlement_completed: "settlement_completed",
+  settlement_paid: "settlement_completed",
+  settled: "settlement_completed",
+  "정산완료": "settlement_completed",
+  "지급완료": "settlement_completed",
 };
 const SETTLEMENT_PAYOUT_METHOD_OPTIONS = [
   { value: "", label: "미입력" },
@@ -542,7 +549,7 @@ function getInitialAdminSubTab() {
   if (path === "/admin/applications") return "applications";
   if (path === "/admin/interpreters") return "registered_interpreters";
   if (path === "/admin/businesses") return "all_businesses";
-  if (path === "/admin/payments" || sectionParam === "payments") return "company_payments";
+  if (path === "/admin/payments" || sectionParam === "payments") return "settlement_pending";
   if (path === "/admin/settings") return "admin_accounts";
   if (path === "/admin/new" || sectionParam === "new") return "new_requests";
   if (path === "/admin/requests" || sectionParam === "requests") return "all_requests";
@@ -562,7 +569,6 @@ function getAdminPathForSubTab(subTabId) {
     requests: "/admin/requests",
     interpreters: "/admin/interpreters",
     businesses: "/admin/businesses",
-    payments: "/admin/payments",
     settlements: "/admin/settlements",
     internal: "/admin/internal",
   };
@@ -1359,7 +1365,8 @@ function sanitizeRecipientEmail(email) {
     if (subTabId === "company_payments") return safePayments.length;
     if (subTabId === "settlement_pending") return settlementManagementRows.pending.length;
     if (subTabId === "settlement_confirmed") return settlementManagementRows.confirmed.length;
-    if (subTabId === "settlement_paid") return settlementManagementRows.completed.length;
+    if (subTabId === "settlement_paying") return settlementManagementRows.paying.length;
+    if (subTabId === "settlement_completed") return settlementManagementRows.completed.length;
     if (subTabId === "all_documents") return generatedDocuments.length;
     if (subTabId === "estimate_documents") {
       return generatedDocuments.filter((doc) => doc.document_type === "estimate").length;
@@ -4229,7 +4236,7 @@ function sanitizeRecipientEmail(email) {
 
       const { error } = await supabase.rpc("admin_update_settlement_status", {
         p_settlement_id: settlementId,
-        p_next_status: requestedStatus,
+        p_next_status: mapAdminSettlementStatusToDbStatus(requestedStatus),
       });
       if (error) throw error;
 
@@ -4239,8 +4246,10 @@ function sanitizeRecipientEmail(email) {
         switchSubTab("settlement_pending");
       } else if (requestedStatus === "settlement_confirmed") {
         switchSubTab("settlement_confirmed");
+      } else if (requestedStatus === "settlement_paying") {
+        switchSubTab("settlement_paying");
       } else {
-        switchSubTab("settlement_paid");
+        switchSubTab("settlement_completed");
       }
       return true;
     } catch (error) {
@@ -4751,7 +4760,25 @@ function sanitizeRecipientEmail(email) {
               />
             )}
 
-            {activeSubTab === "settlement_paid" && (
+            {activeSubTab === "settlement_paying" && (
+              <InterpreterSettlementManagement
+                documents={generatedDocuments}
+                filters={settlementFilters}
+                interpreters={interpreters}
+                logs={settlementLogs}
+                requests={requests}
+                settlementRequests={settlementManagementRows.paying}
+                savingKey={savingKey}
+                settlements={safeSettlements}
+                setFilters={setSettlementFilters}
+                statusScope="paying"
+                title="통역사 지급"
+                onUpdateRequestSettlement={updateSettlementManagementStatus}
+                updateSettlement={updateInterpreterSettlement}
+              />
+            )}
+
+            {activeSubTab === "settlement_completed" && (
               <InterpreterSettlementManagement
                 documents={generatedDocuments}
                 filters={settlementFilters}
@@ -4762,8 +4789,8 @@ function sanitizeRecipientEmail(email) {
                 savingKey={savingKey}
                 settlements={safeSettlements}
                 setFilters={setSettlementFilters}
-                statusScope="paid"
-                title="지급 완료"
+                statusScope="completed"
+                title="정산 완료"
                 onUpdateRequestSettlement={updateSettlementManagementStatus}
                 updateSettlement={updateInterpreterSettlement}
               />
@@ -6613,7 +6640,7 @@ function InterpreterSettlementManagement({
             setFilters((current) => ({ ...current, status: event.target.value }))
           }
         >
-          <option value="all">지급 상태: 전체</option>
+          <option value="all">정산 상태: 전체</option>
           {SETTLEMENT_PAYOUT_STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -6659,6 +6686,7 @@ function InterpreterSettlementManagement({
               <tr>
                 <th>의뢰명</th>
                 <th>의뢰번호</th>
+                <th>기업명</th>
                 <th>통역사명</th>
                 <th>업무일</th>
                 <th>일당</th>
@@ -6666,7 +6694,8 @@ function InterpreterSettlementManagement({
                 <th>최종 지급 금액</th>
                 <th>정산 상태</th>
                 <th>정산 확정일</th>
-                <th>지급일</th>
+                <th>통역사 지급 시작일</th>
+                <th>정산 완료일</th>
                 <th>정산서 보기</th>
                 <th>상태 변경/상세보기</th>
               </tr>
@@ -6676,6 +6705,7 @@ function InterpreterSettlementManagement({
                 <tr key={`${statusScope}-${getSettlementRequestRowKey(request)}-${settlement.id}`}>
                   <td>{request.event_name || request.title || "정보 없음"}</td>
                   <td>{formatManagementNumber(request.request_code || request.request_no || request.management_no || request.id)}</td>
+                  <td>{request.company_name || request.business_name || "정보 없음"}</td>
                   <td>{interpreter.name || request.assigned_interpreter_name || request.matched_interpreter_name || "정보 없음"}</td>
                   <td>
                     {request.id
@@ -6695,6 +6725,7 @@ function InterpreterSettlementManagement({
                     </span>
                   </td>
                   <td>{formatDateTime(settlement.settlement_confirmed_at || request.settlement_confirmed_at)}</td>
+                  <td>{formatDateTime(settlement.payment_started_at || request.payment_started_at)}</td>
                   <td>{formatDateTime(settlement.paid_at)}</td>
                   <td>
                     {document ? (
@@ -6754,6 +6785,18 @@ function InterpreterSettlementManagement({
                     </dd>
                   </div>
                   <div>
+                    <dt>기업명</dt>
+                    <dd>{request.company_name || request.business_name || "정보 없음"}</dd>
+                  </div>
+                  <div>
+                    <dt>일당</dt>
+                    <dd>{formatJPY(settlement.daily_rate)}</dd>
+                  </div>
+                  <div>
+                    <dt>근무 일수</dt>
+                    <dd>{settlement.work_days || request.settlement_work_days || "-"}</dd>
+                  </div>
+                  <div>
                     <dt>최종 지급 금액</dt>
                     <dd>{formatJPY(settlement.amount)}</dd>
                   </div>
@@ -6762,7 +6805,11 @@ function InterpreterSettlementManagement({
                     <dd>{formatDateTime(settlement.settlement_confirmed_at || request.settlement_confirmed_at)}</dd>
                   </div>
                   <div>
-                    <dt>지급일</dt>
+                    <dt>통역사 지급 시작일</dt>
+                    <dd>{formatDateTime(settlement.payment_started_at || request.payment_started_at)}</dd>
+                  </div>
+                  <div>
+                    <dt>정산 완료일</dt>
                     <dd>{formatDateTime(settlement.paid_at)}</dd>
                   </div>
                 </dl>
@@ -6874,7 +6921,7 @@ function InterpreterSettlementManagement({
                   value={draft.deduction_amount}
                   onChange={(value) => updateDraft("deduction_amount", value)}
                 />
-                <FieldControl label="지급일">
+                <FieldControl label="정산 완료일">
                   <input
                     type="datetime-local"
                     value={draft.paid_at}
@@ -12077,9 +12124,14 @@ function SettlementRowActions({
       settlement_status: "settlement_confirmed",
     });
   };
-  const completePayment = () => {
+  const startInterpreterPayment = () => {
     onUpdateRequestSettlement?.(request, {
-      settlement_status: "settlement_paid",
+      settlement_status: "settlement_paying",
+    });
+  };
+  const completeSettlement = () => {
+    onUpdateRequestSettlement?.(request, {
+      settlement_status: "settlement_completed",
     });
   };
   const revertToPending = () => {
@@ -12115,9 +12167,9 @@ function SettlementRowActions({
           type="button"
           className="admin-save"
           disabled={isSaving}
-          onClick={completePayment}
+          onClick={startInterpreterPayment}
         >
-          {savingKey === updateKey ? "처리 중..." : "지급 완료"}
+          {savingKey === updateKey ? "처리 중..." : "통역사 지급"}
         </button>
         <button
           type="button"
@@ -12140,7 +12192,31 @@ function SettlementRowActions({
     );
   }
 
-  if (statusScope === "paid") {
+  if (statusScope === "paying") {
+    return (
+      <div className="admin-inline-actions">
+        <button
+          type="button"
+          className="admin-save"
+          disabled={isSaving}
+          onClick={completeSettlement}
+        >
+          {savingKey === updateKey ? "처리 중..." : "정산 완료"}
+        </button>
+        {hasSettlement && (
+          <button
+            type="button"
+            className="admin-secondary"
+            onClick={() => onOpenDetail(settlement)}
+          >
+            상세
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (statusScope === "completed") {
     return (
       <div className="admin-inline-actions">
         <button
@@ -12149,7 +12225,7 @@ function SettlementRowActions({
           disabled={isSaving}
           onClick={revertToConfirmed}
         >
-          {savingKey === updateKey ? "처리 중..." : "지급 완료 취소"}
+          {savingKey === updateKey ? "처리 중..." : "정산 확정으로 되돌리기"}
         </button>
         {hasSettlement && (
           <button
@@ -14088,7 +14164,8 @@ function getSettlementPayoutBadgeClass(status) {
   const classes = {
     settlement_pending: "badge-yellow",
     settlement_confirmed: "badge-blue",
-    settlement_paid: "badge-green",
+    settlement_paying: "badge-purple",
+    settlement_completed: "badge-green",
   };
   return classes[normalizeSettlementPayoutStatus(status)] || "badge-yellow";
 }
@@ -14400,7 +14477,7 @@ function isSettlementPaid(request = {}) {
   const settlement = request._settlement || {};
   return (
     request.group === "completed" ||
-    normalizeSettlementPayoutStatus(settlement.settlement_status || settlement.payout_status || request.payout_status) === "settlement_paid" ||
+    normalizeSettlementPayoutStatus(settlement.settlement_status || settlement.payout_status || request.payout_status) === "settlement_completed" ||
     Boolean(settlement.paid_at || request.paid_at || request.settlement_completed_at)
   );
 }
@@ -14437,13 +14514,13 @@ function buildRecentActivityItems({
         targetSubTab: "company_payments",
       })),
     ...settlements
-      .filter((settlement) => normalizeSettlementPayoutStatus(settlement.settlement_status || settlement.payout_status) === "settlement_paid")
+      .filter((settlement) => normalizeSettlementPayoutStatus(settlement.settlement_status || settlement.payout_status) === "settlement_completed")
       .map((settlement) => ({
         id: `settlement-${settlement.id}`,
-        description: "통역사 지급 완료",
+        description: "정산 완료",
         actorLabel: "관리자",
         created_at: settlement.updated_at || settlement.paid_at || settlement.created_at,
-        targetSubTab: "settlement_paid",
+        targetSubTab: "settlement_completed",
       })),
     ...notificationEvents
       .filter((event) => event.status === "failed")
@@ -15325,7 +15402,8 @@ function getSettlementSavePayload(request = {}) {
 function mapSettlementFlowStatusToPayoutStatus(status) {
   const standard = normalizeAdminSettlementStatus(status);
   if (standard === "settlement_confirmed") return "confirmed";
-  if (standard === "settlement_paid") return "paid";
+  if (standard === "settlement_paying") return "confirmed";
+  if (standard === "settlement_completed") return "paid";
   const normalized = normalizeSettlementFlowStatus({ settlement_status: status });
   if (normalized === SETTLEMENT_FLOW_STATUS.CONFIRMED) return "confirmed";
   if (normalized === SETTLEMENT_FLOW_STATUS.COMPLETED) return "paid";
@@ -15341,15 +15419,26 @@ function normalizeAdminSettlementStatus(status) {
   if (["confirmed", "settlement_confirmed", "finalized", "fixed", "정산확정", "지급확정"].includes(value)) {
     return "settlement_confirmed";
   }
+  if (["paying", "payment_started", "settlement_paying", "통역사지급"].includes(value)) {
+    return "settlement_paying";
+  }
   if (["paid", "completed", "settlement_paid", "settlement_completed", "settled", "정산완료", "지급완료"].includes(value)) {
-    return "settlement_paid";
+    return "settlement_completed";
   }
   return "settlement_pending";
 }
 
 function mapAdminSettlementStatusToPayoutStatus(status) {
   const normalized = normalizeAdminSettlementStatus(status);
-  if (normalized === "settlement_paid") return "paid";
+  if (normalized === "settlement_completed") return "paid";
+  if (normalized === "settlement_confirmed" || normalized === "settlement_paying") return "confirmed";
+  return "pending";
+}
+
+function mapAdminSettlementStatusToDbStatus(status) {
+  const normalized = normalizeAdminSettlementStatus(status);
+  if (normalized === "settlement_completed") return "completed";
+  if (normalized === "settlement_paying") return "paying";
   if (normalized === "settlement_confirmed") return "confirmed";
   return "pending";
 }
@@ -15427,6 +15516,7 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
             _settlement: settlement,
             payout_status: settlement.settlement_status || settlement.status || settlement.payout_status || row.payout_status,
             paid_at: settlement.paid_at || row.paid_at,
+            payment_started_at: settlement.payment_started_at || row.payment_started_at,
             settlement_confirmed_at: settlement.settlement_confirmed_at || row.settlement_confirmed_at,
             settlement_final_amount: amount || row.settlement_final_amount,
             interpreter_payment: amount || row.interpreter_payment,
@@ -15469,6 +15559,7 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
     rows: sortSettlementRows(settlementCandidates),
     pending: sortSettlementRows(settlementCandidates.filter(isSettlementPendingManagementRow)),
     confirmed: sortSettlementRows(settlementCandidates.filter(isSettlementConfirmedManagementRow)),
+    paying: sortSettlementRows(settlementCandidates.filter(isSettlementPayingManagementRow)),
     completed: sortSettlementRows(settlementCandidates.filter(isSettlementCompletedManagementRow)),
     hold: [],
     paymentHistory: [],
@@ -15491,6 +15582,10 @@ function isSettlementPendingManagementRow(request = {}) {
 
 function isSettlementConfirmedManagementRow(request = {}) {
   return request.group === "confirmed";
+}
+
+function isSettlementPayingManagementRow(request = {}) {
+  return request.group === "paying";
 }
 
 function isSettlementCompletedManagementRow(request = {}) {
@@ -15529,7 +15624,7 @@ function isSettlementOperationCompleted(request = {}) {
 function getSettlementStatusValue(request = {}) {
   const group = getSettlementGroup(request, request._settlement);
   if (group === "confirmed") return SETTLEMENT_FLOW_STATUS.CONFIRMED;
-  if (group === "completed") return SETTLEMENT_FLOW_STATUS.COMPLETED;
+  if (group === "paying" || group === "completed") return SETTLEMENT_FLOW_STATUS.COMPLETED;
   if (group === "pending") return SETTLEMENT_FLOW_STATUS.PENDING;
   return SETTLEMENT_FLOW_STATUS.NOT_REQUIRED;
 }
@@ -15544,7 +15639,8 @@ function getSettlementGroup(request = {}, settlement = null) {
       settlement.settlement_status || settlement.status || settlement.payout_status
     );
     if (settlementStatus === "settlement_confirmed") return "confirmed";
-    if (settlementStatus === "settlement_paid") return "completed";
+    if (settlementStatus === "settlement_paying") return "paying";
+    if (settlementStatus === "settlement_completed") return "completed";
     return "pending";
   }
 
@@ -15589,6 +15685,16 @@ function normalizeSettlementGroupValue(status) {
     ].includes(value)
   ) {
     return "confirmed";
+  }
+  if (
+    [
+      "paying",
+      "payment_started",
+      "settlement_paying",
+      "통역사지급",
+    ].includes(value)
+  ) {
+    return "paying";
   }
   if (
     [
@@ -15675,6 +15781,7 @@ function buildSettlementPreviewFromRequest(request = {}, settlements = []) {
       (getSettlementStatusGroup(request) === "completed"
         ? request.paid_at || request.settlement_completed_at || null
         : null),
+    payment_started_at: existingSettlement?.payment_started_at || request.payment_started_at || null,
     settlement_confirmed_at: existingSettlement?.settlement_confirmed_at || request.settlement_confirmed_at || null,
     created_at: request.updated_at || request.created_at,
   };
@@ -15757,6 +15864,9 @@ function doesRequestMatchSettlementManagementFilter(request = {}, filter = "all"
   }
   if (filter === "settlement_confirmed") {
     return group === "confirmed";
+  }
+  if (filter === "settlement_paying") {
+    return group === "paying";
   }
   if (filter === "settlement_completed" || filter === "settlement_paid") {
     return group === "completed";
