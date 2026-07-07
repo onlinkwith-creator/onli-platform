@@ -4657,6 +4657,20 @@
   display: none !important;
 }
 
+.admin-filter-bar .admin-date-filter {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  color: var(--admin-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+.admin-filter-bar .admin-date-filter input[type="date"] {
+  min-width: 142px !important;
+}
+
 .admin-filter-bar select.admin-filter-select {
   min-width: 140px !important;
   max-width: 170px !important;
