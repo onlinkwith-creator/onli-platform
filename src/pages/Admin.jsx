@@ -2633,6 +2633,11 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`request-${request.id}`);
     try {
+      console.log("operation status update:", {
+        requestId: request.id,
+        nextStatus: operationStatus,
+      });
+
       const { data, error } = await supabase
         .from("requests")
         .update(payload)
@@ -2654,7 +2659,7 @@ function sanitizeRecipientEmail(email) {
       await refreshAdminOperationsData();
     } catch (error) {
       console.error("operation status update error:", error);
-      alert(`운영 상태 변경 실패: ${error.message || "알 수 없는 오류"}`);
+      alert(`운영 상태 변경 실패: ${operationStatus} / ${error.message || "알 수 없는 오류"}`);
     } finally {
       setSavingKey("");
     }

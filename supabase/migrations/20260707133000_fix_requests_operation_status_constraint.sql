@@ -7,6 +7,9 @@ alter column operation_status set default 'operation_before';
 alter table public.requests
 drop constraint if exists requests_operation_status_check;
 
+alter table public.requests
+disable trigger prevent_non_admin_request_operation_fields;
+
 update public.requests
 set operation_status = case
   when operation_status in ('before', 'pending', 'operation_before', 'before_operation', '운영전') then 'operation_before'
@@ -21,6 +24,9 @@ where operation_status is not null;
 update public.requests
 set operation_status = 'operation_before'
 where operation_status is null;
+
+alter table public.requests
+enable trigger prevent_non_admin_request_operation_fields;
 
 alter table public.requests
 add constraint requests_operation_status_check
