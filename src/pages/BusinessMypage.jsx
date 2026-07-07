@@ -78,6 +78,29 @@ const getMaterialStorageBucket = (filePath = "") =>
     ? "request-files"
     : MATERIAL_BUCKET;
 
+const getMaterialUploadFailureMessage = (error = {}) => {
+  const message = String(error?.message || error?.error || "").toLowerCase();
+  const statusCode = String(error?.statusCode || error?.status || "");
+
+  if (message.includes("bucket not found")) {
+    return "자료 저장소가 아직 생성되지 않았습니다. 관리자에게 문의해주세요.";
+  }
+
+  if (
+    statusCode === "401" ||
+    statusCode === "403" ||
+    message.includes("permission") ||
+    message.includes("not authorized") ||
+    message.includes("unauthorized") ||
+    message.includes("row-level security") ||
+    message.includes("rls")
+  ) {
+    return "자료 업로드 권한이 없습니다.";
+  }
+
+  return "업로드에 실패했습니다.";
+};
+
 const getClientNotificationLabel = (eventType) => {
   switch (eventType) {
     case "request_created_client":
@@ -770,7 +793,7 @@ function BusinessMypage({
       void fetchData();
     } catch (err) {
       console.error("Material upload failed", err);
-      alert("업로드에 실패했습니다. 다시 시도해주세요.");
+      alert(getMaterialUploadFailureMessage(err));
     } finally {
       setUploadingMaterial(false);
       if (e.target) e.target.value = "";
@@ -828,6 +851,26 @@ function BusinessMypage({
     }
   };
 
+  const handleOpenMaterialFile = async (path) => {
+    if (!path) return;
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      window.open(path, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.storage
+        .from(getMaterialStorageBucket(path))
+        .createSignedUrl(path, 600, { download: false });
+
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error opening material file:", err);
+      alert("파일을 열 수 없습니다. 권한이 없거나 만료되었습니다.");
+    }
+  };
+
   const handleOpenGeneratedDocument = async (documentRow) => {
     try {
       const { data, error } = await supabase.storage
@@ -872,12 +915,10 @@ function BusinessMypage({
       return;
     }
 
-    console.log("approve_estimate_and_create_payment payload", {
-      request_id: Number(requestId),
-      company_id: business.id,
-      estimate_id: latestEstimate.id,
-      latestEstimate,
-      business,
+    console.log("approve estimate payload", {
+      requestId: Number(requestId),
+      companyId: business.id,
+      estimateId: latestEstimate.id,
     });
 
     const { error } = await supabase.rpc("approve_estimate_and_create_payment", {
@@ -1668,6 +1709,14 @@ function BusinessMypage({
                                       <td>{new Date(mat.created_at).toLocaleDateString()}</td>
                                       <td>
                                         <div className="material-row-actions">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenMaterialFile(mat.file_path)}
+                                            className="material-action-btn"
+                                          >
+                                            <Eye size={14} aria-hidden="true" />
+                                            보기
+                                          </button>
                                           <button
                                             type="button"
                                             onClick={() => handleDownloadFile(mat.file_path, getMaterialDisplayName(mat))}
