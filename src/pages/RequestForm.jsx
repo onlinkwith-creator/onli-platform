@@ -434,9 +434,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       checked_at: null,
       status: MATCHING_STATUS.DRAFT,
       matching_status: MATCHING_STATUS.DRAFT,
-      assignment_status: isDesignatedRequest
-        ? ASSIGNMENT_STATUS.ASSIGNING
-        : ASSIGNMENT_STATUS.WAITING,
+      assignment_status: ASSIGNMENT_STATUS.WAITING,
       operation_status: OPERATION_STATUS.BEFORE_OPERATION,
       settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
       is_public: false,

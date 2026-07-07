@@ -1120,13 +1120,6 @@ function getRequestHeadlineStatus(item = {}) {
   if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNED) {
     return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
   }
-  if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNING) {
-    return {
-      type: "assignment",
-      value: statuses.assignment_status,
-      label: isDesignatedRequest(item) ? "통역사 확인중" : "배정중",
-    };
-  }
   return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
 }
 
@@ -1537,16 +1530,6 @@ function getJobStatusPayloadFromFlow(item = {}) {
       operation_status: operationStatus,
       settlement_status: settlementStatus,
       status: JOB_STATUS.ASSIGNED,
-      is_urgent: false,
-    };
-  }
-
-  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNING) {
-    return {
-      assignment_status: assignmentStatus,
-      operation_status: operationStatus,
-      settlement_status: settlementStatus,
-      status: JOB_STATUS.ASSIGNING,
       is_urgent: false,
     };
   }

@@ -86,6 +86,7 @@ import {
   isManagementNumberConflict,
 } from "../utils/managementNumber";
 import {
+  ADMIN_SETTLEMENT_STATUS,
   SETTLEMENT_STATUS_OPTIONS,
   getSettlementStatusBadgeClass,
   getSettlementStatusLabel,
@@ -2626,6 +2627,7 @@ function sanitizeRecipientEmail(email) {
     }
 
     const operationStatus = normalizeOperationStatus({ operation_status: nextStatus });
+    const linkedJobId = request?.job_id || null;
     const payload = {
       operation_status: operationStatus,
       updated_at: new Date().toISOString(),
@@ -2635,8 +2637,16 @@ function sanitizeRecipientEmail(email) {
     try {
       console.log("operation status update:", {
         requestId: request.id,
-        nextStatus: operationStatus,
+        jobId: linkedJobId,
+        nextOperationStatus: operationStatus,
       });
+
+      let updatedJob = null;
+      if (linkedJobId) {
+        const { data, error } = await updateJobWithFallback(linkedJobId, payload);
+        if (error) throw error;
+        updatedJob = data;
+      }
 
       const { data, error } = await supabase
         .from("requests")
@@ -2647,6 +2657,15 @@ function sanitizeRecipientEmail(email) {
 
       if (error) throw error;
 
+      if (updatedJob) {
+        setJobs((current) =>
+          current.map((job) =>
+            String(job.id) === String(linkedJobId)
+              ? { ...job, ...payload, ...updatedJob }
+              : job
+          )
+        );
+      }
       setRequests((current) =>
         current.map((item) =>
           item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
@@ -2659,7 +2678,71 @@ function sanitizeRecipientEmail(email) {
       await refreshAdminOperationsData();
     } catch (error) {
       console.error("operation status update error:", error);
-      alert(`운영 상태 변경 실패: ${operationStatus} / ${error.message || "알 수 없는 오류"}`);
+      alert(`운영 단계 상태 변경 실패: ${operationStatus} / ${error.message || "알 수 없는 오류"}`);
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const updateRequestAssignmentStatus = async (request, nextStatus) => {
+    if (!supabase) {
+      alert(supabaseConfigError.message);
+      return;
+    }
+
+    const assignmentStatus = normalizeAssignmentStatus({ assignment_status: nextStatus });
+    const linkedJobId = request?.job_id || null;
+    const payload = {
+      assignment_status: assignmentStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    setSavingKey(`request-${request.id}`);
+    try {
+      console.log("assignment status update:", {
+        requestId: request.id,
+        jobId: linkedJobId,
+        nextAssignmentStatus: assignmentStatus,
+      });
+
+      let updatedJob = null;
+      if (linkedJobId) {
+        const { data, error } = await updateJobWithFallback(linkedJobId, payload);
+        if (error) throw error;
+        updatedJob = data;
+      }
+
+      const { data, error } = await supabase
+        .from("requests")
+        .update(payload)
+        .eq("id", request.id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      if (updatedJob) {
+        setJobs((current) =>
+          current.map((job) =>
+            String(job.id) === String(linkedJobId)
+              ? { ...job, ...payload, ...updatedJob }
+              : job
+          )
+        );
+      }
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
+        )
+      );
+      setSelectedRequest((current) =>
+        current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
+      );
+      await fetchAdminData();
+      await refreshAdminOperationsData();
+    } catch (error) {
+      console.error("assignment status update error:", error);
+      alert(`배정 상태 변경 실패: ${assignmentStatus} / ${error.message || "알 수 없는 오류"}`);
     } finally {
       setSavingKey("");
     }
@@ -2677,6 +2760,13 @@ function sanitizeRecipientEmail(email) {
       !changeKeys.some((key) => ["assignment_status", "settlement_status", "status", "matching_status"].includes(key))
     ) {
       await updateRequestOperationStatus(request, changes.operation_status);
+      return;
+    }
+    if (
+      changeKeys.includes("assignment_status") &&
+      !changeKeys.some((key) => ["operation_status", "settlement_status", "status", "matching_status"].includes(key))
+    ) {
+      await updateRequestAssignmentStatus(request, changes.assignment_status);
       return;
     }
 
@@ -4097,7 +4187,7 @@ function sanitizeRecipientEmail(email) {
     const status = isAssigned ? JOB_STATUS.ASSIGNED : JOB_STATUS.ASSIGNING;
     const assignmentStatus = isAssigned
       ? ASSIGNMENT_STATUS.ASSIGNED
-      : ASSIGNMENT_STATUS.ASSIGNING;
+      : ASSIGNMENT_STATUS.WAITING;
     const { data, error } = await updateJobWithFallback(request.job_id, {
       status,
       assignment_status: assignmentStatus,
@@ -10578,8 +10668,7 @@ function AssignmentManagement({
           onChange={(event) => updateFilter("status", event.target.value)}
         >
           <option value="all">전체</option>
-          <option value="waiting">배정 대기</option>
-          <option value="assigning">배정중</option>
+          <option value="assignment_pending">배정 대기</option>
           <option value="assigned">배정 완료</option>
           <option value="completed">완료</option>
           <option value="cancelled">취소</option>
@@ -13470,7 +13559,7 @@ function getApplicationAssignmentStatus(application = {}) {
       ["assigning", "matching", "배정중", "매칭중", "진행중"].includes(status)
     )
   ) {
-    return ASSIGNMENT_STATUS.ASSIGNING;
+    return ASSIGNMENT_STATUS.WAITING;
   }
   return ASSIGNMENT_STATUS.WAITING;
 }
@@ -14582,8 +14671,7 @@ function buildRevenueSummary({ settlementRowsByScope = {} } = {}) {
 function isSettlementPaid(request = {}) {
   const settlement = request._settlement || {};
   return (
-    request.group === "completed" ||
-    normalizeSettlementPayoutStatus(settlement.settlement_status || settlement.payout_status || request.payout_status) === "settlement_completed" ||
+    normalizeSettlementPayoutStatus(settlement.settlement_status) === "settlement_completed" ||
     Boolean(settlement.paid_at || request.paid_at || request.settlement_completed_at)
   );
 }
@@ -15356,7 +15444,7 @@ function buildAssignmentRequestChanges(assignments = [], requiredCount = 1) {
     status: hasAssignments ? MATCHING_STATUS.ASSIGNED : MATCHING_STATUS.DRAFT,
     matching_status: hasAssignments ? MATCHING_STATUS.ASSIGNED : MATCHING_STATUS.DRAFT,
     assignment_status: hasAssignments
-      ? (isFullyAssigned ? ASSIGNMENT_STATUS.ASSIGNED : ASSIGNMENT_STATUS.ASSIGNING)
+      ? (isFullyAssigned ? ASSIGNMENT_STATUS.ASSIGNED : ASSIGNMENT_STATUS.WAITING)
       : ASSIGNMENT_STATUS.WAITING,
     assigned_interpreter_id: interpreterId,
     assigned_interpreter_name: interpreterName,
@@ -15618,15 +15706,12 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
           };
         })()
       : row;
-    const group = getSettlementGroup(row, settlement);
+    const settlementStatus = settlement
+      ? normalizeAdminSettlementStatus(settlement.settlement_status)
+      : ADMIN_SETTLEMENT_STATUS.WAITING;
     return {
       ...baseRow,
-      group,
-      request_status: row.status || row.matching_status || "",
-      request_settlement_status: row.settlement_status ?? row.settlementStatus ?? null,
-      settlement_status: settlement
-        ? normalizeAdminSettlementStatus(settlement.settlement_status || settlement.status || settlement.payout_status)
-        : "settlement_waiting",
+      settlement_status: settlementStatus,
     };
   });
   const settlementCandidates = rows.filter(isSettlementManagementCandidate);
@@ -15634,22 +15719,34 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
     console.table(
       settlementCandidates.map((row) => ({
         request_code: row.request_no || row.management_no || row.id,
-        request_status: row.request_status || row.status || "",
-        assignment_status: row.assignment_status || "",
-        request_settlement_status: row.request_settlement_status,
         settlement_id: row._settlement_id || "",
         settlement_status: row.settlement_status || "",
-        computed_group: row.group,
       }))
     );
   }
 
   return {
     rows: sortSettlementRows(settlementCandidates),
-    pending: sortSettlementRows(settlementCandidates.filter(isSettlementPendingManagementRow)),
-    confirmed: sortSettlementRows(settlementCandidates.filter(isSettlementConfirmedManagementRow)),
-    paying: sortSettlementRows(settlementCandidates.filter(isSettlementPayingManagementRow)),
-    completed: sortSettlementRows(settlementCandidates.filter(isSettlementCompletedManagementRow)),
+    pending: sortSettlementRows(
+      settlementCandidates.filter(
+        (row) => row.settlement_status === ADMIN_SETTLEMENT_STATUS.WAITING
+      )
+    ),
+    confirmed: sortSettlementRows(
+      settlementCandidates.filter(
+        (row) => row.settlement_status === ADMIN_SETTLEMENT_STATUS.CONFIRMED
+      )
+    ),
+    paying: sortSettlementRows(
+      settlementCandidates.filter(
+        (row) => row.settlement_status === ADMIN_SETTLEMENT_STATUS.PAYING
+      )
+    ),
+    completed: sortSettlementRows(
+      settlementCandidates.filter(
+        (row) => row.settlement_status === ADMIN_SETTLEMENT_STATUS.COMPLETED
+      )
+    ),
     hold: [],
     paymentHistory: [],
   };
@@ -15665,22 +15762,6 @@ function uniqueSettlementBaseRows(rows = []) {
   });
 }
 
-function isSettlementPendingManagementRow(request = {}) {
-  return request.group === "pending";
-}
-
-function isSettlementConfirmedManagementRow(request = {}) {
-  return request.group === "confirmed";
-}
-
-function isSettlementPayingManagementRow(request = {}) {
-  return request.group === "paying";
-}
-
-function isSettlementCompletedManagementRow(request = {}) {
-  return request.group === "completed";
-}
-
 function isSettlementManagementCandidate(request = {}) {
   if (!request?.id) return false;
   if (request._settlement?.id) return true;
@@ -15693,11 +15774,7 @@ function isSettlementManagementCandidate(request = {}) {
 
 function isSettlementAssignmentReady(request = {}) {
   const assignmentStatus = normalizeAssignmentStatus(request);
-  return [
-    ASSIGNMENT_STATUS.ASSIGNED,
-    ASSIGNMENT_STATUS.PREPARING,
-    ASSIGNMENT_STATUS.READY,
-  ].includes(assignmentStatus);
+  return assignmentStatus === ASSIGNMENT_STATUS.ASSIGNED;
 }
 
 function isSettlementOperationCompleted(request = {}) {
@@ -15922,19 +15999,21 @@ function normalizePaymentStatus(status) {
 
 function doesRequestMatchSettlementManagementFilter(request = {}, filter = "all") {
   if (filter === "all") return true;
-  const group = request.group || getSettlementGroup(request, request._settlement);
+  const settlementStatus = normalizeAdminSettlementStatus(
+    request._settlement?.settlement_status || request.settlement_status
+  );
 
   if (filter === "settlement_waiting") {
-    return group === "pending";
+    return settlementStatus === ADMIN_SETTLEMENT_STATUS.WAITING;
   }
   if (filter === "settlement_confirmed") {
-    return group === "confirmed";
+    return settlementStatus === ADMIN_SETTLEMENT_STATUS.CONFIRMED;
   }
   if (filter === "settlement_paying") {
-    return group === "paying";
+    return settlementStatus === ADMIN_SETTLEMENT_STATUS.PAYING;
   }
   if (filter === "settlement_completed" || filter === "settlement_paid") {
-    return group === "completed";
+    return settlementStatus === ADMIN_SETTLEMENT_STATUS.COMPLETED;
   }
   return true;
 }
@@ -16030,13 +16109,6 @@ function getRequestHeadlineStatus(item = {}) {
   if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNED) {
     return { type: "assignment", value: statuses.assignment_status, label: "배정완료" };
   }
-  if (statuses.assignment_status === ASSIGNMENT_STATUS.ASSIGNING) {
-    return {
-      type: "assignment",
-      value: statuses.assignment_status,
-      label: isDesignatedRequest(item) ? "통역사 확인중" : "배정중",
-    };
-  }
   return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
 }
 
@@ -16067,14 +16139,6 @@ function getAssignmentStatusChanges(item = {}) {
   const value = normalizeAssignmentStatus(item);
   return {
     assignment_status: value,
-    status:
-      value === ASSIGNMENT_STATUS.ASSIGNED
-        ? MATCHING_STATUS.ASSIGNED
-        : MATCHING_STATUS.DRAFT,
-    matching_status:
-      value === ASSIGNMENT_STATUS.ASSIGNED
-        ? MATCHING_STATUS.ASSIGNED
-        : MATCHING_STATUS.DRAFT,
   };
 }
 
@@ -16165,16 +16229,6 @@ function getJobStatusPayloadFromFlow(item = {}) {
       operation_status: operationStatus,
       settlement_status: settlementStatus,
       status: JOB_STATUS.ASSIGNED,
-      is_urgent: false,
-    };
-  }
-
-  if (assignmentStatus === ASSIGNMENT_STATUS.ASSIGNING) {
-    return {
-      assignment_status: assignmentStatus,
-      operation_status: operationStatus,
-      settlement_status: settlementStatus,
-      status: JOB_STATUS.ASSIGNING,
       is_urgent: false,
     };
   }
