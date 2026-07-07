@@ -167,7 +167,7 @@ const ADMIN_NOTES_SELECT =
 const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const SETTLEMENTS_SELECT =
-  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, payment_started_at, paid_at, confirmed_by, payment_started_by, completed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -4261,7 +4261,7 @@ function sanitizeRecipientEmail(email) {
         message: error?.message || String(error),
       });
       logSupabaseFetchError("admin_update_settlement_status", error);
-      alert("정산 상태 변경에 실패했습니다. 관리자 권한 또는 DB 컬럼 구성을 확인해주세요.");
+      alert(`정산 상태 변경 실패: ${error?.message || String(error)}`);
       return false;
     } finally {
       setSavingKey("");
@@ -6694,7 +6694,6 @@ function InterpreterSettlementManagement({
                 <th>최종 지급 금액</th>
                 <th>정산 상태</th>
                 <th>정산 확정일</th>
-                <th>통역사 지급 시작일</th>
                 <th>정산 완료일</th>
                 <th>정산서 보기</th>
                 <th>상태 변경/상세보기</th>
@@ -6725,7 +6724,6 @@ function InterpreterSettlementManagement({
                     </span>
                   </td>
                   <td>{formatDateTime(settlement.settlement_confirmed_at || request.settlement_confirmed_at)}</td>
-                  <td>{formatDateTime(settlement.payment_started_at || request.payment_started_at)}</td>
                   <td>{formatDateTime(settlement.paid_at)}</td>
                   <td>
                     {document ? (
@@ -6803,10 +6801,6 @@ function InterpreterSettlementManagement({
                   <div>
                     <dt>정산 확정일</dt>
                     <dd>{formatDateTime(settlement.settlement_confirmed_at || request.settlement_confirmed_at)}</dd>
-                  </div>
-                  <div>
-                    <dt>통역사 지급 시작일</dt>
-                    <dd>{formatDateTime(settlement.payment_started_at || request.payment_started_at)}</dd>
                   </div>
                   <div>
                     <dt>정산 완료일</dt>
@@ -15413,7 +15407,7 @@ function mapSettlementFlowStatusToPayoutStatus(status) {
 
 function normalizeAdminSettlementStatus(status) {
   const value = String(status || "").trim().toLowerCase().replace(/\s+/g, "_");
-  if (!value || ["pending", "settlement_pending", "unpaid", "waiting", "wait", "정산대기"].includes(value)) {
+  if (!value || ["pending", "settlement_pending", "settlement_waiting", "unpaid", "waiting", "wait", "정산대기"].includes(value)) {
     return "settlement_pending";
   }
   if (["confirmed", "settlement_confirmed", "finalized", "fixed", "정산확정", "지급확정"].includes(value)) {
@@ -15437,10 +15431,10 @@ function mapAdminSettlementStatusToPayoutStatus(status) {
 
 function mapAdminSettlementStatusToDbStatus(status) {
   const normalized = normalizeAdminSettlementStatus(status);
-  if (normalized === "settlement_completed") return "completed";
-  if (normalized === "settlement_paying") return "paying";
-  if (normalized === "settlement_confirmed") return "confirmed";
-  return "pending";
+  if (normalized === "settlement_completed") return "settlement_completed";
+  if (normalized === "settlement_paying") return "settlement_paying";
+  if (normalized === "settlement_confirmed") return "settlement_confirmed";
+  return "settlement_waiting";
 }
 
 function buildSettlementManagementRows({ requests = [], assignments = [], interpreters = [], settlements = [] } = {}) {
@@ -15516,7 +15510,6 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
             _settlement: settlement,
             payout_status: settlement.settlement_status || settlement.status || settlement.payout_status || row.payout_status,
             paid_at: settlement.paid_at || row.paid_at,
-            payment_started_at: settlement.payment_started_at || row.payment_started_at,
             settlement_confirmed_at: settlement.settlement_confirmed_at || row.settlement_confirmed_at,
             settlement_final_amount: amount || row.settlement_final_amount,
             interpreter_payment: amount || row.interpreter_payment,
@@ -15667,6 +15660,7 @@ function normalizeSettlementGroupValue(status) {
     [
       "pending",
       "settlement_pending",
+      "settlement_waiting",
       "waiting",
       "wait",
       "unpaid",
@@ -15781,7 +15775,6 @@ function buildSettlementPreviewFromRequest(request = {}, settlements = []) {
       (getSettlementStatusGroup(request) === "completed"
         ? request.paid_at || request.settlement_completed_at || null
         : null),
-    payment_started_at: existingSettlement?.payment_started_at || request.payment_started_at || null,
     settlement_confirmed_at: existingSettlement?.settlement_confirmed_at || request.settlement_confirmed_at || null,
     created_at: request.updated_at || request.created_at,
   };
