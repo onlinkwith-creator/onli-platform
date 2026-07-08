@@ -4438,28 +4438,33 @@ function sanitizeRecipientEmail(email) {
     const requestedStatus = normalizeAdminSettlementStatus(
       changes.settlement_status || request.settlement_status || request._settlement?.settlement_status
     );
+    const allowedSettlementStatuses = new Set([
+      ADMIN_SETTLEMENT_STATUS.WAITING,
+      ADMIN_SETTLEMENT_STATUS.CONFIRMED,
+      ADMIN_SETTLEMENT_STATUS.PAYING,
+      ADMIN_SETTLEMENT_STATUS.COMPLETED,
+    ]);
 
     try {
-      let settlementId = request._settlement_id || request._settlement?.id;
+      if (!allowedSettlementStatuses.has(requestedStatus)) {
+        throw new Error(`지원하지 않는 정산 상태입니다: ${requestedStatus}`);
+      }
 
-      if (!settlementId) {
-        const ensureResult = await supabase.rpc("ensure_settlements_for_request", {
-          p_request_id: Number(request.id),
-        });
-        if (ensureResult.error) throw ensureResult.error;
+      const requestId = Number(request.request_id || request.id);
+      let settlementId = request.settlement_id || request._settlement_id || request._settlement?.id;
 
-        const interpreterId = request.assigned_interpreter_id || request.matched_interpreter_id;
-        let lookup = supabase
+      if (!settlementId && requestId) {
+        const { data: existingSettlement, error: findError } = await supabase
           .from("settlements")
-          .select(SETTLEMENTS_SELECT)
-          .eq("request_id", Number(request.id))
-          .order("created_at", { ascending: false })
-          .limit(1);
-        if (interpreterId) lookup = lookup.eq("interpreter_id", Number(interpreterId));
+          .select("id, request_id, settlement_status, updated_at, created_at")
+          .eq("request_id", requestId)
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
 
-        const { data: settlementRows, error: lookupError } = await lookup;
-        if (lookupError) throw lookupError;
-        settlementId = settlementRows?.[0]?.id;
+        if (findError) throw findError;
+        settlementId = existingSettlement?.id;
       }
 
       if (!settlementId) {
@@ -4479,11 +4484,17 @@ function sanitizeRecipientEmail(email) {
         throw new Error("정산 row를 생성할 수 없습니다. 연결된 통역사 정보를 확인해주세요.");
       }
 
-      const { error } = await supabase.rpc("admin_update_settlement_status", {
-        p_settlement_id: settlementId,
-        p_next_status: mapAdminSettlementStatusToDbStatus(requestedStatus),
-      });
+      const { data, error } = await supabase
+        .from("settlements")
+        .update({
+          settlement_status: mapAdminSettlementStatusToDbStatus(requestedStatus),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", settlementId)
+        .select("id, request_id, settlement_status")
+        .single();
       if (error) throw error;
+      if (!data) throw new Error("정산 상태 변경 후 반환 데이터가 없습니다.");
 
       await fetchAdminData();
       await refreshAdminOperationsData();
@@ -4506,7 +4517,7 @@ function sanitizeRecipientEmail(email) {
         message: error?.message || String(error),
       });
       logSupabaseFetchError("admin_update_settlement_status", error);
-      alert(`정산 상태 변경 실패: ${error?.message || String(error)}`);
+      alert(`정산 상태 변경 실패: ${requestedStatus} / ${error?.message || String(error)}`);
       return false;
     } finally {
       setSavingKey("");
@@ -15814,8 +15825,8 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
             request_id: row.id || row.request_id,
             request_code: row.request_code || row.request_no || row.management_no || "",
             request_title: row.event_name || row.title || "",
-            job_id: settlement.job_id || row.job_id || null,
-            company_id: settlement.company_id || row.company_id || null,
+            job_id: row.job_id || null,
+            company_id: row.company_id || null,
             assignment_id: settlement.assignment_id || row._assignment_id || null,
             interpreter_id: settlement.interpreter_id || row.assigned_interpreter_id || row.matched_interpreter_id || null,
             interpreter_name: row.assigned_interpreter_name || row.matched_interpreter_name || "",
@@ -16063,8 +16074,8 @@ function buildSettlementPreviewFromRequest(request = {}, settlements = []) {
     id: existingSettlement?.id || `request-settlement-${request.id}`,
     is_virtual: !existingSettlement,
     request_id: request.id || request.request_id,
-    job_id: existingSettlement?.job_id || request.job_id || null,
-    company_id: existingSettlement?.company_id || request.company_id || null,
+    job_id: request.job_id || null,
+    company_id: request.company_id || null,
     assignment_id: existingSettlement?.assignment_id || request.assignment_id || request._assignment_id || null,
     interpreter_id: interpreterId,
     amount,

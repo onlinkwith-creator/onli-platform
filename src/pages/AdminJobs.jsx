@@ -68,7 +68,7 @@ const emptyForm = {
 };
 
 const SETTLEMENTS_SELECT =
-  "id, request_id, job_id, company_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, interpreter_auth_user_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
 
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
@@ -637,8 +637,6 @@ function AdminJobs({
         .from("settlements")
         .insert({
           request_id: Number(request.id),
-          job_id: job.id || request.job_id || null,
-          company_id: request.company_id || null,
           interpreter_id: Number(interpreterId),
           assignment_id: assignment?.id || null,
           amount,
