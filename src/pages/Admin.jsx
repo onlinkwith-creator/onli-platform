@@ -3572,6 +3572,15 @@ function sanitizeRecipientEmail(email) {
           }
         : {}),
     };
+    const companyAmount = normalizeMoneyInput(payload.company_amount ?? payload.client_price);
+    const interpreterAmountForProfit =
+      payload.settlement_final_amount === null || payload.settlement_final_amount === undefined
+        ? 0
+        : normalizeMoneyInput(payload.settlement_final_amount);
+    const platformProfit = companyAmount - interpreterAmountForProfit;
+    payload.platform_profit = platformProfit;
+    payload.profit = platformProfit;
+
     const requestPayload = { ...payload };
     if (hasInterpreterPaymentInput && nextInterpreterPaymentAmount === null) {
       delete requestPayload.interpreter_payment;
@@ -8161,6 +8170,12 @@ function RequestDetailPanel({
   const interpreterPaymentInput = hasInterpreterPaymentDraft
     ? interpreterPaymentInputs[interpreterPaymentInputKey]
     : savedInterpreterPaymentInput;
+  const companyAmountForProfit = getCompanyAmount(safeRequest);
+  const interpreterAmountForProfit = normalizeMoneyInput(interpreterPaymentInput);
+  const platformProfitPreview = useMemo(
+    () => companyAmountForProfit - interpreterAmountForProfit,
+    [companyAmountForProfit, interpreterAmountForProfit]
+  );
 
   const handleInterpreterPaymentInputChange = (event) => {
     const value = event.target.value;
@@ -8715,10 +8730,15 @@ function RequestDetailPanel({
               </FieldControl>
               <div className="admin-profit">
                 <span>플랫폼 수익</span>
-                <strong className={getPlatformProfit(safeRequest) < 0 ? "is-negative" : ""}>
-                  {formatJPY(getPlatformProfit(safeRequest))}
+                <strong className={platformProfitPreview < 0 ? "is-negative" : ""}>
+                  {formatJPY(platformProfitPreview)}
                 </strong>
               </div>
+              {platformProfitPreview < 0 && (
+                <p className="admin-settlement-note is-negative">
+                  통역사 지급액이 기업 금액보다 큽니다. 플랫폼 수익이 음수입니다.
+                </p>
+              )}
               <button
                 type="button"
                 className="admin-save"
