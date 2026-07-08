@@ -173,7 +173,7 @@ const ADMIN_NOTES_SELECT =
 const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const SETTLEMENTS_SELECT =
-  "id, request_id, job_id, company_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, interpreter_auth_user_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -1946,6 +1946,59 @@ function sanitizeRecipientEmail(email) {
     }
   };
 
+  const recordInterpreterSettlementAmountChange = async (previousSettlement, nextSettlement) => {
+    if (!supabase || !nextSettlement?.id) return;
+
+    const previousAmount = normalizeMoneyInput(previousSettlement?.amount);
+    const nextAmount = normalizeMoneyInput(nextSettlement.amount);
+    if (previousAmount === nextAmount) return;
+
+    try {
+      const { data: activityData, error: activityError } = await supabase
+        .from("admin_activity_logs")
+        .insert({
+          target_type: "settlement",
+          target_id: String(nextSettlement.id),
+          action_type: "interpreter_payment_amount_updated",
+          before_value: { amount: previousAmount },
+          after_value: { amount: nextAmount },
+          actor_user_id: user?.id || null,
+        })
+        .select(ADMIN_ACTIVITY_LOGS_SELECT)
+        .single();
+
+      if (activityError) {
+        console.warn("interpreter payment amount activity log skipped:", activityError);
+      } else if (activityData) {
+        setAdminActivityLogs((current) => [activityData, ...current]);
+      }
+    } catch (error) {
+      console.warn("interpreter payment amount activity log skipped:", error);
+    }
+
+    try {
+      const notificationPayload = {
+        recipient_type: "interpreter",
+        recipient_id: nextSettlement.interpreter_auth_user_id || null,
+        notification_type: "interpreter_payment_amount_updated",
+        title: "통역사 지급액 변경 안내",
+        message: `통역사 지급액이 ${formatJPY(previousAmount)}에서 ${formatJPY(nextAmount)}로 변경되었습니다.`,
+        related_request_id: nextSettlement.request_id || null,
+        channel: "internal",
+        status: "pending",
+      };
+      const { error: notificationError } = await supabase
+        .from("notifications")
+        .insert(notificationPayload);
+
+      if (notificationError) {
+        console.warn("interpreter payment amount notification skipped:", notificationError);
+      }
+    } catch (error) {
+      console.warn("interpreter payment amount notification skipped:", error);
+    }
+  };
+
   const updateInterpreterSettlement = async (settlementId, changes) => {
     if (!supabase || !settlementId) {
       alert(supabaseConfigError.message);
@@ -1954,12 +2007,14 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`settlement-${settlementId}`);
     try {
+      const previousSettlement = safeSettlements.find((settlement) => settlement.id === settlementId) || null;
+      const hasAmountChange = Object.prototype.hasOwnProperty.call(changes, "amount");
       const nextSettlementStatus =
         changes.settlement_status !== undefined
           ? normalizeAdminSettlementStatus(changes.settlement_status)
           : null;
       const payload = {
-        amount: normalizeMoneyInput(changes.amount),
+        amount: hasAmountChange ? normalizeMoneyInput(changes.amount) : undefined,
         payout_status: changes.payout_status
           ? mapAdminSettlementStatusToPayoutStatus(changes.payout_status)
           : undefined,
@@ -2001,11 +2056,23 @@ function sanitizeRecipientEmail(email) {
         data = rpcData;
       }
 
+      if (!data) {
+        throw new Error("수정된 정산 지급액을 DB에서 반환받지 못했습니다.");
+      }
+
       setSettlements((current) =>
         current.map((settlement) =>
           settlement.id === settlementId ? { ...settlement, ...data } : settlement
         )
       );
+      if (
+        hasAmountChange &&
+        Number(previousSettlement?.amount ?? 0) !== Number(data.amount ?? 0)
+      ) {
+        queueMicrotask(() => {
+          recordInterpreterSettlementAmountChange(previousSettlement, data);
+        });
+      }
       await refreshAdminOperationsData();
       alert("지급 상태가 저장되었습니다.");
       return true;
@@ -3362,6 +3429,9 @@ function sanitizeRecipientEmail(email) {
         [field]: numericValue,
         [mirrorField]: numericValue,
       };
+      if (field === "interpreter_payment") {
+        nextRequest.settlement_final_amount = numericValue;
+      }
       nextRequest.platform_profit =
         getCompanyAmount(nextRequest) - getInterpreterPayment(nextRequest);
       nextRequest.profit = nextRequest.platform_profit;
@@ -3427,8 +3497,6 @@ function sanitizeRecipientEmail(email) {
     const amount = normalizeMoneyInput(payload.settlement_final_amount);
     const settlementPayload = Object.entries({
       request_id: Number(request.id),
-      job_id: request.job_id || null,
-      company_id: request.company_id || null,
       interpreter_id: Number(interpreterId),
       assignment_id: assignment?.id || request._settlement?.assignment_id,
       amount,
@@ -3468,6 +3536,9 @@ function sanitizeRecipientEmail(email) {
     }
 
     const payload = getSettlementSavePayload(request);
+    const previousSettlement = request._settlement || safeSettlements.find(
+      (settlement) => String(settlement.request_id) === String(request.id)
+    ) || null;
 
     setSavingKey(`request-${request.id}`);
     const { data, error } = await updateRequestSettlementRow(request.id, payload);
@@ -3502,6 +3573,11 @@ function sanitizeRecipientEmail(email) {
       return;
     }
 
+    if (!settlementResult.data) {
+      alert("통역사 지급액 저장 결과를 DB에서 반환받지 못했습니다.");
+      return;
+    }
+
     setRequests((current) =>
       current.map((item) =>
         item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
@@ -3510,8 +3586,14 @@ function sanitizeRecipientEmail(email) {
     setSelectedRequest((current) =>
       current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
     );
-    if (settlementResult.data) {
-      setSettlements((current) => upsertById(current, settlementResult.data));
+    setSettlements((current) => upsertById(current, settlementResult.data));
+    if (
+      Number(previousSettlement?.amount ?? 0) !==
+      Number(settlementResult.data.amount ?? 0)
+    ) {
+      queueMicrotask(() => {
+        recordInterpreterSettlementAmountChange(previousSettlement, settlementResult.data);
+      });
     }
     await fetchAdminData();
     await refreshAdminOperationsData();
@@ -6890,9 +6972,9 @@ function InterpreterSettlementManagement({
                         )
                       : "정보 없음"}
                   </td>
-                  <td>{formatJPY(settlement.daily_rate || request.daily_rate)}</td>
-                  <td>{settlement.work_days || request.work_days || request.settlement_work_days || "-"}</td>
-                  <td>{formatJPY(settlement.amount || request.interpreter_total_amount)}</td>
+                  <td>{formatJPY(settlement.daily_rate ?? request.daily_rate)}</td>
+                  <td>{settlement.work_days ?? request.work_days ?? request.settlement_work_days ?? "-"}</td>
+                  <td>{formatJPY(settlement.amount ?? request.interpreter_total_amount)}</td>
                   <td>
                     <span className={`status-badge ${getSettlementPayoutBadgeClass(settlement.settlement_status)}`}>
                       {getSettlementPayoutStatusLabel(settlement.settlement_status)}
@@ -6964,15 +7046,15 @@ function InterpreterSettlementManagement({
                   </div>
                   <div>
                     <dt>일당</dt>
-                    <dd>{formatJPY(settlement.daily_rate || request.daily_rate)}</dd>
+                    <dd>{formatJPY(settlement.daily_rate ?? request.daily_rate)}</dd>
                   </div>
                   <div>
                     <dt>근무 일수</dt>
-                    <dd>{settlement.work_days || request.work_days || request.settlement_work_days || "-"}</dd>
+                    <dd>{settlement.work_days ?? request.work_days ?? request.settlement_work_days ?? "-"}</dd>
                   </div>
                   <div>
                     <dt>최종 지급 금액</dt>
-                    <dd>{formatJPY(settlement.amount || request.interpreter_total_amount)}</dd>
+                    <dd>{formatJPY(settlement.amount ?? request.interpreter_total_amount)}</dd>
                   </div>
                   <div>
                     <dt>정산 확정일</dt>
@@ -15575,12 +15657,20 @@ function calculateSettlementAmounts(request = {}) {
   const extraAmount = normalizeMoneyInput(request.settlement_extra_amount);
   const deductionAmount = normalizeMoneyInput(request.settlement_deduction_amount);
   const baseAmount = SETTLEMENT_LEVEL_DEFAULTS[level].interpreter_payment * workDays;
-  const finalAmount =
-    request.settlement_final_amount !== undefined &&
-    request.settlement_final_amount !== null &&
-    String(request.settlement_final_amount).trim() !== ""
-      ? normalizeMoneyInput(request.settlement_final_amount)
-      : Math.max(0, baseAmount + extraAmount - deductionAmount);
+  const getManualAmount = (...values) => {
+    for (const value of values) {
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return normalizeMoneyInput(value);
+      }
+    }
+    return null;
+  };
+  const manualAmount = getManualAmount(
+    request.settlement_final_amount,
+    request.interpreter_payment,
+    request.interpreter_price
+  );
+  const finalAmount = manualAmount ?? Math.max(0, baseAmount + extraAmount - deductionAmount);
 
   return {
     settlement_work_days: workDays,
@@ -15712,9 +15802,9 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
               row.interpreter_price ??
               0
           );
-          const workDays = Math.max(1, Number(settlement.work_days || row.settlement_work_days || 1));
+          const workDays = Math.max(1, Number(settlement.work_days ?? row.settlement_work_days ?? 1));
           const dailyRate = normalizeMoneyInput(
-            settlement.daily_rate || row.daily_rate || (workDays > 0 ? amount / workDays : amount)
+            settlement.daily_rate ?? row.daily_rate ?? (workDays > 0 ? amount / workDays : amount)
           );
           const companyAmount = getCompanyAmount(row);
           return {
@@ -15734,9 +15824,9 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
             paid_at: settlement.paid_at || row.paid_at,
             interpreter_payment_started_at: settlement.interpreter_payment_started_at || row.interpreter_payment_started_at,
             settlement_confirmed_at: settlement.settlement_confirmed_at || row.settlement_confirmed_at,
-            settlement_final_amount: amount || row.settlement_final_amount,
-            interpreter_payment: amount || row.interpreter_payment,
-            interpreter_price: amount || row.interpreter_price,
+            settlement_final_amount: amount ?? row.settlement_final_amount,
+            interpreter_payment: amount ?? row.interpreter_payment,
+            interpreter_price: amount ?? row.interpreter_price,
             interpreter_total_amount: amount,
             company_invoice_amount: companyAmount,
             daily_rate: dailyRate,
@@ -15750,9 +15840,12 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
         })()
       : (() => {
           const calculated = calculateSettlementAmounts(row);
-          const workDays = Math.max(1, Number(row.settlement_work_days || calculated.settlement_work_days || 1));
+          const workDays = Math.max(1, Number(row.settlement_work_days ?? calculated.settlement_work_days ?? 1));
           const amount = normalizeMoneyInput(
-            row.settlement_final_amount || row.interpreter_payment || row.interpreter_price || calculated.settlement_final_amount
+            row.settlement_final_amount ??
+              row.interpreter_payment ??
+              row.interpreter_price ??
+              calculated.settlement_final_amount
           );
           const companyAmount = getCompanyAmount(row);
           return {
@@ -15948,18 +16041,17 @@ function buildSettlementPreviewFromRequest(request = {}, settlements = []) {
     );
   const calculated = calculateSettlementAmounts(request);
   const assignment = request._assignment || {};
-  const workDays = Math.max(1, Number(existingSettlement?.work_days || assignment.work_days || calculated.settlement_work_days || 1));
+  const workDays = Math.max(1, Number(existingSettlement?.work_days ?? assignment.work_days ?? calculated.settlement_work_days ?? 1));
   const amount = normalizeMoneyInput(
     existingSettlement?.final_amount ??
       existingSettlement?.amount ??
-      (
-      assignment.final_amount ||
-      assignment.total_amount ||
-      calculated.settlement_final_amount ||
-      request.interpreter_payment ||
-      request.interpreter_price ||
+      assignment.final_amount ??
+      assignment.total_amount ??
+      request.settlement_final_amount ??
+      request.interpreter_payment ??
+      request.interpreter_price ??
+      calculated.settlement_final_amount ??
       0
-      )
   );
   const interpreterId =
     existingSettlement?.interpreter_id ||
@@ -15982,8 +16074,8 @@ function buildSettlementPreviewFromRequest(request = {}, settlements = []) {
     payout_status: existingSettlement
       ? normalizeAdminSettlementStatus(existingSettlement.settlement_status)
       : ADMIN_SETTLEMENT_STATUS.WAITING,
-    work_days: existingSettlement?.work_days || assignment.work_days || workDays,
-    daily_rate: existingSettlement?.daily_rate || assignment.daily_rate || (workDays > 0 ? amount / workDays : amount),
+    work_days: existingSettlement?.work_days ?? assignment.work_days ?? workDays,
+    daily_rate: existingSettlement?.daily_rate ?? assignment.daily_rate ?? (workDays > 0 ? amount / workDays : amount),
     extra_amount: normalizeMoneyInput(existingSettlement?.extra_amount ?? calculated.settlement_extra_amount),
     deduction_amount: normalizeMoneyInput(existingSettlement?.deduction_amount ?? calculated.settlement_deduction_amount),
     admin_memo: existingSettlement?.admin_memo || request.settlement_memo || "",
@@ -16032,8 +16124,13 @@ function applySettlementDefaults(request = {}, touched = {}) {
     !touched.company_amount && currentCompanyAmount === 0
       ? defaults.company_amount
       : currentCompanyAmount;
+  const hasStoredInterpreterPayment =
+    request._settlement?.amount !== undefined &&
+    request._settlement?.amount !== null;
   const nextInterpreterPayment =
-    !touched.interpreter_payment && currentInterpreterPayment === 0
+    !hasStoredInterpreterPayment &&
+    !touched.interpreter_payment &&
+    currentInterpreterPayment === 0
       ? calculated.settlement_final_amount
       : currentInterpreterPayment;
 
@@ -16113,8 +16210,20 @@ function getInterpreterPayment(request = {}) {
 }
 
 function getInterpreterPaymentForSummary(request = {}) {
+  if (request._settlement?.amount !== undefined && request._settlement?.amount !== null) {
+    return normalizeMoneyInput(request._settlement.amount);
+  }
+  if (request.interpreter_total_amount !== undefined && request.interpreter_total_amount !== null) {
+    return normalizeMoneyInput(request.interpreter_total_amount);
+  }
   const savedAmount = getInterpreterPayment(request);
-  if (savedAmount > 0) return savedAmount;
+  if (
+    request.interpreter_payment !== undefined ||
+    request.interpreter_price !== undefined ||
+    request.settlement_final_amount !== undefined
+  ) {
+    return savedAmount;
+  }
   return normalizeMoneyInput(calculateSettlementAmounts(request).settlement_final_amount);
 }
 
