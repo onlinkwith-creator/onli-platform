@@ -3446,7 +3446,7 @@ function sanitizeRecipientEmail(email) {
     );
   };
 
-  const saveSettlementRecordForRequest = async (request, payload) => {
+  const saveSettlementRecordForRequest = async (request, payload, options = {}) => {
     const requestAssignments = assignmentsByRequest.get(request.id) || [];
     const assignment = requestAssignments.find((item) => item.interpreter_id) || requestAssignments[0] || null;
     const interpreterId =
@@ -3504,7 +3504,6 @@ function sanitizeRecipientEmail(email) {
       assignment_id: assignment?.id || request._settlement?.assignment_id,
       amount,
       settlement_status: normalizeAdminSettlementStatus(payload.settlement_status),
-      status: payload.settlement_status,
       payout_status: mapSettlementFlowStatusToPayoutStatus(payload.settlement_status),
       work_days: workDays,
       daily_rate: amount === null ? 0 : workDays > 0 ? amount / workDays : amount,
@@ -3517,9 +3516,16 @@ function sanitizeRecipientEmail(email) {
     }, {});
 
     if (settlementRow?.id) {
+      const updatePayload = options.amountOnly
+        ? {
+            amount,
+            daily_rate: amount === null ? 0 : workDays > 0 ? amount / workDays : amount,
+          }
+        : settlementPayload;
+
       return supabase
         .from("settlements")
-        .update(settlementPayload)
+        .update(updatePayload)
         .eq("id", settlementRow.id)
         .select(SETTLEMENTS_SELECT)
         .single();
@@ -3582,7 +3588,8 @@ function sanitizeRecipientEmail(email) {
     if (!error) {
       settlementResult = await saveSettlementRecordForRequest(
         { ...request, ...payload, ...(data || {}) },
-        payload
+        payload,
+        { amountOnly: hasInterpreterPaymentInput }
       );
     }
     setSavingKey("");
