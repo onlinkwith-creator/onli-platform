@@ -842,22 +842,81 @@ function InterpreterMypage({
   };
 
   const fetchApplicationsData = async (interpreterId) => {
-    if (!supabase) return [];
+    if (!supabase || !interpreterId) return [];
 
-    const { data, error } = await supabase.rpc("get_my_job_applications");
+    const { data: applicationRows, error: applicationError } = await supabase
+      .from("job_applications")
+      .select(`
+        id,
+        application_no,
+        job_id,
+        interpreter_id,
+        status,
+        created_at
+      `)
+      .eq("interpreter_id", interpreterId)
+      .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("get_my_job_applications RPC failed", error);
+    if (applicationError) {
+      console.error("job_applications fetch failed", applicationError);
       return [];
     }
 
-    return (data || []).map(mapMyApplicationRow);
+    const jobIds = getUniqueIds((applicationRows || []).map((item) => item.job_id));
+    if (jobIds.length === 0) {
+      return (applicationRows || []).map((application) =>
+        mapJobApplicationRow({ application })
+      );
+    }
+
+    const { data: jobRows, error: jobError } = await supabase
+      .from("jobs")
+      .select(`
+        id,
+        job_no,
+        title,
+        event_name,
+        date,
+        event_date,
+        start_date,
+        end_date,
+        location,
+        event_location,
+        language,
+        requested_level,
+        level,
+        field,
+        people_count,
+        people,
+        status,
+        description,
+        job_description,
+        preference,
+        dress_code,
+        preferred_gender
+      `)
+      .in("id", jobIds);
+
+    if (jobError) {
+      console.error("jobs for applications fetch failed", jobError);
+      return (applicationRows || []).map((application) =>
+        mapJobApplicationRow({ application })
+      );
+    }
+
+    const jobMap = new Map((jobRows || []).map((job) => [String(job.id), job]));
+    return (applicationRows || []).map((application) =>
+      mapJobApplicationRow({
+        application,
+        job: jobMap.get(String(application.job_id)),
+      })
+    );
   };
 
   const fetchMatchingsData = async (interpreterId) => {
     if (!supabase || !interpreterId) return [];
 
-    const { data, error } = await supabase
+    const { data: assignments, error: assignmentError } = await supabase
       .from("request_interpreters")
       .select(`
         id,
@@ -869,58 +928,115 @@ function InterpreterMypage({
         contact_visible,
         is_contact_visible,
         contact_revealed,
-        requests:request_id (
+        created_at
+      `)
+      .eq("interpreter_id", interpreterId)
+      .order("assigned_at", { ascending: false });
+
+    if (assignmentError) {
+      console.error("request_interpreters fetch failed", assignmentError);
+      return [];
+    }
+
+    const requestIds = getUniqueIds((assignments || []).map((item) => item.request_id));
+    if (requestIds.length === 0) return [];
+
+    const { data: requests, error: requestError } = await supabase
+      .from("requests")
+      .select(`
+        id,
+        job_id,
+        request_no,
+        title,
+        event_name,
+        company_name,
+        contact_name,
+        contact_phone,
+        contact_email,
+        contact_kakao,
+        contact_email_or_phone,
+        event_start_date,
+        event_end_date,
+        start_date,
+        end_date,
+        event_date,
+        event_location,
+        status,
+        assignment_status,
+        operation_status,
+        settlement_status,
+        company_id,
+        reference_file_name,
+        reference_file_path,
+        reference_file_url
+      `)
+      .in("id", requestIds);
+
+    if (requestError) {
+      console.error("requests for assignments fetch failed", requestError);
+      return [];
+    }
+
+    const { data: documents, error: documentError } = await supabase
+      .from("documents")
+      .select(`
+        id,
+        request_id,
+        document_type,
+        title,
+        file_name,
+        file_url,
+        storage_path,
+        file_path,
+        status
+      `)
+      .in("request_id", requestIds);
+
+    if (documentError) {
+      console.error("documents for assignments fetch failed", documentError);
+    }
+
+    const companyIds = getUniqueIds((requests || []).map((item) => item.company_id));
+    let companies = [];
+    if (companyIds.length > 0) {
+      const { data: companyRows, error: companyError } = await supabase
+        .from("businesses")
+        .select(`
           id,
-          job_id,
-          request_no,
-          title,
-          event_name,
-          event_start_date,
-          event_end_date,
-          start_date,
-          end_date,
-          event_date,
-          event_location,
-          company_id,
           company_name,
           contact_name,
           contact_phone,
           contact_email,
-          contact_kakao,
-          contact_email_or_phone,
-          reference_file_name,
-          reference_file_path,
-          reference_file_url,
-          businesses:company_id (
-            id,
-            company_name,
-            contact_name,
-            contact_phone,
-            contact_email,
-            kakao_id
-          ),
-          documents (
-            id,
-            document_type,
-            title,
-            file_name,
-            file_url,
-            storage_path,
-            file_path,
-            status
-          )
-        )
-      `)
-      .eq("interpreter_id", interpreterId)
-      .in("assignment_status", ["assigned", "confirmed", "배정완료"])
-      .order("assigned_at", { ascending: false });
+          kakao_id
+        `)
+        .in("id", companyIds);
 
-    if (error) {
-      console.error("request_interpreters work preparation fetch failed", error);
-      return [];
+      if (companyError) {
+        console.error("businesses for assignments fetch failed", companyError);
+      } else {
+        companies = companyRows || [];
+      }
     }
 
-    return (data || []).map(mapRequestInterpreterAssignmentRow);
+    const requestMap = new Map((requests || []).map((request) => [String(request.id), request]));
+    const companyMap = new Map((companies || []).map((company) => [String(company.id), company]));
+    const docsByRequestId = new Map();
+    (documents || []).forEach((document) => {
+      const key = String(document.request_id);
+      const list = docsByRequestId.get(key) || [];
+      list.push(document);
+      docsByRequestId.set(key, list);
+    });
+
+    return (assignments || []).map((assignment) => {
+      const request = requestMap.get(String(assignment.request_id)) || {};
+      return mapRequestInterpreterAssignmentRow({
+        assignment,
+        request,
+        company: companyMap.get(String(request.company_id)) || {},
+        documents: docsByRequestId.get(String(assignment.request_id)) || [],
+      });
+    });
   };
 
   const fetchSettlementsData = async () => {
@@ -3174,6 +3290,45 @@ function mapMyApplicationRow(row = {}) {
   };
 }
 
+function mapJobApplicationRow({ application = {}, job = null } = {}) {
+  return {
+    id: application.id,
+    application_no: application.application_no,
+    job_id: application.job_id,
+    request_id: null,
+    status: application.status,
+    created_at: application.created_at,
+    jobs: job ? mapPublicJobFromJobRow(job) : null,
+  };
+}
+
+function mapPublicJobFromJobRow(job = {}) {
+  return {
+    id: job.id,
+    job_no: job.job_no,
+    title: job.title,
+    event_name: job.event_name || job.title,
+    date: job.date,
+    event_date: job.event_date || job.start_date || job.date,
+    start_date: job.start_date,
+    end_date: job.end_date,
+    location: job.location || job.event_location,
+    event_location: job.event_location || job.location,
+    language: job.language,
+    requested_level: job.requested_level,
+    level: job.level || job.requested_level,
+    field: job.field,
+    people_count: job.people_count,
+    people: job.people || (job.people_count ? `${job.people_count}명` : ""),
+    status: job.status,
+    description: job.description,
+    job_description: job.job_description,
+    preference: job.preference,
+    dress_code: job.dress_code,
+    preferred_gender: job.preferred_gender,
+  };
+}
+
 function mapMyAssignmentRow(row = {}) {
   return {
     id: row.assignment_id,
@@ -3202,31 +3357,32 @@ function mapMyAssignmentRow(row = {}) {
 }
 
 function mapRequestInterpreterAssignmentRow(row = {}) {
-  const request = Array.isArray(row.requests) ? row.requests[0] : row.requests || {};
-  const company = Array.isArray(request.businesses)
+  const assignment = row.assignment || row;
+  const request = row.request || (Array.isArray(row.requests) ? row.requests[0] : row.requests) || {};
+  const company = row.company || (Array.isArray(request.businesses)
     ? request.businesses[0]
-    : request.businesses || {};
-  const documents = Array.isArray(request.documents) ? request.documents : [];
+    : request.businesses) || {};
+  const documents = row.documents || (Array.isArray(request.documents) ? request.documents : []);
   const assignmentStatus = normalizeAssignmentStatusValue(
-    row.assignment_status || row.status
+    assignment.assignment_status || assignment.status
   );
   const contactVisible =
     assignmentStatus === "assigned" ||
-    Boolean(row.contact_visible || row.is_contact_visible || row.contact_revealed);
+    Boolean(assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
   const companyContact = buildCompanyContact({ request, company, contactVisible });
   const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
   const endDate = getFirstValue(request.event_end_date, request.end_date);
   const mappedRequest = {
-    id: row.id,
-    matching_no: row.assignment_code || `request-interpreter-${row.id}`,
+    id: assignment.id,
+    matching_no: assignment.assignment_code || `request-interpreter-${assignment.id}`,
     job_id: request.job_id || null,
-    request_id: row.request_id,
+    request_id: assignment.request_id,
     company_id: request.company_id,
     assignment_status: assignmentStatus,
     start_date: startDate,
     end_date: endDate,
     status: assignmentStatus,
-    created_at: row.assigned_at,
+    created_at: assignment.assigned_at || assignment.created_at,
     request_assignment_status: assignmentStatus,
     is_contact_visible: contactVisible,
     company_contact: companyContact,
@@ -3281,8 +3437,8 @@ function buildCompanyContact({ request = {}, company = {}, contactVisible = true
   return {
     companyName,
     contactName: getFirstValue(request.contact_name, company.contact_name),
-    phone: getFirstValue(request.contact_phone, company.contact_phone, company.phone),
-    email: getFirstValue(request.contact_email, company.contact_email, company.email),
+    phone: getFirstValue(request.contact_phone, request.contact_email_or_phone, company.contact_phone, company.phone),
+    email: getFirstValue(request.contact_email, request.contact_email_or_phone, company.contact_email, company.email),
     messenger: getFirstValue(request.contact_kakao, company.kakao_id),
     readable: Boolean(request.company_id ? company?.id : companyName),
     visible: true,
@@ -3421,6 +3577,10 @@ function getFirstValue(...values) {
     if (text) return text;
   }
   return "";
+}
+
+function getUniqueIds(values = []) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
 function getFirstNonNumericValue(...values) {
