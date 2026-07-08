@@ -889,7 +889,6 @@ function InterpreterMypage({
         people_count,
         people,
         status,
-        description,
         job_description,
         preference,
         dress_code,
@@ -922,13 +921,7 @@ function InterpreterMypage({
         id,
         request_id,
         interpreter_id,
-        status,
-        assignment_status,
-        assigned_at,
-        contact_visible,
-        is_contact_visible,
-        contact_revealed,
-        created_at
+        assigned_at
       `)
       .eq("interpreter_id", interpreterId)
       .order("assigned_at", { ascending: false });
@@ -947,16 +940,10 @@ function InterpreterMypage({
         id,
         job_id,
         request_no,
-        title,
         event_name,
         company_name,
         contact_name,
-        contact_phone,
-        contact_email,
-        contact_kakao,
         contact_email_or_phone,
-        event_start_date,
-        event_end_date,
         start_date,
         end_date,
         event_date,
@@ -965,7 +952,7 @@ function InterpreterMypage({
         assignment_status,
         operation_status,
         settlement_status,
-        company_id,
+        company_auth_user_id,
         reference_file_name,
         reference_file_path,
         reference_file_url
@@ -984,9 +971,6 @@ function InterpreterMypage({
         request_id,
         document_type,
         title,
-        file_name,
-        file_url,
-        storage_path,
         file_path,
         status
       `)
@@ -996,20 +980,20 @@ function InterpreterMypage({
       console.error("documents for assignments fetch failed", documentError);
     }
 
-    const companyIds = getUniqueIds((requests || []).map((item) => item.company_id));
+    const companyAuthUserIds = getUniqueIds((requests || []).map((item) => item.company_auth_user_id));
     let companies = [];
-    if (companyIds.length > 0) {
+    if (companyAuthUserIds.length > 0) {
       const { data: companyRows, error: companyError } = await supabase
         .from("businesses")
         .select(`
           id,
+          auth_user_id,
           company_name,
           contact_name,
           contact_phone,
-          contact_email,
-          kakao_id
+          contact_email
         `)
-        .in("id", companyIds);
+        .in("auth_user_id", companyAuthUserIds);
 
       if (companyError) {
         console.error("businesses for assignments fetch failed", companyError);
@@ -1019,7 +1003,7 @@ function InterpreterMypage({
     }
 
     const requestMap = new Map((requests || []).map((request) => [String(request.id), request]));
-    const companyMap = new Map((companies || []).map((company) => [String(company.id), company]));
+    const companyMap = new Map((companies || []).map((company) => [String(company.auth_user_id), company]));
     const docsByRequestId = new Map();
     (documents || []).forEach((document) => {
       const key = String(document.request_id);
@@ -1033,7 +1017,7 @@ function InterpreterMypage({
       return mapRequestInterpreterAssignmentRow({
         assignment,
         request,
-        company: companyMap.get(String(request.company_id)) || {},
+        company: companyMap.get(String(request.company_auth_user_id)) || {},
         documents: docsByRequestId.get(String(assignment.request_id)) || [],
       });
     });
@@ -3321,7 +3305,7 @@ function mapPublicJobFromJobRow(job = {}) {
     people_count: job.people_count,
     people: job.people || (job.people_count ? `${job.people_count}명` : ""),
     status: job.status,
-    description: job.description,
+    description: job.job_description,
     job_description: job.job_description,
     preference: job.preference,
     dress_code: job.dress_code,
@@ -3377,7 +3361,7 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     matching_no: assignment.assignment_code || `request-interpreter-${assignment.id}`,
     job_id: request.job_id || null,
     request_id: assignment.request_id,
-    company_id: request.company_id,
+    company_id: request.company_id || company.id || request.company_auth_user_id,
     assignment_status: assignmentStatus,
     start_date: startDate,
     end_date: endDate,
@@ -3440,7 +3424,7 @@ function buildCompanyContact({ request = {}, company = {}, contactVisible = true
     phone: getFirstValue(request.contact_phone, request.contact_email_or_phone, company.contact_phone, company.phone),
     email: getFirstValue(request.contact_email, request.contact_email_or_phone, company.contact_email, company.email),
     messenger: getFirstValue(request.contact_kakao, company.kakao_id),
-    readable: Boolean(request.company_id ? company?.id : companyName),
+    readable: Boolean(company?.id || request.company_auth_user_id || companyName),
     visible: true,
   };
 }
