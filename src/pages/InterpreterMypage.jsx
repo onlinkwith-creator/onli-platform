@@ -3124,6 +3124,8 @@ function mapMyAssignmentRow(row = {}) {
     matching_no: row.assignment_code,
     job_id: row.job_id,
     request_id: row.request_id,
+    company_id: row.company_id,
+    assignment_status: row.assignment_status || "assigned",
     start_date: row.start_date,
     end_date: row.end_date,
     status: row.public_status,
@@ -3136,6 +3138,7 @@ function mapMyAssignmentRow(row = {}) {
       phone: row.company_contact_phone ?? null,
       email: row.company_contact_email ?? null,
       messenger: row.company_contact_messenger ?? null,
+      readable: row.is_company_contact_readable ?? null,
     },
     reference_file: getAssignmentReferenceFile(row),
     jobs: mapPublicJobFromMypageRow(row),
@@ -3160,7 +3163,7 @@ function mapMySettlementRow(row = {}) {
 }
 
 function isAssignedPreparationStatus(status) {
-  return ["assignment_completed", "assigned", "preparing", "ready"].includes(String(status || "").trim());
+  return String(status || "").trim() === "assigned";
 }
 
 function isAssignedMatchingStatus(status) {
@@ -3237,7 +3240,8 @@ function getRequestMaterialBucket(filePath = "") {
 }
 
 function getDisplayValue(value) {
-  return value == null ? "-" : String(value);
+  const text = String(value ?? "").trim();
+  return text ? text : "-";
 }
 
 function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
@@ -3273,6 +3277,33 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     });
   }, [expanded, mat.request_id]);
 
+  useEffect(() => {
+    if (!expanded || !isAssignedPreparationStatus(mat.assignment_status)) return;
+
+    console.log("assignment company contact row", {
+      assignmentId: mat.id,
+      requestId: mat.request_id,
+      companyId: mat.company_id,
+      company: mat.company_contact,
+    });
+
+    if (!mat.company_id) {
+      console.warn("request has no company_id", {
+        assignmentId: mat.id,
+        requestId: mat.request_id,
+      });
+      return;
+    }
+
+    if (mat.company_contact?.readable === false) {
+      console.warn("company contact not readable, check RLS or join", {
+        assignmentId: mat.id,
+        requestId: mat.request_id,
+        companyId: mat.company_id,
+      });
+    }
+  }, [expanded, mat]);
+
 
   const handleDownload = async (filePath, fileName) => {
     if (!filePath) return;
@@ -3300,7 +3331,7 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     if (!end || start === end) return start;
     return `${start} ~ ${end}`;
   })();
-  const canShowCompanyContact = isAssignedPreparationStatus(mat.request_assignment_status);
+  const canShowCompanyContact = isAssignedPreparationStatus(mat.assignment_status);
   const companyContact = mat.company_contact || {};
   const contactRows = [
     ["기업명", companyContact.companyName],
