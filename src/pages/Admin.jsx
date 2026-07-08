@@ -3581,11 +3581,20 @@ function sanitizeRecipientEmail(email) {
     payload.platform_profit = platformProfit;
     payload.profit = platformProfit;
 
-    const requestPayload = { ...payload };
-    if (hasInterpreterPaymentInput && nextInterpreterPaymentAmount === null) {
-      delete requestPayload.interpreter_payment;
-      delete requestPayload.interpreter_price;
-      delete requestPayload.interpreter_fee;
+    const requestPayload = {
+      company_amount: companyAmount,
+      client_price: companyAmount,
+      platform_profit: platformProfit,
+      profit: platformProfit,
+      updated_at: new Date().toISOString(),
+    };
+    if (payload.settlement_final_amount === null || payload.settlement_final_amount === undefined) {
+      requestPayload.settlement_final_amount = null;
+    } else {
+      requestPayload.interpreter_payment = interpreterAmountForProfit;
+      requestPayload.interpreter_price = interpreterAmountForProfit;
+      requestPayload.interpreter_fee = interpreterAmountForProfit;
+      requestPayload.settlement_final_amount = interpreterAmountForProfit;
     }
     const previousSettlement = request._settlement || safeSettlements.find(
       (settlement) => String(settlement.request_id) === String(request.id)
@@ -3681,7 +3690,9 @@ function sanitizeRecipientEmail(email) {
   const updateRequestSettlementRow = async (requestId, payload) => {
     const request = requests.find((item) => String(item.id) === String(requestId));
     const safePayload = filterRequestUpdatePayload(payload, request);
+    delete safePayload.company_fee;
     delete safePayload.settlement_status;
+    delete safePayload.payment_status;
     const { data, error } = await supabase
       .from("requests")
       .update(safePayload)
@@ -3697,13 +3708,11 @@ function sanitizeRecipientEmail(email) {
       requestId,
       error,
     });
-    const legacyPayload = {
+    const legacyPayload = Object.fromEntries(Object.entries({
       client_price: payload.company_amount,
       interpreter_price: payload.interpreter_payment,
       profit: payload.platform_profit,
-      payment_status: payload.payment_status,
-      settlement_status: payload.settlement_status,
-    };
+    }).filter(([, value]) => value !== undefined));
 
     let { data: fallbackData, error: fallbackError } = await supabase
       .from("requests")
