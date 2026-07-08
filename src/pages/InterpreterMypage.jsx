@@ -855,16 +855,72 @@ function InterpreterMypage({
   };
 
   const fetchMatchingsData = async (interpreterId) => {
-    if (!supabase) return [];
+    if (!supabase || !interpreterId) return [];
 
-    const { data, error } = await supabase.rpc("get_my_assignments");
+    const { data, error } = await supabase
+      .from("request_interpreters")
+      .select(`
+        id,
+        request_id,
+        interpreter_id,
+        status,
+        assignment_status,
+        assigned_at,
+        contact_visible,
+        is_contact_visible,
+        contact_revealed,
+        requests:request_id (
+          id,
+          job_id,
+          request_no,
+          title,
+          event_name,
+          event_start_date,
+          event_end_date,
+          start_date,
+          end_date,
+          event_date,
+          event_location,
+          company_id,
+          company_name,
+          contact_name,
+          contact_phone,
+          contact_email,
+          contact_kakao,
+          contact_email_or_phone,
+          reference_file_name,
+          reference_file_path,
+          reference_file_url,
+          businesses:company_id (
+            id,
+            company_name,
+            contact_name,
+            contact_phone,
+            contact_email,
+            kakao_id
+          ),
+          documents (
+            id,
+            document_type,
+            title,
+            file_name,
+            file_url,
+            storage_path,
+            file_path,
+            status
+          )
+        )
+      `)
+      .eq("interpreter_id", interpreterId)
+      .in("assignment_status", ["assigned", "confirmed", "배정완료"])
+      .order("assigned_at", { ascending: false });
 
     if (error) {
-      console.error("get_my_assignments RPC failed", error);
+      console.error("request_interpreters work preparation fetch failed", error);
       return [];
     }
 
-    return (data || []).map(mapMyAssignmentRow);
+    return (data || []).map(mapRequestInterpreterAssignmentRow);
   };
 
   const fetchSettlementsData = async () => {
@@ -3145,6 +3201,94 @@ function mapMyAssignmentRow(row = {}) {
   };
 }
 
+function mapRequestInterpreterAssignmentRow(row = {}) {
+  const request = Array.isArray(row.requests) ? row.requests[0] : row.requests || {};
+  const company = Array.isArray(request.businesses)
+    ? request.businesses[0]
+    : request.businesses || {};
+  const documents = Array.isArray(request.documents) ? request.documents : [];
+  const assignmentStatus = normalizeAssignmentStatusValue(
+    row.assignment_status || row.status
+  );
+  const contactVisible =
+    assignmentStatus === "assigned" ||
+    Boolean(row.contact_visible || row.is_contact_visible || row.contact_revealed);
+  const companyContact = buildCompanyContact({ request, company, contactVisible });
+  const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
+  const endDate = getFirstValue(request.event_end_date, request.end_date);
+  const mappedRequest = {
+    id: row.id,
+    matching_no: row.assignment_code || `request-interpreter-${row.id}`,
+    job_id: request.job_id || null,
+    request_id: row.request_id,
+    company_id: request.company_id,
+    assignment_status: assignmentStatus,
+    start_date: startDate,
+    end_date: endDate,
+    status: assignmentStatus,
+    created_at: row.assigned_at,
+    request_assignment_status: assignmentStatus,
+    is_contact_visible: contactVisible,
+    company_contact: companyContact,
+    reference_file: getAssignmentReferenceFileFromRequest(request, documents),
+    jobs: mapPublicJobFromRequestInterpreterRow({ request, startDate, endDate }),
+  };
+
+  return mappedRequest;
+}
+
+function mapPublicJobFromRequestInterpreterRow({ request = {}, startDate, endDate }) {
+  const title = getRequestDisplayTitle(request);
+
+  return {
+    id: request.job_id || request.id,
+    job_no: request.request_no,
+    title,
+    event_name: getFirstNonNumericValue(request.event_name, request.title) || title,
+    date: startDate,
+    event_date: startDate,
+    start_date: startDate,
+    end_date: endDate,
+    location: request.event_location,
+    event_location: request.event_location,
+    status: "assigned",
+  };
+}
+
+function getRequestDisplayTitle(request = {}) {
+  const title = getFirstNonNumericValue(request.event_name, request.title);
+  return title || (request.id ? `의뢰 ${request.id}` : "배정된 통역");
+}
+
+function buildCompanyContact({ request = {}, company = {}, contactVisible = true }) {
+  const companyName = getFirstValue(
+    request.company_name,
+    company.company_name
+  );
+
+  if (!contactVisible) {
+    return {
+      companyName,
+      contactName: "연락처 공개 전",
+      phone: "연락처 공개 전",
+      email: "연락처 공개 전",
+      messenger: "연락처 공개 전",
+      readable: true,
+      visible: false,
+    };
+  }
+
+  return {
+    companyName,
+    contactName: getFirstValue(request.contact_name, company.contact_name),
+    phone: getFirstValue(request.contact_phone, company.contact_phone, company.phone),
+    email: getFirstValue(request.contact_email, company.contact_email, company.email),
+    messenger: getFirstValue(request.contact_kakao, company.kakao_id),
+    readable: Boolean(request.company_id ? company?.id : companyName),
+    visible: true,
+  };
+}
+
 
 function mapMySettlementRow(row = {}) {
   return {
@@ -3233,6 +3377,68 @@ function getAssignmentReferenceFile(row = {}) {
   };
 }
 
+function getAssignmentReferenceFileFromRequest(request = {}, documents = []) {
+  const document = documents.find((item) =>
+    isKnownRequestMaterialPath(getFirstValue(item.storage_path, item.file_path, item.file_url))
+  );
+  const fileName = getFirstValue(
+    request.reference_file_name,
+    document?.file_name,
+    document?.title
+  );
+  const filePath = getFirstValue(
+    request.reference_file_path,
+    request.reference_file_url,
+    document?.storage_path,
+    document?.file_path,
+    document?.file_url
+  );
+  if (!fileName && !filePath) return null;
+
+  return {
+    id: `reference-${request.id || document?.id || filePath}`,
+    file_name: fileName || filePath.split("/").pop() || "첨부 파일",
+    original_file_name: fileName || filePath.split("/").pop() || "첨부 파일",
+    file_path: getStoragePathFromUrl(filePath, REQUEST_REFERENCE_BUCKET) || filePath,
+    file_type: document?.document_type || "참고 자료",
+  };
+}
+
+function isKnownRequestMaterialPath(filePath = "") {
+  const path = String(filePath || "").trim();
+  return (
+    path.startsWith("requests/reference_files/") ||
+    path.startsWith("requests/materials/") ||
+    path.startsWith("http://") ||
+    path.startsWith("https://")
+  );
+}
+
+function getFirstValue(...values) {
+  for (const value of values) {
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function getFirstNonNumericValue(...values) {
+  for (const value of values) {
+    const text = getFirstValue(value);
+    if (text && !/^\d+$/.test(text)) return text;
+  }
+  return "";
+}
+
+function normalizeAssignmentStatusValue(status) {
+  const normalized = String(status || "").trim();
+  if (["assigned", "confirmed", "배정완료", "assignment_completed"].includes(normalized)) {
+    return "assigned";
+  }
+  return normalized || "assigned";
+}
+
 function getRequestMaterialBucket(filePath = "") {
   const path = String(filePath || "");
   if (path.startsWith("requests/reference_files/")) return REQUEST_REFERENCE_BUCKET;
@@ -3280,13 +3486,6 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
   useEffect(() => {
     if (!expanded || !isAssignedPreparationStatus(mat.assignment_status)) return;
 
-    console.log("assignment company contact row", {
-      assignmentId: mat.id,
-      requestId: mat.request_id,
-      companyId: mat.company_id,
-      company: mat.company_contact,
-    });
-
     if (!mat.company_id) {
       console.warn("request has no company_id", {
         assignmentId: mat.id,
@@ -3327,7 +3526,7 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     material.original_file_name || material.file_name || "자료 파일";
 
   const scheduleText = (() => {
-    if (!start && !end) return "일정 미등록";
+    if (!start && !end) return "-";
     if (!end || start === end) return start;
     return `${start} ~ ${end}`;
   })();
