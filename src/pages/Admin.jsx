@@ -3494,7 +3494,10 @@ function sanitizeRecipientEmail(email) {
     }
 
     const workDays = Math.max(1, Number(payload.settlement_work_days || 1));
-    const amount = normalizeMoneyInput(payload.settlement_final_amount);
+    const amount =
+      payload.settlement_final_amount === null
+        ? null
+        : normalizeMoneyInput(payload.settlement_final_amount);
     const settlementPayload = Object.entries({
       request_id: Number(request.id),
       interpreter_id: Number(interpreterId),
@@ -3504,7 +3507,7 @@ function sanitizeRecipientEmail(email) {
       status: payload.settlement_status,
       payout_status: mapSettlementFlowStatusToPayoutStatus(payload.settlement_status),
       work_days: workDays,
-      daily_rate: workDays > 0 ? amount / workDays : amount,
+      daily_rate: amount === null ? 0 : workDays > 0 ? amount / workDays : amount,
       extra_amount: normalizeMoneyInput(payload.settlement_extra_amount),
       deduction_amount: normalizeMoneyInput(payload.settlement_deduction_amount),
       admin_memo: payload.settlement_memo || "",
@@ -3529,19 +3532,52 @@ function sanitizeRecipientEmail(email) {
       .single();
   };
 
-  const saveSettlement = async (request) => {
+  const saveSettlement = async (request, options = {}) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
       return;
     }
 
-    const payload = getSettlementSavePayload(request);
+    const hasInterpreterPaymentInput = Object.prototype.hasOwnProperty.call(
+      options,
+      "interpreterPaymentInput"
+    );
+    const rawInterpreterPaymentInput = String(options.interpreterPaymentInput ?? "").trim();
+    const nextInterpreterPaymentAmount = rawInterpreterPaymentInput === ""
+      ? null
+      : Number(rawInterpreterPaymentInput.replaceAll(",", ""));
+
+    if (
+      hasInterpreterPaymentInput &&
+      nextInterpreterPaymentAmount !== null &&
+      (Number.isNaN(nextInterpreterPaymentAmount) || nextInterpreterPaymentAmount < 0)
+    ) {
+      alert("통역사 지급액을 올바르게 입력해 주세요.");
+      return;
+    }
+
+    const payload = {
+      ...getSettlementSavePayload(request),
+      ...(hasInterpreterPaymentInput
+        ? {
+            settlement_final_amount: nextInterpreterPaymentAmount,
+            interpreter_payment: nextInterpreterPaymentAmount,
+            interpreter_price: nextInterpreterPaymentAmount,
+          }
+        : {}),
+    };
+    const requestPayload = { ...payload };
+    if (hasInterpreterPaymentInput && nextInterpreterPaymentAmount === null) {
+      delete requestPayload.interpreter_payment;
+      delete requestPayload.interpreter_price;
+      delete requestPayload.interpreter_fee;
+    }
     const previousSettlement = request._settlement || safeSettlements.find(
       (settlement) => String(settlement.request_id) === String(request.id)
     ) || null;
 
     setSavingKey(`request-${request.id}`);
-    const { data, error } = await updateRequestSettlementRow(request.id, payload);
+    const { data, error } = await updateRequestSettlementRow(request.id, requestPayload);
     let settlementResult = { data: null, error: null };
     if (!error) {
       settlementResult = await saveSettlementRecordForRequest(
@@ -3555,7 +3591,7 @@ function sanitizeRecipientEmail(email) {
       console.error("정산 저장 디버그:", {
         table: "requests",
         id: request.id,
-        payload,
+        payload: requestPayload,
         error,
       });
       alert(`정산 저장에 실패했습니다: ${error.message || "원인을 확인해주세요."}`);
@@ -3580,17 +3616,22 @@ function sanitizeRecipientEmail(email) {
 
     setRequests((current) =>
       current.map((item) =>
-        item.id === request.id ? { ...item, ...payload, ...(data || {}) } : item
+        item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
       )
     );
     setSelectedRequest((current) =>
-      current?.id === request.id ? { ...current, ...payload, ...(data || {}) } : current
+      current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
     );
     setSettlements((current) => upsertById(current, settlementResult.data));
-    if (
-      Number(previousSettlement?.amount ?? 0) !==
-      Number(settlementResult.data.amount ?? 0)
-    ) {
+    const previousAmountForHistory =
+      previousSettlement?.amount === null || previousSettlement?.amount === undefined
+        ? null
+        : Number(previousSettlement.amount);
+    const nextAmountForHistory =
+      settlementResult.data.amount === null || settlementResult.data.amount === undefined
+        ? null
+        : Number(settlementResult.data.amount);
+    if (previousAmountForHistory !== nextAmountForHistory) {
       queueMicrotask(() => {
         recordInterpreterSettlementAmountChange(previousSettlement, settlementResult.data);
       });
@@ -3598,6 +3639,7 @@ function sanitizeRecipientEmail(email) {
     await fetchAdminData();
     await refreshAdminOperationsData();
     alert("정산 정보가 저장되었습니다.");
+    return true;
   };
 
   const completeSettlementFromPendingModal = async (request) => {
@@ -8101,7 +8143,47 @@ function RequestDetailPanel({
   const [eventStartDate, setEventStartDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
   const [openEventDatePicker, setOpenEventDatePicker] = useState(null);
+  const [interpreterPaymentInputs, setInterpreterPaymentInputs] = useState({});
   const eventDatePickerRef = useRef(null);
+  const interpreterPaymentInputKey = String(safeRequest?.id || "");
+  const savedInterpreterPaymentInput =
+    settlement?.amount === null || settlement?.amount === undefined ? "" : String(settlement.amount);
+  const hasInterpreterPaymentDraft =
+    interpreterPaymentInputKey &&
+    Object.prototype.hasOwnProperty.call(interpreterPaymentInputs, interpreterPaymentInputKey);
+  const interpreterPaymentInput = hasInterpreterPaymentDraft
+    ? interpreterPaymentInputs[interpreterPaymentInputKey]
+    : savedInterpreterPaymentInput;
+
+  const handleInterpreterPaymentInputChange = (event) => {
+    const value = event.target.value;
+    if (!interpreterPaymentInputKey) return;
+    if (value === "") {
+      setInterpreterPaymentInputs((current) => ({
+        ...current,
+        [interpreterPaymentInputKey]: "",
+      }));
+      return;
+    }
+    setInterpreterPaymentInputs((current) => ({
+      ...current,
+      [interpreterPaymentInputKey]: value.replace(/[^\d,]/g, ""),
+    }));
+  };
+
+  const handleSaveSettlement = async () => {
+    const saved = await saveSettlement(safeRequest, { interpreterPaymentInput });
+    if (!saved || !interpreterPaymentInputKey) return;
+
+    setInterpreterPaymentInputs((current) => {
+      if (!Object.prototype.hasOwnProperty.call(current, interpreterPaymentInputKey)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[interpreterPaymentInputKey];
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!request) return;
@@ -8616,13 +8698,14 @@ function RequestDetailPanel({
                 value={getCompanyAmount(safeRequest)}
                 onChange={(value) => safeRequest?.id && handlePriceDraft(safeRequest.id, "company_amount", value)}
               />
-              <NumberControl
-                label="통역사 지급액"
-                value={getInterpreterPayment(safeRequest)}
-                onChange={(value) =>
-                  safeRequest?.id && handlePriceDraft(safeRequest.id, "interpreter_payment", value)
-                }
-              />
+              <FieldControl label="통역사 지급액">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={interpreterPaymentInput}
+                  onChange={handleInterpreterPaymentInputChange}
+                />
+              </FieldControl>
               <div className="admin-profit">
                 <span>플랫폼 수익</span>
                 <strong className={getPlatformProfit(safeRequest) < 0 ? "is-negative" : ""}>
@@ -8633,7 +8716,7 @@ function RequestDetailPanel({
                 type="button"
                 className="admin-save"
                 disabled={savingKey === `request-${safeRequest?.id}`}
-                onClick={() => saveSettlement(safeRequest)}
+                onClick={handleSaveSettlement}
               >
                 정산 저장
               </button>
