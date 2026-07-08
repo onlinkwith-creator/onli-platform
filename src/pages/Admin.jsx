@@ -978,7 +978,7 @@ function sanitizeRecipientEmail(email) {
   const safePayments = useMemo(() => (Array.isArray(payments) ? payments : []), [payments]);
   const safeSettlements = useMemo(() => (Array.isArray(settlements) ? settlements : []), [settlements]);
   const settlementManagementRows = useMemo(
-    () => buildSettlementManagementRows({ requests, assignments, interpreters, settlements: safeSettlements }),
+    () => loadAdminRequestRows({ requests, assignments, interpreters, settlements: safeSettlements }),
     [assignments, interpreters, requests, safeSettlements]
   );
   const jobApplicationsByJob = useMemo(
@@ -3427,9 +3427,12 @@ function sanitizeRecipientEmail(email) {
     const amount = normalizeMoneyInput(payload.settlement_final_amount);
     const settlementPayload = Object.entries({
       request_id: Number(request.id),
+      job_id: request.job_id || null,
+      company_id: request.company_id || null,
       interpreter_id: Number(interpreterId),
       assignment_id: assignment?.id || request._settlement?.assignment_id,
       amount,
+      settlement_status: normalizeAdminSettlementStatus(payload.settlement_status),
       status: payload.settlement_status,
       payout_status: mapSettlementFlowStatusToPayoutStatus(payload.settlement_status),
       work_days: workDays,
@@ -3523,37 +3526,11 @@ function sanitizeRecipientEmail(email) {
 
     if (!window.confirm("정산완료로 변경하시겠습니까?")) return;
 
-    const payload = {
-      ...getSettlementSavePayload({
-        ...request,
-        settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
-      }),
-      settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
-      settlement_completed_at: new Date().toISOString(),
-    };
-
     setSavingKey(`settlement-pending-${request.id}`);
-    let { error } = await supabase
-      .from("requests")
-      .update(payload)
-      .eq("id", request.id);
-
-    if (error && isMissingColumnError(error)) {
-      ({ error } = await supabase
-        .from("requests")
-        .update(payload)
-        .eq("id", request.id));
-    }
-
+    await updateSettlementManagementStatus(request, {
+      settlement_status: ADMIN_SETTLEMENT_STATUS.COMPLETED,
+    });
     setSavingKey("");
-
-    if (error) {
-      alert(`정산완료 처리 실패: ${error.message}`);
-      return;
-    }
-
-    await fetchAdminData();
-    await refreshAdminOperationsData();
   };
 
   const openRequestDetailFromSettlementPending = (request) => {
@@ -3564,6 +3541,7 @@ function sanitizeRecipientEmail(email) {
   const updateRequestSettlementRow = async (requestId, payload) => {
     const request = requests.find((item) => String(item.id) === String(requestId));
     const safePayload = filterRequestUpdatePayload(payload, request);
+    delete safePayload.settlement_status;
     const { data, error } = await supabase
       .from("requests")
       .update(safePayload)
@@ -4403,7 +4381,20 @@ function sanitizeRecipientEmail(email) {
       }
 
       if (!settlementId) {
-        throw new Error("상태를 변경할 정산 레코드를 찾을 수 없습니다.");
+        const settlementPayload = getSettlementSavePayload({
+          ...request,
+          settlement_status: ADMIN_SETTLEMENT_STATUS.WAITING,
+        });
+        const createResult = await saveSettlementRecordForRequest(
+          { ...request, settlement_status: ADMIN_SETTLEMENT_STATUS.WAITING },
+          settlementPayload
+        );
+        if (createResult.error) throw createResult.error;
+        settlementId = createResult.data?.id;
+      }
+
+      if (!settlementId) {
+        throw new Error("정산 row를 생성할 수 없습니다. 연결된 통역사 정보를 확인해주세요.");
       }
 
       const { error } = await supabase.rpc("admin_update_settlement_status", {
@@ -6886,10 +6877,10 @@ function InterpreterSettlementManagement({
             <tbody>
               {rows.map(({ settlement, request, interpreter, document }) => (
                 <tr key={`${statusScope}-${getSettlementRequestRowKey(request)}-${settlement.id}`}>
-                  <td>{request.event_name || request.title || "정보 없음"}</td>
+                  <td>{request.request_title || request.event_name || request.title || "정보 없음"}</td>
                   <td>{formatManagementNumber(request.request_code || request.request_no || request.management_no || request.id)}</td>
                   <td>{request.company_name || request.business_name || "정보 없음"}</td>
-                  <td>{interpreter.name || request.assigned_interpreter_name || request.matched_interpreter_name || "정보 없음"}</td>
+                  <td>{interpreter.name || request.interpreter_name || request.assigned_interpreter_name || request.matched_interpreter_name || "정보 없음"}</td>
                   <td>
                     {request.id
                       ? formatDateRange(
@@ -6899,12 +6890,12 @@ function InterpreterSettlementManagement({
                         )
                       : "정보 없음"}
                   </td>
-                  <td>{formatJPY(settlement.daily_rate)}</td>
-                  <td>{settlement.work_days || request.settlement_work_days || "-"}</td>
-                  <td>{formatJPY(settlement.amount)}</td>
+                  <td>{formatJPY(settlement.daily_rate || request.daily_rate)}</td>
+                  <td>{settlement.work_days || request.work_days || request.settlement_work_days || "-"}</td>
+                  <td>{formatJPY(settlement.amount || request.interpreter_total_amount)}</td>
                   <td>
-                    <span className={`status-badge ${getSettlementPayoutBadgeClass(settlement.payout_status)}`}>
-                      {getSettlementPayoutStatusLabel(settlement.payout_status)}
+                    <span className={`status-badge ${getSettlementPayoutBadgeClass(settlement.settlement_status)}`}>
+                      {getSettlementPayoutStatusLabel(settlement.settlement_status)}
                     </span>
                   </td>
                   <td>{formatDateTime(settlement.settlement_confirmed_at || request.settlement_confirmed_at)}</td>
@@ -6945,17 +6936,17 @@ function InterpreterSettlementManagement({
               >
                 <div className="admin-settlement-card-head">
                   <div>
-                    <strong>{request.event_name || request.title || "정보 없음"}</strong>
+                    <strong>{request.request_title || request.event_name || request.title || "정보 없음"}</strong>
                     <span>{formatManagementNumber(request.request_code || request.request_no || request.management_no || request.id)}</span>
                   </div>
-                  <span className={`status-badge ${getSettlementPayoutBadgeClass(settlement.payout_status)}`}>
-                    {getSettlementPayoutStatusLabel(settlement.payout_status)}
+                  <span className={`status-badge ${getSettlementPayoutBadgeClass(settlement.settlement_status)}`}>
+                    {getSettlementPayoutStatusLabel(settlement.settlement_status)}
                   </span>
                 </div>
                 <dl>
                   <div>
                     <dt>통역사명</dt>
-                    <dd>{interpreter.name || request.assigned_interpreter_name || request.matched_interpreter_name || "정보 없음"}</dd>
+                    <dd>{interpreter.name || request.interpreter_name || request.assigned_interpreter_name || request.matched_interpreter_name || "정보 없음"}</dd>
                   </div>
                   <div>
                     <dt>업무일</dt>
@@ -6973,15 +6964,15 @@ function InterpreterSettlementManagement({
                   </div>
                   <div>
                     <dt>일당</dt>
-                    <dd>{formatJPY(settlement.daily_rate)}</dd>
+                    <dd>{formatJPY(settlement.daily_rate || request.daily_rate)}</dd>
                   </div>
                   <div>
                     <dt>근무 일수</dt>
-                    <dd>{settlement.work_days || request.settlement_work_days || "-"}</dd>
+                    <dd>{settlement.work_days || request.work_days || request.settlement_work_days || "-"}</dd>
                   </div>
                   <div>
                     <dt>최종 지급 금액</dt>
-                    <dd>{formatJPY(settlement.amount)}</dd>
+                    <dd>{formatJPY(settlement.amount || request.interpreter_total_amount)}</dd>
                   </div>
                   <div>
                     <dt>정산 확정일</dt>
@@ -12008,7 +11999,9 @@ function SettlementRequestCard({
   const settlementAmounts = calculateSettlementAmounts(draft);
   const interpreterPrice = settlementAmounts.settlement_final_amount;
   const paymentStatus = normalizePaymentStatus(request.payment_status);
-  const settlementStatus = getSettlementStatusValue(request);
+  const settlementStatus = normalizeAdminSettlementStatus(
+    request._settlement?.settlement_status || request.settlement_status
+  );
   const settlementSavingKey = `settlement-request-${getSettlementRequestRowKey(request)}`;
   const eventDate = formatDateRange(request.start_date, request.end_date, request.event_date);
   const dailyRate = SETTLEMENT_LEVEL_DEFAULTS[draft.settlement_level || "LV1"]?.interpreter_payment || 0;
@@ -12037,9 +12030,9 @@ function SettlementRequestCard({
       ...getSettlementSavePayload({
         ...request,
         ...draft,
-        settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
+        settlement_status: ADMIN_SETTLEMENT_STATUS.COMPLETED,
       }),
-      settlement_status: SETTLEMENT_FLOW_STATUS.COMPLETED,
+      settlement_status: ADMIN_SETTLEMENT_STATUS.COMPLETED,
       settlement_completed_at: new Date().toISOString(),
     });
     closeMoreMenu();
@@ -12078,7 +12071,7 @@ function SettlementRequestCard({
             <ManagementNumberBadge value={request.request_no} />
           </div>
           <span className={`admin-flow-status-badge ${getOperationFlowBadgeClass("settlement", settlementStatus)}`}>
-            {getSettlementFlowStatusLabel(settlementStatus)}
+            {getSettlementStatusLabel(settlementStatus)}
           </span>
         </div>
 
@@ -12097,7 +12090,7 @@ function SettlementRequestCard({
           <FlowStatusBadge
             type="settlement"
             value={settlementStatus}
-            label={`지급 상태: ${getSettlementFlowStatusLabel(settlementStatus)}`}
+            label={`지급 상태: ${getSettlementStatusLabel(settlementStatus)}`}
           />
           <span className="status-badge badge-gray" style={{ fontSize: "11px", fontWeight: "700" }}>
             레벨: {draft.settlement_level || "-"}
@@ -12165,9 +12158,7 @@ function SettlementRequestCard({
                 </FieldControl>
                 <FieldControl label="지급 상태 변경">
                   <InlineSelect
-                    options={SETTLEMENT_FLOW_STATUS_OPTIONS.filter(
-                      (option) => option.value !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
-                    )}
+                    options={SETTLEMENT_STATUS_OPTIONS}
                     value={draft.settlement_status}
                     disabled={savingKey === settlementSavingKey}
                     onChange={(value) =>
@@ -12284,7 +12275,7 @@ function SettlementRequestCard({
                       >
                         수정 저장
                       </button>
-                      {settlementStatus !== SETTLEMENT_FLOW_STATUS.COMPLETED && (
+                      {settlementStatus !== ADMIN_SETTLEMENT_STATUS.COMPLETED && (
                         <button
                           type="button"
                           className="request-more-item"
@@ -13372,7 +13363,6 @@ function buildJobPayloadFromRequest(request) {
     status: JOB_STATUS.RECRUITING,
     assignment_status: normalizeAssignmentStatus(request),
     operation_status: normalizeOperationStatus(request),
-    settlement_status: getSettlementStatusValue(request),
     visibility: "public",
     request_type: getDesignatedRequestType(request).label,
     selected_interpreter_id: request.selected_interpreter_id || request.interpreter_id || null,
@@ -14425,7 +14415,7 @@ function doesInterpreterSettlementMatchFilters(row = {}, filters = {}) {
   if (
     filters.status &&
     filters.status !== "all" &&
-    normalizeSettlementPayoutStatus(settlement.payout_status) !== filters.status
+    normalizeSettlementPayoutStatus(settlement.settlement_status) !== filters.status
   ) {
     return false;
   }
@@ -14675,17 +14665,18 @@ function buildRevenueSummary({ settlementRowsByScope = {} } = {}) {
   const confirmedRows = settlementRowsByScope.confirmed || [];
   const payingRows = settlementRowsByScope.paying || [];
   const completedRows = settlementRowsByScope.completed || [];
-  const billingRows = [...pendingRows, ...confirmedRows, ...payingRows, ...completedRows];
-  const payoutRows = [...pendingRows, ...confirmedRows, ...payingRows].filter(
-    (request) => !isSettlementPaid(request)
-  );
+  const summaryRows = [...pendingRows, ...confirmedRows, ...payingRows, ...completedRows];
 
-  const companyAmount = billingRows.reduce(
-    (sum, request) => sum + getCompanyAmount(request),
+  const companyAmount = summaryRows.reduce(
+    (sum, request) => sum + normalizeMoneyInput(request.company_invoice_amount ?? getCompanyAmount(request)),
     0
   );
-  const interpreterAmount = payoutRows.reduce(
-    (sum, request) => sum + getInterpreterPaymentForSummary(request),
+  const interpreterAmount = summaryRows.reduce(
+    (sum, request) =>
+      sum +
+      normalizeMoneyInput(
+        request.interpreter_total_amount ?? getInterpreterPaymentForSummary(request)
+      ),
     0
   );
 
@@ -15616,7 +15607,9 @@ function getSettlementSavePayload(request = {}) {
     platform_profit: companyAmount - finalAmount,
     profit: companyAmount - finalAmount,
     settlement_memo: request.settlement_memo || "",
-    settlement_status: getSettlementStatusValue(request),
+    settlement_status: normalizeAdminSettlementStatus(
+      request._settlement?.settlement_status || request.settlement_status
+    ),
     payment_status: request.payment_status || "unpaid",
   };
 }
@@ -15646,6 +15639,10 @@ function mapAdminSettlementStatusToDbStatus(status) {
   if (normalized === "settlement_paying") return "settlement_paying";
   if (normalized === "settlement_confirmed") return "settlement_confirmed";
   return "settlement_waiting";
+}
+
+function loadAdminRequestRows(args = {}) {
+  return buildSettlementManagementRows(args);
 }
 
 function buildSettlementManagementRows({ requests = [], assignments = [], interpreters = [], settlements = [] } = {}) {
@@ -15715,17 +15712,35 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
               row.interpreter_price ??
               0
           );
+          const workDays = Math.max(1, Number(settlement.work_days || row.settlement_work_days || 1));
+          const dailyRate = normalizeMoneyInput(
+            settlement.daily_rate || row.daily_rate || (workDays > 0 ? amount / workDays : amount)
+          );
+          const companyAmount = getCompanyAmount(row);
           return {
             ...row,
             _settlement_id: settlement.id,
             _settlement: settlement,
-            payout_status: settlement.settlement_status || settlement.status || settlement.payout_status || row.payout_status,
+            request_id: row.id || row.request_id,
+            request_code: row.request_code || row.request_no || row.management_no || "",
+            request_title: row.event_name || row.title || "",
+            job_id: settlement.job_id || row.job_id || null,
+            company_id: settlement.company_id || row.company_id || null,
+            assignment_id: settlement.assignment_id || row._assignment_id || null,
+            interpreter_id: settlement.interpreter_id || row.assigned_interpreter_id || row.matched_interpreter_id || null,
+            interpreter_name: row.assigned_interpreter_name || row.matched_interpreter_name || "",
+            settlement_id: settlement.id,
+            payout_status: settlement.settlement_status,
             paid_at: settlement.paid_at || row.paid_at,
             interpreter_payment_started_at: settlement.interpreter_payment_started_at || row.interpreter_payment_started_at,
             settlement_confirmed_at: settlement.settlement_confirmed_at || row.settlement_confirmed_at,
             settlement_final_amount: amount || row.settlement_final_amount,
             interpreter_payment: amount || row.interpreter_payment,
             interpreter_price: amount || row.interpreter_price,
+            interpreter_total_amount: amount,
+            company_invoice_amount: companyAmount,
+            daily_rate: dailyRate,
+            work_days: workDays,
             settlement_completed_at: settlement.settlement_completed_at || settlement.paid_at || row.settlement_completed_at,
             assigned_interpreter_id:
               settlement.interpreter_id || row.assigned_interpreter_id || row.matched_interpreter_id,
@@ -15733,7 +15748,30 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
               settlement.interpreter_id || row.matched_interpreter_id || row.assigned_interpreter_id,
           };
         })()
-      : row;
+      : (() => {
+          const calculated = calculateSettlementAmounts(row);
+          const workDays = Math.max(1, Number(row.settlement_work_days || calculated.settlement_work_days || 1));
+          const amount = normalizeMoneyInput(
+            row.settlement_final_amount || row.interpreter_payment || row.interpreter_price || calculated.settlement_final_amount
+          );
+          const companyAmount = getCompanyAmount(row);
+          return {
+            ...row,
+            request_id: row.id || row.request_id,
+            request_code: row.request_code || row.request_no || row.management_no || "",
+            request_title: row.event_name || row.title || "",
+            job_id: row.job_id || null,
+            company_id: row.company_id || null,
+            assignment_id: row._assignment_id || null,
+            interpreter_id: row.assigned_interpreter_id || row.matched_interpreter_id || row.interpreter_id || null,
+            interpreter_name: row.assigned_interpreter_name || row.matched_interpreter_name || "",
+            settlement_id: null,
+            interpreter_total_amount: amount,
+            company_invoice_amount: companyAmount,
+            daily_rate: workDays > 0 ? amount / workDays : amount,
+            work_days: workDays,
+          };
+        })();
     const settlementStatus = settlement
       ? normalizeAdminSettlementStatus(settlement.settlement_status)
       : ADMIN_SETTLEMENT_STATUS.WAITING;
@@ -15793,10 +15831,10 @@ function uniqueSettlementBaseRows(rows = []) {
 function isSettlementManagementCandidate(request = {}) {
   if (!request?.id) return false;
   if (request._settlement?.id) return true;
-  return (
-    isSettlementOperationCompleted(request) ||
-    isCompletedRequest(request) ||
-    isSettlementAssignmentReady(request)
+  return isSettlementAssignmentReady(request) || Boolean(
+    request.interpreter_id ||
+      request.assigned_interpreter_id ||
+      request.matched_interpreter_id
   );
 }
 
@@ -15933,13 +15971,17 @@ function buildSettlementPreviewFromRequest(request = {}, settlements = []) {
     id: existingSettlement?.id || `request-settlement-${request.id}`,
     is_virtual: !existingSettlement,
     request_id: request.id || request.request_id,
+    job_id: existingSettlement?.job_id || request.job_id || null,
+    company_id: existingSettlement?.company_id || request.company_id || null,
+    assignment_id: existingSettlement?.assignment_id || request.assignment_id || request._assignment_id || null,
     interpreter_id: interpreterId,
     amount,
+    settlement_status: existingSettlement
+      ? normalizeAdminSettlementStatus(existingSettlement.settlement_status)
+      : ADMIN_SETTLEMENT_STATUS.WAITING,
     payout_status: existingSettlement
-      ? normalizeAdminSettlementStatus(
-          existingSettlement.settlement_status || existingSettlement.status || existingSettlement.payout_status
-        )
-      : "settlement_waiting",
+      ? normalizeAdminSettlementStatus(existingSettlement.settlement_status)
+      : ADMIN_SETTLEMENT_STATUS.WAITING,
     work_days: existingSettlement?.work_days || assignment.work_days || workDays,
     daily_rate: existingSettlement?.daily_rate || assignment.daily_rate || (workDays > 0 ? amount / workDays : amount),
     extra_amount: normalizeMoneyInput(existingSettlement?.extra_amount ?? calculated.settlement_extra_amount),
@@ -15970,7 +16012,9 @@ function createSettlementDraft(request = {}) {
     settlement_extra_amount: calculated.settlement_extra_amount,
     settlement_deduction_amount: calculated.settlement_deduction_amount,
     settlement_final_amount: calculated.settlement_final_amount,
-    settlement_status: getSettlementStatusValue(request),
+    settlement_status: normalizeAdminSettlementStatus(
+      request._settlement?.settlement_status || request.settlement_status
+    ),
     settlement_memo: request.settlement_memo || "",
     payment_status: request.payment_status || "unpaid",
   };
