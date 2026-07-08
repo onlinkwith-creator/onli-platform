@@ -7329,9 +7329,27 @@ function BusinessManagement({
 }) {
   const [editingNotesId, setEditingNotesId] = useState(null);
   const [notesDraft, setNotesDraft] = useState("");
+  const [detailModal, setDetailModal] = useState({
+    business: null,
+    error: "",
+    loading: false,
+    requests: [],
+    settlements: [],
+  });
+  const [activeDetailTab, setActiveDetailTab] = useState("basic");
 
-  const getRequestCount = (authUserId) => {
-    return requests.filter((r) => r.company_auth_user_id === authUserId).length;
+  const getBusinessRequests = (biz, sourceRequests = requests) => {
+    if (!biz) return [];
+    const authUserId = String(biz.auth_user_id || "");
+    const companyName = String(biz.company_name || "").trim();
+    return sourceRequests.filter((request) => {
+      if (authUserId && String(request.company_auth_user_id || "") === authUserId) return true;
+      return companyName && String(request.company_name || "").trim() === companyName;
+    });
+  };
+
+  const getRequestCount = (biz) => {
+    return getBusinessRequests(biz).length;
   };
 
   const handleStartEditNotes = (biz) => {
@@ -7343,6 +7361,107 @@ function BusinessManagement({
     onUpdateNotes(bizId, notesDraft);
     setEditingNotesId(null);
   };
+
+  const openBusinessDetail = async (biz) => {
+    setActiveDetailTab("basic");
+    setDetailModal({
+      business: biz,
+      error: "",
+      loading: true,
+      requests: [],
+      settlements: [],
+    });
+
+    try {
+      const { data: businessData, error: businessError } = await supabase
+        .from("businesses")
+        .select("*")
+        .eq("id", biz.id)
+        .maybeSingle();
+      if (businessError) throw businessError;
+
+      const business = businessData || biz;
+      const requestResults = [];
+      if (business.auth_user_id) {
+        const result = await supabase
+          .from("requests")
+          .select("*")
+          .eq("company_auth_user_id", business.auth_user_id)
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (result.error) throw result.error;
+        requestResults.push(...(result.data || []));
+      }
+      if (business.company_name) {
+        const result = await supabase
+          .from("requests")
+          .select("*")
+          .eq("company_name", business.company_name)
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (result.error) throw result.error;
+        requestResults.push(...(result.data || []));
+      }
+      const requestRows = Array.from(
+        new Map(requestResults.map((request) => [String(request.id), request])).values()
+      ).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+      let settlementRows = [];
+      const requestIds = requestRows.map((request) => request.id).filter(Boolean);
+      if (requestIds.length > 0) {
+        const { data, error } = await supabase
+          .from("settlements")
+          .select(SETTLEMENTS_SELECT)
+          .in("request_id", requestIds);
+        if (error) throw error;
+        settlementRows = data || [];
+      }
+
+      setDetailModal({
+        business,
+        error: "",
+        loading: false,
+        requests: requestRows,
+        settlements: settlementRows,
+      });
+    } catch (error) {
+      setDetailModal((current) => ({
+        ...current,
+        error: error?.message || "기업 상세 정보를 불러올 수 없습니다.",
+        loading: false,
+      }));
+    }
+  };
+
+  const closeBusinessDetail = () => {
+    setDetailModal({
+      business: null,
+      error: "",
+      loading: false,
+      requests: [],
+      settlements: [],
+    });
+  };
+
+  const modalBusiness = detailModal.business;
+  const modalRequests = detailModal.requests;
+  const modalSettlements = detailModal.settlements;
+  const modalSettlementByRequest = new Map(
+    modalSettlements.map((settlement) => [String(settlement.request_id), settlement])
+  );
+  const completedRequests = modalRequests.filter(
+    (request) => normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED
+  );
+  const activeRequests = modalRequests.filter(
+    (request) => normalizeOperationStatus(request) !== OPERATION_STATUS.COMPLETED
+  );
+  const recentRequests = modalRequests.slice(0, 10);
+  const detailTabs = [
+    { id: "basic", label: "기본 정보" },
+    { id: "contact", label: "연락처" },
+    { id: "requests", label: "의뢰 내역" },
+    { id: "memo", label: "관리자 메모" },
+  ];
 
   return (
     <section className="admin-section">
@@ -7364,22 +7483,29 @@ function BusinessManagement({
               <th>가입일</th>
               <th>상태</th>
               <th>관리자 메모</th>
+              <th>상세보기</th>
             </tr>
           </thead>
           <tbody>
             {businesses.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: "center", padding: "40px 0", color: "#6b7280" }}>
+                <td colSpan="10" style={{ textAlign: "center", padding: "40px 0", color: "#6b7280" }}>
                   등록된 기업이 없습니다.
                 </td>
               </tr>
             ) : (
               businesses.map((biz) => {
-                const reqCount = getRequestCount(biz.auth_user_id);
+                const reqCount = getRequestCount(biz);
                 return (
                   <tr key={biz.id}>
                     <td>
-                      <strong style={{ color: "#111827" }}>{biz.company_name}</strong>
+                      <button
+                        type="button"
+                        className="admin-business-name-button"
+                        onClick={() => openBusinessDetail(biz)}
+                      >
+                        {biz.company_name || "회사명 없음"}
+                      </button>
                       <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>
                         사업자: {biz.business_number}
                       </div>
@@ -7475,6 +7601,15 @@ function BusinessManagement({
                         </div>
                       )}
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="admin-link-button"
+                        onClick={() => openBusinessDetail(biz)}
+                      >
+                        상세보기
+                      </button>
+                    </td>
                   </tr>
                 );
               })
@@ -7482,6 +7617,141 @@ function BusinessManagement({
           </tbody>
         </table>
       </div>
+
+      {modalBusiness && (
+        <AdminModal
+          title={modalBusiness.company_name || "기업 상세"}
+          titleId="admin-business-detail-modal-title"
+          meta="기업 상세보기"
+          badge={{
+            className: "status-badge badge-blue",
+            label: modalBusiness.status || "상태 없음",
+          }}
+          className="admin-business-detail-modal"
+          onClose={closeBusinessDetail}
+        >
+          <div className="admin-business-detail">
+            <div className="admin-detail-tabs" role="tablist">
+              {detailTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeDetailTab === tab.id}
+                  className={`admin-detail-tab-btn${activeDetailTab === tab.id ? " is-active" : ""}`}
+                  onClick={() => setActiveDetailTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {detailModal.loading && <p className="admin-empty-text">기업 상세 정보를 불러오는 중입니다.</p>}
+            {detailModal.error && <p className="admin-empty-text is-error">{detailModal.error}</p>}
+            {!detailModal.loading && !detailModal.error && !modalBusiness && (
+              <p className="admin-empty-text">표시할 기업 정보가 없습니다.</p>
+            )}
+
+            {!detailModal.loading && !detailModal.error && modalBusiness && (
+              <>
+                {activeDetailTab === "basic" && (
+                  <div className="admin-detail-panel">
+                    <div>
+                      <h3>기본 정보</h3>
+                      <dl className="admin-detail-list compact">
+                        <Info label="회사명" value={modalBusiness.company_name || "-"} />
+                        <Info label="사업자번호" value={modalBusiness.business_number || "-"} />
+                        <Info label="대표자/담당자" value={modalBusiness.contact_name || "-"} />
+                        <Info label="국가" value={modalBusiness.country || "-"} />
+                        <Info label="상태" value={modalBusiness.status || "-"} />
+                        <Info label="가입일" value={formatDateTime(modalBusiness.created_at)} />
+                        <Info label="관리자 메모" value={modalBusiness.notes || "-"} />
+                      </dl>
+                    </div>
+                  </div>
+                )}
+
+                {activeDetailTab === "contact" && (
+                  <div className="admin-detail-panel">
+                    <div>
+                      <h3>연락처</h3>
+                      <dl className="admin-detail-list compact">
+                        <Info label="전화번호" value={modalBusiness.contact_phone || "-"} />
+                        <Info label="이메일" value={modalBusiness.contact_email || "-"} />
+                        <Info label="카카오톡 ID" value="-" />
+                      </dl>
+                    </div>
+                  </div>
+                )}
+
+                {activeDetailTab === "requests" && (
+                  <div className="admin-detail-panel">
+                    <div>
+                      <h3>의뢰 정보</h3>
+                      <dl className="admin-detail-list compact">
+                        <Info label="총 의뢰 건수" value={`${modalRequests.length}건`} />
+                        <Info label="진행 중 의뢰" value={`${activeRequests.length}건`} />
+                        <Info label="완료 의뢰" value={`${completedRequests.length}건`} />
+                      </dl>
+                    </div>
+                    <div>
+                      <h3>최근 의뢰 목록</h3>
+                      {recentRequests.length === 0 ? (
+                        <p className="admin-empty-text">표시할 의뢰 내역이 없습니다.</p>
+                      ) : (
+                        <div className="admin-table-wrap admin-business-request-table-wrap">
+                          <table className="admin-table admin-business-request-table">
+                            <thead>
+                              <tr>
+                                <th>의뢰번호</th>
+                                <th>의뢰명</th>
+                                <th>행사기간</th>
+                                <th>견적 상태</th>
+                                <th>배정 상태</th>
+                                <th>운영 상태</th>
+                                <th>정산 상태</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {recentRequests.map((request) => {
+                                const settlement = modalSettlementByRequest.get(String(request.id));
+                                const settlementStatus =
+                                  settlement?.settlement_status || request.settlement_status;
+                                const assignmentStatus = normalizeAssignmentStatus(request);
+                                const operationStatus = normalizeOperationStatus(request);
+                                return (
+                                  <tr key={request.id}>
+                                    <td>{formatManagementNumber(request.request_no || request.id)}</td>
+                                    <td>{request.event_name || request.title || "-"}</td>
+                                    <td>{formatDateRange(request.start_date, request.end_date, request.event_date)}</td>
+                                    <td>{getEstimateStatusLabel(request.estimate_status)}</td>
+                                    <td>{getAssignmentStatusLabel(assignmentStatus)}</td>
+                                    <td>{getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, operationStatus)}</td>
+                                    <td>{getSettlementStatusLabel(settlementStatus)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeDetailTab === "memo" && (
+                  <div className="admin-detail-panel">
+                    <div>
+                      <h3>관리자 메모</h3>
+                      <p>{modalBusiness.notes || "등록된 관리자 메모가 없습니다."}</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </AdminModal>
+      )}
     </section>
   );
 }

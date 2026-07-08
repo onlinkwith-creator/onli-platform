@@ -2507,6 +2507,69 @@
   border-bottom: none;
 }
 
+.admin-business-name-button {
+  display: inline;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #111827;
+  font: inherit;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-business-name-button:hover,
+.admin-business-name-button:focus-visible {
+  color: #4f46e5;
+  text-decoration: underline;
+  outline: none;
+}
+
+.admin-business-detail-modal {
+  width: min(100%, 980px);
+  max-width: 980px;
+}
+
+.admin-business-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-business-request-table-wrap {
+  width: 100%;
+  max-width: 100%;
+}
+
+.admin-business-request-table {
+  min-width: 920px;
+}
+
+.admin-empty-text.is-error {
+  color: #b91c1c;
+}
+
+@media (max-width: 720px) {
+  .admin-business-detail-modal {
+    width: min(100%, 96vw);
+    padding: 16px;
+  }
+
+  .admin-business-detail .admin-detail-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-business-detail .admin-detail-list div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .admin-business-detail .admin-detail-list dd {
+    text-align: left;
+  }
+}
+
 .admin-strong-cell {
   min-width: 140px;
   color: #111827;
