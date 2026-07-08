@@ -24,15 +24,18 @@ import {
   ASSIGNMENT_STATUS_OPTIONS,
   OPERATION_STATUS,
   OPERATION_STATUS_OPTIONS,
-  SETTLEMENT_FLOW_STATUS,
-  SETTLEMENT_FLOW_STATUS_OPTIONS,
   getAssignmentStatusBadgeClass,
   getOperationStatusBadgeClass,
-  getSettlementFlowStatusBadgeClass,
   normalizeAssignmentStatus,
   normalizeOperationStatus,
-  normalizeSettlementFlowStatus,
 } from "../utils/operationsStatus";
+import {
+  ADMIN_SETTLEMENT_STATUS,
+  SETTLEMENT_STATUS_OPTIONS,
+  getSettlementStatusBadgeClass,
+  getSettlementStatusLabel,
+  normalizeAdminSettlementStatus,
+} from "../utils/settlementStatus";
 import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
@@ -60,9 +63,12 @@ const emptyForm = {
   status: JOB_STATUS.RECRUITING,
   assignment_status: ASSIGNMENT_STATUS.WAITING,
   operation_status: OPERATION_STATUS.BEFORE_OPERATION,
-  settlement_status: SETTLEMENT_FLOW_STATUS.NOT_REQUIRED,
+  settlement_status: "",
   is_urgent: false,
 };
+
+const SETTLEMENTS_SELECT =
+  "id, request_id, job_id, company_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
 
 function getSupabaseErrorMessage(error, fallback) {
   return error?.message ? `${fallback} (${error.message})` : fallback;
@@ -82,6 +88,98 @@ function withoutOperationFlowColumns(payload) {
   delete legacyPayload.operation_status;
   delete legacyPayload.settlement_status;
   return legacyPayload;
+}
+
+function mapAdminSettlementStatusToPayoutStatus(status) {
+  const normalized = normalizeAdminSettlementStatus(status);
+  if (normalized === ADMIN_SETTLEMENT_STATUS.COMPLETED) return "paid";
+  if (
+    normalized === ADMIN_SETTLEMENT_STATUS.CONFIRMED ||
+    normalized === ADMIN_SETTLEMENT_STATUS.PAYING
+  ) {
+    return "confirmed";
+  }
+  return "pending";
+}
+
+function findRequestForJob(job = {}, requests = []) {
+  const requestId = String(job.request_id || "");
+  if (requestId) {
+    const byId = requests.find((request) => String(request.id || "") === requestId);
+    if (byId) return byId;
+  }
+
+  const jobId = String(job.id || "");
+  if (jobId) {
+    const byJobId = requests.find((request) => String(request.job_id || "") === jobId);
+    if (byJobId) return byJobId;
+  }
+
+  const requestCode = String(job.request_code || job.request_no || "").trim();
+  if (requestCode) {
+    return (
+      requests.find(
+        (request) =>
+          String(request.request_code || request.request_no || request.management_no || "").trim() ===
+          requestCode
+      ) || null
+    );
+  }
+
+  return null;
+}
+
+function getSettlementSortTime(settlement = {}) {
+  return new Date(
+    settlement.updated_at ||
+      settlement.created_at ||
+      settlement.settlement_completed_at ||
+      settlement.settlement_confirmed_at ||
+      0
+  ).getTime();
+}
+
+function findSettlementForRequest(request = {}, settlements = []) {
+  const requestId = String(request.id || request.request_id || "");
+  if (!requestId) return null;
+
+  const matches = settlements.filter(
+    (settlement) => String(settlement.request_id || "") === requestId
+  );
+  if (matches.length === 0) return null;
+
+  const targetInterpreterId = String(
+    request.assigned_interpreter_id || request.matched_interpreter_id || request.interpreter_id || ""
+  );
+  if (targetInterpreterId) {
+    const interpreterMatch = matches.find(
+      (settlement) => String(settlement.interpreter_id || "") === targetInterpreterId
+    );
+    if (interpreterMatch) return interpreterMatch;
+  }
+
+  return [...matches].sort((a, b) => getSettlementSortTime(b) - getSettlementSortTime(a))[0];
+}
+
+function mergeJobsWithSettlementRows(jobs = [], requests = [], settlements = []) {
+  return jobs.map((job) => {
+    const request = findRequestForJob(job, requests);
+    const settlement = request ? findSettlementForRequest(request, settlements) : null;
+    return {
+      ...job,
+      request_id: request?.id || job.request_id || null,
+      request_code:
+        request?.request_code ||
+        request?.request_no ||
+        request?.management_no ||
+        job.request_code ||
+        "",
+      settlement_id: settlement?.id || null,
+      settlement_status: settlement?.settlement_status || "",
+      _request: request || null,
+      _settlement: settlement || null,
+    };
+  });
 }
 
 async function updateJobWithFallback(jobId, changes) {
@@ -162,6 +260,7 @@ function AdminJobs({
   requests = [],
   interpreters = [],
   assignments = [],
+  settlements = [],
   applications: controlledApplications,
   getInterpreterScheduleConflicts,
   onDataChanged,
@@ -185,7 +284,13 @@ function AdminJobs({
   const [isJobEditModalOpen, setIsJobEditModalOpen] = useState(false);
   const [isJobCreateModalOpen, setIsJobCreateModalOpen] = useState(false);
   const [localExpandedJobId, setLocalExpandedJobId] = useState(null);
-  const visibleJobs = isControlled ? controlledJobs : jobs;
+  const visibleJobs = useMemo(
+    () =>
+      isControlled
+        ? mergeJobsWithSettlementRows(controlledJobs, requests, settlements)
+        : jobs,
+    [controlledJobs, isControlled, jobs, requests, settlements]
+  );
   const visibleApplications = isControlled
     ? controlledApplications || []
     : applications;
@@ -213,9 +318,15 @@ function AdminJobs({
 
     try {
       if (!publicSupabase) throw supabaseConfigError;
+      const settlementClient = supabase || publicSupabase;
 
-      const [jobResult, applicationData] = await Promise.all([
+      const [jobResult, requestResult, settlementResult, applicationData] = await Promise.all([
         publicSupabase.from("jobs").select("*").order("created_at", { ascending: false }),
+        publicSupabase.from("requests").select("*").order("created_at", { ascending: false }),
+        settlementClient
+          .from("settlements")
+          .select(SETTLEMENTS_SELECT)
+          .order("created_at", { ascending: false }),
         fetchJobApplications(publicSupabase),
       ]);
 
@@ -224,10 +335,18 @@ function AdminJobs({
         alert(jobResult.error.message);
         throw jobResult.error;
       }
+      if (requestResult.error) throw requestResult.error;
+      if (settlementResult.error) throw settlementResult.error;
 
-      console.log("loaded jobs:", jobResult.data || []);
+      const settlementAwareJobs = mergeJobsWithSettlementRows(
+        jobResult.data || [],
+        requestResult.data || [],
+        settlementResult.data || []
+      );
+
+      console.log("loaded jobs:", settlementAwareJobs);
       console.log("loaded applications:", applicationData || []);
-      setJobs(jobResult.data || []);
+      setJobs(settlementAwareJobs);
       setApplications(applicationData);
     } catch (error) {
       console.error(error);
@@ -392,6 +511,14 @@ function AdminJobs({
         }
       }
 
+      if (editingId && form.settlement_status) {
+        const originalJob = visibleJobs.find((item) => item.id === editingId) || {};
+        await ensureSettlementForJob(
+          { ...originalJob, settlement_status: form.settlement_status },
+          form.settlement_status
+        );
+      }
+
       resetForm();
       setIsJobEditModalOpen(false);
       setIsJobCreateModalOpen(false);
@@ -431,7 +558,7 @@ function AdminJobs({
       status: normalizeJobStatus(job),
       assignment_status: normalizeAssignmentStatus(job),
       operation_status: normalizeOperationStatus(job),
-      settlement_status: normalizeSettlementFlowStatus(job),
+      settlement_status: job.settlement_id ? normalizeAdminSettlementStatus(job.settlement_status) : "",
       is_urgent: normalizeJobStatus(job) === "closing_soon",
     });
     setIsJobEditModalOpen(true);
@@ -462,6 +589,88 @@ function AdminJobs({
     }
   };
 
+  const ensureSettlementForJob = async (job, nextStatus) => {
+    const request = job._request || findRequestForJob(job, requests);
+    if (!request?.id) {
+      throw new Error("연결된 전체의뢰를 찾을 수 없습니다.");
+    }
+
+    let settlement = job._settlement || findSettlementForRequest(request, settlements);
+    if (!settlement?.id) {
+      const assignment =
+        assignments.find(
+          (item) =>
+            String(item.request_id || "") === String(request.id) &&
+            (item.interpreter_id ||
+              request.assigned_interpreter_id ||
+              request.matched_interpreter_id)
+        ) || null;
+      const interpreterId =
+        request.assigned_interpreter_id ||
+        request.matched_interpreter_id ||
+        assignment?.interpreter_id ||
+        settlement?.interpreter_id;
+
+      if (!interpreterId) {
+        throw new Error("정산 row를 생성할 통역사 정보가 없습니다.");
+      }
+
+      const workDays = Math.max(
+        1,
+        Number(request.settlement_work_days || assignment?.work_days || settlement?.work_days || 1)
+      );
+      const amount = Number(
+        request.settlement_final_amount ||
+          request.interpreter_payment ||
+          request.interpreter_price ||
+          settlement?.amount ||
+          0
+      );
+      const dailyRate = Number(
+        settlement?.daily_rate ||
+          assignment?.daily_rate ||
+          (workDays > 0 ? amount / workDays : amount) ||
+          0
+      );
+
+      const { data, error } = await supabase
+        .from("settlements")
+        .insert({
+          request_id: Number(request.id),
+          job_id: job.id || request.job_id || null,
+          company_id: request.company_id || null,
+          interpreter_id: Number(interpreterId),
+          assignment_id: assignment?.id || null,
+          amount,
+          payout_status: mapAdminSettlementStatusToPayoutStatus(ADMIN_SETTLEMENT_STATUS.WAITING),
+          settlement_status: ADMIN_SETTLEMENT_STATUS.WAITING,
+          work_days: workDays,
+          daily_rate: dailyRate,
+          extra_amount: Number(request.settlement_extra_amount || 0),
+          deduction_amount: Number(request.settlement_deduction_amount || 0),
+          admin_memo: request.settlement_memo || "",
+        })
+        .select(SETTLEMENTS_SELECT)
+        .single();
+
+      if (error) throw error;
+      settlement = data;
+    }
+
+    const { data, error } = await supabase
+      .from("settlements")
+      .update({
+        settlement_status: normalizeAdminSettlementStatus(nextStatus),
+        payout_status: mapAdminSettlementStatusToPayoutStatus(nextStatus),
+      })
+      .eq("id", settlement.id)
+      .select(SETTLEMENTS_SELECT)
+      .single();
+
+    if (error) throw error;
+    return data;
+  };
+
   const updateJob = async (job, changes) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
@@ -469,6 +678,16 @@ function AdminJobs({
     }
 
     try {
+      if ("settlement_status" in (changes || {})) {
+        await ensureSettlementForJob(job, changes.settlement_status);
+        if (isControlled) {
+          await onDataChanged?.();
+        } else {
+          await fetchJobs();
+        }
+        return;
+      }
+
       const result = await updateJobWithFallback(job.id, changes);
 
       if (result.error) throw result.error;
@@ -928,7 +1147,7 @@ function JobManagementCard({
           <FlowStatusBadge
             type="settlement"
             value={statuses.settlement_status}
-            label={getOperationStatusOptionLabel(SETTLEMENT_FLOW_STATUS_OPTIONS, statuses.settlement_status)}
+            label={getJobSettlementStatusLabel(job)}
           />
         </div>
 
@@ -980,9 +1199,10 @@ function JobManagementCard({
                   <select
                     className="admin-inline-select"
                     value={statuses.settlement_status}
-                    onChange={(event) => updateJob(job, getSettlementFlowStatusChanges({ ...job, settlement_status: event.target.value }))}
+                    onChange={(event) => updateJob(job, { settlement_status: event.target.value })}
                   >
-                    {SETTLEMENT_FLOW_STATUS_OPTIONS.map((option) => (
+                    {!job.settlement_id && <option value="">정산 없음</option>}
+                    {SETTLEMENT_STATUS_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -1098,17 +1318,17 @@ function getEstimateStatusLabel(value) {
 function getRequestHeadlineStatus(item = {}) {
   const statuses = getOperationFlowStatuses(item);
 
-  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.COMPLETED) {
-    return { type: "settlement", value: statuses.settlement_status, label: "정산완료" };
+  if (statuses.settlement_status === ADMIN_SETTLEMENT_STATUS.COMPLETED) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산 완료" };
   }
-  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.CONFIRMED) {
-    return { type: "settlement", value: statuses.settlement_status, label: "정산확정" };
+  if (statuses.settlement_status === ADMIN_SETTLEMENT_STATUS.PAYING) {
+    return { type: "settlement", value: statuses.settlement_status, label: "통역사 지급" };
   }
-  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.ON_HOLD) {
-    return { type: "settlement", value: statuses.settlement_status, label: "정산보류" };
+  if (statuses.settlement_status === ADMIN_SETTLEMENT_STATUS.CONFIRMED) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산 확정" };
   }
-  if (statuses.settlement_status === SETTLEMENT_FLOW_STATUS.PENDING) {
-    return { type: "settlement", value: statuses.settlement_status, label: "정산대기" };
+  if (statuses.settlement_status === ADMIN_SETTLEMENT_STATUS.WAITING) {
+    return { type: "settlement", value: statuses.settlement_status, label: "정산 대기" };
   }
   if (statuses.operation_status === OPERATION_STATUS.COMPLETED) {
     return { type: "operation", value: statuses.operation_status, label: "업무완료" };
@@ -1494,7 +1714,7 @@ function getOperationFlowStatuses(item = {}) {
   return {
     assignment_status: normalizeAssignmentStatus(item),
     operation_status: normalizeOperationStatus(item),
-    settlement_status: normalizeSettlementFlowStatus(item),
+    settlement_status: item.settlement_id ? normalizeAdminSettlementStatus(item.settlement_status) : "",
   };
 }
 
@@ -1510,19 +1730,9 @@ function getOperationStatusChanges(item = {}) {
   };
 }
 
-function getSettlementFlowStatusChanges(item = {}) {
-  return {
-    ...getJobStatusPayloadFromFlow(item),
-  };
-}
-
 function getJobStatusPayloadFromFlow(item = {}) {
-  const settlementStatus = normalizeSettlementFlowStatus(item);
   const rawOperationStatus = normalizeOperationStatus(item);
-  const operationStatus =
-    settlementStatus !== SETTLEMENT_FLOW_STATUS.NOT_REQUIRED
-      ? OPERATION_STATUS.COMPLETED
-      : rawOperationStatus;
+  const operationStatus = rawOperationStatus;
   const assignmentStatus =
     operationStatus === OPERATION_STATUS.IN_PROGRESS ||
     operationStatus === OPERATION_STATUS.COMPLETED
@@ -1533,7 +1743,6 @@ function getJobStatusPayloadFromFlow(item = {}) {
     return {
       assignment_status: assignmentStatus,
       operation_status: operationStatus,
-      settlement_status: settlementStatus,
       status: JOB_STATUS.COMPLETED,
       is_urgent: false,
     };
@@ -1543,7 +1752,6 @@ function getJobStatusPayloadFromFlow(item = {}) {
     return {
       assignment_status: assignmentStatus,
       operation_status: operationStatus,
-      settlement_status: settlementStatus,
       status: JOB_STATUS.ASSIGNED,
       is_urgent: false,
     };
@@ -1553,7 +1761,6 @@ function getJobStatusPayloadFromFlow(item = {}) {
     return {
       assignment_status: assignmentStatus,
       operation_status: operationStatus,
-      settlement_status: settlementStatus,
       status: JOB_STATUS.ASSIGNING,
       is_urgent: false,
     };
@@ -1562,7 +1769,6 @@ function getJobStatusPayloadFromFlow(item = {}) {
   return {
     assignment_status: assignmentStatus,
     operation_status: operationStatus,
-    settlement_status: settlementStatus,
     status: JOB_STATUS.RECRUITING,
   };
 }
@@ -1570,7 +1776,11 @@ function getJobStatusPayloadFromFlow(item = {}) {
 function getOperationFlowBadgeClass(type, value) {
   if (type === "assignment") return getAssignmentStatusBadgeClass(value);
   if (type === "operation") return getOperationStatusBadgeClass(value);
-  return getSettlementFlowStatusBadgeClass(value);
+  return value ? getSettlementStatusBadgeClass(value) : "flow-badge-gray";
+}
+
+function getJobSettlementStatusLabel(job = {}) {
+  return job.settlement_id ? getSettlementStatusLabel(job.settlement_status) : "정산 없음";
 }
 
 
@@ -1694,15 +1904,18 @@ function JobModal({
               </select>
             </JobField>
 
-            <JobField label="정산 상태">
-              <select name="settlement_status" value={form.settlement_status} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff" }}>
-                {SETTLEMENT_FLOW_STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </JobField>
+            {editingId && (
+              <JobField label="정산 상태">
+                <select name="settlement_status" value={form.settlement_status} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff" }}>
+                  <option value="">정산 없음</option>
+                  {SETTLEMENT_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </JobField>
+            )}
           </div>
 
           <div className="admin-job-form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #e5e7eb" }}>

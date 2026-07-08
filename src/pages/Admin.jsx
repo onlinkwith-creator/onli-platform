@@ -173,7 +173,7 @@ const ADMIN_NOTES_SELECT =
 const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const SETTLEMENTS_SELECT =
-  "id, request_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, job_id, company_id, interpreter_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -770,7 +770,7 @@ function sanitizeRecipientEmail(email) {
     }
     if (supabase) {
       try {
-        const [notesResult, logsResult, notificationsResult, documentsResult] = (
+        const [notesResult, logsResult, notificationsResult, documentsResult, settlementsResult] = (
           await Promise.allSettled([
             supabase
               .from("admin_notes")
@@ -792,6 +792,11 @@ function sanitizeRecipientEmail(email) {
               .select("id, document_type, document_no, status, version, request_id, interpreter_id, settlement_id, title, amount, storage_bucket, file_path, metadata, created_at")
               .order("created_at", { ascending: false })
               .limit(300),
+            supabase
+              .from("settlements")
+              .select(SETTLEMENTS_SELECT)
+              .order("created_at", { ascending: false })
+              .limit(500),
           ])
         ).map((result) =>
           result.status === "fulfilled"
@@ -835,6 +840,21 @@ function sanitizeRecipientEmail(email) {
           setOptionalDataError("일부 문서 데이터를 불러오지 못했습니다. 콘솔 오류를 확인해주세요.");
         } else {
           setGeneratedDocuments(uniqueById(documentsResult.data || []));
+        }
+
+        if (settlementsResult.error) {
+          logSupabaseFetchError("settlements", settlementsResult.error);
+          setAdminDataErrors((current) => ({
+            ...current,
+            settlements: settlementsResult.error,
+          }));
+          setSettlements([]);
+        } else {
+          setSettlements(uniqueById(settlementsResult.data || []));
+          setAdminDataErrors((current) => ({
+            ...current,
+            settlements: null,
+          }));
         }
       } catch (error) {
         logSupabaseError("admin optional data fetch", error);
@@ -4811,6 +4831,7 @@ function sanitizeRecipientEmail(email) {
                 requests={requests}
                 interpreters={interpreters}
                 assignments={assignments}
+                settlements={safeSettlements}
                 applications={jobApplications}
                 onDataChanged={fetchAdminData}
                 getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
