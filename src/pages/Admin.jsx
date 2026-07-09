@@ -5203,6 +5203,7 @@ function sanitizeRecipientEmail(email) {
               applications={jobApplications}
               draft={interpreterEditDraft}
               interpreter={selectedInterpreter}
+              jobs={jobs}
               matchings={matchings}
               requestAssignments={assignmentRows}
               requests={requests}
@@ -9824,6 +9825,7 @@ function InterpreterModal({
   duplicateReasons = [],
   duplicateSuspected = false,
   interpreter,
+  jobs = [],
   matchings = [],
   modalType,
   requestAssignments = [],
@@ -10085,8 +10087,11 @@ function InterpreterModal({
             ) : activeInterpreterDetailTab === "adminHistory" ? (
               <InterpreterAdminHistoryTab
                 activityLogs={adminActivityLogs}
+                applications={applications}
+                jobs={jobs}
                 notes={adminNotes}
                 noteDrafts={noteDrafts}
+                requestAssignments={requestAssignments}
                 saving={saving}
                 targetId={interpreter.id}
                 targetType="interpreter"
@@ -10902,10 +10907,13 @@ function getHistorySettlement(history = {}, settlements = []) {
 
 function InterpreterAdminHistoryTab({
   activityLogs = [],
+  applications = [],
+  jobs = [],
   notes = [],
   noteDrafts = {},
   onChangeNoteDraft,
   onCreateNote,
+  requestAssignments = [],
   saving = false,
   targetId,
   targetType,
@@ -10920,6 +10928,49 @@ function InterpreterAdminHistoryTab({
     (log) =>
       log.target_type === targetType &&
       String(log.target_id) === String(targetId)
+  );
+  const jobsById = new Map(jobs.map((job) => [String(job.id), job]));
+  const statusLogs = targetLogs.map((log) => ({
+    id: `status-${log.id}`,
+    type: "status",
+    title: getAdminActionTypeLabel(log.action_type) || "상태 변경",
+    message: formatAdminActivityLog(log),
+    createdAt: log.created_at || log.createdAt,
+  }));
+  const applicationLogs = applications
+    .filter((application) => String(application.interpreter_id || "") === String(targetId))
+    .map((application) => {
+      const job = jobsById.get(String(application.job_id || "")) || application.jobs || null;
+      return {
+        id: `application-${application.id}`,
+        type: "application",
+        title: "통역 의뢰 지원",
+        requestNo: job?.job_no || job?.request_no || application.application_no || "-",
+        requestName: getJobName(job),
+        status: getApplicationStatusLabel(application.status || application.application_status),
+        createdAt: application.created_at || application.applied_at || application.id,
+      };
+    });
+  const assignmentLogs = requestAssignments
+    .filter((row) => {
+      const assignment = row.assignment || row;
+      return String(assignment?.interpreter_id || "") === String(targetId);
+    })
+    .map((row) => {
+      const assignment = row.assignment || row;
+      const request = row.request || null;
+      return {
+        id: `assignment-${assignment.id || row.rowId || row.request_id}`,
+        type: "assignment",
+        title: "통역 의뢰 배정",
+        requestNo: request?.request_no || row.requestNo || assignment.request_id || "-",
+        requestName: getRequestName(request) || row.eventName || "의뢰명 미등록",
+        status: row.assignmentStatusLabel || "배정 완료",
+        createdAt: assignment.created_at || assignment.assigned_at || assignment.id || row.rowId,
+      };
+    });
+  const mergedLogs = [...statusLogs, ...applicationLogs, ...assignmentLogs].sort(
+    (a, b) => getProcessLogSortTime(b.createdAt) - getProcessLogSortTime(a.createdAt)
   );
 
   return (
@@ -10960,36 +11011,53 @@ function InterpreterAdminHistoryTab({
       </section>
       <section className="admin-interpreter-admin-card">
         <h3>처리 이력</h3>
-        {targetLogs.length === 0 ? (
+        {mergedLogs.length === 0 ? (
           <p className="admin-empty-text">처리 이력이 없습니다.</p>
         ) : (
           <div className="admin-interpreter-process-list">
-            {targetLogs.map((log) => {
-              const changes = parseInterpreterChangeLog(formatAdminActivityLog(log));
+            {mergedLogs.map((log) => {
+              const changes = log.type === "status" ? parseInterpreterChangeLog(log.message) : [];
               return (
                 <article className="admin-interpreter-process-item" key={log.id}>
-                  <strong>{getAdminActionTypeLabel(log.action_type) || "상태 변경"}</strong>
-                  <div className="admin-process-log-changes">
-                    {changes.map((change, index) => (
-                      <div className="admin-process-log-change-row" key={`${change.label}-${index}`}>
-                        <span className="admin-change-label">{change.label}</span>
-                        <div className="admin-change-values">
-                          {change.before && (
-                            <>
-                              <span className="admin-before-value">
-                                {formatChangeValue(change.before)}
-                              </span>
-                              <span className="admin-change-arrow">→</span>
-                            </>
-                          )}
-                          <span className="admin-after-value">
-                            {formatChangeValue(change.after)}
-                          </span>
+                  <strong>{log.title}</strong>
+                  {log.type === "status" ? (
+                    <div className="admin-process-log-changes">
+                      {changes.map((change, index) => (
+                        <div className="admin-process-log-change-row" key={`${change.label}-${index}`}>
+                          <span className="admin-change-label">{change.label}</span>
+                          <div className="admin-change-values">
+                            {change.before && (
+                              <>
+                                <span className="admin-before-value">
+                                  {formatChangeValue(change.before)}
+                                </span>
+                                <span className="admin-change-arrow">→</span>
+                              </>
+                            )}
+                            <span className="admin-after-value">
+                              {formatChangeValue(change.after)}
+                            </span>
+                          </div>
                         </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <dl className="admin-process-log-details">
+                      <div>
+                        <dt>{log.type === "application" ? "공고명" : "의뢰명"}</dt>
+                        <dd>{log.requestName}</dd>
                       </div>
-                    ))}
-                  </div>
-                  <time>{formatDateTime(log.created_at)}</time>
+                      <div>
+                        <dt>{log.type === "application" ? "공고번호" : "의뢰번호"}</dt>
+                        <dd>{log.requestNo}</dd>
+                      </div>
+                      <div>
+                        <dt>{log.type === "application" ? "지원 상태" : "배정 상태"}</dt>
+                        <dd>{log.status}</dd>
+                      </div>
+                    </dl>
+                  )}
+                  <time>{formatProcessLogDate(log.createdAt)}</time>
                 </article>
               );
             })}
@@ -13951,6 +14019,44 @@ function formatChangeValue(value = "") {
     rejected: "반려",
   };
   return valueMap[String(value)] || value || "-";
+}
+
+function getRequestName(request = {}) {
+  return (
+    request?.request_name ||
+    request?.event_name ||
+    request?.project_name ||
+    request?.name ||
+    request?.title ||
+    request?.request_no ||
+    "의뢰명 미등록"
+  );
+}
+
+function getJobName(job = {}) {
+  return (
+    job?.job_title ||
+    job?.title ||
+    job?.event_name ||
+    job?.request_name ||
+    job?.name ||
+    job?.job_no ||
+    "공고명 미등록"
+  );
+}
+
+function getProcessLogSortTime(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  const dateTime = new Date(value).getTime();
+  if (!Number.isNaN(dateTime)) return dateTime;
+  const numeric = Number(value);
+  return Number.isNaN(numeric) ? 0 : numeric;
+}
+
+function formatProcessLogDate(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "number" || /^\d+$/.test(String(value))) return "-";
+  return formatDateTime(value);
 }
 
 function getAdminActivitySummaryLabel(log = {}) {

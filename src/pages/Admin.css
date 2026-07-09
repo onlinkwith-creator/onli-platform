@@ -3834,6 +3834,36 @@
   margin-top: 10px;
 }
 
+.admin-process-log-details {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.admin-process-log-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.admin-process-log-details dt {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-process-log-details dd {
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 .admin-process-log-change-row {
   display: flex;
   justify-content: space-between;
