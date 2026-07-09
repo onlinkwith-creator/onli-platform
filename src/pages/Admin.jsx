@@ -10025,6 +10025,8 @@ function InterpreterModal({
                 { id: "basic", label: "기본 정보" },
                 { id: "activity", label: "활동 정보" },
                 { id: "history", label: "이력" },
+                { id: "memo", label: "내부 메모" },
+                { id: "processHistory", label: "처리 이력" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -10080,6 +10082,22 @@ function InterpreterModal({
                 histories={assignmentHistory}
                 loading={assignmentHistoryLoading}
                 settlements={settlements}
+              />
+            ) : activeInterpreterDetailTab === "memo" ? (
+              <InterpreterMemoTab
+                notes={adminNotes}
+                noteDrafts={noteDrafts}
+                saving={saving}
+                targetId={interpreter.id}
+                targetType="interpreter"
+                onChangeNoteDraft={onChangeNoteDraft}
+                onCreateNote={onCreateNote}
+              />
+            ) : activeInterpreterDetailTab === "processHistory" ? (
+              <InterpreterProcessHistoryTab
+                activityLogs={adminActivityLogs}
+                targetId={interpreter.id}
+                targetType="interpreter"
               />
             ) : (
               <>
@@ -10455,39 +10473,6 @@ function InterpreterModal({
             </section>
             )}
 
-            {activeInterpreterDetailTab === "activity" && (
-            <section className="admin-interpreter-memo-card">
-              <div className="admin-interpreter-section-title">
-                <ShieldAlert size={18} aria-hidden="true" />
-                <h3>관리자 메모</h3>
-              </div>
-              <textarea
-                rows={5}
-                value={adminMemo}
-                onChange={(event) => onChangeDraft("admin_memo", event.target.value)}
-                placeholder="시간 준수 문제 여부, 현장 대응 특이사항, 기업 재요청 여부, 주의사항, 내부 메모"
-              />
-              <div className="admin-interpreter-memo-actions">
-                <span>공개 페이지에는 노출되지 않습니다.</span>
-                <button type="button" className="admin-save" disabled={saving} onClick={onSave}>
-                  {saving ? "저장 중..." : "메모 저장"}
-                </button>
-              </div>
-            </section>
-            )}
-
-            {activeInterpreterDetailTab === "activity" && (
-            <AdminOperationsPanel
-              activityLogs={adminActivityLogs}
-              notes={adminNotes}
-              noteDrafts={noteDrafts}
-              saving={false}
-              targetId={interpreter.id}
-              targetType="interpreter"
-              onChangeNoteDraft={onChangeNoteDraft}
-              onCreateNote={onCreateNote}
-            />
-            )}
             </>
             )}
 
@@ -10918,6 +10903,91 @@ function getHistorySettlement(history = {}, settlements = []) {
       (settlement) => String(settlement.request_id || "") === String(history.request_id || "")
     ) ||
     null
+  );
+}
+
+function InterpreterMemoTab({
+  notes = [],
+  noteDrafts = {},
+  onChangeNoteDraft,
+  onCreateNote,
+  saving = false,
+  targetId,
+  targetType,
+}) {
+  const targetKey = `${targetType}:${String(targetId)}`;
+  const targetNotes = notes.filter(
+    (note) =>
+      note.target_type === targetType &&
+      String(note.target_id) === String(targetId)
+  );
+
+  return (
+    <div className="admin-interpreter-memo-tab">
+      <section className="admin-interpreter-admin-card">
+        <h3>내부 메모</h3>
+        {targetNotes.length === 0 ? (
+          <p className="admin-empty-text">아직 등록된 내부 메모가 없습니다.</p>
+        ) : (
+          <div className="admin-interpreter-process-list">
+            {targetNotes.map((note) => (
+              <article className="admin-interpreter-process-item" key={note.id}>
+                <p>{note.note}</p>
+                <time>{formatDateTime(note.created_at)}</time>
+              </article>
+            ))}
+          </div>
+        )}
+        <label className="admin-field-control admin-note-input">
+          <span>새 메모</span>
+          <textarea
+            rows={5}
+            value={noteDrafts[targetKey] || ""}
+            onChange={(event) =>
+              onChangeNoteDraft?.(targetType, targetId, event.target.value)
+            }
+            placeholder="운영팀 내부 확인 내용을 남겨주세요."
+          />
+        </label>
+        <button
+          type="button"
+          className="admin-save"
+          disabled={saving}
+          onClick={() => onCreateNote?.(targetType, targetId)}
+        >
+          {saving ? "저장 중..." : "메모 저장"}
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function InterpreterProcessHistoryTab({ activityLogs = [], targetId, targetType }) {
+  const targetLogs = activityLogs.filter(
+    (log) =>
+      log.target_type === targetType &&
+      String(log.target_id) === String(targetId)
+  );
+
+  return (
+    <div className="admin-interpreter-process-history-tab">
+      <section className="admin-interpreter-admin-card">
+        <h3>처리 이력</h3>
+        {targetLogs.length === 0 ? (
+          <p className="admin-empty-text">처리 이력이 없습니다.</p>
+        ) : (
+          <div className="admin-interpreter-process-list">
+            {targetLogs.map((log) => (
+              <article className="admin-interpreter-process-item" key={log.id}>
+                <strong>{getAdminActionTypeLabel(log.action_type) || "상태 변경"}</strong>
+                <p>{formatAdminActivityLog(log)}</p>
+                <time>{formatDateTime(log.created_at)}</time>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
