@@ -187,9 +187,9 @@ const INTERPRETER_ASSIGNMENT_HISTORY_SELECT = `
     request_no,
     event_name,
     company_name,
-    location,
     start_date,
     end_date,
+    event_location,
     requested_level,
     language_direction,
     operation_status
@@ -7686,9 +7686,17 @@ function BusinessManagement({
                         <Info label="사업자번호" value={modalBusiness.business_number || "-"} />
                         <Info label="대표자/담당자" value={modalBusiness.contact_name || "-"} />
                         <Info label="국가" value={modalBusiness.country || "-"} />
-                        <Info label="상태" value={modalBusiness.status || "-"} />
+                      </dl>
+                    </div>
+                    <div className="admin-business-basic-side-card">
+                      <h3>운영 요약</h3>
+                      <dl className="admin-detail-list compact">
+                        <Info label="승인 상태" value={modalBusiness.status || "-"} />
                         <Info label="가입일" value={formatDateTime(modalBusiness.created_at)} />
                         <Info label="관리자 메모" value={modalBusiness.notes || "-"} />
+                        <Info label="총 의뢰 건수" value={`${modalRequests.length}건`} />
+                        <Info label="진행 중 의뢰" value={`${activeRequests.length}건`} />
+                        <Info label="완료 의뢰" value={`${completedRequests.length}건`} />
                       </dl>
                     </div>
                   </div>
@@ -9864,6 +9872,7 @@ function InterpreterModal({
       if (!isActive) return;
 
       if (error) {
+        console.error("Failed to load interpreter history:", error);
         setAssignmentHistory([]);
         setAssignmentHistoryError(error.message || "이력 조회 중 오류가 발생했습니다.");
       } else {
@@ -10023,6 +10032,7 @@ function InterpreterModal({
               ))}
             </div>
 
+            {activeInterpreterDetailTab === "basic" && (
             <div className="admin-interpreter-summary-card">
               <div className="admin-interpreter-profile-pane">
                 <div className="admin-interpreter-avatar" aria-hidden="true">
@@ -10055,6 +10065,7 @@ function InterpreterModal({
                 />
               </div>
             </div>
+            )}
 
             {activeInterpreterDetailTab === "history" ? (
               <InterpreterAssignmentHistoryTab
@@ -10066,12 +10077,26 @@ function InterpreterModal({
             ) : (
               <>
             <div className="admin-interpreter-detail-grid">
+              {activeInterpreterDetailTab === "basic" && (
               <InterpreterDetailSection icon={User} title="기본 정보">
                 <InterpreterDetailItem label="이름" value={interpreter.name} />
                 <InterpreterDetailItem label="성별" value={interpreter.gender} />
                 <InterpreterDetailItem label="나이" value={interpreter.age} />
                 <InterpreterDetailItem label="레벨" value={levelLabel} />
                 <InterpreterDetailItem label="승인 상태" value={approvalLabel} />
+                <InterpreterDetailItem label="이메일" value={interpreter.email} />
+                {interpreter.phone && (
+                  <InterpreterDetailItem label="전화번호" value={interpreter.phone} />
+                )}
+                <InterpreterDetailItem label="카카오톡 ID" value={interpreter.kakao_or_line} />
+                <InterpreterDetailItem
+                  label="활동 지역"
+                  value={formatListOrMissing(interpreter.available_regions)}
+                />
+                <InterpreterDetailItem
+                  label="전문 분야"
+                  value={formatListOrMissing(interpreter.specialties)}
+                />
                 {isWithdrawnInterpreter(interpreter) && (
                   <InterpreterDetailItem
                     label="탈퇴일"
@@ -10118,6 +10143,7 @@ function InterpreterModal({
                     )
                   }
                 />
+                <InterpreterDetailItem label="가입일" value={formatDateTime(interpreter.created_at)} />
                 {interpreter.resume_submitted_at && (
                   <InterpreterDetailItem
                     label="이력서 제출일"
@@ -10153,16 +10179,25 @@ function InterpreterModal({
                   }
                 />
                 <InterpreterDetailItem label="ON-LI 인증 상태" value={interpreter.approved ? "ON-LI 인증 완료" : "일반 등록"} />
-                <InterpreterDetailItem label="공개 활동 상태" value={activityLabel} />
               </InterpreterDetailSection>
+              )}
 
+              {activeInterpreterDetailTab === "activity" && (
               <InterpreterDetailSection icon={Languages} title="활동 정보">
-                <InterpreterDetailItem label="가능 언어" value={interpreter.language_level || interpreter.level} />
+                <InterpreterDetailItem label="공개 활동 상태" value={activityLabel} />
                 <InterpreterDetailItem label="JLPT 여부" value={interpreter.jlpt} />
-                <InterpreterDetailItem label="통역 경험" value={getExperienceLabel(interpreter)} />
+                <InterpreterDetailItem label="통역 경험 여부" value={getExperienceLabel(interpreter)} />
                 <InterpreterDetailItem label="ON-LI 수행 횟수" value={`${onliPerformanceCount}회`} />
                 <InterpreterDetailItem label="인증 조건" value={certificationRequirementLabel} />
-                <InterpreterDetailItem label="현재 인증 상태" value={certificationStateLabel} />
+                <InterpreterDetailItem
+                  label="배정 가능 여부"
+                  value={activityStatus === INTERPRETER_ACTIVITY_STATUS.ACTIVE ? "배정 가능" : "확인 필요"}
+                />
+                <InterpreterDetailItem
+                  label="최근 활동일"
+                  value={formatDateTime(interpreter.updated_at || interpreter.created_at)}
+                />
+                <InterpreterDetailItem label="관리자 평가/메모" value={managementMemo || adminMemo || "-"} />
                 <InterpreterDetailItem
                   label="통역 횟수"
                   value={
@@ -10177,7 +10212,9 @@ function InterpreterModal({
                 />
                 <InterpreterDetailItem label="가능 업무" value={interpreter.available_tasks} />
               </InterpreterDetailSection>
+              )}
 
+              {activeInterpreterDetailTab === "basic" && (
               <InterpreterDetailSection icon={Star} title="프로필 정보">
                 <InterpreterDetailItem
                   label="전문 분야"
@@ -10192,7 +10229,9 @@ function InterpreterModal({
                 <InterpreterDetailItem label="약관 동의" value={getAgreementStatusLabel(interpreter)} />
                 <InterpreterDetailItem label="동의 시간" value={formatDateTime(interpreter.agreed_at)} />
               </InterpreterDetailSection>
+              )}
 
+              {activeInterpreterDetailTab === "activity" && (
               <InterpreterDetailSection icon={ShieldAlert} title="경고/운영 상태">
                 <InterpreterDetailItem label="경고 횟수" value={`${interpreter.warning_count || 0}회`} />
                 <InterpreterDetailItem
@@ -10208,9 +10247,10 @@ function InterpreterModal({
                 <InterpreterDetailItem label="운영 메모" value={managementMemo} />
                 <InterpreterDetailItem label="공개 노출" value="관리자 전용 정보" />
               </InterpreterDetailSection>
+              )}
             </div>
 
-            {isWithdrawnInterpreter(interpreter) && (
+            {activeInterpreterDetailTab === "activity" && isWithdrawnInterpreter(interpreter) && (
               <div className="admin-interpreter-detail-grid admin-interpreter-history-grid">
                 <InterpreterDetailSection icon={FileText} title="지원 내역">
                   {relatedApplications.length === 0 ? (
@@ -10242,6 +10282,7 @@ function InterpreterModal({
               </div>
             )}
 
+            {activeInterpreterDetailTab === "activity" && (
             <section className="admin-interpreter-verification-card" style={{
               background: "var(--bg)",
               border: "1px solid var(--border)",
@@ -10405,7 +10446,9 @@ function InterpreterModal({
                 </div>
               </div>
             </section>
+            )}
 
+            {activeInterpreterDetailTab === "activity" && (
             <section className="admin-interpreter-memo-card">
               <div className="admin-interpreter-section-title">
                 <ShieldAlert size={18} aria-hidden="true" />
@@ -10424,7 +10467,9 @@ function InterpreterModal({
                 </button>
               </div>
             </section>
+            )}
 
+            {activeInterpreterDetailTab === "activity" && (
             <AdminOperationsPanel
               activityLogs={adminActivityLogs}
               notes={adminNotes}
@@ -10435,6 +10480,7 @@ function InterpreterModal({
               onChangeNoteDraft={onChangeNoteDraft}
               onCreateNote={onCreateNote}
             />
+            )}
             </>
             )}
 
@@ -10754,11 +10800,16 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
   }
 
   if (error) {
-    return <p className="admin-interpreter-history-empty error">{error}</p>;
+    return (
+      <div className="admin-interpreter-history-empty error">
+        이력 정보를 불러오지 못했습니다.
+        <small>{error}</small>
+      </div>
+    );
   }
 
   if (histories.length === 0) {
-    return <p className="admin-interpreter-history-empty">배정된 통역 이력이 없습니다.</p>;
+    return <p className="admin-interpreter-history-empty">배정 이력이 없습니다.</p>;
   }
 
   return (
@@ -10800,7 +10851,7 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
               </div>
               <div>
                 <dt>장소</dt>
-                <dd>{request.location || "-"}</dd>
+                <dd>{request.event_location || "-"}</dd>
               </div>
               <div>
                 <dt>통역 언어</dt>
