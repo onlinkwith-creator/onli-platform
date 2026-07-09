@@ -6892,6 +6892,50 @@
   font-weight: 750;
 }
 
+.admin-request-status-change-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-request-status-change-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.admin-request-change-label {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-request-change-value-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.admin-request-before-value {
+  color: #6b7280;
+}
+
+.admin-request-change-arrow {
+  color: #9ca3af;
+}
+
+.admin-request-after-value {
+  color: #111827;
+}
+
 .admin-request-detail-modal .admin-note-input {
   display: grid;
   gap: 8px;

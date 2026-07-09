@@ -9361,6 +9361,8 @@ function AdminActivityLogCard({ expanded, log, onToggle }) {
   const changedFields = getAdminLogChangedFields(log);
   const actorLabel = getAdminLogActorLabel(log);
   const summaryLabel = getAdminActivitySummaryLabel(log);
+  const statusChanges = parseRequestStatusChange(formatAdminActivityLog(log));
+  const content = getAdminLogContent(log, changedFields, summaryLabel);
 
   return (
     <article className="admin-activity-log-card">
@@ -9368,7 +9370,7 @@ function AdminActivityLogCard({ expanded, log, onToggle }) {
         <span className="admin-activity-log-dot" aria-hidden="true" />
         <div>
           <strong className={`admin-activity-log-type-badge admin-activity-type-${(log.action_type || "default").replace(/_/g, "-")}`}>
-            {summaryLabel}
+            {formatHistoryTitle(summaryLabel)}
           </strong>
           <time className="admin-activity-log-time">{formatDateTime(log.created_at)}</time>
         </div>
@@ -9385,7 +9387,13 @@ function AdminActivityLogCard({ expanded, log, onToggle }) {
         </div>
         <div>
           <dt>내용</dt>
-          <dd>{getAdminLogContent(log, changedFields, summaryLabel)}</dd>
+          <dd>
+            {statusChanges.length > 0 ? (
+              <RequestStatusChangeList changes={statusChanges} />
+            ) : (
+              content
+            )}
+          </dd>
         </div>
       </dl>
       {expanded && changedFields.length > 0 && (
@@ -9394,9 +9402,9 @@ function AdminActivityLogCard({ expanded, log, onToggle }) {
             <div className="admin-activity-log-detail-row" key={field.key}>
               <span>{field.label}</span>
               <div>
-                <code>{formatAdminLogDetailValue(field.beforeValue)}</code>
+                <code>{formatRequestStatusValue(formatAdminLogDetailValue(field.beforeValue))}</code>
                 <em>↓</em>
-                <code>{formatAdminLogDetailValue(field.afterValue)}</code>
+                <code>{formatRequestStatusValue(formatAdminLogDetailValue(field.afterValue))}</code>
               </div>
             </div>
           ))}
@@ -9406,6 +9414,27 @@ function AdminActivityLogCard({ expanded, log, onToggle }) {
         <p className="admin-activity-log-desc">표시할 변경 항목이 없습니다.</p>
       )}
     </article>
+  );
+}
+
+function RequestStatusChangeList({ changes = [] }) {
+  return (
+    <div className="admin-request-status-change-list">
+      {changes.map((change, index) => (
+        <div className="admin-request-status-change-row" key={`${change.label}-${index}`}>
+          <span className="admin-request-change-label">{change.label}</span>
+          <div className="admin-request-change-value-wrap">
+            <span className="admin-request-before-value">
+              {formatRequestStatusValue(change.before)}
+            </span>
+            <span className="admin-request-change-arrow">→</span>
+            <span className="admin-request-after-value">
+              {formatRequestStatusValue(change.after)}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -14019,6 +14048,81 @@ function formatChangeValue(value = "") {
     rejected: "반려",
   };
   return valueMap[String(value)] || value || "-";
+}
+
+function parseRequestStatusChange(message = "") {
+  if (!message || !message.includes("→")) return [];
+
+  const [beforeRaw, afterRaw] = message.split("→").map((value) => value.trim());
+  const parseSide = (text = "") => {
+    const result = {};
+    const labelMap = {
+      상태: "의뢰 상태",
+      결제: "결제 상태",
+      운영: "운영 상태",
+      배정: "배정 상태",
+      정산: "정산 상태",
+    };
+
+    text.split(",").forEach((part) => {
+      const [key, ...valueParts] = part.split(":");
+      const value = valueParts.join(":").trim();
+      const label = key?.trim();
+      if (!label || !value) return;
+      result[labelMap[label] || label] = value;
+    });
+
+    return result;
+  };
+
+  const before = parseSide(beforeRaw);
+  const after = parseSide(afterRaw);
+
+  return Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
+    .filter((key) => before[key] !== after[key])
+    .map((key) => ({
+      label: key,
+      before: before[key] || "-",
+      after: after[key] || "-",
+    }));
+}
+
+function formatRequestStatusValue(value = "") {
+  const map = {
+    draft: "작성중",
+    assigned: "배정완료",
+    unpaid: "미결제",
+    paid: "결제완료",
+    operation_before: "운영 전",
+    operation_ready: "운영 준비중",
+    operation_preparing: "운영 준비중",
+    operation_scheduled: "운영 예정",
+    operation_in_progress: "운영 중",
+    operation_completed: "업무 완료",
+    assignment_pending: "배정 대기",
+    assignment_in_progress: "배정중",
+    assignment_completed: "배정완료",
+    confirmed: "정산 확정",
+    pending: "대기",
+    completed: "완료",
+  };
+
+  return map[String(value)] || value || "-";
+}
+
+function formatHistoryTitle(title = "") {
+  if (!title) return "상태 변경";
+  return String(title)
+    .replaceAll("assignment_pending", "배정 대기")
+    .replaceAll("assignment_in_progress", "배정중")
+    .replaceAll("assignment_completed", "배정완료")
+    .replaceAll("operation_before", "운영 전")
+    .replaceAll("operation_in_progress", "운영 중")
+    .replaceAll("operation_completed", "업무 완료")
+    .replaceAll("draft", "작성중")
+    .replaceAll("assigned", "배정완료")
+    .replaceAll("unpaid", "미결제")
+    .replaceAll("confirmed", "정산 확정");
 }
 
 function getRequestName(request = {}) {
