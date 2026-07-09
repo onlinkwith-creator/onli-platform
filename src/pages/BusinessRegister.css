@@ -277,3 +277,40 @@
   transform: none;
   box-shadow: none;
 }
+
+/* Mobile stability guardrails */
+.business-register-page,
+.business-register-card,
+.business-register-form {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.business-register-card * {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .business-register-page {
+    padding: 24px 12px;
+  }
+
+  .business-register-card {
+    width: 100%;
+    padding: 24px 18px;
+  }
+
+  .business-register-grid,
+  .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .business-register-submit,
+  .business-register-card button,
+  .business-register-card input,
+  .business-register-card select,
+  .business-register-card textarea {
+    width: 100%;
+  }
+}

@@ -1178,3 +1178,51 @@
     text-align: left;
   }
 }
+
+/* Mobile stability guardrails */
+.interpreter-list-page,
+.interpreter-list-shell,
+.interpreter-list-filter-card,
+.interpreter-list-card,
+.interpreter-list-card-grid {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.interpreter-list-card * {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .interpreter-list-shell {
+    width: 100%;
+    padding: 0 12px;
+  }
+
+  .interpreter-list-card-grid,
+  .interpreter-list-filter-card,
+  .interpreter-list-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .interpreter-list-toolbar,
+  .interpreter-list-actions {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .interpreter-list-actions {
+    flex-direction: column;
+  }
+
+  .interpreter-list-actions button,
+  .interpreter-list-actions select,
+  .interpreter-list-filter-toggle,
+  .interpreter-list-sort-select {
+    width: 100%;
+  }
+}

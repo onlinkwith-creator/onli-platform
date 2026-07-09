@@ -821,3 +821,53 @@
     flex: 1 1 auto;
   }
 }
+
+/* Mobile stability guardrails */
+.request-page,
+.request-container,
+.request-hero,
+.request-section-card,
+.request-submit-card,
+.request-step-card,
+.request-estimate-card {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.request-section-card *,
+.request-submit-card *,
+.request-step-card * {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .request-page {
+    padding: 24px 12px 48px;
+  }
+
+  .request-container {
+    width: 100%;
+  }
+
+  .request-form-grid,
+  .request-grid,
+  .request-field-grid,
+  .request-submit-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .request-pill-group,
+  .request-submit-card,
+  .request-actions {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .request-submit-button,
+  .request-actions button,
+  .request-actions a {
+    width: 100%;
+  }
+}

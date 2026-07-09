@@ -2203,3 +2203,76 @@
     font-size: 12px;
   }
 }
+
+/* Mobile stability guardrails */
+.jobs-page,
+.jobs-shell,
+.jobs-hero-container,
+.jobs-filter-card,
+.jobs-card-grid,
+.jobs-list-card,
+.home-job-card,
+.job-detail-page,
+.job-detail-shell {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.jobs-list-card *,
+.home-job-card *,
+.job-detail-page * {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .jobs-page {
+    padding: 64px 0;
+  }
+
+  .jobs-shell,
+  .job-detail-shell {
+    width: 100%;
+    padding: 0 12px;
+  }
+
+  .jobs-hero-container,
+  .jobs-filter-grid,
+  .jobs-card-grid,
+  .job-detail-grid,
+  .job-detail-grid-premium {
+    grid-template-columns: 1fr !important;
+  }
+
+  .jobs-toolbar,
+  .jobs-hero-actions,
+  .jobs-list-actions,
+  .job-detail-actions {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .jobs-filter-toggle,
+  .jobs-sort-select,
+  .jobs-create-btn,
+  .jobs-back-btn,
+  .job-detail-actions button,
+  .job-detail-actions a {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .jobs-list-actions,
+  .job-detail-actions {
+    flex-direction: column;
+  }
+
+  .jobs-list-actions button,
+  .jobs-list-actions select,
+  .job-detail-actions button,
+  .job-detail-actions a {
+    width: 100%;
+  }
+}

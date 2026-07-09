@@ -1706,3 +1706,91 @@
   background: #fee2e2;
   color: #b91c1c;
 }
+
+/* Mobile stability guardrails */
+.business-mypage,
+.business-mypage-shell,
+.business-mypage-card,
+.business-mypage-content,
+.client-notifications-panel {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.business-mypage-card *,
+.client-notifications-panel * {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .business-mypage {
+    padding: 16px 12px 64px;
+  }
+
+  .business-mypage-head,
+  .card-header-with-action,
+  .client-notifications-panel .notif-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .business-mypage-actions,
+  .head-status-row,
+  .business-mypage-tabs {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .business-mypage-actions button,
+  .business-mypage-tabs button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .business-mypage-grid,
+  .request-history-grid,
+  .mypage-request-grid,
+  .business-info-grid,
+  .profile-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .business-mypage-card {
+    padding: 20px 16px;
+  }
+
+  .table-wrap,
+  .request-table-wrap,
+  .mypage-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .business-mypage table {
+    min-width: 680px;
+  }
+}
+
+@media (max-width: 640px) {
+  .business-mypage-actions,
+  .card-header-with-action > div,
+  .form-actions,
+  .button-row,
+  .action-row {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .business-mypage-actions button,
+  .form-actions button,
+  .button-row button,
+  .action-row button {
+    width: 100%;
+  }
+}

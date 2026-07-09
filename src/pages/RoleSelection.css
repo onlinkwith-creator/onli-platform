@@ -171,3 +171,32 @@
   transform: translateY(-1px);
   box-shadow: 0 10px 24px rgba(91, 92, 240, 0.2);
 }
+
+/* Mobile stability guardrails */
+.role-selection-page,
+.role-selection-card,
+.role-options {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.role-selection-card * {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .role-selection-page {
+    padding: 24px 12px;
+  }
+
+  .role-selection-card {
+    width: 100%;
+    padding: 24px 18px;
+  }
+
+  .role-options,
+  .role-selection-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

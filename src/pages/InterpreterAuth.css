@@ -2555,3 +2555,51 @@
 .prep-mat-download:hover {
   color: #3730a3;
 }
+
+/* Mobile stability guardrails */
+.interpreter-auth-page,
+.interpreter-auth-card,
+.interpreter-dashboard,
+.interpreter-dashboard-shell,
+.interpreter-prep-card,
+.prep-card-detail {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.interpreter-auth-card *,
+.interpreter-prep-card * {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .interpreter-auth-page {
+    padding: 24px 12px;
+  }
+
+  .interpreter-auth-card {
+    width: 100%;
+    padding: 24px 18px;
+  }
+
+  .interpreter-dashboard-grid,
+  .interpreter-profile-grid,
+  .interpreter-stat-grid,
+  .prep-contact-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .prep-card-header,
+  .prep-card-right {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .interpreter-auth-card button,
+  .interpreter-auth-card input,
+  .interpreter-auth-card select,
+  .interpreter-auth-card textarea {
+    width: 100%;
+  }
+}

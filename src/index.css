@@ -219,6 +219,216 @@ table {
   font: inherit;
 }
 
+/* Mobile layout guardrails shared across ON-LI screens. */
+.pageContainer,
+.adminPage,
+.admin-page,
+.businessPage,
+.business-page,
+.business-mypage,
+.interpreterPage,
+.interpreter-list-page,
+.interpreter-detail-page,
+.jobs-page {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.card,
+.adminCard,
+.admin-card,
+.business-mypage-card,
+.job-card,
+.interpreter-list-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.card *,
+.adminCard *,
+.admin-card *,
+.business-mypage-card *,
+.job-card *,
+.interpreter-list-card * {
+  min-width: 0;
+}
+
+.textEllipsis,
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tableWrap,
+.table-wrap,
+.adminTableWrap,
+.admin-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tableWrap table,
+.table-wrap table,
+.adminTableWrap table,
+.admin-table-wrap table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  body {
+    min-width: 0;
+  }
+
+  .pageContainer,
+  .adminPage,
+  .admin-page,
+  .businessPage,
+  .business-page,
+  .business-mypage,
+  .interpreterPage,
+  .interpreter-list-page,
+  .interpreter-detail-page,
+  .jobs-page {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .cardGrid,
+  .requestGrid,
+  .businessGrid,
+  .interpreterGrid,
+  .card-grid,
+  .request-grid,
+  .business-grid,
+  .interpreter-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .tabs,
+  .adminTabs,
+  .admin-tabs,
+  .modalTabs,
+  .modal-tabs {
+    display: flex;
+    gap: 8px;
+    max-width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabButton,
+  .tab-button,
+  .admin-tabs button,
+  .modal-tabs button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .modalContent,
+  .detailModal,
+  .requestDetailModal,
+  .businessDetailModal,
+  .interpreterDetailModal,
+  .modal-content,
+  .detail-modal,
+  .request-detail-modal,
+  .business-detail-modal,
+  .interpreter-detail-modal {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+    max-height: calc(100vh - 24px);
+    overflow: hidden;
+    border-radius: 18px;
+  }
+
+  .modalBody,
+  .detailModalBody,
+  .modal-body,
+  .detail-modal-body {
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modalGrid,
+  .detailGrid,
+  .basicGrid,
+  .adminHistoryGrid,
+  .businessBasicGrid,
+  .requestDetailGrid,
+  .interpreterProfileGrid,
+  .modal-grid,
+  .detail-grid,
+  .basic-grid,
+  .admin-history-grid,
+  .business-basic-grid,
+  .request-detail-grid,
+  .interpreter-profile-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .modalFooter,
+  .actionBar,
+  .buttonGroup,
+  .modal-footer,
+  .action-bar,
+  .button-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .tableWrap table,
+  .table-wrap table,
+  .adminTableWrap table,
+  .admin-table-wrap table {
+    min-width: 680px;
+  }
+}
+
+@media (max-width: 640px) {
+  .modalFooter,
+  .actionBar,
+  .buttonGroup,
+  .modal-footer,
+  .action-bar,
+  .button-group {
+    flex-direction: column;
+  }
+
+  .modalFooter button,
+  .actionBar button,
+  .buttonGroup button,
+  .modal-footer button,
+  .action-bar button,
+  .button-group button,
+  .actionBar select,
+  .action-bar select {
+    width: 100%;
+  }
+}
+
 .main-return-button {
   background-color: #395597 !important;
   color: #ffffff !important;

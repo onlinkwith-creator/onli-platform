@@ -810,3 +810,60 @@
     overflow-wrap: anywhere;
   }
 }
+
+/* Mobile stability guardrails */
+.register-page,
+.register-shell,
+.register-hero,
+.register-layout,
+.register-hero-copy,
+.register-sidebar-card,
+.register-section-card,
+.register-submit-card {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.register-section-card *,
+.register-submit-card *,
+.register-sidebar-card * {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .register-page {
+    padding: 28px 12px 56px;
+  }
+
+  .register-layout,
+  .register-form-grid,
+  .register-grid,
+  .register-chip-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .register-steps,
+  .register-chip-row,
+  .register-submit-actions {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .register-submit-actions button,
+  .register-submit-actions a {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .register-submit-actions {
+    flex-direction: column;
+  }
+
+  .register-submit-actions button,
+  .register-submit-actions a {
+    width: 100%;
+  }
+}

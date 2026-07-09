@@ -7402,3 +7402,273 @@
     grid-template-columns: 1fr !important;
   }
 }
+
+/* --- ON-LI mobile stability pass --- */
+.admin-page,
+.admin-shell,
+.admin-section,
+.admin-request-section,
+.admin-detail-content,
+.admin-detail-tab-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.admin-list-card,
+.admin-request-card,
+.admin-metric-card,
+.admin-management-card,
+.admin-filter-panel,
+.admin-card,
+.admin-interpreter-admin-card,
+.admin-business-request-table-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.admin-list-card *,
+.admin-request-card *,
+.admin-management-card *,
+.admin-card *,
+.admin-interpreter-admin-card * {
+  min-width: 0;
+}
+
+.admin-table-wrap,
+.admin-business-request-table-wrap,
+.admin-notification-table-wrap,
+.admin-payment-table-wrap,
+.admin-settlement-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-modal-card,
+.admin-request-detail-modal,
+.admin-interpreter-detail-modal,
+.admin-payment-detail-modal,
+.admin-document-detail-modal,
+.admin-jobs-applicant-modal,
+.admin-notification-detail-modal,
+.admin-task-detail-modal,
+.admin-urgent-detail-modal {
+  width: min(1100px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
+}
+
+.admin-modal-body,
+.admin-interpreter-detail-body,
+.admin-business-detail-content {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-modal-actions,
+.admin-modal-head-actions,
+.admin-request-actions,
+.admin-card-actions,
+.admin-row-actions,
+.admin-job-form-actions,
+.admin-notification-modal-actions,
+.admin-urgent-detail-actions,
+.admin-settlement-card-actions,
+.admin-application-actions,
+.admin-operations-card-actions,
+.admin-interpreter-actions,
+.admin-inline-actions {
+  flex-wrap: wrap;
+}
+
+.admin-tabs,
+.admin-main-tabs,
+.admin-sub-tabs,
+.admin-detail-tabs,
+.modal-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-tabs button,
+.admin-main-tabs button,
+.admin-sub-tabs button,
+.admin-detail-tabs button,
+.modal-tabs button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .admin-page {
+    padding: 16px 12px;
+  }
+
+  .admin-shell {
+    width: 100%;
+  }
+
+  .admin-header,
+  .admin-dashboard-actions,
+  .admin-panel-head,
+  .admin-list-card-head,
+  .admin-modal-head,
+  .admin-interpreter-modal-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-header-actions,
+  .admin-dashboard-action-buttons,
+  .admin-modal-head-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-header-actions button,
+  .admin-dashboard-action-buttons button,
+  .admin-modal-head-actions button {
+    flex: 1 1 auto;
+  }
+
+  .admin-metrics,
+  .admin-operation-overview,
+  .admin-management-card-grid,
+  .admin-card-grid,
+  .admin-summary-grid,
+  .admin-filter-grid,
+  .admin-request-list,
+  .admin-operations-modal-grid,
+  .admin-job-form-grid,
+  .admin-business-basic-panel,
+  .admin-business-request-summary,
+  .admin-interpreter-admin-history-grid,
+  .admin-interpreter-basic-grid,
+  .admin-interpreter-activity-grid,
+  .admin-request-detail-grid,
+  .admin-detail-grid,
+  .admin-basic-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-modal-overlay {
+    align-items: center;
+    padding: 12px !important;
+  }
+
+  .admin-modal-card,
+  .admin-request-detail-modal,
+  .admin-interpreter-detail-modal,
+  .admin-payment-detail-modal,
+  .admin-document-detail-modal,
+  .admin-jobs-applicant-modal,
+  .admin-notification-detail-modal,
+  .admin-task-detail-modal,
+  .admin-urgent-detail-modal,
+  .admin-modal-card.admin-business-detail-modal {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    height: calc(100vh - 24px) !important;
+    max-height: calc(100vh - 24px) !important;
+    border-radius: 18px;
+  }
+
+  .admin-modal-body,
+  .admin-interpreter-detail-body {
+    max-height: calc(100vh - 180px);
+  }
+
+  .admin-business-detail-modal .admin-modal-body {
+    height: calc(100% - 78px);
+  }
+
+  .admin-business-detail-modal .admin-business-detail-content {
+    height: calc(100% - 54px);
+  }
+
+  .admin-table,
+  .admin-payment-table,
+  .admin-settlement-table,
+  .admin-notification-log-table {
+    min-width: 680px;
+  }
+
+  .admin-business-request-table {
+    min-width: 760px;
+  }
+
+  .admin-task-row,
+  .admin-task-modal-row,
+  .admin-notification-log-row,
+  .admin-urgent-list-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-form-row,
+  .admin-status-row,
+  .admin-request-status-change-row,
+  .admin-process-log-detail-row,
+  .admin-activity-log-detail-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-request-change-value-wrap,
+  .admin-process-log-values {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-modal-actions,
+  .admin-modal-head-actions,
+  .admin-request-actions,
+  .admin-card-actions,
+  .admin-row-actions,
+  .admin-job-form-actions,
+  .admin-notification-modal-actions,
+  .admin-urgent-detail-actions,
+  .admin-settlement-card-actions,
+  .admin-application-actions,
+  .admin-operations-card-actions,
+  .admin-interpreter-actions,
+  .admin-inline-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .admin-modal-actions button,
+  .admin-modal-head-actions button,
+  .admin-request-actions button,
+  .admin-card-actions button,
+  .admin-row-actions button,
+  .admin-job-form-actions button,
+  .admin-notification-modal-actions button,
+  .admin-urgent-detail-actions button,
+  .admin-settlement-card-actions button,
+  .admin-application-actions button,
+  .admin-operations-card-actions button,
+  .admin-interpreter-actions button,
+  .admin-inline-actions button,
+  .admin-modal-actions select,
+  .admin-row-actions select,
+  .admin-card-actions select {
+    width: 100%;
+  }
+
+  .admin-tabs,
+  .admin-main-tabs,
+  .admin-sub-tabs,
+  .admin-detail-tabs,
+  .modal-tabs {
+    width: 100%;
+  }
+}
