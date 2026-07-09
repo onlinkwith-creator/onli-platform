@@ -67,6 +67,7 @@ import {
   SETTLEMENT_FLOW_STATUS_OPTIONS,
   getAssignmentStatusLabel,
   getAssignmentStatusBadgeClass,
+  getOperationStatusLabel,
   getOperationStatusBadgeClass,
   getSettlementFlowStatusLabel,
   normalizeAssignmentStatus,
@@ -174,6 +175,26 @@ const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const SETTLEMENTS_SELECT =
   "id, request_id, interpreter_id, interpreter_auth_user_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
+const INTERPRETER_ASSIGNMENT_HISTORY_SELECT = `
+  id,
+  request_id,
+  interpreter_id,
+  status,
+  created_at,
+  updated_at,
+  requests:request_id (
+    id,
+    request_no,
+    event_name,
+    company_name,
+    location,
+    start_date,
+    end_date,
+    requested_level,
+    language_direction,
+    operation_status
+  )
+`;
 const INTERPRETER_UPDATE_COLUMNS = new Set([
   "name",
   "email",
@@ -5195,6 +5216,7 @@ function sanitizeRecipientEmail(email) {
               matchings={matchings}
               requestAssignments={assignmentRows}
               requests={requests}
+              settlements={safeSettlements}
               duplicateReasons={
                 selectedInterpreter
                   ? duplicateInterpreterResult.reasonMap.get(selectedInterpreter.id) || []
@@ -7647,16 +7669,17 @@ function BusinessManagement({
             </div>
 
             {detailModal.loading && <p className="admin-empty-text">기업 상세 정보를 불러오는 중입니다.</p>}
-            {detailModal.error && <p className="admin-empty-text is-error">{detailModal.error}</p>}
-            {!detailModal.loading && !detailModal.error && !modalBusiness && (
-              <p className="admin-empty-text">표시할 기업 정보가 없습니다.</p>
-            )}
+            <div className="admin-business-detail-content">
+              {detailModal.error && <p className="admin-empty-text is-error">{detailModal.error}</p>}
+              {!detailModal.loading && !detailModal.error && !modalBusiness && (
+                <p className="admin-empty-text">표시할 기업 정보가 없습니다.</p>
+              )}
 
-            {!detailModal.loading && !detailModal.error && modalBusiness && (
-              <>
-                {activeDetailTab === "basic" && (
-                  <div className="admin-detail-panel">
-                    <div>
+              {!detailModal.loading && !detailModal.error && modalBusiness && (
+                <>
+                  {activeDetailTab === "basic" && (
+                    <div className="admin-detail-panel admin-business-basic-panel">
+                      <div className="admin-business-basic-info-card">
                       <h3>기본 정보</h3>
                       <dl className="admin-detail-list compact">
                         <Info label="회사명" value={modalBusiness.company_name || "-"} />
@@ -7669,10 +7692,10 @@ function BusinessManagement({
                       </dl>
                     </div>
                   </div>
-                )}
+                  )}
 
-                {activeDetailTab === "contact" && (
-                  <div className="admin-detail-panel">
+                  {activeDetailTab === "contact" && (
+                    <div className="admin-detail-panel admin-business-basic-panel">
                     <div>
                       <h3>연락처</h3>
                       <dl className="admin-detail-list compact">
@@ -7682,11 +7705,11 @@ function BusinessManagement({
                       </dl>
                     </div>
                   </div>
-                )}
+                  )}
 
-                {activeDetailTab === "requests" && (
-                  <div className="admin-detail-panel">
-                    <div>
+                  {activeDetailTab === "requests" && (
+                    <div className="admin-detail-panel admin-business-request-history-grid">
+                      <div className="admin-business-request-summary-card">
                       <h3>의뢰 정보</h3>
                       <dl className="admin-detail-list compact">
                         <Info label="총 의뢰 건수" value={`${modalRequests.length}건`} />
@@ -7722,8 +7745,8 @@ function BusinessManagement({
                                 return (
                                   <tr key={request.id}>
                                     <td>{formatManagementNumber(request.request_no || request.id)}</td>
-                                    <td>{request.event_name || request.title || "-"}</td>
-                                    <td>{formatDateRange(request.start_date, request.end_date, request.event_date)}</td>
+                                    <td className="admin-business-request-title-cell">{request.event_name || request.title || "-"}</td>
+                                    <td className="admin-business-request-date-cell">{formatDateRange(request.start_date, request.end_date, request.event_date)}</td>
                                     <td>{getEstimateStatusLabel(request.estimate_status)}</td>
                                     <td>{getAssignmentStatusLabel(assignmentStatus)}</td>
                                     <td>{getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, operationStatus)}</td>
@@ -7737,18 +7760,19 @@ function BusinessManagement({
                       )}
                     </div>
                   </div>
-                )}
+                  )}
 
-                {activeDetailTab === "memo" && (
-                  <div className="admin-detail-panel">
+                  {activeDetailTab === "memo" && (
+                    <div className="admin-detail-panel admin-business-basic-panel">
                     <div>
                       <h3>관리자 메모</h3>
                       <p>{modalBusiness.notes || "등록된 관리자 메모가 없습니다."}</p>
                     </div>
                   </div>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </AdminModal>
       )}
@@ -9788,6 +9812,7 @@ function InterpreterModal({
   modalType,
   requestAssignments = [],
   requests = [],
+  settlements = [],
   saving,
   noteDrafts = {},
   onChangeDraft,
@@ -9799,6 +9824,62 @@ function InterpreterModal({
   deleteInterpreter,
   onOpenModal,
 }) {
+  const [activeInterpreterDetailTab, setActiveInterpreterDetailTab] = useState("basic");
+  const [assignmentHistory, setAssignmentHistory] = useState([]);
+  const [assignmentHistoryLoading, setAssignmentHistoryLoading] = useState(false);
+  const [assignmentHistoryError, setAssignmentHistoryError] = useState("");
+
+  useEffect(() => {
+    setActiveInterpreterDetailTab("basic");
+    setAssignmentHistory([]);
+    setAssignmentHistoryError("");
+  }, [interpreter?.id, modalType]);
+
+  useEffect(() => {
+    if (
+      modalType !== "detail" ||
+      activeInterpreterDetailTab !== "history" ||
+      !interpreter?.id
+    ) {
+      return undefined;
+    }
+
+    let isActive = true;
+    const fetchAssignmentHistory = async () => {
+      if (!supabase) {
+        setAssignmentHistoryError(supabaseConfigError.message);
+        return;
+      }
+
+      setAssignmentHistoryLoading(true);
+      setAssignmentHistoryError("");
+
+      const { data, error } = await supabase
+        .from("request_interpreters")
+        .select(INTERPRETER_ASSIGNMENT_HISTORY_SELECT)
+        .eq("interpreter_id", interpreter.id)
+        .eq("status", "assigned")
+        .order("created_at", { ascending: false });
+
+      if (!isActive) return;
+
+      if (error) {
+        setAssignmentHistory([]);
+        setAssignmentHistoryError(error.message || "이력 조회 중 오류가 발생했습니다.");
+      } else {
+        setAssignmentHistory(dedupeInterpreterAssignmentHistory(data || []));
+      }
+
+      setAssignmentHistoryLoading(false);
+    };
+
+    fetchAssignmentHistory();
+
+    return () => {
+      isActive = false;
+    };
+  }, [activeInterpreterDetailTab, interpreter?.id, modalType]);
+
   if (!interpreter || !modalType) return null;
 
   const handleDownloadFile = async (filePath) => {
@@ -9923,6 +10004,25 @@ function InterpreterModal({
             </div>
 
             <div className="admin-modal-body admin-interpreter-detail-body">
+            <div className="admin-interpreter-detail-tabs" role="tablist" aria-label="통역사 상세 정보 탭">
+              {[
+                { id: "basic", label: "기본 정보" },
+                { id: "activity", label: "활동 정보" },
+                { id: "history", label: "이력" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={activeInterpreterDetailTab === tab.id ? "active" : ""}
+                  role="tab"
+                  aria-selected={activeInterpreterDetailTab === tab.id}
+                  onClick={() => setActiveInterpreterDetailTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             <div className="admin-interpreter-summary-card">
               <div className="admin-interpreter-profile-pane">
                 <div className="admin-interpreter-avatar" aria-hidden="true">
@@ -9956,6 +10056,15 @@ function InterpreterModal({
               </div>
             </div>
 
+            {activeInterpreterDetailTab === "history" ? (
+              <InterpreterAssignmentHistoryTab
+                error={assignmentHistoryError}
+                histories={assignmentHistory}
+                loading={assignmentHistoryLoading}
+                settlements={settlements}
+              />
+            ) : (
+              <>
             <div className="admin-interpreter-detail-grid">
               <InterpreterDetailSection icon={User} title="기본 정보">
                 <InterpreterDetailItem label="이름" value={interpreter.name} />
@@ -10326,6 +10435,8 @@ function InterpreterModal({
               onChangeNoteDraft={onChangeNoteDraft}
               onCreateNote={onCreateNote}
             />
+            </>
+            )}
 
             <div
               className="admin-modal-actions admin-interpreter-detail-actions"
@@ -10634,6 +10745,129 @@ function InterpreterModal({
         )}
       </section>
     </div>
+  );
+}
+
+function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settlements = [] }) {
+  if (loading) {
+    return <p className="admin-interpreter-history-empty">이력을 불러오는 중입니다.</p>;
+  }
+
+  if (error) {
+    return <p className="admin-interpreter-history-empty error">{error}</p>;
+  }
+
+  if (histories.length === 0) {
+    return <p className="admin-interpreter-history-empty">배정된 통역 이력이 없습니다.</p>;
+  }
+
+  return (
+    <div className="admin-interpreter-history-list">
+      {histories.map((history) => {
+        const request = Array.isArray(history.requests)
+          ? history.requests[0] || {}
+          : history.requests || {};
+        const settlement = getHistorySettlement(history, settlements);
+        const operationStatus = normalizeOperationStatus({
+          operation_status: request.operation_status,
+        });
+        const assignmentStatus = normalizeAssignmentStatus({
+          assignment_status: history.status,
+        });
+        const completed = operationStatus === OPERATION_STATUS.COMPLETED;
+
+        return (
+          <article className="admin-interpreter-history-card" key={`${history.request_id}-${history.interpreter_id}`}>
+            <div className="admin-interpreter-history-card-head">
+              <div>
+                <span className="admin-interpreter-history-number">
+                  {formatManagementNumber(request.request_no) || `의뢰 ${history.request_id}`}
+                </span>
+                <h3>{request.event_name || "의뢰명 미입력"}</h3>
+              </div>
+              <span className={`status-badge ${completed ? "badge-green" : "badge-yellow"}`}>
+                {completed ? "완료" : "미완료"}
+              </span>
+            </div>
+            <dl className="admin-interpreter-history-details">
+              <div>
+                <dt>기업명</dt>
+                <dd>{request.company_name || "-"}</dd>
+              </div>
+              <div>
+                <dt>행사 기간</dt>
+                <dd>{formatDateRange(request.start_date, request.end_date)}</dd>
+              </div>
+              <div>
+                <dt>장소</dt>
+                <dd>{request.location || "-"}</dd>
+              </div>
+              <div>
+                <dt>통역 언어</dt>
+                <dd>{request.language_direction || "-"}</dd>
+              </div>
+              <div>
+                <dt>통역 레벨</dt>
+                <dd>{request.requested_level || "-"}</dd>
+              </div>
+              <div>
+                <dt>배정 상태</dt>
+                <dd>{getAssignmentStatusLabel(assignmentStatus)}</dd>
+              </div>
+              <div>
+                <dt>운영 상태</dt>
+                <dd>{getOperationStatusLabel(operationStatus)}</dd>
+              </div>
+              <div>
+                <dt>정산 상태</dt>
+                <dd>{settlement ? getSettlementStatusLabel(settlement.settlement_status) : "-"}</dd>
+              </div>
+              <div>
+                <dt>통역사 지급액</dt>
+                <dd>{settlement?.amount === null || settlement?.amount === undefined ? "-" : formatJPY(settlement.amount)}</dd>
+              </div>
+              <div>
+                <dt>업무 완료 여부</dt>
+                <dd>{completed ? "완료" : "미완료"}</dd>
+              </div>
+            </dl>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function dedupeInterpreterAssignmentHistory(rows = []) {
+  const rowMap = new Map();
+  rows.forEach((row) => {
+    const key = `${row.request_id || ""}:${row.interpreter_id || ""}`;
+    if (key === ":") return;
+    const previous = rowMap.get(key);
+    if (!previous || getHistorySortTime(row) > getHistorySortTime(previous)) {
+      rowMap.set(key, row);
+    }
+  });
+  return Array.from(rowMap.values()).sort((a, b) => getHistorySortTime(b) - getHistorySortTime(a));
+}
+
+function getHistorySortTime(row = {}) {
+  const value = row.updated_at || row.created_at || "";
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function getHistorySettlement(history = {}, settlements = []) {
+  return (
+    settlements.find(
+      (settlement) =>
+        String(settlement.request_id || "") === String(history.request_id || "") &&
+        String(settlement.interpreter_id || "") === String(history.interpreter_id || "")
+    ) ||
+    settlements.find(
+      (settlement) => String(settlement.request_id || "") === String(history.request_id || "")
+    ) ||
+    null
   );
 }
 
