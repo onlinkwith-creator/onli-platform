@@ -10025,8 +10025,7 @@ function InterpreterModal({
                 { id: "basic", label: "기본 정보" },
                 { id: "activity", label: "활동 정보" },
                 { id: "history", label: "이력" },
-                { id: "memo", label: "내부 메모" },
-                { id: "processHistory", label: "처리 이력" },
+                { id: "adminHistory", label: "관리 기록" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -10083,8 +10082,9 @@ function InterpreterModal({
                 loading={assignmentHistoryLoading}
                 settlements={settlements}
               />
-            ) : activeInterpreterDetailTab === "memo" ? (
-              <InterpreterMemoTab
+            ) : activeInterpreterDetailTab === "adminHistory" ? (
+              <InterpreterAdminHistoryTab
+                activityLogs={adminActivityLogs}
                 notes={adminNotes}
                 noteDrafts={noteDrafts}
                 saving={saving}
@@ -10092,12 +10092,6 @@ function InterpreterModal({
                 targetType="interpreter"
                 onChangeNoteDraft={onChangeNoteDraft}
                 onCreateNote={onCreateNote}
-              />
-            ) : activeInterpreterDetailTab === "processHistory" ? (
-              <InterpreterProcessHistoryTab
-                activityLogs={adminActivityLogs}
-                targetId={interpreter.id}
-                targetType="interpreter"
               />
             ) : (
               <>
@@ -10906,7 +10900,8 @@ function getHistorySettlement(history = {}, settlements = []) {
   );
 }
 
-function InterpreterMemoTab({
+function InterpreterAdminHistoryTab({
+  activityLogs = [],
   notes = [],
   noteDrafts = {},
   onChangeNoteDraft,
@@ -10921,9 +10916,14 @@ function InterpreterMemoTab({
       note.target_type === targetType &&
       String(note.target_id) === String(targetId)
   );
+  const targetLogs = activityLogs.filter(
+    (log) =>
+      log.target_type === targetType &&
+      String(log.target_id) === String(targetId)
+  );
 
   return (
-    <div className="admin-interpreter-memo-tab">
+    <div className="admin-interpreter-admin-history-grid">
       <section className="admin-interpreter-admin-card">
         <h3>내부 메모</h3>
         {targetNotes.length === 0 ? (
@@ -10958,32 +10958,41 @@ function InterpreterMemoTab({
           {saving ? "저장 중..." : "메모 저장"}
         </button>
       </section>
-    </div>
-  );
-}
-
-function InterpreterProcessHistoryTab({ activityLogs = [], targetId, targetType }) {
-  const targetLogs = activityLogs.filter(
-    (log) =>
-      log.target_type === targetType &&
-      String(log.target_id) === String(targetId)
-  );
-
-  return (
-    <div className="admin-interpreter-process-history-tab">
       <section className="admin-interpreter-admin-card">
         <h3>처리 이력</h3>
         {targetLogs.length === 0 ? (
           <p className="admin-empty-text">처리 이력이 없습니다.</p>
         ) : (
           <div className="admin-interpreter-process-list">
-            {targetLogs.map((log) => (
-              <article className="admin-interpreter-process-item" key={log.id}>
-                <strong>{getAdminActionTypeLabel(log.action_type) || "상태 변경"}</strong>
-                <p>{formatAdminActivityLog(log)}</p>
-                <time>{formatDateTime(log.created_at)}</time>
-              </article>
-            ))}
+            {targetLogs.map((log) => {
+              const changes = parseInterpreterChangeLog(formatAdminActivityLog(log));
+              return (
+                <article className="admin-interpreter-process-item" key={log.id}>
+                  <strong>{getAdminActionTypeLabel(log.action_type) || "상태 변경"}</strong>
+                  <div className="admin-process-log-changes">
+                    {changes.map((change, index) => (
+                      <div className="admin-process-log-change-row" key={`${change.label}-${index}`}>
+                        <span className="admin-change-label">{change.label}</span>
+                        <div className="admin-change-values">
+                          {change.before && (
+                            <>
+                              <span className="admin-before-value">
+                                {formatChangeValue(change.before)}
+                              </span>
+                              <span className="admin-change-arrow">→</span>
+                            </>
+                          )}
+                          <span className="admin-after-value">
+                            {formatChangeValue(change.after)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <time>{formatDateTime(log.created_at)}</time>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
@@ -13889,6 +13898,59 @@ function getAdminActionTypeLabel(actionType) {
     schedule_conflict_override: "일정 충돌 강제 배정",
   };
   return labels[actionType] || actionType || "처리 이력";
+}
+
+function parseInterpreterChangeLog(message = "") {
+  if (!message || !message.includes("→")) {
+    return [{ label: "변경 내용", before: "", after: message || "-" }];
+  }
+
+  const [beforeRaw, afterRaw] = message.split("→").map((value) => value.trim());
+  const normalize = (text = "") => {
+    const result = {};
+    const labelMap = {
+      상태: "계정 상태",
+      검증: "검증 상태",
+      활동: "활동 상태",
+    };
+
+    text.split(",").forEach((part) => {
+      const [key, ...valueParts] = part.split(":").map((value) => value.trim());
+      const value = valueParts.join(":").trim();
+      if (!key || value === "") return;
+      result[labelMap[key] || key] = value;
+    });
+
+    return result;
+  };
+
+  const before = normalize(beforeRaw);
+  const after = normalize(afterRaw);
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+  const changes = keys
+    .filter((key) => before[key] !== after[key])
+    .map((key) => ({
+      label: key,
+      before: before[key] ?? "-",
+      after: after[key] ?? "-",
+    }));
+
+  return changes.length > 0
+    ? changes
+    : [{ label: "변경 내용", before: "", after: message }];
+}
+
+function formatChangeValue(value = "") {
+  const valueMap = {
+    active: "활동중",
+    inactive: "비활동",
+    true: "예",
+    false: "아니오",
+    pending: "대기",
+    approved: "승인 완료",
+    rejected: "반려",
+  };
+  return valueMap[String(value)] || value || "-";
 }
 
 function getAdminActivitySummaryLabel(log = {}) {
