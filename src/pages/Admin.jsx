@@ -179,7 +179,6 @@ const INTERPRETER_ASSIGNMENT_HISTORY_SELECT = `
   id,
   request_id,
   interpreter_id,
-  status,
   created_at,
   updated_at,
   requests:request_id (
@@ -4830,6 +4829,7 @@ function sanitizeRecipientEmail(email) {
             {activeSubTab === "all_businesses" && (
               <BusinessManagement
                 businesses={businesses}
+                onOpenRequestDetail={(request) => openRequestModal("detail", request)}
                 requests={requests}
                 onUpdateStatus={(bizId, newStatus) => updateBusiness(bizId, { status: newStatus })}
                 onUpdateNotes={(bizId, newNotes) => updateBusiness(bizId, { notes: newNotes })}
@@ -7345,6 +7345,7 @@ function InterpreterSettlementManagement({
 
 function BusinessManagement({
   businesses,
+  onOpenRequestDetail,
   requests,
   onUpdateStatus,
   onUpdateNotes,
@@ -7716,17 +7717,26 @@ function BusinessManagement({
                   )}
 
                   {activeDetailTab === "requests" && (
-                    <div className="admin-detail-panel admin-business-request-history-grid">
-                      <div className="admin-business-request-summary-card">
-                      <h3>의뢰 정보</h3>
-                      <dl className="admin-detail-list compact">
-                        <Info label="총 의뢰 건수" value={`${modalRequests.length}건`} />
-                        <Info label="진행 중 의뢰" value={`${activeRequests.length}건`} />
-                        <Info label="완료 의뢰" value={`${completedRequests.length}건`} />
-                      </dl>
-                    </div>
-                    <div>
-                      <h3>최근 의뢰 목록</h3>
+                    <div className="admin-business-request-panel">
+                      <div className="admin-business-request-summary">
+                        <div className="admin-business-request-summary-card">
+                          <span>총 의뢰 건수</span>
+                          <strong>{modalRequests.length}건</strong>
+                        </div>
+                        <div className="admin-business-request-summary-card">
+                          <span>진행 중 의뢰</span>
+                          <strong>{activeRequests.length}건</strong>
+                        </div>
+                        <div className="admin-business-request-summary-card">
+                          <span>완료 의뢰</span>
+                          <strong>{completedRequests.length}건</strong>
+                        </div>
+                      </div>
+
+                      <div className="admin-business-request-table-card">
+                        <div className="admin-business-request-table-head">
+                          <h3>최근 의뢰 목록</h3>
+                        </div>
                       {recentRequests.length === 0 ? (
                         <p className="admin-empty-text">표시할 의뢰 내역이 없습니다.</p>
                       ) : (
@@ -7740,14 +7750,11 @@ function BusinessManagement({
                                 <th>견적 상태</th>
                                 <th>배정 상태</th>
                                 <th>운영 상태</th>
-                                <th>정산 상태</th>
+                                <th>상세보기</th>
                               </tr>
                             </thead>
                             <tbody>
                               {recentRequests.map((request) => {
-                                const settlement = modalSettlementByRequest.get(String(request.id));
-                                const settlementStatus =
-                                  settlement?.settlement_status || request.settlement_status;
                                 const assignmentStatus = normalizeAssignmentStatus(request);
                                 const operationStatus = normalizeOperationStatus(request);
                                 return (
@@ -7758,7 +7765,18 @@ function BusinessManagement({
                                     <td>{getEstimateStatusLabel(request.estimate_status)}</td>
                                     <td>{getAssignmentStatusLabel(assignmentStatus)}</td>
                                     <td>{getOperationStatusOptionLabel(OPERATION_STATUS_OPTIONS, operationStatus)}</td>
-                                    <td>{getSettlementStatusLabel(settlementStatus)}</td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="admin-link-button"
+                                        onClick={() => {
+                                          closeBusinessDetail();
+                                          onOpenRequestDetail?.(request);
+                                        }}
+                                      >
+                                        상세보기
+                                      </button>
+                                    </td>
                                   </tr>
                                 );
                               })}
@@ -9866,7 +9884,6 @@ function InterpreterModal({
         .from("request_interpreters")
         .select(INTERPRETER_ASSIGNMENT_HISTORY_SELECT)
         .eq("interpreter_id", interpreter.id)
-        .eq("status", "assigned")
         .order("created_at", { ascending: false });
 
       if (!isActive) return;
@@ -10822,8 +10839,13 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
         const operationStatus = normalizeOperationStatus({
           operation_status: request.operation_status,
         });
+        const assignmentStatusValue =
+          history.assignment_status ||
+          history.matching_status ||
+          history.status ||
+          "배정 완료";
         const assignmentStatus = normalizeAssignmentStatus({
-          assignment_status: history.status,
+          assignment_status: assignmentStatusValue,
         });
         const completed = operationStatus === OPERATION_STATUS.COMPLETED;
 

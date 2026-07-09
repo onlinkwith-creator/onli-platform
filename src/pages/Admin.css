@@ -2582,6 +2582,52 @@
   align-self: start;
 }
 
+.admin-business-request-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-business-request-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-business-request-summary-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: #ffffff;
+}
+
+.admin-business-request-summary-card span {
+  display: block;
+  margin-bottom: 8px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-business-request-summary-card strong {
+  color: #111827;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.admin-business-request-table-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.admin-business-request-table-head h3 {
+  margin: 0 0 12px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+}
+
 .admin-business-request-table-wrap {
   width: 100%;
   max-width: 100%;
@@ -2589,16 +2635,29 @@
 }
 
 .admin-business-request-table {
-  min-width: 860px;
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
 }
 
 .admin-business-request-table th,
 .admin-business-request-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #eef0f4;
   white-space: nowrap;
+  font-size: 14px;
+}
+
+.admin-business-request-table th {
+  background: #f8fafc;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
 }
 
 .admin-business-request-title-cell {
-  max-width: 220px;
+  max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -2625,6 +2684,14 @@
   .admin-business-basic-panel,
   .admin-business-request-history-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-business-request-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-business-request-table {
+    min-width: 760px;
   }
 
   .admin-business-basic-info-card {
@@ -7099,17 +7166,24 @@
 .admin-modal-card.admin-business-detail-modal {
   width: min(1100px, calc(100vw - 48px)) !important;
   max-width: min(1100px, calc(100vw - 48px)) !important;
+  height: min(760px, calc(100vh - 64px)) !important;
   max-height: calc(100vh - 64px) !important;
   overflow: hidden !important;
 }
 
 .admin-business-detail-modal .admin-modal-body {
-  max-height: calc(100vh - 160px);
+  height: calc(100% - 84px);
+  max-height: none;
   overflow: hidden !important;
 }
 
+.admin-business-detail-modal .admin-business-detail {
+  height: 100%;
+}
+
 .admin-business-detail-modal .admin-business-detail-content {
-  max-height: calc(100vh - 220px);
+  height: calc(100% - 58px);
+  max-height: none;
   overflow-y: auto;
 }
 
@@ -7129,6 +7203,7 @@
   .admin-modal-card.admin-business-detail-modal {
     width: calc(100vw - 24px) !important;
     max-width: calc(100vw - 24px) !important;
+    height: calc(100vh - 24px) !important;
     max-height: calc(100vh - 24px) !important;
   }
 
