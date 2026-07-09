@@ -181,11 +181,7 @@ const INTERPRETER_ASSIGNMENT_HISTORY_SELECT = `
   interpreter_id,
   requests:request_id (
     id,
-    request_no,
-    title,
-    company_name,
-    event_start_date,
-    event_end_date
+    request_no
   )
 `;
 const INTERPRETER_UPDATE_COLUMNS = new Set([
@@ -10830,18 +10826,12 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
           ? history.requests[0] || {}
           : history.requests || {};
         const settlement = getHistorySettlement(history, settlements);
-        const operationStatus = normalizeOperationStatus({
-          operation_status: request.operation_status,
-        });
-        const assignmentStatusValue =
-          history.assignment_status ||
-          history.matching_status ||
-          history.status ||
-          "배정 완료";
-        const assignmentStatus = normalizeAssignmentStatus({
-          assignment_status: assignmentStatusValue,
-        });
-        const completed = operationStatus === OPERATION_STATUS.COMPLETED;
+        const requestName =
+          request.event_name ||
+          request.request_title ||
+          request.project_name ||
+          request.request_no ||
+          "의뢰명 미등록";
 
         return (
           <article className="admin-interpreter-history-card" key={`${history.request_id}-${history.interpreter_id}`}>
@@ -10850,20 +10840,18 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
                 <span className="admin-interpreter-history-number">
                   {formatManagementNumber(request.request_no) || `의뢰 ${history.request_id}`}
                 </span>
-                <h3>{request.title || "의뢰명 미입력"}</h3>
+                <h3>{requestName}</h3>
               </div>
-              <span className={`status-badge ${completed ? "badge-green" : "badge-yellow"}`}>
-                {completed ? "완료" : "미완료"}
-              </span>
+              <span className="status-badge badge-blue">배정 완료</span>
             </div>
             <dl className="admin-interpreter-history-details">
               <div>
                 <dt>기업명</dt>
-                <dd>{request.company_name || "-"}</dd>
+                <dd>-</dd>
               </div>
               <div>
                 <dt>행사 기간</dt>
-                <dd>{formatDateRange(request.event_start_date, request.event_end_date)}</dd>
+                <dd>-</dd>
               </div>
               <div>
                 <dt>통역 언어</dt>
@@ -10875,11 +10863,11 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
               </div>
               <div>
                 <dt>배정 상태</dt>
-                <dd>{getAssignmentStatusLabel(assignmentStatus)}</dd>
+                <dd>배정 완료</dd>
               </div>
               <div>
                 <dt>운영 상태</dt>
-                <dd>{getOperationStatusLabel(operationStatus)}</dd>
+                <dd>-</dd>
               </div>
               <div>
                 <dt>정산 상태</dt>
@@ -10891,7 +10879,7 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
               </div>
               <div>
                 <dt>업무 완료 여부</dt>
-                <dd>{completed ? "완료" : "미완료"}</dd>
+                <dd>-</dd>
               </div>
             </dl>
           </article>
