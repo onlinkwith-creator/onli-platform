@@ -179,19 +179,13 @@ const INTERPRETER_ASSIGNMENT_HISTORY_SELECT = `
   id,
   request_id,
   interpreter_id,
-  created_at,
-  updated_at,
   requests:request_id (
     id,
     request_no,
-    event_name,
+    title,
     company_name,
-    start_date,
-    end_date,
-    event_location,
-    requested_level,
-    language_direction,
-    operation_status
+    event_start_date,
+    event_end_date
   )
 `;
 const INTERPRETER_UPDATE_COLUMNS = new Set([
@@ -9884,7 +9878,7 @@ function InterpreterModal({
         .from("request_interpreters")
         .select(INTERPRETER_ASSIGNMENT_HISTORY_SELECT)
         .eq("interpreter_id", interpreter.id)
-        .order("created_at", { ascending: false });
+        .order("id", { ascending: false });
 
       if (!isActive) return;
 
@@ -10856,7 +10850,7 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
                 <span className="admin-interpreter-history-number">
                   {formatManagementNumber(request.request_no) || `의뢰 ${history.request_id}`}
                 </span>
-                <h3>{request.event_name || "의뢰명 미입력"}</h3>
+                <h3>{request.title || "의뢰명 미입력"}</h3>
               </div>
               <span className={`status-badge ${completed ? "badge-green" : "badge-yellow"}`}>
                 {completed ? "완료" : "미완료"}
@@ -10869,19 +10863,15 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
               </div>
               <div>
                 <dt>행사 기간</dt>
-                <dd>{formatDateRange(request.start_date, request.end_date)}</dd>
-              </div>
-              <div>
-                <dt>장소</dt>
-                <dd>{request.event_location || "-"}</dd>
+                <dd>{formatDateRange(request.event_start_date, request.event_end_date)}</dd>
               </div>
               <div>
                 <dt>통역 언어</dt>
-                <dd>{request.language_direction || "-"}</dd>
+                <dd>-</dd>
               </div>
               <div>
                 <dt>통역 레벨</dt>
-                <dd>{request.requested_level || "-"}</dd>
+                <dd>-</dd>
               </div>
               <div>
                 <dt>배정 상태</dt>
@@ -10917,17 +10907,16 @@ function dedupeInterpreterAssignmentHistory(rows = []) {
     const key = `${row.request_id || ""}:${row.interpreter_id || ""}`;
     if (key === ":") return;
     const previous = rowMap.get(key);
-    if (!previous || getHistorySortTime(row) > getHistorySortTime(previous)) {
+    if (!previous || getHistorySortValue(row) > getHistorySortValue(previous)) {
       rowMap.set(key, row);
     }
   });
-  return Array.from(rowMap.values()).sort((a, b) => getHistorySortTime(b) - getHistorySortTime(a));
+  return Array.from(rowMap.values()).sort((a, b) => getHistorySortValue(b) - getHistorySortValue(a));
 }
 
-function getHistorySortTime(row = {}) {
-  const value = row.updated_at || row.created_at || "";
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
+function getHistorySortValue(row = {}) {
+  const value = Number(row.id || 0);
+  return Number.isNaN(value) ? 0 : value;
 }
 
 function getHistorySettlement(history = {}, settlements = []) {
