@@ -1,12 +1,12 @@
 import {
   addManagementNumber,
   isManagementNumberConflict,
-} from "./managementNumber";
+} from "./managementNumber.js";
 import {
   buildLegacyJobApplicationPayload,
   isAgreementColumnError,
   isStatusValueError,
-} from "./applicationContact";
+} from "./applicationContact.js";
 
 const LEGACY_PENDING_STATUS = "지원완료";
 

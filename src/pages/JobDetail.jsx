@@ -32,6 +32,7 @@ import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/
 import { attachPublicJobCounts } from "../utils/jobsApi";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
+  ensureInterpreterApplicationEligibility,
   ensureInterpreterAuthLink,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
@@ -296,7 +297,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       return;
     }
 
-    const matchedInterpreter = await ensureInterpreterAuthLink(
+    const matchedInterpreter = await ensureInterpreterApplicationEligibility(
       supabase,
       interpreterProfile,
       currentUser

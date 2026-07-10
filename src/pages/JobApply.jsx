@@ -9,6 +9,7 @@ import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatu
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import {
+  ensureInterpreterApplicationEligibility,
   ensureInterpreterAuthLink,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
@@ -299,7 +300,7 @@ function JobApply({
       return;
     }
 
-    const matchedInterpreter = await ensureInterpreterAuthLink(
+    const matchedInterpreter = await ensureInterpreterApplicationEligibility(
       supabase,
       interpreterProfile,
       currentUser

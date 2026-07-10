@@ -17,8 +17,7 @@ export function isInterpreterApprovedForApplication(interpreter = {}) {
   if (isWithdrawnInterpreter(interpreter)) return false;
   if (interpreter.approved === true) return true;
 
-  const normalizedStatus = String(interpreter.status || "").trim().toLowerCase();
-  return APPROVED_STATUS_VALUES.has(normalizedStatus);
+  return isInterpreterApprovedStatus(interpreter.status);
 }
 
 export function pickCurrentUserInterpreterProfile(profiles = [], user = {}) {
@@ -77,4 +76,48 @@ export async function ensureInterpreterAuthLink(supabase, interpreter, user) {
   }
 
   return data || interpreter;
+}
+
+export async function ensureInterpreterApplicationEligibility(
+  supabase,
+  interpreter,
+  user
+) {
+  const linkedInterpreter = await ensureInterpreterAuthLink(
+    supabase,
+    interpreter,
+    user
+  );
+
+  if (
+    !supabase ||
+    !linkedInterpreter ||
+    !user?.id ||
+    !linkedInterpreter.approved ||
+    isInterpreterApprovedStatus(linkedInterpreter.status)
+  ) {
+    return linkedInterpreter;
+  }
+
+  const { data, error } = await supabase
+    .from("interpreters")
+    .update({
+      auth_user_id: user.id,
+      status: "active",
+    })
+    .eq("id", linkedInterpreter.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.warn("Interpreter application status normalization skipped", error);
+    return linkedInterpreter;
+  }
+
+  return data || { ...linkedInterpreter, auth_user_id: user.id, status: "active" };
+}
+
+function isInterpreterApprovedStatus(status) {
+  const normalizedStatus = String(status || "").trim().toLowerCase();
+  return APPROVED_STATUS_VALUES.has(normalizedStatus);
 }

@@ -34,11 +34,18 @@ export function normalizeApplicationPhone(value) {
 }
 
 export function isDuplicateApplicationError(error) {
+  const message = [
+    error?.message,
+    error?.details,
+    error?.hint,
+    error?.code,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     error?.code === "23505" &&
-    /job_applications.*(email|phone|interpreter)|applications.*(email|phone|interpreter)/i.test(
-      error?.message || ""
-    )
+    /job_applications.*(email|phone|interpreter)|applications.*(email|phone|interpreter)|job_interpreter|applicant_email|applicant_phone|duplicate key/i.test(message)
   );
 }
 
