@@ -79,20 +79,20 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
   const [submitted, setSubmitted] = useState(false);
   const [existingApplication, setExistingApplication] = useState(null);
   const [applicationCheckLoading, setApplicationCheckLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [submitStatus, setSubmitStatus] = useState({ type: "", message: "" });
 
   const fetchJob = useCallback(async () => {
     if (!jobId) {
       setLoading(false);
-      setErrorMessage("공고 정보를 찾을 수 없습니다.");
+      setSubmitStatus({ type: "error", message: "공고 정보를 찾을 수 없습니다." });
       return;
     }
 
     setLoading(true);
-    setErrorMessage("");
+    setSubmitStatus({ type: "error", message: "" });
 
     if (!publicSupabase) {
-      setErrorMessage(supabaseConfigError.message);
+      setSubmitStatus({ type: "error", message: supabaseConfigError.message });
       setLoading(false);
       return;
     }
@@ -106,7 +106,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     if (error) {
       console.error("Supabase select error:", error);
       alert(error.message);
-      setErrorMessage("공고 정보를 불러오지 못했습니다.");
+      setSubmitStatus({ type: "error", message: "공고 정보를 불러오지 못했습니다." });
       setLoading(false);
       return;
     }
@@ -115,7 +115,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
 
     if (!isPublicJob(data) && !isAdmin) {
       setJob(null);
-      setErrorMessage("현재 공개되지 않은 통역공고입니다.");
+      setSubmitStatus({ type: "error", message: "현재 공개되지 않은 통역공고입니다." });
       setLoading(false);
       return;
     }
@@ -225,32 +225,32 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
 
     if (!job) return;
     if (!canApplyToJob(job)) {
-      setErrorMessage("지원할 수 없는 공고입니다.");
+      setSubmitStatus({ type: "error", message: "지원할 수 없는 공고입니다." });
       return;
     }
     if (existingApplication) {
-      setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
+      setSubmitStatus({ type: "error", message: DUPLICATE_APPLICATION_MESSAGE });
       setSubmitted(true);
       return;
     }
     if (authLoading) {
-      setErrorMessage("로그인 상태를 확인 중입니다.");
+      setSubmitStatus({ type: "error", message: "로그인 상태를 확인 중입니다." });
       return;
     }
     if (!user) {
       const message = "로그인 후 지원할 수 있습니다.";
-      setErrorMessage(message);
+      setSubmitStatus({ type: "error", message: message });
       alert(message);
       onLoginClick?.();
       return;
     }
     if (profileLoading) {
-      setErrorMessage("통역사 등록 정보를 확인 중입니다.");
+      setSubmitStatus({ type: "error", message: "통역사 등록 정보를 확인 중입니다." });
       return;
     }
     if (!interpreterProfile) {
       const message = "통역사 등록 후 지원할 수 있습니다.";
-      setErrorMessage(message);
+      setSubmitStatus({ type: "error", message: message });
       alert(message);
       onRegisterClick?.();
       return;
@@ -258,25 +258,25 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
 
     if (!hasRegisteredResume(interpreterProfile)) {
       const message = "이력서를 등록한 후 지원할 수 있습니다.";
-      setErrorMessage(message);
+      setSubmitStatus({ type: "error", message: message });
       alert(message);
       return;
     }
 
     if (!areTermsAgreed(agreements, { requireCancelPolicy: true })) {
       const message = "약관 동의 후 제출 가능합니다.";
-      setErrorMessage(message);
+      setSubmitStatus({ type: "error", message: message });
       alert(message);
       return;
     }
 
     setSubmitting(true);
     submittingRef.current = true;
-    setErrorMessage("");
+    setSubmitStatus({ type: "error", message: "" });
 
     try {
       if (!supabase) {
-      setErrorMessage(supabaseConfigError.message);
+      setSubmitStatus({ type: "error", message: supabaseConfigError.message });
       setSubmitting(false);
       submittingRef.current = false;
       return;
@@ -292,7 +292,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
 
     if (currentUserError || !currentUser?.id || currentUser.id !== user.id) {
       const message = "지원 처리 권한이 없습니다. 로그인 상태와 통역사 승인 상태를 확인해주세요.";
-      setErrorMessage(message);
+      setSubmitStatus({ type: "error", message: message });
       alert(message);
       setSubmitting(false);
       submittingRef.current = false;
@@ -335,7 +335,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     });
 
     if (existingApplication) {
-      setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
+      setSubmitStatus({ type: "error", message: DUPLICATE_APPLICATION_MESSAGE });
       alert(DUPLICATE_APPLICATION_MESSAGE);
       setExistingApplication(existingApplication);
       setSubmitted(true);
@@ -467,10 +467,13 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       setExistingApplication(data || { id: data?.id });
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
+      setSubmitStatus({ type: "success", message: "지원이 완료되었습니다." });
+      setSubmitting(false);
+      submittingRef.current = false;
     } catch (error) {
       console.error("지원 저장 실패:", getSupabaseErrorDetails(error));
       if (isDuplicateApplicationError(error)) {
-        setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
+        setSubmitStatus({ type: "error", message: DUPLICATE_APPLICATION_MESSAGE });
         alert(DUPLICATE_APPLICATION_MESSAGE);
         setExistingApplication({ id: "duplicate" });
         setSubmitted(true);
@@ -480,7 +483,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       }
 
       const message = getJobApplicationSubmitErrorMessage(error);
-      setErrorMessage(message);
+      setSubmitStatus({ type: "error", message: message });
       alert(message);
       setSubmitting(false);
       submittingRef.current = false;
@@ -493,8 +496,8 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       <div className="job-detail-container">
         {loading ? (
           <MessageBox text="공고 정보를 불러오는 중입니다..." />
-        ) : errorMessage && !job ? (
-          <MessageBox text={errorMessage} />
+        ) : submitStatus.message && !job ? (
+          <MessageBox text={submitStatus.message} />
         ) : (
           <div className="job-detail-layout">
             
@@ -750,7 +753,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                               />
                             </label>
 
-                            {errorMessage && <p className="jobs-error">{errorMessage}</p>}
+                            {submitStatus.message && <p className={submitStatus.type === "success" ? "jobs-success" : "jobs-error"}>{submitStatus.message}</p>}
 
                             <TermsAgreement
                               agreements={agreements}

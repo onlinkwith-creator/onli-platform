@@ -960,6 +960,12 @@ function sanitizeRecipientEmail(email) {
   }, [activeSubTab, fetchAdminUsers]);
 
   useEffect(() => {
+    if (activeSubTab === "assignments") {
+      queueMicrotask(fetchAdminData);
+    }
+  }, [activeSubTab, fetchAdminData]);
+
+  useEffect(() => {
     if (!interpreterModalType) return undefined;
 
     const handleKeyDown = (event) => {
@@ -14762,12 +14768,14 @@ function buildAssignmentManagementRows({
 
   const acceptedApplicationRows = safeJobApplications
     .filter(
-      (application) =>
-        !usedApplicationIds.has(application.id) &&
-        isPostAcceptanceApplication(application)
+      (application) => {
+        const excludedStatuses = ['rejected', 'withdrawn', 'cancelled'];
+        return !usedApplicationIds.has(application.id) &&
+               !excludedStatuses.includes(application.status);
+      }
     )
     .map((application) => {
-      const request = requestsByJobId.get(String(application.job_id)) || null;
+      const request = (application.jobs?.request_id ? requestsById.get(String(application.jobs.request_id)) : requestsByJobId.get(String(application.job_id))) || null;
       const assignmentStatus = getApplicationAssignmentStatus(application);
 
       return {
