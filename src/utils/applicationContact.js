@@ -34,18 +34,11 @@ export function normalizeApplicationPhone(value) {
 }
 
 export function isDuplicateApplicationError(error) {
-  const message = [
-    error?.message,
-    error?.details,
-    error?.hint,
-    error?.code,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return (
     error?.code === "23505" &&
-    /job_applications.*(email|phone|interpreter)|applications.*(email|phone|interpreter)|job_interpreter|applicant_email|applicant_phone|duplicate key/i.test(message)
+    /job_applications.*(email|phone|interpreter)|applications.*(email|phone|interpreter)/i.test(
+      error?.message || ""
+    )
   );
 }
 
@@ -71,22 +64,6 @@ export function isAgreementColumnError(error) {
     error?.code === "42703" ||
     error?.code === "PGRST204" ||
     /agreed_|cancel_policy_agreed_at|column|schema cache/i.test(message)
-  );
-}
-
-export function isStatusValueError(error) {
-  const message = [
-    error?.message,
-    error?.details,
-    error?.hint,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    error?.code === "23514" ||
-    error?.code === "42501" ||
-    /job_applications_status_check|status|row-level security policy|violates row-level security/i.test(message)
   );
 }
 

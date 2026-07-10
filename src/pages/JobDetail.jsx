@@ -32,7 +32,6 @@ import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/
 import { attachPublicJobCounts } from "../utils/jobsApi";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
-  ensureInterpreterApplicationEligibility,
   ensureInterpreterAuthLink,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
@@ -48,8 +47,9 @@ import {
 } from "../utils/applicationContact";
 import {
   MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
 } from "../utils/managementNumber";
-import { insertJobApplicationWithFallback } from "../utils/jobApplicationSubmit";
 import "./Jobs.css";
 
 const initialForm = {
@@ -297,7 +297,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       return;
     }
 
-    const matchedInterpreter = await ensureInterpreterApplicationEligibility(
+    const matchedInterpreter = await ensureInterpreterAuthLink(
       supabase,
       interpreterProfile,
       currentUser
@@ -321,7 +321,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       ]
         .filter(Boolean)
         .join("\n\n"),
-      status: "pending",
+      status: "지원완료",
       agreed_terms: true,
       agreed_policy: true,
       agreed_cancel_policy: true,
@@ -364,11 +364,29 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       }
 
       const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
-      const { data, error, insertPayload } = await insertJobApplicationWithFallback({
+      let insertPayload = await addManagementNumber({
         supabase,
-        application,
-        managementConfig,
+        table: "job_applications",
+        payload: application,
+        ...managementConfig,
       });
+
+      let { error } = await supabase
+        .from("job_applications")
+        .insert([insertPayload]);
+
+      if (isManagementNumberConflict(error, managementConfig.column)) {
+        insertPayload = await addManagementNumber({
+          supabase,
+          table: "job_applications",
+          payload: application,
+          ...managementConfig,
+        });
+        const retryResult = await supabase
+          .from("job_applications")
+          .insert([insertPayload]);
+        error = retryResult.error;
+      }
 
       if (error) {
         const errorDetails = getSupabaseErrorDetails(error);
@@ -383,8 +401,8 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       }
 
       const emailPayload = {
-        requestId: data?.id || "",
-        applicationId: data?.id || "",
+        requestId: insertPayload.application_no || "",
+        applicationId: insertPayload.application_no || "",
         jobId: job.id,
         name: form.name,
         jobTitle: job.title || job.event_name || "공고 제목 미입력",
@@ -432,7 +450,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       }
 
       setSubmitted(true);
-      setExistingApplication(data || { id: data?.id });
+      setExistingApplication({ id: insertPayload.application_no || `${job.id}:${matchedInterpreter?.id || applicantEmail}` });
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
     } catch (error) {
