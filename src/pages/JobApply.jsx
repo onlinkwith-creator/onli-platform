@@ -324,7 +324,7 @@ function JobApply({
       ]
         .filter(Boolean)
         .join("\n\n"),
-      status: "지원완료",
+      status: "pending",
       agreed_terms: true,
       agreed_policy: true,
       agreed_cancel_policy: true,
