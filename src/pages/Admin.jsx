@@ -709,26 +709,12 @@ function sanitizeRecipientEmail(email) {
             (async () => {
               const result = await publicSupabase
                 .from("request_interpreters")
-                .select("id, request_id, interpreter_id, contact_visible")
-                .order("id", { ascending: false });
-
-              if (!result.error) {
-                return {
-                  ...result,
-                  data: normalizeRequestInterpreterRows(result.data),
-                };
-              }
-
-              console.error("request_interpreters contact_visible select failed", result.error);
-              const fallbackResult = await publicSupabase
-                .from("request_interpreters")
                 .select("id, request_id, interpreter_id")
                 .order("id", { ascending: false });
 
-              if (fallbackResult.error) return fallbackResult;
               return {
-                ...fallbackResult,
-                data: normalizeRequestInterpreterRows(fallbackResult.data),
+                ...result,
+                data: normalizeRequestInterpreterRows(result.data),
               };
             })(),
             publicSupabase
@@ -3792,25 +3778,12 @@ function sanitizeRecipientEmail(email) {
     );
 
     setSavingKey(`assign-${requestId}`);
-    let existingAssignmentResult = await supabase
+    const existingAssignmentResult = await supabase
       .from("request_interpreters")
-      .select("id, request_id, interpreter_id, contact_visible")
+      .select("id, request_id, interpreter_id")
       .eq("request_id", requestId)
       .eq("interpreter_id", interpreterId)
       .limit(1);
-
-    if (existingAssignmentResult.error) {
-      console.error(
-        "request_interpreters contact_visible select failed",
-        existingAssignmentResult.error
-      );
-      existingAssignmentResult = await supabase
-        .from("request_interpreters")
-        .select("id, request_id, interpreter_id")
-        .eq("request_id", requestId)
-        .eq("interpreter_id", interpreterId)
-        .limit(1);
-    }
 
     const existingAssignments = normalizeRequestInterpreterRows(existingAssignmentResult.data);
     const existingAssignmentError = existingAssignmentResult.error;
@@ -3884,36 +3857,11 @@ function sanitizeRecipientEmail(email) {
     let { data: assignmentData, error } = await supabase
       .from("request_interpreters")
       .insert([payload])
-      .select("id, request_id, interpreter_id, contact_visible")
+      .select("id, request_id, interpreter_id")
       .single();
-
-    if (error && isMissingColumnError(error)) {
-      console.error("request_interpreters contact_visible select failed", error);
-      const insertFallbackResult = await supabase
-        .from("request_interpreters")
-        .select("id, request_id, interpreter_id")
-        .eq("request_id", requestId)
-        .eq("interpreter_id", interpreterId)
-        .limit(1)
-        .maybeSingle();
-
-      if (!insertFallbackResult.error && insertFallbackResult.data) {
-        assignmentData = { ...insertFallbackResult.data, contact_visible: false };
-        error = null;
-      }
-    }
 
     if (error) {
       setSavingKey("");
-      console.error("매칭 저장 디버그:", {
-        selectedJob,
-        requestId,
-        selectedInterpreterId: interpreterId,
-        selectedInterpreter: interpreter,
-        table: "request_interpreters",
-        payload,
-        error,
-      });
       console.error("통역사 매칭 실패:", error);
       alert(
         error.code === "23505"
@@ -3966,15 +3914,6 @@ function sanitizeRecipientEmail(email) {
     setSavingKey("");
 
     if (requestError) {
-      console.error("매칭 저장 디버그:", {
-        selectedJob,
-        requestId,
-        selectedInterpreterId: interpreterId,
-        selectedInterpreter: interpreter,
-        table: "requests",
-        payload: requestChanges,
-        error: requestError,
-      });
       console.error("통역사 매칭 실패:", requestError);
       alert(`통역사 매칭에 실패했습니다: ${requestError.message}`);
       return false;
@@ -4290,21 +4229,6 @@ function sanitizeRecipientEmail(email) {
       return;
     }
 
-    const { error: assignmentError } = await supabase
-      .from("request_interpreters")
-      .update({
-        contact_visible: Boolean(checked),
-        is_contact_visible: Boolean(checked),
-        contact_revealed: Boolean(checked),
-        contact_revealed_at: revealedAt,
-        contact_revealed_by: user?.id || null,
-      })
-      .eq("request_id", requestId);
-
-    if (assignmentError) {
-      console.warn("request assignment contact visibility sync failed", assignmentError);
-    }
-
     setRequests((current) =>
       current.map((request) =>
         String(request.id) === String(requestId)
@@ -4323,10 +4247,6 @@ function sanitizeRecipientEmail(email) {
           ? {
               ...item,
               contact_visible: Boolean(checked),
-              is_contact_visible: Boolean(checked),
-              contact_revealed: Boolean(checked),
-              contact_revealed_at: revealedAt,
-              contact_revealed_by: user?.id || null,
             }
           : item
       )
@@ -16983,15 +16903,6 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
     };
   });
   const settlementCandidates = rows.filter(isSettlementManagementCandidate);
-  if (settlementCandidates.length > 0) {
-    console.table(
-      settlementCandidates.map((row) => ({
-        request_code: row.request_no || row.management_no || row.id,
-        settlement_id: row._settlement_id || "",
-        settlement_status: row.settlement_status || "",
-      }))
-    );
-  }
 
   return {
     rows: sortSettlementRows(settlementCandidates),

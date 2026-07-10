@@ -86,6 +86,7 @@ function InterpreterMypage({
   // Dynamic dashboard states
   const [applications, setApplications] = useState([]);
   const [matchings, setMatchings] = useState([]);
+  const [assignmentLoadError, setAssignmentLoadError] = useState("");
   const [settlements, setSettlements] = useState([]);
   const [paymentDocuments, setPaymentDocuments] = useState([]);
   const [activeTab, setActiveTab] = useState("profile");
@@ -276,6 +277,7 @@ function InterpreterMypage({
       // Fetch applications and matchings dynamically
       setLoadingData(true);
       try {
+        setAssignmentLoadError("");
         const [apps, mats, settlementRows, documentRows] = await Promise.all([
           fetchApplicationsData(nextInterpreter.id),
           fetchMatchingsData(nextInterpreter.id),
@@ -288,6 +290,7 @@ function InterpreterMypage({
         setPaymentDocuments(documentRows);
       } catch (err) {
         console.error("Failed to load applications/matchings", err);
+        setAssignmentLoadError("배정 내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
       } finally {
         setLoadingData(false);
       }
@@ -929,23 +932,23 @@ function InterpreterMypage({
         interpreter_id,
         assigned_at,
         status,
-        assignment_status,
-        contact_visible,
-        is_contact_visible,
-        contact_revealed
+        assignment_status
       `)
       .eq("interpreter_id", interpreterId)
       .order("assigned_at", { ascending: false });
 
     if (assignmentError) {
-      console.error("request_interpreters fetch failed", assignmentError);
-      return [];
+      console.error("[request_interpreters:fetch]", {
+        code: assignmentError.code,
+        message: assignmentError.message,
+      });
+      throw assignmentError;
     }
 
     const requestIds = getUniqueIds((assignments || []).map((item) => item.request_id));
     if (requestIds.length === 0) return [];
 
-    const { data: requests, error: requestError } = await supabase
+    let { data: requests, error: requestError } = await supabase
       .from("requests")
       .select(`
         id,
@@ -974,9 +977,39 @@ function InterpreterMypage({
       `)
       .in("id", requestIds);
 
+    if (requestError && isMissingColumnError(requestError, "contact_revealed")) {
+      const fallbackResult = await supabase
+        .from("requests")
+        .select(`
+          id,
+          job_id,
+          request_no,
+          event_name,
+          company_name,
+          contact_name,
+          contact_email_or_phone,
+          start_date,
+          end_date,
+          event_date,
+          event_location,
+          status,
+          assignment_status,
+          operation_status,
+          settlement_status,
+          company_id,
+          company_auth_user_id,
+          reference_file_name,
+          reference_file_path,
+          reference_file_url
+        `)
+        .in("id", requestIds);
+      requests = fallbackResult.data;
+      requestError = fallbackResult.error;
+    }
+
     if (requestError) {
       console.error("requests for assignments fetch failed", requestError);
-      return [];
+      throw requestError;
     }
 
     const { data: documents, error: documentError } = await supabase
@@ -2307,6 +2340,11 @@ function InterpreterMypage({
                     <h2>배정 내역 목록</h2>
                     {loadingData ? (
                       <p className="loading-text">배정 내역을 불러오고 있습니다...</p>
+                    ) : assignmentLoadError ? (
+                      <div className="interpreter-empty-state">
+                        <span className="empty-icon">!</span>
+                        <p>{assignmentLoadError}</p>
+                      </div>
                     ) : matchings.length === 0 ? (
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">💼</span>
@@ -2413,6 +2451,11 @@ function InterpreterMypage({
                     </p>
                     {loadingData ? (
                       <p className="loading-text">업무 준비 정보를 불러오는 중...</p>
+                    ) : assignmentLoadError ? (
+                      <div className="interpreter-empty-state">
+                        <span className="empty-icon">!</span>
+                        <p>{assignmentLoadError}</p>
+                      </div>
                     ) : (() => {
                       const prepItems = getVisiblePreparationItems(matchings, applications);
                       if (prepItems.length === 0) {
@@ -3374,8 +3417,7 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
   const assignmentStatus = normalizeAssignmentStatusValue(
     assignment.assignment_status || assignment.status
   );
-  const contactVisible =
-    Boolean(request.contact_revealed || assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
+  const contactVisible = request.contact_revealed === true;
   const companyContact = buildCompanyContact({ request, company, contactVisible });
   const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
   const endDate = getFirstValue(request.event_end_date, request.end_date);
@@ -3584,6 +3626,20 @@ function getFirstNonNumericValue(...values) {
   return "";
 }
 
+function isMissingColumnError(error, columnName) {
+  const message = [
+    error?.message,
+    error?.details,
+    error?.hint,
+  ].filter(Boolean).join(" ");
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    (columnName && message.includes(columnName)) ||
+    /schema cache|column .* does not exist/i.test(message)
+  );
+}
+
 function normalizeAssignmentStatusValue(status) {
   const normalized = String(status || "").trim();
   if (["assigned", "confirmed", "배정완료", "assignment_completed"].includes(normalized)) {
@@ -3655,15 +3711,6 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     if (!expanded || !isAssignedPreparationStatus(mat.assignment_status)) return;
 
     const warningKey = `${mat.id || ""}:${mat.request_id || ""}`;
-    if (!mat.company_id && !warnedContactRef.current.has(`missing:${warningKey}`)) {
-      warnedContactRef.current.add(`missing:${warningKey}`);
-      console.warn("request has no company_id", {
-        assignmentId: mat.id,
-        requestId: mat.request_id,
-      });
-      return;
-    }
-
     if (mat.company_contact?.readable === false && !warnedContactRef.current.has(`unreadable:${warningKey}`)) {
       warnedContactRef.current.add(`unreadable:${warningKey}`);
       console.warn("company contact not readable, check RLS or join", {

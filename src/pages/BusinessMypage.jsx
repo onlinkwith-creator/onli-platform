@@ -298,7 +298,6 @@ function BusinessMypage({
               id,
               request_id,
               interpreter_id,
-              contact_visible,
               interpreter:interpreters (
                 id,
                 name,
@@ -315,34 +314,6 @@ function BusinessMypage({
             `)
             .in("request_id", requestIds);
 
-          if (assignmentResult.error) {
-            console.error(
-              "request_interpreters contact_visible select failed",
-              assignmentResult.error
-            );
-            assignmentResult = await supabase
-              .from("request_interpreters")
-              .select(`
-                id,
-                request_id,
-                interpreter_id,
-                interpreter:interpreters (
-                  id,
-                  name,
-                  level,
-                  auth_user_id,
-                  approved,
-                  jlpt,
-                  specialties,
-                  experience_count,
-                  phone,
-                  kakao_or_line,
-                  email
-                )
-              `)
-              .in("request_id", requestIds);
-          }
-
           const assignData = assignmentResult.data;
           const assignError = assignmentResult.error;
 
@@ -353,7 +324,6 @@ function BusinessMypage({
               ...assignment,
               contact_visible: Boolean(assignment.contact_visible),
             }));
-            console.log("assigned interpreter raw", baseAssignments);
             let revealedContactRows = [];
             const revealedContactResult = await supabase.rpc(
               "get_company_assignment_interpreter_contacts",
@@ -461,14 +431,6 @@ function BusinessMypage({
                 kakao: displayInterpreter?.kakao_or_line ?? null,
                 contact_fetch_failed: contactFetchFailed,
               });
-              console.log("assigned interpreter debug", {
-                requestId: assignment.request_id,
-                assignmentId: assignment.id,
-                interpreterId: assignment.interpreter_id,
-                assignment,
-                interpreter: displayInterpreter,
-              });
-
               return {
                 ...assignment,
                 contact_visible: isContactVisible,
@@ -477,33 +439,6 @@ function BusinessMypage({
                 kakao_id: displayInterpreter?.kakao_or_line || null,
                 interpreter: displayInterpreter,
               };
-            });
-            const assignmentRequestIds = new Set(
-              mergedAssignments.map((assignment) => String(assignment.request_id))
-            );
-            console.table(
-              mergedAssignments.map((item) => ({
-                request_interpreter_id: item.id,
-                interpreter_id: item.interpreter_id,
-                contact_visible: item.contact_visible,
-                raw_phone: item.phone || null,
-                nested_interpreter_phone: item.interpreter?.phone || null,
-                nested_profile_phone: item.profile?.phone || null,
-                nested_interpreter_profile_phone: item.interpreter_profile?.phone || null,
-                final_phone: item.phone || null,
-                final_email: item.email || null,
-                final_kakao: item.kakao_id || null,
-              }))
-            );
-            console.log("business assignments debug", {
-              count: mergedAssignments.length,
-              assignments: mergedAssignments.map((assignment) => ({
-                request_id: assignment.request_id,
-                assignment_id: assignment.id,
-                interpreter_id: assignment.interpreter_id,
-                contact_visible: assignment.contact_visible,
-              })),
-              requestIdsWithAssignments: Array.from(assignmentRequestIds),
             });
             setAssignments(mergedAssignments);
           }
@@ -919,12 +854,6 @@ function BusinessMypage({
       alert("승인 가능한 견적서 또는 기업 정보를 찾을 수 없습니다.");
       return;
     }
-
-    console.log("approve estimate payload", {
-      requestId: Number(requestId),
-      companyId: business.id,
-      estimateId: latestEstimate.id,
-    });
 
     const { error } = await supabase.rpc("approve_estimate_and_create_payment", {
       p_request_id: Number(requestId),
