@@ -10,6 +10,7 @@ import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import {
   ensureInterpreterAuthLink,
+  isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
 import {
@@ -249,6 +250,13 @@ function JobApply({
     if (isWithdrawnInterpreter(interpreterProfile)) {
       setErrorMessage(WITHDRAWN_ACCOUNT_MESSAGE);
       alert(WITHDRAWN_ACCOUNT_MESSAGE);
+      return;
+    }
+
+    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
+      const message = "승인된 통역사만 지원할 수 있습니다.";
+      setErrorMessage(message);
+      alert(message);
       return;
     }
 

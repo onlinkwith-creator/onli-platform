@@ -33,6 +33,7 @@ import { attachPublicJobCounts } from "../utils/jobsApi";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
   ensureInterpreterAuthLink,
+  isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
@@ -245,6 +246,13 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       setErrorMessage(message);
       alert(message);
       onRegisterClick?.();
+      return;
+    }
+
+    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
+      const message = "승인된 통역사만 지원할 수 있습니다.";
+      setErrorMessage(message);
+      alert(message);
       return;
     }
 

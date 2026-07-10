@@ -73,6 +73,23 @@ export function isAgreementColumnError(error) {
   );
 }
 
+function isMissingJobApplicationColumnError(error, columnName) {
+  const message = [
+    error?.message,
+    error?.details,
+    error?.hint,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    (columnName && new RegExp(`\\b${columnName}\\b`, "i").test(message)) ||
+    /column .* does not exist|schema cache/i.test(message)
+  );
+}
+
 export function getJobApplicationSubmitErrorMessage(error) {
   if (!error) {
     return "제출에 실패했습니다. 잠시 후 다시 시도해주세요.";
@@ -191,24 +208,46 @@ export async function findExistingJobApplication(
   }
 
   if (normalizedEmail) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("job_applications")
       .select("id")
       .eq("job_id", jobId)
       .or(`email.eq.${normalizedEmail},applicant_email.eq.${normalizedEmail}`)
       .limit(1);
 
+    if (error && isMissingJobApplicationColumnError(error, "applicant_email")) {
+      const fallbackResult = await supabase
+        .from("job_applications")
+        .select("id")
+        .eq("job_id", jobId)
+        .eq("email", normalizedEmail)
+        .limit(1);
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
+
     if (error) throw error;
     if (data?.length) return data[0];
   }
 
   if (normalizedPhone) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("job_applications")
       .select("id")
       .eq("job_id", jobId)
       .or(`phone.eq.${normalizedPhone},applicant_phone.eq.${normalizedPhone}`)
       .limit(1);
+
+    if (error && isMissingJobApplicationColumnError(error, "applicant_phone")) {
+      const fallbackResult = await supabase
+        .from("job_applications")
+        .select("id")
+        .eq("job_id", jobId)
+        .eq("phone", normalizedPhone)
+        .limit(1);
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     if (error) throw error;
     if (data?.length) return data[0];
@@ -247,7 +286,17 @@ export async function createJobApplicationRecord(supabase, payload) {
     result = await insertJobApplicationPayload(supabase, insertPayload);
   }
 
-  if (result.error) throw result.error;
+  if (result.error) {
+    console.error("[job_applications:insert]", {
+      code: result.error.code,
+      message: result.error.message,
+      details: result.error.details,
+      hint: result.error.hint,
+      jobId: payload.job_id,
+      interpreterId: payload.interpreter_id,
+    });
+    throw result.error;
+  }
   if (!result.data?.id) {
     throw new Error("지원 저장 결과를 확인할 수 없습니다.");
   }
