@@ -844,6 +844,15 @@ function InterpreterMypage({
   const fetchApplicationsData = async (interpreterId) => {
     if (!supabase || !interpreterId) return [];
 
+    const { data: myApplications, error: myApplicationsError } = await supabase
+      .rpc("get_my_job_applications");
+
+    if (!myApplicationsError) {
+      return (myApplications || []).map(mapMyApplicationRow);
+    }
+
+    console.warn("get_my_job_applications RPC failed; falling back to direct query", myApplicationsError);
+
     const { data: applicationRows, error: applicationError } = await supabase
       .from("job_applications")
       .select(`
@@ -914,6 +923,15 @@ function InterpreterMypage({
 
   const fetchMatchingsData = async (interpreterId) => {
     if (!supabase || !interpreterId) return [];
+
+    const { data: myAssignments, error: myAssignmentsError } = await supabase
+      .rpc("get_my_assignments");
+
+    if (!myAssignmentsError) {
+      return (myAssignments || []).map(mapMyAssignmentRow);
+    }
+
+    console.warn("get_my_assignments RPC failed; falling back to direct query", myAssignmentsError);
 
     const { data: assignments, error: assignmentError } = await supabase
       .from("request_interpreters")
