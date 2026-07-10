@@ -15,6 +15,7 @@ export function isWithdrawnInterpreter(interpreter = {}) {
 export function isInterpreterApprovedForApplication(interpreter = {}) {
   if (!interpreter) return false;
   if (isWithdrawnInterpreter(interpreter)) return false;
+  if (interpreter.approved === true) return true;
 
   const normalizedStatus = String(interpreter.status || "").trim().toLowerCase();
   return APPROVED_STATUS_VALUES.has(normalizedStatus);

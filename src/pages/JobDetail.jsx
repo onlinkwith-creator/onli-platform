@@ -38,20 +38,17 @@ import {
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
-  buildLegacyJobApplicationPayload,
   findExistingJobApplication,
   getJobApplicationSubmitErrorMessage,
   getSupabaseErrorDetails,
-  isAgreementColumnError,
   isDuplicateApplicationError,
   normalizeApplicationEmail,
   normalizeApplicationPhone,
 } from "../utils/applicationContact";
 import {
   MANAGEMENT_NUMBER_CONFIG,
-  addManagementNumber,
-  isManagementNumberConflict,
 } from "../utils/managementNumber";
+import { insertJobApplicationWithFallback } from "../utils/jobApplicationSubmit";
 import "./Jobs.css";
 
 const initialForm = {
@@ -366,45 +363,11 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       }
 
       const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
-      let insertPayload = await addManagementNumber({
+      const { data, error, insertPayload } = await insertJobApplicationWithFallback({
         supabase,
-        table: "job_applications",
-        payload: application,
-        ...managementConfig,
+        application,
+        managementConfig,
       });
-
-      let { data, error } = await supabase
-        .from("job_applications")
-        .insert([insertPayload])
-        .select("id")
-        .single();
-
-      if (isManagementNumberConflict(error, managementConfig.column)) {
-        insertPayload = await addManagementNumber({
-          supabase,
-          table: "job_applications",
-          payload: application,
-          ...managementConfig,
-        });
-        const retryResult = await supabase
-          .from("job_applications")
-          .insert([insertPayload])
-          .select("id")
-          .single();
-        data = retryResult.data;
-        error = retryResult.error;
-      }
-
-      if (error && isAgreementColumnError(error)) {
-        const fallbackApplication = buildLegacyJobApplicationPayload(error, insertPayload);
-        const fallbackResult = await supabase
-          .from("job_applications")
-          .insert([fallbackApplication])
-          .select("id")
-          .single();
-        data = fallbackResult.data;
-        error = fallbackResult.error;
-      }
 
       if (error) {
         const errorDetails = getSupabaseErrorDetails(error);

@@ -67,6 +67,22 @@ export function isAgreementColumnError(error) {
   );
 }
 
+export function isStatusValueError(error) {
+  const message = [
+    error?.message,
+    error?.details,
+    error?.hint,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    error?.code === "23514" ||
+    error?.code === "42501" ||
+    /job_applications_status_check|status|row-level security policy|violates row-level security/i.test(message)
+  );
+}
+
 export function getJobApplicationSubmitErrorMessage(error) {
   if (!error) {
     return "제출에 실패했습니다. 잠시 후 다시 시도해주세요.";
