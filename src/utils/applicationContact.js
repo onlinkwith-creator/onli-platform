@@ -16,8 +16,6 @@ const LEGACY_JOB_APPLICATION_COLUMNS = [
   "agreed_at",
   "cancel_policy_agreed_at",
   "application_no",
-  "applicant_email",
-  "applicant_phone",
 ];
 
 const LEGACY_JOB_APPLICATION_COLUMN_GROUPS = [
@@ -167,10 +165,9 @@ export function buildLegacyJobApplicationPayload(error, payload) {
 
 export async function findExistingJobApplication(
   supabase,
-  { jobId, interpreterId, email, phone }
+  { jobId, interpreterId, email }
 ) {
   const normalizedEmail = normalizeApplicationEmail(email);
-  const normalizedPhone = normalizeApplicationPhone(phone);
 
   if (interpreterId) {
     const { data, error } = await supabase
@@ -178,35 +175,31 @@ export async function findExistingJobApplication(
       .select("id")
       .eq("job_id", jobId)
       .eq("interpreter_id", interpreterId)
-      .limit(1);
+      .maybeSingle();
 
-    if (error) throw error;
-    if (data?.length) return data[0];
+    if (error) {
+      console.error("지원 중복 확인 실패:", error);
+      throw new Error("지원 여부를 확인하지 못했습니다.");
+    }
+    return data || null;
   }
 
-  if (normalizedEmail) {
-    const { data, error } = await supabase
-      .from("job_applications")
-      .select("id")
-      .eq("job_id", jobId)
-      .or(`email.eq.${normalizedEmail},applicant_email.eq.${normalizedEmail}`)
-      .limit(1);
-
-    if (error) throw error;
-    if (data?.length) return data[0];
+  if (!normalizedEmail) {
+    throw new Error("로그인 이메일 정보를 확인할 수 없습니다.");
   }
 
-  if (normalizedPhone) {
-    const { data, error } = await supabase
-      .from("job_applications")
-      .select("id")
-      .eq("job_id", jobId)
-      .or(`phone.eq.${normalizedPhone},applicant_phone.eq.${normalizedPhone}`)
-      .limit(1);
+  const { data, error } = await supabase
+    .from("job_applications")
+    .select("id")
+    .eq("job_id", jobId)
+    .eq("email", normalizedEmail)
+    .maybeSingle();
 
-    if (error) throw error;
-    if (data?.length) return data[0];
+  if (error) {
+    console.error("지원 중복 확인 실패:", error);
+    throw new Error("지원 여부를 확인하지 못했습니다.");
   }
-
-  return null;
+  
+  return data || null;
 }
+

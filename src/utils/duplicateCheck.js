@@ -95,7 +95,7 @@ function getApplicationName(application = {}) {
 }
 
 function getApplicationEmail(application = {}) {
-  return normalizeEmail(application.applicant_email || application.email);
+  return normalizeEmail(application.email);
 }
 
 function getApplicationPhone(application = {}) {

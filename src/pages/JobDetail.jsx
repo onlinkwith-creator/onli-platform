@@ -311,10 +311,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       job_id: job.id,
       interpreter_id: matchedInterpreter?.id || null,
       applicant_name: form.name.trim(),
-      phone: applicantPhone,
-      applicant_phone: applicantPhone,
       email: applicantEmail,
-      applicant_email: applicantEmail,
       message: [
         form.message,
         form.gender ? `성별: ${form.gender}` : "",
@@ -335,7 +332,6 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       jobId: job.id,
       interpreterId: matchedInterpreter?.id,
       email: applicantEmail,
-      phone: applicantPhone,
     });
 
     if (existingApplication) {
