@@ -4064,6 +4064,18 @@ function sanitizeRecipientEmail(email) {
       sendAdminAutoEmail("company_matching_confirmed", matchingEmailPayload),
     ]);
 
+    await fetchAdminData();
+    const { data: latestRequest } = await supabase
+      .from("requests")
+      .select("*")
+      .eq("id", requestId)
+      .single();
+    if (latestRequest) {
+      setSelectedRequest((current) =>
+        current?.id === requestId ? { ...current, ...latestRequest } : current
+      );
+    }
+
     if (successAlert) alert("통역사 매칭이 완료되었습니다.");
     return true;
   };
@@ -4618,15 +4630,26 @@ function sanitizeRecipientEmail(email) {
     }
 
     setSavingKey(`job-application-delete-${application.id}`);
-    const { error } = await supabase
+    const { data: deletedApplication, error } = await supabase
       .from("job_applications")
       .delete()
-      .eq("id", application.id);
+      .eq("id", application.id)
+      .select("id")
+      .maybeSingle();
     setSavingKey("");
 
     if (error) {
       console.error("지원자 삭제 실패:", error);
       alert(error.message);
+      return;
+    }
+
+    if (!deletedApplication?.id) {
+      console.error("지원자 삭제 실패: 삭제된 행이 없습니다.", {
+        table: "job_applications",
+        id: application.id,
+      });
+      alert("지원 내역이 실제로 삭제되지 않았습니다. 관리자 권한을 확인해주세요.");
       return;
     }
 
@@ -14743,9 +14766,9 @@ function buildAssignmentManagementRows({
     if (application?.id) usedApplicationIds.add(application.id);
     const interpreter =
       assignment.interpreter || interpretersById.get(String(assignment.interpreter_id)) || {};
-    const flowSource = getRequestFlowSource(request || {}, {});
-    const assignmentStatus = normalizeAssignmentStatus(flowSource);
-    const settlementStatus = normalizeSettlementFlowStatus(flowSource);
+      const assignmentStatus = normalizeAssignmentStatus(request || {});
+      const settlementStatus = request ? getSettlementStatusValue(request) : SETTLEMENT_FLOW_STATUS.NOT_REQUIRED;
+
 
     return {
       rowId: `assignment-${assignment.id}`,

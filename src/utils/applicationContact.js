@@ -9,6 +9,8 @@ const WITHDRAWABLE_APPLICATION_STATUSES = new Set([
   "보류",
 ]);
 
+const NON_BLOCKING_APPLICATION_STATUSES = ["cancelled"];
+
 const LEGACY_JOB_APPLICATION_COLUMNS = [
   "agreed_terms",
   "agreed_policy",
@@ -175,6 +177,8 @@ export async function findExistingJobApplication(
       .select("id")
       .eq("job_id", jobId)
       .eq("interpreter_id", interpreterId)
+      .not("status", "in", `(${NON_BLOCKING_APPLICATION_STATUSES.join(",")})`)
+      .limit(1)
       .maybeSingle();
 
     if (error) {
@@ -193,6 +197,8 @@ export async function findExistingJobApplication(
     .select("id")
     .eq("job_id", jobId)
     .eq("email", normalizedEmail)
+    .not("status", "in", `(${NON_BLOCKING_APPLICATION_STATUSES.join(",")})`)
+    .limit(1)
     .maybeSingle();
 
   if (error) {
@@ -202,4 +208,3 @@ export async function findExistingJobApplication(
   
   return data || null;
 }
-
