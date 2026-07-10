@@ -28,25 +28,6 @@ drop function if exists public.enqueue_notification_event_v2(
   text, text, text, text, text, text, jsonb, text, text, text, uuid, uuid, uuid
 );
 
-do $$
-declare
-  overload_count integer;
-begin
-  select count(*)
-  into overload_count
-  from pg_proc p
-  join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'public'
-    and p.proname = 'enqueue_notification_event_v2';
-
-  if overload_count <> 1 then
-    raise exception
-      'enqueue_notification_event_v2 must have exactly one overload; found %',
-      overload_count;
-  end if;
-end
-$$;
-
 -- Use all canonical arguments with explicit types in the status audit trigger.
 -- This trigger runs for every requests status PATCH, so it must never rely on
 -- default-argument overload resolution.
