@@ -325,9 +325,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
     setIsSubmitting(true);
 
     try {
-    console.log("COMPANY REQUEST SUBMIT START");
-    console.log("COMPANY REQUEST FORM DATA", form);
-
     setErrorMessage("");
 
     if (!areTermsAgreed(agreements)) {
@@ -467,8 +464,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       ...managementConfig,
     });
 
-    console.log("COMPANY REQUEST BEFORE DB INSERT");
-
     let { data, error } = await supabase
       .from("requests")
       .insert([insertPayload])
@@ -490,11 +485,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       data = retryResult.data;
       error = retryResult.error;
     }
-
-    console.log("COMPANY REQUEST DB INSERT RESULT", {
-      data,
-      error,
-    });
 
     if (error && isMissingColumnError(error)) {
       const legacyRequestPayload = { ...requestPayload };
@@ -522,10 +512,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
         .single();
       data = fallbackResult.data;
       error = fallbackResult.error;
-      console.log("COMPANY REQUEST DB INSERT FALLBACK RESULT", {
-        data,
-        error,
-      });
     }
 
     if (error) {
@@ -575,10 +561,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       designatedInterpreterName: interpreter?.name || "",
     };
 
-    console.log("COMPANY REQUEST SUCCESS - START EMAILS", companyEmail);
-    console.log("COMPANY REQUEST START EMAIL FLOW");
-    console.log("COMPANY EMAIL TARGET:", companyEmail);
-
     try {
       if (companyEmail) {
         const result = await sendAutoEmail(
@@ -605,7 +587,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
 
     if (interpreter?.id) {
       try {
-        console.log("DESIGNATED INTERPRETER EMAIL START");
         const result = await sendAutoEmail(
           "designated_request_received_interpreter",
           "",
@@ -618,11 +599,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
         );
         if (!result.ok) {
           console.error("Designated interpreter email failed", result.error || result);
-        } else {
-          console.log("Designated interpreter email sent successfully", {
-            interpreterId: interpreter.id,
-            resolvedInBrowser: false,
-          });
         }
       } catch (error) {
         console.error("DESIGNATED INTERPRETER EMAIL FAILED", error);
@@ -630,7 +606,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
     }
 
     try {
-      console.log("COMPANY ADMIN EMAIL START");
       const result = await sendAutoEmail(
         "company_request_received_admin",
         ADMIN_EMAILS,

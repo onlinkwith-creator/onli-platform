@@ -199,7 +199,6 @@ function InterpreterMypage({
     setLoading(true);
     setMessage("");
     setStatus("loading");
-    console.log("current user:", user);
 
     const { data, error } = await supabase
       .from("interpreters")
@@ -358,8 +357,6 @@ function InterpreterMypage({
       available_tasks: editForm.available_tasks,
     };
 
-    console.log("Updating interpreter profile. Payload:", payload);
-
     const { data, error } = await supabase
       .from("interpreters")
       .update(payload)
@@ -406,7 +403,7 @@ function InterpreterMypage({
     setResumeFile(file);
   };
 
-  const handleDownloadResume = async (filePath, fileName) => {
+  const handleDownloadResume = async (filePath) => {
     if (!supabase || !filePath) return;
     try {
       const resolvedPath = getResumeStoragePath(filePath);
@@ -924,15 +921,6 @@ function InterpreterMypage({
   const fetchMatchingsData = async (interpreterId) => {
     if (!supabase || !interpreterId) return [];
 
-    const { data: myAssignments, error: myAssignmentsError } = await supabase
-      .rpc("get_my_assignments");
-
-    if (!myAssignmentsError) {
-      return (myAssignments || []).map(mapMyAssignmentRow);
-    }
-
-    console.warn("get_my_assignments RPC failed; falling back to direct query", myAssignmentsError);
-
     const { data: assignments, error: assignmentError } = await supabase
       .from("request_interpreters")
       .select(`
@@ -977,6 +965,9 @@ function InterpreterMypage({
         settlement_status,
         company_id,
         company_auth_user_id,
+        contact_revealed,
+        contact_revealed_at,
+        contact_revealed_by,
         reference_file_name,
         reference_file_path,
         reference_file_url
@@ -3373,33 +3364,6 @@ function mapPublicJobFromJobRow(job = {}) {
   };
 }
 
-function mapMyAssignmentRow(row = {}) {
-  return {
-    id: row.assignment_id,
-    matching_no: row.assignment_code,
-    job_id: row.job_id,
-    request_id: row.request_id,
-    company_id: row.company_id,
-    assignment_status: row.assignment_status || "assigned",
-    start_date: row.start_date,
-    end_date: row.end_date,
-    status: row.public_status,
-    created_at: row.assigned_at,
-    request_assignment_status: row.request_assignment_status || "assigned",
-    is_contact_visible: row.is_contact_visible || false,
-    company_contact: {
-      companyName: row.company_name ?? null,
-      contactName: row.company_contact_name ?? null,
-      phone: row.company_contact_phone ?? null,
-      email: row.company_contact_email ?? null,
-      messenger: row.company_contact_messenger ?? null,
-      readable: row.is_company_contact_readable ?? null,
-    },
-    reference_file: getAssignmentReferenceFile(row),
-    jobs: mapPublicJobFromMypageRow(row),
-  };
-}
-
 function mapRequestInterpreterAssignmentRow(row = {}) {
   const assignment = row.assignment || row;
   const request = row.request || (Array.isArray(row.requests) ? row.requests[0] : row.requests) || {};
@@ -3411,7 +3375,7 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     assignment.assignment_status || assignment.status
   );
   const contactVisible =
-    Boolean(assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
+    Boolean(request.contact_revealed || assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
   const companyContact = buildCompanyContact({ request, company, contactVisible });
   const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
   const endDate = getFirstValue(request.event_end_date, request.end_date);
@@ -3560,20 +3524,6 @@ function getUniquePreparationItems(items = []) {
     seen.add(key);
     return true;
   });
-}
-
-function getAssignmentReferenceFile(row = {}) {
-  const fileName = row.reference_file_name || "";
-  const filePath = row.reference_file_path || row.reference_file_url || "";
-  if (!fileName && !filePath) return null;
-
-  return {
-    id: `reference-${row.request_id || row.assignment_id || filePath}`,
-    file_name: fileName || filePath.split("/").pop() || "첨부 파일",
-    original_file_name: fileName || filePath.split("/").pop() || "첨부 파일",
-    file_path: getStoragePathFromUrl(filePath, REQUEST_REFERENCE_BUCKET) || filePath,
-    file_type: "참고 자료",
-  };
 }
 
 function getAssignmentReferenceFileFromRequest(request = {}, documents = []) {
@@ -3725,7 +3675,7 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
   }, [expanded, mat.id, mat.request_id, mat.company_id, mat.company_contact?.readable, mat.assignment_status]);
 
 
-  const handleDownload = async (filePath, fileName) => {
+  const handleDownload = async (filePath) => {
     if (!filePath) return;
     if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
       window.open(filePath, "_blank", "noopener,noreferrer");

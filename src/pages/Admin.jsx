@@ -381,6 +381,9 @@ const STATUS_LABELS = {
 const REQUEST_UPDATE_COLUMN_ALLOWLIST = new Set([
   "company_id",
   "company_auth_user_id",
+  "contact_revealed",
+  "contact_revealed_at",
+  "contact_revealed_by",
   "event_name",
   "company_name",
   "request_no",
@@ -774,9 +777,6 @@ function sanitizeRecipientEmail(email) {
       }
       setJobApplications(jobApplicationData);
 
-      console.log("loaded jobs:", jobData);
-      console.log("loaded interpreters:", interpreterData);
-      console.log("loaded applications:", jobApplicationData);
     } catch (error) {
       console.error("admin data fetch failed:", error);
       setErrorMessage("관리자 데이터를 불러오는데 실패했습니다. 새로고침 후 다시 시도해 주세요.");
@@ -2738,12 +2738,6 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`request-${request.id}`);
     try {
-      console.log("operation status update:", {
-        requestId: request.id,
-        jobId: linkedJobId,
-        nextOperationStatus: operationStatus,
-      });
-
       let updatedJob = null;
       if (linkedJobId) {
         const { data, error } = await updateJobWithFallback(linkedJobId, jobPayload);
@@ -2805,12 +2799,6 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`request-${request.id}`);
     try {
-      console.log("assignment status update:", {
-        requestId: request.id,
-        jobId: linkedJobId,
-        nextAssignmentStatus: assignmentStatus,
-      });
-
       let updatedJob = null;
       if (linkedJobId) {
         const { data, error } = await updateJobWithFallback(linkedJobId, jobPayload);
@@ -3358,11 +3346,6 @@ function sanitizeRecipientEmail(email) {
                 metadata: { ...statusMetadata, target_role: "company", company_name: companyName },
               },
             ];
-
-            console.log("notifications insert payloads before status_changed insert:", {
-              admin: notificationPayloads[0],
-              company: notificationPayloads[1],
-            });
 
             let { error: notificationInsertError } = await supabase
               .from("notifications")
@@ -3950,11 +3933,6 @@ function sanitizeRecipientEmail(email) {
       contact_visible: Boolean(assignmentData?.contact_visible),
       interpreter: assignmentData?.interpreter || interpreter,
     };
-    console.log("assignment created debug", {
-      request_id: nextAssignment.request_id,
-      assignment_id: nextAssignment.id,
-      interpreter_id: nextAssignment.interpreter_id,
-    });
     const matchingData = await createMatchingScheduleSnapshot({
       request,
       selectedJob,
@@ -4278,36 +4256,81 @@ function sanitizeRecipientEmail(email) {
     alert("매칭이 취소되었습니다.");
   };
 
-  const handleContactVisibleChange = async (requestInterpreterId, checked) => {
-    if (!requestInterpreterId) return;
+  const handleContactVisibleChange = async (requestIdOrAssignmentId, checked) => {
+    if (!requestIdOrAssignmentId) return;
     if (!supabase) {
       alert(supabaseConfigError.message);
       return;
     }
 
-    console.log("contact visible update payload", {
-      requestInterpreterId,
-      checked,
-    });
+    const assignment = assignments.find(
+      (item) => String(item.id) === String(requestIdOrAssignmentId)
+    );
+    const requestId = assignment?.request_id || requestIdOrAssignmentId;
+    const revealedAt = new Date().toISOString();
+    const payload = {
+      contact_revealed: Boolean(checked),
+      contact_revealed_at: revealedAt,
+      contact_revealed_by: user?.id || null,
+    };
 
-    const { error } = await supabase
-      .from("request_interpreters")
-      .update({ contact_visible: checked })
-      .eq("id", requestInterpreterId);
+    setSavingKey(`request-${requestId}`);
+    const { data, error } = await supabase
+      .from("requests")
+      .update(payload)
+      .eq("id", requestId)
+      .select("*")
+      .single();
 
     if (error) {
+      setSavingKey("");
       console.error("contact visibility update failed", error);
       alert("연락처 공개 설정 저장에 실패했습니다. Supabase migration 적용 여부를 확인하세요.");
       return;
     }
 
+    const { error: assignmentError } = await supabase
+      .from("request_interpreters")
+      .update({
+        contact_visible: Boolean(checked),
+        is_contact_visible: Boolean(checked),
+        contact_revealed: Boolean(checked),
+        contact_revealed_at: revealedAt,
+        contact_revealed_by: user?.id || null,
+      })
+      .eq("request_id", requestId);
+
+    if (assignmentError) {
+      console.warn("request assignment contact visibility sync failed", assignmentError);
+    }
+
+    setRequests((current) =>
+      current.map((request) =>
+        String(request.id) === String(requestId)
+          ? { ...request, ...payload, ...(data || {}) }
+          : request
+      )
+    );
+    setSelectedRequest((current) =>
+      current && String(current.id) === String(requestId)
+        ? { ...current, ...payload, ...(data || {}) }
+        : current
+    );
     setAssignments((current) =>
       current.map((item) =>
-        String(item.id) === String(requestInterpreterId)
-          ? { ...item, contact_visible: checked }
+        String(item.request_id) === String(requestId)
+          ? {
+              ...item,
+              contact_visible: Boolean(checked),
+              is_contact_visible: Boolean(checked),
+              contact_revealed: Boolean(checked),
+              contact_revealed_at: revealedAt,
+              contact_revealed_by: user?.id || null,
+            }
           : item
       )
     );
+    setSavingKey("");
   };
 
   const updateMatchingApplicationStatus = async (request, interpreter, status) => {
@@ -8463,6 +8486,7 @@ function RequestDetailPanel({
       }
     : safeRequest;
   const requestInterpreters = Array.isArray(assignments) ? assignments : [];
+  const isCompanyContactRevealed = Boolean(safeRequest.contact_revealed);
   const flowSource = getRequestFlowSource(settlementAwareRequest, job);
   const requestType = getDesignatedRequestType(safeRequest);
   const designatedInterpreterName = getDesignatedInterpreterName([safeRequest], interpreters);
@@ -8565,17 +8589,19 @@ function RequestDetailPanel({
 
   useEffect(() => {
     Promise.resolve().then(() => {
-      if (!safeRequest?.company_auth_user_id) {
+      if (!safeRequest?.company_id && !safeRequest?.company_auth_user_id) {
         setBusinessProfile(null);
         return;
       }
       const fetchBiz = async () => {
         try {
-          const { data, error } = await supabase
+          let query = supabase
             .from("businesses")
-            .select("*")
-            .eq("auth_user_id", safeRequest.company_auth_user_id)
-            .maybeSingle();
+            .select("*");
+          query = safeRequest.company_id
+            ? query.eq("id", safeRequest.company_id)
+            : query.eq("auth_user_id", safeRequest.company_auth_user_id);
+          const { data, error } = await query.maybeSingle();
           if (!error && data) {
             setBusinessProfile(data);
           } else {
@@ -8588,7 +8614,7 @@ function RequestDetailPanel({
       };
       fetchBiz();
     });
-  }, [safeRequest.company_auth_user_id]);
+  }, [safeRequest.company_id, safeRequest.company_auth_user_id]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -8945,6 +8971,40 @@ function RequestDetailPanel({
           </div>
 
           <div>
+            <h3>기업 연락처 공개</h3>
+            <div className="admin-document-action-block">
+              <dl className="admin-detail-list compact">
+                <Info label="공개 상태" value={isCompanyContactRevealed ? "공개됨" : "비공개"} />
+                <Info label="변경 시간" value={formatDateTime(safeRequest.contact_revealed_at)} />
+              </dl>
+              <div className="admin-detail-action-row">
+                <button
+                  type="button"
+                  className="admin-save"
+                  disabled={
+                    isCompanyContactRevealed ||
+                    savingKey === `request-${safeRequest?.id}`
+                  }
+                  onClick={() => safeRequest?.id && handleContactVisibleChange(safeRequest.id, true)}
+                >
+                  연락처 공개
+                </button>
+                <button
+                  type="button"
+                  className="admin-link-button"
+                  disabled={
+                    !isCompanyContactRevealed ||
+                    savingKey === `request-${safeRequest?.id}`
+                  }
+                  onClick={() => safeRequest?.id && handleContactVisibleChange(safeRequest.id, false)}
+                >
+                  연락처 비공개
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
             <h3>행사 기간 수정</h3>
             <div className="admin-date-range-panel">
               <div className="date-range-picker-shell" ref={eventDatePickerRef}>
@@ -9098,6 +9158,7 @@ function RequestDetailPanel({
                 ),
               }))}
               onRemove={removeAssignment}
+              contactVisible={isCompanyContactRevealed}
               handleContactVisibleChange={handleContactVisibleChange}
             />
             <div className="admin-assign-row">
@@ -14395,7 +14456,7 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange }) {
+function AssignmentList({ contactVisible = null, emptyText, items, onRemove, handleContactVisibleChange }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
@@ -14404,6 +14465,10 @@ function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange
     <div className="admin-assignment-list">
       {items.map((item) => {
         const requestInterpreter = item.assignment;
+        const isContactVisible =
+          contactVisible === null
+            ? Boolean(requestInterpreter?.contact_visible)
+            : Boolean(contactVisible);
         return (
           <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
@@ -14411,9 +14476,9 @@ function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange
               <label className="contact-visible-control" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
                 <input
                   type="checkbox"
-                  checked={Boolean(requestInterpreter.contact_visible)}
+                  checked={isContactVisible}
                   onChange={(event) =>
-                    handleContactVisibleChange?.(requestInterpreter.id, event.target.checked)
+                    handleContactVisibleChange?.(requestInterpreter.request_id, event.target.checked)
                   }
                   style={{ cursor: "pointer" }}
                 />
