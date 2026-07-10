@@ -1,3 +1,9 @@
+import {
+  MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
+} from "./managementNumber";
+
 export const DUPLICATE_APPLICATION_MESSAGE =
   "이미 지원한 통역공고입니다.";
 
@@ -209,4 +215,61 @@ export async function findExistingJobApplication(
   }
 
   return null;
+}
+
+export async function createJobApplicationRecord(supabase, payload) {
+  if (!supabase) throw new Error("Supabase client is not configured.");
+  if (!payload?.job_id) throw new Error("지원할 공고 정보가 올바르지 않습니다.");
+  if (!payload?.interpreter_id) throw new Error("통역사 등록 정보를 확인할 수 없습니다.");
+
+  const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
+  let insertPayload = await addManagementNumber({
+    supabase,
+    table: "job_applications",
+    payload,
+    ...managementConfig,
+  });
+
+  let result = await insertJobApplicationPayload(supabase, insertPayload);
+
+  if (isManagementNumberConflict(result.error, managementConfig.column)) {
+    insertPayload = await addManagementNumber({
+      supabase,
+      table: "job_applications",
+      payload,
+      ...managementConfig,
+    });
+    result = await insertJobApplicationPayload(supabase, insertPayload);
+  }
+
+  if (result.error && isAgreementColumnError(result.error)) {
+    insertPayload = buildLegacyJobApplicationPayload(result.error, insertPayload);
+    result = await insertJobApplicationPayload(supabase, insertPayload);
+  }
+
+  if (result.error) throw result.error;
+  if (!result.data?.id) {
+    throw new Error("지원 저장 결과를 확인할 수 없습니다.");
+  }
+
+  const verified = await findExistingJobApplication(supabase, {
+    jobId: payload.job_id,
+    interpreterId: payload.interpreter_id,
+    email: payload.applicant_email || payload.email,
+    phone: payload.applicant_phone || payload.phone,
+  });
+
+  if (!verified?.id) {
+    throw new Error("지원 저장 후 생성된 지원서를 확인할 수 없습니다.");
+  }
+
+  return result.data;
+}
+
+async function insertJobApplicationPayload(supabase, payload) {
+  return supabase
+    .from("job_applications")
+    .insert([payload])
+    .select("*")
+    .single();
 }

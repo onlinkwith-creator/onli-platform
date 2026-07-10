@@ -38,6 +38,7 @@ import {
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
+  createJobApplicationRecord,
   findExistingJobApplication,
   getJobApplicationSubmitErrorMessage,
   getSupabaseErrorDetails,
@@ -45,11 +46,6 @@ import {
   normalizeApplicationEmail,
   normalizeApplicationPhone,
 } from "../utils/applicationContact";
-import {
-  MANAGEMENT_NUMBER_CONFIG,
-  addManagementNumber,
-  isManagementNumberConflict,
-} from "../utils/managementNumber";
 import "./Jobs.css";
 
 const initialForm = {
@@ -109,8 +105,6 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       return;
     }
 
-    console.log("loaded jobs:", data ? [data] : []);
-
     if (!isPublicJob(data) && !isAdmin) {
       setJob(null);
       setErrorMessage("현재 공개되지 않은 통역공고입니다.");
@@ -121,7 +115,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     const [jobWithCounts] = await attachPublicJobCounts(publicSupabase, [data]);
     setJob(jobWithCounts || data);
     setLoading(false);
-  }, [jobId]);
+  }, [isAdmin, jobId]);
 
   useEffect(() => {
     queueMicrotask(fetchJob);
@@ -363,46 +357,11 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
         }
       }
 
-      const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
-      let insertPayload = await addManagementNumber({
-        supabase,
-        table: "job_applications",
-        payload: application,
-        ...managementConfig,
-      });
-
-      let { error } = await supabase
-        .from("job_applications")
-        .insert([insertPayload]);
-
-      if (isManagementNumberConflict(error, managementConfig.column)) {
-        insertPayload = await addManagementNumber({
-          supabase,
-          table: "job_applications",
-          payload: application,
-          ...managementConfig,
-        });
-        const retryResult = await supabase
-          .from("job_applications")
-          .insert([insertPayload]);
-        error = retryResult.error;
-      }
-
-      if (error) {
-        const errorDetails = getSupabaseErrorDetails(error);
-        console.error("지원 저장 실패:", {
-          ...errorDetails,
-          table: "job_applications",
-          payloadKeys: Object.keys(insertPayload || {}),
-          status: insertPayload?.status,
-          interpreter_id: insertPayload?.interpreter_id,
-        });
-        throw error;
-      }
+      const createdApplication = await createJobApplicationRecord(supabase, application);
 
       const emailPayload = {
-        requestId: insertPayload.application_no || "",
-        applicationId: insertPayload.application_no || "",
+        requestId: createdApplication.application_no || "",
+        applicationId: createdApplication.application_no || "",
         jobId: job.id,
         name: form.name,
         jobTitle: job.title || job.event_name || "공고 제목 미입력",
@@ -450,16 +409,23 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       }
 
       setSubmitted(true);
-      setExistingApplication({ id: insertPayload.application_no || `${job.id}:${matchedInterpreter?.id || applicantEmail}` });
+      setExistingApplication(createdApplication);
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
+      void fetchJob();
     } catch (error) {
       console.error("지원 저장 실패:", getSupabaseErrorDetails(error));
       if (isDuplicateApplicationError(error)) {
+        const application = await findExistingJobApplication(supabase, {
+          jobId: job.id,
+          interpreterId: interpreterProfile?.id,
+          email: form.email,
+          phone: form.phone,
+        });
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
-        setExistingApplication({ id: "duplicate" });
-        setSubmitted(true);
+        setExistingApplication(application || null);
+        setSubmitted(Boolean(application));
         setSubmitting(false);
         submittingRef.current = false;
         return;

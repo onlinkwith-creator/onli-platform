@@ -473,8 +473,9 @@ function hasRequestMoneyChange(changes = {}) {
   return Object.keys(changes).some((key) => REQUEST_MONEY_FIELDS.has(key));
 }
 
-async function fetchJobApplicationsWithJobs(jobs = []) {
-  const joinedResult = await publicSupabase
+async function fetchJobApplicationsWithJobs(jobs = [], client = publicSupabase) {
+  const queryClient = client || publicSupabase;
+  const joinedResult = await queryClient
     .from("job_applications")
     .select(
       `
@@ -512,7 +513,7 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
 
   console.error("job_applications joined fetch error:", joinedResult.error);
 
-  const fallbackData = await fetchBaseJobApplications(publicSupabase);
+  const fallbackData = await fetchBaseJobApplications(queryClient);
 
   const jobsById = new Map(compactAdminRows(jobs).map((job) => [job.id, job]));
   return {
@@ -768,7 +769,7 @@ function sanitizeRecipientEmail(email) {
       setMatchings(matchingData);
       setBusinesses(businessData);
 
-      const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData);
+      const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData, supabase || publicSupabase);
       const jobApplicationData = jobApplicationResult.error
         ? []
         : compactAdminRows(jobApplicationResult.data);
