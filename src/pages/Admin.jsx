@@ -709,7 +709,7 @@ function sanitizeRecipientEmail(email) {
             (async () => {
               const result = await publicSupabase
                 .from("request_interpreters")
-                .select("id, request_id, interpreter_id")
+                .select("id, request_id, interpreter_id, contact_visible")
                 .order("id", { ascending: false });
 
               return {
@@ -3780,7 +3780,7 @@ function sanitizeRecipientEmail(email) {
     setSavingKey(`assign-${requestId}`);
     const existingAssignmentResult = await supabase
       .from("request_interpreters")
-      .select("id, request_id, interpreter_id")
+      .select("id, request_id, interpreter_id, contact_visible")
       .eq("request_id", requestId)
       .eq("interpreter_id", interpreterId)
       .limit(1);
@@ -3857,7 +3857,7 @@ function sanitizeRecipientEmail(email) {
     let { data: assignmentData, error } = await supabase
       .from("request_interpreters")
       .insert([payload])
-      .select("id, request_id, interpreter_id")
+      .select("id, request_id, interpreter_id, contact_visible")
       .single();
 
     if (error) {
@@ -4196,57 +4196,48 @@ function sanitizeRecipientEmail(email) {
     alert("매칭이 취소되었습니다.");
   };
 
-  const handleContactVisibleChange = async (requestIdOrAssignmentId, checked) => {
-    if (!requestIdOrAssignmentId) return;
+  const handleContactVisibleChange = async (assignmentId, checked) => {
+    if (!assignmentId) return;
     if (!supabase) {
       alert(supabaseConfigError.message);
       return;
     }
 
     const assignment = assignments.find(
-      (item) => String(item.id) === String(requestIdOrAssignmentId)
+      (item) => String(item.id) === String(assignmentId)
     );
-    const requestId = assignment?.request_id || requestIdOrAssignmentId;
-    const revealedAt = new Date().toISOString();
-    const payload = {
-      contact_revealed: Boolean(checked),
-      contact_revealed_at: revealedAt,
-      contact_revealed_by: user?.id || null,
-    };
+    const requestId = assignment?.request_id || null;
+    const interpreterId = assignment?.interpreter_id || null;
 
-    setSavingKey(`request-${requestId}`);
+    setSavingKey(`assignment-contact-${assignmentId}`);
     const { data, error } = await supabase
-      .from("requests")
-      .update(payload)
-      .eq("id", requestId)
-      .select("*")
+      .from("request_interpreters")
+      .update({ contact_visible: Boolean(checked) })
+      .eq("id", assignmentId)
+      .select("id, request_id, interpreter_id, contact_visible")
       .single();
 
-    if (error) {
+    if (error || !data?.id) {
       setSavingKey("");
-      console.error("contact visibility update failed", error);
-      alert("연락처 공개 설정 저장에 실패했습니다. Supabase migration 적용 여부를 확인하세요.");
+      console.error("[assignment-contact-visibility:update]", {
+        assignmentId,
+        requestId,
+        interpreterId,
+        code: error?.code || "",
+        message: error?.message || "No assignment row returned",
+        details: error?.details || "",
+        hint: error?.hint || "",
+      });
+      alert("연락처 공개 설정을 저장하지 못했습니다. 페이지를 새로고침한 후 다시 시도해 주세요.");
       return;
     }
 
-    setRequests((current) =>
-      current.map((request) =>
-        String(request.id) === String(requestId)
-          ? { ...request, ...payload, ...(data || {}) }
-          : request
-      )
-    );
-    setSelectedRequest((current) =>
-      current && String(current.id) === String(requestId)
-        ? { ...current, ...payload, ...(data || {}) }
-        : current
-    );
     setAssignments((current) =>
       current.map((item) =>
-        String(item.request_id) === String(requestId)
+        String(item.id) === String(assignmentId)
           ? {
               ...item,
-              contact_visible: Boolean(checked),
+              contact_visible: Boolean(data.contact_visible),
             }
           : item
       )
@@ -9079,8 +9070,8 @@ function RequestDetailPanel({
                 ),
               }))}
               onRemove={removeAssignment}
-              contactVisible={isCompanyContactRevealed}
               handleContactVisibleChange={handleContactVisibleChange}
+              savingKey={savingKey}
             />
             <div className="admin-assign-row">
               <select
@@ -14377,7 +14368,7 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ contactVisible = null, emptyText, items, onRemove, handleContactVisibleChange }) {
+function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange, savingKey }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
@@ -14386,20 +14377,19 @@ function AssignmentList({ contactVisible = null, emptyText, items, onRemove, han
     <div className="admin-assignment-list">
       {items.map((item) => {
         const requestInterpreter = item.assignment;
-        const isContactVisible =
-          contactVisible === null
-            ? Boolean(requestInterpreter?.contact_visible)
-            : Boolean(contactVisible);
+        const isContactVisible = Boolean(requestInterpreter?.contact_visible);
+        const isSaving = savingKey === `assignment-contact-${requestInterpreter?.id}`;
         return (
-          <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+          <div key={item.id} className="admin-assignment-row">
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
             {requestInterpreter?.id && (
-              <label className="contact-visible-control" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
+              <label className="contact-visible-control">
                 <input
                   type="checkbox"
                   checked={isContactVisible}
+                  disabled={isSaving}
                   onChange={(event) =>
-                    handleContactVisibleChange?.(requestInterpreter.request_id, event.target.checked)
+                    handleContactVisibleChange?.(requestInterpreter.id, event.target.checked)
                   }
                   style={{ cursor: "pointer" }}
                 />

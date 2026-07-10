@@ -298,6 +298,7 @@ function BusinessMypage({
               id,
               request_id,
               interpreter_id,
+              contact_visible,
               interpreter:interpreters (
                 id,
                 name,
@@ -306,10 +307,7 @@ function BusinessMypage({
                 approved,
                 jlpt,
                 specialties,
-                experience_count,
-                phone,
-                kakao_or_line,
-                email
+                experience_count
               )
             `)
             .in("request_id", requestIds);
@@ -370,12 +368,6 @@ function BusinessMypage({
             const publicInterpreterById = new Map(
               publicInterpreters.map((interpreter) => [String(interpreter.id), interpreter])
             );
-            const getContactSourceTable = ({ interpreter }) => {
-              if (interpreter?.phone || interpreter?.email || interpreter?.kakao_id || interpreter?.kakao_or_line) {
-                return "interpreters";
-              }
-              return null;
-            };
             const mergedAssignments = baseAssignments.map((assignment) => {
               const isContactVisible = Boolean(assignment.contact_visible);
               const interpreter =
@@ -386,16 +378,12 @@ function BusinessMypage({
                 revealedContactsByAssignmentId.get(String(assignment.id)) || null;
               const visiblePhone =
                 revealedContact?.phone ||
-                interpreter?.phone ||
                 null;
               const visibleEmail =
                 revealedContact?.email ||
-                interpreter?.email ||
                 null;
               const visibleKakao =
                 revealedContact?.kakao_or_line ||
-                interpreter?.kakao_id ||
-                interpreter?.kakao_or_line ||
                 null;
               const mergedInterpreter =
                 interpreter && isContactVisible
@@ -415,22 +403,6 @@ function BusinessMypage({
                 ? { ...mergedInterpreter, _contact_fetch_failed: contactFetchFailed }
                 : mergedInterpreter;
 
-              console.debug("BusinessMypage assignment contact debug", {
-                assignment_id: assignment.id,
-                request_id: assignment.request_id,
-                interpreter_id: assignment.interpreter_id,
-                contact_source_table: revealedContact?.contact_source || getContactSourceTable({
-                  interpreter,
-                }),
-                contact_visible: assignment.contact_visible,
-                effective_contact_visible: isContactVisible,
-                joined_interpreter: assignment.interpreter,
-                revealed_contact_row: revealedContact,
-                phone: displayInterpreter?.phone ?? null,
-                email: displayInterpreter?.email ?? null,
-                kakao: displayInterpreter?.kakao_or_line ?? null,
-                contact_fetch_failed: contactFetchFailed,
-              });
               return {
                 ...assignment,
                 contact_visible: isContactVisible,
