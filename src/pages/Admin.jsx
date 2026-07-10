@@ -253,7 +253,6 @@ const ADMIN_TAB_ALIASES = {
 };
 const EMPTY_REQUEST_EDIT_DRAFT = {
   id: "",
-  company_id: null,
   title: "",
   event_name: "",
   company_name: "",
@@ -379,11 +378,6 @@ const STATUS_LABELS = {
   rejected: "거절",
 };
 const REQUEST_UPDATE_COLUMN_ALLOWLIST = new Set([
-  "company_id",
-  "company_auth_user_id",
-  "contact_revealed",
-  "contact_revealed_at",
-  "contact_revealed_by",
   "event_name",
   "company_name",
   "request_no",
@@ -473,9 +467,8 @@ function hasRequestMoneyChange(changes = {}) {
   return Object.keys(changes).some((key) => REQUEST_MONEY_FIELDS.has(key));
 }
 
-async function fetchJobApplicationsWithJobs(jobs = [], client = publicSupabase) {
-  const queryClient = client || publicSupabase;
-  const joinedResult = await queryClient
+async function fetchJobApplicationsWithJobs(jobs = []) {
+  const joinedResult = await publicSupabase
     .from("job_applications")
     .select(
       `
@@ -513,7 +506,7 @@ async function fetchJobApplicationsWithJobs(jobs = [], client = publicSupabase) 
 
   console.error("job_applications joined fetch error:", joinedResult.error);
 
-  const fallbackData = await fetchBaseJobApplications(queryClient);
+  const fallbackData = await fetchBaseJobApplications(publicSupabase);
 
   const jobsById = new Map(compactAdminRows(jobs).map((job) => [job.id, job]));
   return {
@@ -712,9 +705,23 @@ function sanitizeRecipientEmail(email) {
                 .select("id, request_id, interpreter_id, contact_visible")
                 .order("id", { ascending: false });
 
+              if (!result.error) {
+                return {
+                  ...result,
+                  data: normalizeRequestInterpreterRows(result.data),
+                };
+              }
+
+              console.error("request_interpreters contact_visible select failed", result.error);
+              const fallbackResult = await publicSupabase
+                .from("request_interpreters")
+                .select("id, request_id, interpreter_id")
+                .order("id", { ascending: false });
+
+              if (fallbackResult.error) return fallbackResult;
               return {
-                ...result,
-                data: normalizeRequestInterpreterRows(result.data),
+                ...fallbackResult,
+                data: normalizeRequestInterpreterRows(fallbackResult.data),
               };
             })(),
             publicSupabase
@@ -755,7 +762,7 @@ function sanitizeRecipientEmail(email) {
       setMatchings(matchingData);
       setBusinesses(businessData);
 
-      const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData, supabase || publicSupabase);
+      const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData);
       const jobApplicationData = jobApplicationResult.error
         ? []
         : compactAdminRows(jobApplicationResult.data);
@@ -764,6 +771,9 @@ function sanitizeRecipientEmail(email) {
       }
       setJobApplications(jobApplicationData);
 
+      console.log("loaded jobs:", jobData);
+      console.log("loaded interpreters:", interpreterData);
+      console.log("loaded applications:", jobApplicationData);
     } catch (error) {
       console.error("admin data fetch failed:", error);
       setErrorMessage("관리자 데이터를 불러오는데 실패했습니다. 새로고침 후 다시 시도해 주세요.");
@@ -2725,6 +2735,12 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`request-${request.id}`);
     try {
+      console.log("operation status update:", {
+        requestId: request.id,
+        jobId: linkedJobId,
+        nextOperationStatus: operationStatus,
+      });
+
       let updatedJob = null;
       if (linkedJobId) {
         const { data, error } = await updateJobWithFallback(linkedJobId, jobPayload);
@@ -2786,6 +2802,12 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`request-${request.id}`);
     try {
+      console.log("assignment status update:", {
+        requestId: request.id,
+        jobId: linkedJobId,
+        nextAssignmentStatus: assignmentStatus,
+      });
+
       let updatedJob = null;
       if (linkedJobId) {
         const { data, error } = await updateJobWithFallback(linkedJobId, jobPayload);
@@ -3019,7 +3041,6 @@ function sanitizeRecipientEmail(email) {
     const clientPrice = normalizeMoneyInput(draft.price);
     const requestPayload = filterRequestUpdatePayload({
       event_name: draft.event_name,
-      company_id: draft.company_id || undefined,
       company_name: draft.company_name,
       request_no: draft.request_no,
       request_type: normalizeRequestType(draft.request_type),
@@ -3333,6 +3354,11 @@ function sanitizeRecipientEmail(email) {
                 metadata: { ...statusMetadata, target_role: "company", company_name: companyName },
               },
             ];
+
+            console.log("notifications insert payloads before status_changed insert:", {
+              admin: notificationPayloads[0],
+              company: notificationPayloads[1],
+            });
 
             let { error: notificationInsertError } = await supabase
               .from("notifications")
@@ -3778,12 +3804,25 @@ function sanitizeRecipientEmail(email) {
     );
 
     setSavingKey(`assign-${requestId}`);
-    const existingAssignmentResult = await supabase
+    let existingAssignmentResult = await supabase
       .from("request_interpreters")
       .select("id, request_id, interpreter_id, contact_visible")
       .eq("request_id", requestId)
       .eq("interpreter_id", interpreterId)
       .limit(1);
+
+    if (existingAssignmentResult.error) {
+      console.error(
+        "request_interpreters contact_visible select failed",
+        existingAssignmentResult.error
+      );
+      existingAssignmentResult = await supabase
+        .from("request_interpreters")
+        .select("id, request_id, interpreter_id")
+        .eq("request_id", requestId)
+        .eq("interpreter_id", interpreterId)
+        .limit(1);
+    }
 
     const existingAssignments = normalizeRequestInterpreterRows(existingAssignmentResult.data);
     const existingAssignmentError = existingAssignmentResult.error;
@@ -3860,8 +3899,33 @@ function sanitizeRecipientEmail(email) {
       .select("id, request_id, interpreter_id, contact_visible")
       .single();
 
+    if (error && isMissingColumnError(error)) {
+      console.error("request_interpreters contact_visible select failed", error);
+      const insertFallbackResult = await supabase
+        .from("request_interpreters")
+        .select("id, request_id, interpreter_id")
+        .eq("request_id", requestId)
+        .eq("interpreter_id", interpreterId)
+        .limit(1)
+        .maybeSingle();
+
+      if (!insertFallbackResult.error && insertFallbackResult.data) {
+        assignmentData = { ...insertFallbackResult.data, contact_visible: false };
+        error = null;
+      }
+    }
+
     if (error) {
       setSavingKey("");
+      console.error("매칭 저장 디버그:", {
+        selectedJob,
+        requestId,
+        selectedInterpreterId: interpreterId,
+        selectedInterpreter: interpreter,
+        table: "request_interpreters",
+        payload,
+        error,
+      });
       console.error("통역사 매칭 실패:", error);
       alert(
         error.code === "23505"
@@ -3882,6 +3946,11 @@ function sanitizeRecipientEmail(email) {
       contact_visible: Boolean(assignmentData?.contact_visible),
       interpreter: assignmentData?.interpreter || interpreter,
     };
+    console.log("assignment created debug", {
+      request_id: nextAssignment.request_id,
+      assignment_id: nextAssignment.id,
+      interpreter_id: nextAssignment.interpreter_id,
+    });
     const matchingData = await createMatchingScheduleSnapshot({
       request,
       selectedJob,
@@ -3914,6 +3983,15 @@ function sanitizeRecipientEmail(email) {
     setSavingKey("");
 
     if (requestError) {
+      console.error("매칭 저장 디버그:", {
+        selectedJob,
+        requestId,
+        selectedInterpreterId: interpreterId,
+        selectedInterpreter: interpreter,
+        table: "requests",
+        payload: requestChanges,
+        error: requestError,
+      });
       console.error("통역사 매칭 실패:", requestError);
       alert(`통역사 매칭에 실패했습니다: ${requestError.message}`);
       return false;
@@ -4196,53 +4274,36 @@ function sanitizeRecipientEmail(email) {
     alert("매칭이 취소되었습니다.");
   };
 
-  const handleContactVisibleChange = async (assignmentId, checked) => {
-    if (!assignmentId) return;
+  const handleContactVisibleChange = async (requestInterpreterId, checked) => {
+    if (!requestInterpreterId) return;
     if (!supabase) {
       alert(supabaseConfigError.message);
       return;
     }
 
-    const assignment = assignments.find(
-      (item) => String(item.id) === String(assignmentId)
-    );
-    const requestId = assignment?.request_id || null;
-    const interpreterId = assignment?.interpreter_id || null;
+    console.log("contact visible update payload", {
+      requestInterpreterId,
+      checked,
+    });
 
-    setSavingKey(`assignment-contact-${assignmentId}`);
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("request_interpreters")
-      .update({ contact_visible: Boolean(checked) })
-      .eq("id", assignmentId)
-      .select("id, request_id, interpreter_id, contact_visible")
-      .single();
+      .update({ contact_visible: checked })
+      .eq("id", requestInterpreterId);
 
-    if (error || !data?.id) {
-      setSavingKey("");
-      console.error("[assignment-contact-visibility:update]", {
-        assignmentId,
-        requestId,
-        interpreterId,
-        code: error?.code || "",
-        message: error?.message || "No assignment row returned",
-        details: error?.details || "",
-        hint: error?.hint || "",
-      });
-      alert("연락처 공개 설정을 저장하지 못했습니다. 페이지를 새로고침한 후 다시 시도해 주세요.");
+    if (error) {
+      console.error("contact visibility update failed", error);
+      alert("연락처 공개 설정 저장에 실패했습니다. Supabase migration 적용 여부를 확인하세요.");
       return;
     }
 
     setAssignments((current) =>
       current.map((item) =>
-        String(item.id) === String(assignmentId)
-          ? {
-              ...item,
-              contact_visible: Boolean(data.contact_visible),
-            }
+        String(item.id) === String(requestInterpreterId)
+          ? { ...item, contact_visible: checked }
           : item
       )
     );
-    setSavingKey("");
   };
 
   const updateMatchingApplicationStatus = async (request, interpreter, status) => {
@@ -7294,10 +7355,8 @@ function BusinessManagement({
   const getBusinessRequests = (biz, sourceRequests = requests) => {
     if (!biz) return [];
     const authUserId = String(biz.auth_user_id || "");
-    const businessId = String(biz.id || "");
     const companyName = String(biz.company_name || "").trim();
     return sourceRequests.filter((request) => {
-      if (businessId && String(request.company_id || "") === businessId) return true;
       if (authUserId && String(request.company_auth_user_id || "") === authUserId) return true;
       return companyName && String(request.company_name || "").trim() === companyName;
     });
@@ -7337,16 +7396,6 @@ function BusinessManagement({
 
       const business = businessData || biz;
       const requestResults = [];
-      if (business.id) {
-        const result = await supabase
-          .from("requests")
-          .select("*")
-          .eq("company_id", business.id)
-          .order("created_at", { ascending: false })
-          .limit(100);
-        if (result.error && !isMissingColumnError(result.error)) throw result.error;
-        requestResults.push(...(result.data || []));
-      }
       if (business.auth_user_id) {
         const result = await supabase
           .from("requests")
@@ -8398,7 +8447,6 @@ function RequestDetailPanel({
       }
     : safeRequest;
   const requestInterpreters = Array.isArray(assignments) ? assignments : [];
-  const isCompanyContactRevealed = Boolean(safeRequest.contact_revealed);
   const flowSource = getRequestFlowSource(settlementAwareRequest, job);
   const requestType = getDesignatedRequestType(safeRequest);
   const designatedInterpreterName = getDesignatedInterpreterName([safeRequest], interpreters);
@@ -8501,19 +8549,17 @@ function RequestDetailPanel({
 
   useEffect(() => {
     Promise.resolve().then(() => {
-      if (!safeRequest?.company_id && !safeRequest?.company_auth_user_id) {
+      if (!safeRequest?.company_auth_user_id) {
         setBusinessProfile(null);
         return;
       }
       const fetchBiz = async () => {
         try {
-          let query = supabase
+          const { data, error } = await supabase
             .from("businesses")
-            .select("*");
-          query = safeRequest.company_id
-            ? query.eq("id", safeRequest.company_id)
-            : query.eq("auth_user_id", safeRequest.company_auth_user_id);
-          const { data, error } = await query.maybeSingle();
+            .select("*")
+            .eq("auth_user_id", safeRequest.company_auth_user_id)
+            .maybeSingle();
           if (!error && data) {
             setBusinessProfile(data);
           } else {
@@ -8526,7 +8572,7 @@ function RequestDetailPanel({
       };
       fetchBiz();
     });
-  }, [safeRequest.company_id, safeRequest.company_auth_user_id]);
+  }, [safeRequest.company_auth_user_id]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -8883,40 +8929,6 @@ function RequestDetailPanel({
           </div>
 
           <div>
-            <h3>기업 연락처 공개</h3>
-            <div className="admin-document-action-block">
-              <dl className="admin-detail-list compact">
-                <Info label="공개 상태" value={isCompanyContactRevealed ? "공개됨" : "비공개"} />
-                <Info label="변경 시간" value={formatDateTime(safeRequest.contact_revealed_at)} />
-              </dl>
-              <div className="admin-detail-action-row">
-                <button
-                  type="button"
-                  className="admin-save"
-                  disabled={
-                    isCompanyContactRevealed ||
-                    savingKey === `request-${safeRequest?.id}`
-                  }
-                  onClick={() => safeRequest?.id && handleContactVisibleChange(safeRequest.id, true)}
-                >
-                  연락처 공개
-                </button>
-                <button
-                  type="button"
-                  className="admin-link-button"
-                  disabled={
-                    !isCompanyContactRevealed ||
-                    savingKey === `request-${safeRequest?.id}`
-                  }
-                  onClick={() => safeRequest?.id && handleContactVisibleChange(safeRequest.id, false)}
-                >
-                  연락처 비공개
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div>
             <h3>행사 기간 수정</h3>
             <div className="admin-date-range-panel">
               <div className="date-range-picker-shell" ref={eventDatePickerRef}>
@@ -9071,7 +9083,6 @@ function RequestDetailPanel({
               }))}
               onRemove={removeAssignment}
               handleContactVisibleChange={handleContactVisibleChange}
-              savingKey={savingKey}
             />
             <div className="admin-assign-row">
               <select
@@ -14368,7 +14379,7 @@ function Info({ label, value }) {
   );
 }
 
-function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange, savingKey }) {
+function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange }) {
   if (items.length === 0) {
     return <span className="admin-empty-chip">{emptyText}</span>;
   }
@@ -14377,17 +14388,14 @@ function AssignmentList({ emptyText, items, onRemove, handleContactVisibleChange
     <div className="admin-assignment-list">
       {items.map((item) => {
         const requestInterpreter = item.assignment;
-        const isContactVisible = Boolean(requestInterpreter?.contact_visible);
-        const isSaving = savingKey === `assignment-contact-${requestInterpreter?.id}`;
         return (
-          <div key={item.id} className="admin-assignment-row">
+          <div key={item.id} className="admin-assignment-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <span style={{ flex: 1, fontSize: "13px", fontWeight: "700", color: "#334155" }}>{item.label}</span>
             {requestInterpreter?.id && (
-              <label className="contact-visible-control">
+              <label className="contact-visible-control" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer", color: "#475569" }}>
                 <input
                   type="checkbox"
-                  checked={isContactVisible}
-                  disabled={isSaving}
+                  checked={Boolean(requestInterpreter.contact_visible)}
                   onChange={(event) =>
                     handleContactVisibleChange?.(requestInterpreter.id, event.target.checked)
                   }
@@ -14508,7 +14516,6 @@ function createRequestEditDraft(request = {}, job = null) {
 
   return {
     id: request.id || "",
-    company_id: request.company_id || null,
     title: eventName,
     event_name: eventName,
     company_name: companyName,
@@ -16893,6 +16900,15 @@ function buildSettlementManagementRows({ requests = [], assignments = [], interp
     };
   });
   const settlementCandidates = rows.filter(isSettlementManagementCandidate);
+  if (settlementCandidates.length > 0) {
+    console.table(
+      settlementCandidates.map((row) => ({
+        request_code: row.request_no || row.management_no || row.id,
+        settlement_id: row._settlement_id || "",
+        settlement_status: row.settlement_status || "",
+      }))
+    );
+  }
 
   return {
     rows: sortSettlementRows(settlementCandidates),

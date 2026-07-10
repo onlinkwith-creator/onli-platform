@@ -1,9 +1,3 @@
-import {
-  MANAGEMENT_NUMBER_CONFIG,
-  addManagementNumber,
-  isManagementNumberConflict,
-} from "./managementNumber";
-
 export const DUPLICATE_APPLICATION_MESSAGE =
   "이미 지원한 통역공고입니다.";
 
@@ -70,23 +64,6 @@ export function isAgreementColumnError(error) {
     error?.code === "42703" ||
     error?.code === "PGRST204" ||
     /agreed_|cancel_policy_agreed_at|column|schema cache/i.test(message)
-  );
-}
-
-function isMissingJobApplicationColumnError(error, columnName) {
-  const message = [
-    error?.message,
-    error?.details,
-    error?.hint,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    error?.code === "42703" ||
-    error?.code === "PGRST204" ||
-    (columnName && new RegExp(`\\b${columnName}\\b`, "i").test(message)) ||
-    /column .* does not exist|schema cache/i.test(message)
   );
 }
 
@@ -208,117 +185,28 @@ export async function findExistingJobApplication(
   }
 
   if (normalizedEmail) {
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from("job_applications")
       .select("id")
       .eq("job_id", jobId)
       .or(`email.eq.${normalizedEmail},applicant_email.eq.${normalizedEmail}`)
       .limit(1);
 
-    if (error && isMissingJobApplicationColumnError(error, "applicant_email")) {
-      const fallbackResult = await supabase
-        .from("job_applications")
-        .select("id")
-        .eq("job_id", jobId)
-        .eq("email", normalizedEmail)
-        .limit(1);
-      data = fallbackResult.data;
-      error = fallbackResult.error;
-    }
-
     if (error) throw error;
     if (data?.length) return data[0];
   }
 
   if (normalizedPhone) {
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from("job_applications")
       .select("id")
       .eq("job_id", jobId)
       .or(`phone.eq.${normalizedPhone},applicant_phone.eq.${normalizedPhone}`)
       .limit(1);
 
-    if (error && isMissingJobApplicationColumnError(error, "applicant_phone")) {
-      const fallbackResult = await supabase
-        .from("job_applications")
-        .select("id")
-        .eq("job_id", jobId)
-        .eq("phone", normalizedPhone)
-        .limit(1);
-      data = fallbackResult.data;
-      error = fallbackResult.error;
-    }
-
     if (error) throw error;
     if (data?.length) return data[0];
   }
 
   return null;
-}
-
-export async function createJobApplicationRecord(supabase, payload) {
-  if (!supabase) throw new Error("Supabase client is not configured.");
-  if (!payload?.job_id) throw new Error("지원할 공고 정보가 올바르지 않습니다.");
-  if (!payload?.interpreter_id) throw new Error("통역사 등록 정보를 확인할 수 없습니다.");
-
-  const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
-  let insertPayload = await addManagementNumber({
-    supabase,
-    table: "job_applications",
-    payload,
-    ...managementConfig,
-  });
-
-  let result = await insertJobApplicationPayload(supabase, insertPayload);
-
-  if (isManagementNumberConflict(result.error, managementConfig.column)) {
-    insertPayload = await addManagementNumber({
-      supabase,
-      table: "job_applications",
-      payload,
-      ...managementConfig,
-    });
-    result = await insertJobApplicationPayload(supabase, insertPayload);
-  }
-
-  if (result.error && isAgreementColumnError(result.error)) {
-    insertPayload = buildLegacyJobApplicationPayload(result.error, insertPayload);
-    result = await insertJobApplicationPayload(supabase, insertPayload);
-  }
-
-  if (result.error) {
-    console.error("[job_applications:insert]", {
-      code: result.error.code,
-      message: result.error.message,
-      details: result.error.details,
-      hint: result.error.hint,
-      jobId: payload.job_id,
-      interpreterId: payload.interpreter_id,
-    });
-    throw result.error;
-  }
-  if (!result.data?.id) {
-    throw new Error("지원 저장 결과를 확인할 수 없습니다.");
-  }
-
-  const verified = await findExistingJobApplication(supabase, {
-    jobId: payload.job_id,
-    interpreterId: payload.interpreter_id,
-    email: payload.applicant_email || payload.email,
-    phone: payload.applicant_phone || payload.phone,
-  });
-
-  if (!verified?.id) {
-    throw new Error("지원 저장 후 생성된 지원서를 확인할 수 없습니다.");
-  }
-
-  return result.data;
-}
-
-async function insertJobApplicationPayload(supabase, payload) {
-  return supabase
-    .from("job_applications")
-    .insert([payload])
-    .select("*")
-    .single();
 }

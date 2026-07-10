@@ -10,7 +10,6 @@ import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import {
   ensureInterpreterAuthLink,
-  isInterpreterApprovedForApplication,
   pickCurrentUserInterpreterProfile,
 } from "../utils/interpreterApproval";
 import {
@@ -20,10 +19,11 @@ import {
 import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
-  createJobApplicationRecord,
+  buildLegacyJobApplicationPayload,
   findExistingJobApplication,
   getJobApplicationSubmitErrorMessage,
   getSupabaseErrorDetails,
+  isAgreementColumnError,
   isDuplicateApplicationError,
   normalizeApplicationEmail,
   normalizeApplicationPhone,
@@ -32,6 +32,11 @@ import {
   checkInterpreterScheduleConflict,
   getScheduleRange,
 } from "../utils/scheduleConflict";
+import {
+  MANAGEMENT_NUMBER_CONFIG,
+  addManagementNumber,
+  isManagementNumberConflict,
+} from "../utils/managementNumber";
 import "./Jobs.css";
 
 const initialForm = {
@@ -95,6 +100,8 @@ function JobApply({
         alert(error.message);
         throw error;
       }
+
+      console.log("loaded jobs:", data ? [data] : []);
 
       if (!isPublicJob(data)) {
         setJob(null);
@@ -253,13 +260,6 @@ function JobApply({
       return;
     }
 
-    if (!isInterpreterApprovedForApplication(interpreterProfile)) {
-      const message = "승인된 통역사만 지원할 수 있습니다.";
-      setErrorMessage(message);
-      alert(message);
-      return;
-    }
-
     if (!hasRegisteredResume(interpreterProfile)) {
       const message = "이력서를 등록한 후 지원할 수 있습니다.";
       setErrorMessage(message);
@@ -333,6 +333,8 @@ function JobApply({
       agreed_at: agreedAt,
       cancel_policy_agreed_at: agreedAt,
     };
+    const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
+
     try {
       const existingApplication = await findExistingJobApplication(supabase, {
         jobId: job.id,
@@ -368,11 +370,60 @@ function JobApply({
         }
       }
 
-      const createdApplication = await createJobApplicationRecord(supabase, application);
+      let insertPayload = await addManagementNumber({
+        supabase,
+        table: "job_applications",
+        payload: application,
+        ...managementConfig,
+      });
+      let { data, error } = await supabase
+        .from("job_applications")
+        .insert([insertPayload])
+        .select("id")
+        .single();
+
+      if (isManagementNumberConflict(error, managementConfig.column)) {
+        insertPayload = await addManagementNumber({
+          supabase,
+          table: "job_applications",
+          payload: application,
+          ...managementConfig,
+        });
+        const retryResult = await supabase
+          .from("job_applications")
+          .insert([insertPayload])
+          .select("id")
+          .single();
+        data = retryResult.data;
+        error = retryResult.error;
+      }
+
+      if (error && isAgreementColumnError(error)) {
+        const fallbackApplication = buildLegacyJobApplicationPayload(error, insertPayload);
+        const fallbackResult = await supabase
+          .from("job_applications")
+          .insert([fallbackApplication])
+          .select("id")
+          .single();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
+
+      if (error) {
+        const errorDetails = getSupabaseErrorDetails(error);
+        console.error("지원 저장 실패:", {
+          ...errorDetails,
+          table: "job_applications",
+          payloadKeys: Object.keys(insertPayload || {}),
+          status: insertPayload?.status,
+          interpreter_id: insertPayload?.interpreter_id,
+        });
+        throw error;
+      }
 
       const emailPayload = {
-        requestId: createdApplication.application_no || "",
-        applicationId: createdApplication.application_no || "",
+        requestId: data?.id || "",
+        applicationId: data?.id || "",
         jobId: job.id,
         name: form.name,
         jobTitle: job.title || "공고 제목 미입력",
@@ -419,23 +470,16 @@ function JobApply({
       }
 
       setSubmitted(true);
-      setExistingApplication(createdApplication);
+      setExistingApplication(data || { id: data?.id });
       setForm(initialForm);
       setAgreements(initialTermsAgreement);
-      void fetchJob();
     } catch (error) {
       console.error("지원 저장 실패:", getSupabaseErrorDetails(error));
       if (isDuplicateApplicationError(error)) {
-        const application = await findExistingJobApplication(supabase, {
-          jobId: job.id,
-          interpreterId: matchedInterpreter?.id,
-          email: applicantEmail,
-          phone: applicantPhone,
-        });
         setErrorMessage(DUPLICATE_APPLICATION_MESSAGE);
         alert(DUPLICATE_APPLICATION_MESSAGE);
-        setExistingApplication(application || null);
-        setSubmitted(Boolean(application));
+        setExistingApplication({ id: "duplicate" });
+        setSubmitted(true);
         setSubmitting(false);
         submittingRef.current = false;
         return;

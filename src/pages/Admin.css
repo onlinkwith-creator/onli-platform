@@ -1903,7 +1903,7 @@
 
 .admin-assignment-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 7px 8px;
@@ -1920,21 +1920,6 @@
   line-height: 1.35;
   white-space: normal;
   word-break: keep-all;
-}
-
-.contact-visible-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #475569;
-  cursor: pointer;
-  flex-shrink: 0;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.contact-visible-control input {
-  flex-shrink: 0;
 }
 
 .admin-applicant-accordion-list {
@@ -4909,14 +4894,6 @@
   .admin-assign-row,
   .admin-assignment-row {
     grid-template-columns: 1fr;
-  }
-
-  .admin-assignment-row {
-    align-items: start;
-  }
-
-  .contact-visible-control {
-    justify-self: start;
   }
 
   .admin-applicant-summary {

@@ -86,7 +86,6 @@ function InterpreterMypage({
   // Dynamic dashboard states
   const [applications, setApplications] = useState([]);
   const [matchings, setMatchings] = useState([]);
-  const [assignmentLoadError, setAssignmentLoadError] = useState("");
   const [settlements, setSettlements] = useState([]);
   const [paymentDocuments, setPaymentDocuments] = useState([]);
   const [activeTab, setActiveTab] = useState("profile");
@@ -200,6 +199,7 @@ function InterpreterMypage({
     setLoading(true);
     setMessage("");
     setStatus("loading");
+    console.log("current user:", user);
 
     const { data, error } = await supabase
       .from("interpreters")
@@ -277,7 +277,6 @@ function InterpreterMypage({
       // Fetch applications and matchings dynamically
       setLoadingData(true);
       try {
-        setAssignmentLoadError("");
         const [apps, mats, settlementRows, documentRows] = await Promise.all([
           fetchApplicationsData(nextInterpreter.id),
           fetchMatchingsData(nextInterpreter.id),
@@ -290,7 +289,6 @@ function InterpreterMypage({
         setPaymentDocuments(documentRows);
       } catch (err) {
         console.error("Failed to load applications/matchings", err);
-        setAssignmentLoadError("배정 내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
       } finally {
         setLoadingData(false);
       }
@@ -360,6 +358,8 @@ function InterpreterMypage({
       available_tasks: editForm.available_tasks,
     };
 
+    console.log("Updating interpreter profile. Payload:", payload);
+
     const { data, error } = await supabase
       .from("interpreters")
       .update(payload)
@@ -406,7 +406,7 @@ function InterpreterMypage({
     setResumeFile(file);
   };
 
-  const handleDownloadResume = async (filePath) => {
+  const handleDownloadResume = async (filePath, fileName) => {
     if (!supabase || !filePath) return;
     try {
       const resolvedPath = getResumeStoragePath(filePath);
@@ -844,15 +844,6 @@ function InterpreterMypage({
   const fetchApplicationsData = async (interpreterId) => {
     if (!supabase || !interpreterId) return [];
 
-    const { data: myApplications, error: myApplicationsError } = await supabase
-      .rpc("get_my_job_applications");
-
-    if (!myApplicationsError) {
-      return (myApplications || []).map(mapMyApplicationRow);
-    }
-
-    console.warn("get_my_job_applications RPC failed; falling back to direct query", myApplicationsError);
-
     const { data: applicationRows, error: applicationError } = await supabase
       .from("job_applications")
       .select(`
@@ -930,25 +921,20 @@ function InterpreterMypage({
         id,
         request_id,
         interpreter_id,
-        assigned_at,
-        status,
-        assignment_status
+        assigned_at
       `)
       .eq("interpreter_id", interpreterId)
       .order("assigned_at", { ascending: false });
 
     if (assignmentError) {
-      console.error("[request_interpreters:fetch]", {
-        code: assignmentError.code,
-        message: assignmentError.message,
-      });
-      throw assignmentError;
+      console.error("request_interpreters fetch failed", assignmentError);
+      return [];
     }
 
     const requestIds = getUniqueIds((assignments || []).map((item) => item.request_id));
     if (requestIds.length === 0) return [];
 
-    let { data: requests, error: requestError } = await supabase
+    const { data: requests, error: requestError } = await supabase
       .from("requests")
       .select(`
         id,
@@ -966,50 +952,16 @@ function InterpreterMypage({
         assignment_status,
         operation_status,
         settlement_status,
-        company_id,
         company_auth_user_id,
-        contact_revealed,
-        contact_revealed_at,
-        contact_revealed_by,
         reference_file_name,
         reference_file_path,
         reference_file_url
       `)
       .in("id", requestIds);
 
-    if (requestError && isMissingColumnError(requestError, "contact_revealed")) {
-      const fallbackResult = await supabase
-        .from("requests")
-        .select(`
-          id,
-          job_id,
-          request_no,
-          event_name,
-          company_name,
-          contact_name,
-          contact_email_or_phone,
-          start_date,
-          end_date,
-          event_date,
-          event_location,
-          status,
-          assignment_status,
-          operation_status,
-          settlement_status,
-          company_id,
-          company_auth_user_id,
-          reference_file_name,
-          reference_file_path,
-          reference_file_url
-        `)
-        .in("id", requestIds);
-      requests = fallbackResult.data;
-      requestError = fallbackResult.error;
-    }
-
     if (requestError) {
       console.error("requests for assignments fetch failed", requestError);
-      throw requestError;
+      return [];
     }
 
     const { data: documents, error: documentError } = await supabase
@@ -1028,11 +980,10 @@ function InterpreterMypage({
       console.error("documents for assignments fetch failed", documentError);
     }
 
-    const companyIds = getUniqueIds((requests || []).map((item) => item.company_id));
     const companyAuthUserIds = getUniqueIds((requests || []).map((item) => item.company_auth_user_id));
     let companies = [];
-    if (companyIds.length > 0 || companyAuthUserIds.length > 0) {
-      let companyQuery = supabase
+    if (companyAuthUserIds.length > 0) {
+      const { data: companyRows, error: companyError } = await supabase
         .from("businesses")
         .select(`
           id,
@@ -1040,50 +991,19 @@ function InterpreterMypage({
           company_name,
           contact_name,
           contact_phone,
-          contact_email,
-          kakao_id
-        `);
-
-      if (companyIds.length > 0) {
-        companyQuery = companyQuery.in("id", companyIds);
-      } else {
-        companyQuery = companyQuery.in("auth_user_id", companyAuthUserIds);
-      }
-
-      const { data: companyRows, error: companyError } = await companyQuery;
+          contact_email
+        `)
+        .in("auth_user_id", companyAuthUserIds);
 
       if (companyError) {
         console.error("businesses for assignments fetch failed", companyError);
       } else {
-        companies = [...(companyRows || [])];
-      }
-
-      const foundAuthUserIds = new Set(companies.map((company) => String(company.auth_user_id || "")));
-      const missingAuthUserIds = companyAuthUserIds.filter((id) => !foundAuthUserIds.has(String(id)));
-      if (missingAuthUserIds.length > 0) {
-        const { data: fallbackRows, error: fallbackError } = await supabase
-          .from("businesses")
-          .select(`
-            id,
-            auth_user_id,
-            company_name,
-            contact_name,
-            contact_phone,
-            contact_email,
-            kakao_id
-          `)
-          .in("auth_user_id", missingAuthUserIds);
-        if (fallbackError) {
-          console.error("businesses auth fallback for assignments failed", fallbackError);
-        } else {
-          companies = [...companies, ...(fallbackRows || [])];
-        }
+        companies = companyRows || [];
       }
     }
 
     const requestMap = new Map((requests || []).map((request) => [String(request.id), request]));
-    const companyById = new Map((companies || []).map((company) => [String(company.id), company]));
-    const companyByAuthUserId = new Map((companies || []).map((company) => [String(company.auth_user_id), company]));
+    const companyMap = new Map((companies || []).map((company) => [String(company.auth_user_id), company]));
     const docsByRequestId = new Map();
     (documents || []).forEach((document) => {
       const key = String(document.request_id);
@@ -1094,14 +1014,10 @@ function InterpreterMypage({
 
     return (assignments || []).map((assignment) => {
       const request = requestMap.get(String(assignment.request_id)) || {};
-      const company =
-        companyById.get(String(request.company_id)) ||
-        companyByAuthUserId.get(String(request.company_auth_user_id)) ||
-        {};
       return mapRequestInterpreterAssignmentRow({
         assignment,
         request,
-        company,
+        company: companyMap.get(String(request.company_auth_user_id)) || {},
         documents: docsByRequestId.get(String(assignment.request_id)) || [],
       });
     });
@@ -2340,11 +2256,6 @@ function InterpreterMypage({
                     <h2>배정 내역 목록</h2>
                     {loadingData ? (
                       <p className="loading-text">배정 내역을 불러오고 있습니다...</p>
-                    ) : assignmentLoadError ? (
-                      <div className="interpreter-empty-state">
-                        <span className="empty-icon">!</span>
-                        <p>{assignmentLoadError}</p>
-                      </div>
                     ) : matchings.length === 0 ? (
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">💼</span>
@@ -2451,11 +2362,6 @@ function InterpreterMypage({
                     </p>
                     {loadingData ? (
                       <p className="loading-text">업무 준비 정보를 불러오는 중...</p>
-                    ) : assignmentLoadError ? (
-                      <div className="interpreter-empty-state">
-                        <span className="empty-icon">!</span>
-                        <p>{assignmentLoadError}</p>
-                      </div>
                     ) : (() => {
                       const prepItems = getVisiblePreparationItems(matchings, applications);
                       if (prepItems.length === 0) {
@@ -3407,6 +3313,33 @@ function mapPublicJobFromJobRow(job = {}) {
   };
 }
 
+function mapMyAssignmentRow(row = {}) {
+  return {
+    id: row.assignment_id,
+    matching_no: row.assignment_code,
+    job_id: row.job_id,
+    request_id: row.request_id,
+    company_id: row.company_id,
+    assignment_status: row.assignment_status || "assigned",
+    start_date: row.start_date,
+    end_date: row.end_date,
+    status: row.public_status,
+    created_at: row.assigned_at,
+    request_assignment_status: row.request_assignment_status || "assigned",
+    is_contact_visible: row.is_contact_visible || false,
+    company_contact: {
+      companyName: row.company_name ?? null,
+      contactName: row.company_contact_name ?? null,
+      phone: row.company_contact_phone ?? null,
+      email: row.company_contact_email ?? null,
+      messenger: row.company_contact_messenger ?? null,
+      readable: row.is_company_contact_readable ?? null,
+    },
+    reference_file: getAssignmentReferenceFile(row),
+    jobs: mapPublicJobFromMypageRow(row),
+  };
+}
+
 function mapRequestInterpreterAssignmentRow(row = {}) {
   const assignment = row.assignment || row;
   const request = row.request || (Array.isArray(row.requests) ? row.requests[0] : row.requests) || {};
@@ -3417,7 +3350,9 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
   const assignmentStatus = normalizeAssignmentStatusValue(
     assignment.assignment_status || assignment.status
   );
-  const contactVisible = request.contact_revealed === true;
+  const contactVisible =
+    assignmentStatus === "assigned" ||
+    Boolean(assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
   const companyContact = buildCompanyContact({ request, company, contactVisible });
   const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
   const endDate = getFirstValue(request.event_end_date, request.end_date);
@@ -3426,7 +3361,7 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     matching_no: assignment.assignment_code || `request-interpreter-${assignment.id}`,
     job_id: request.job_id || null,
     request_id: assignment.request_id,
-    company_id: request.company_id || company.id || null,
+    company_id: request.company_id || company.id || request.company_auth_user_id,
     assignment_status: assignmentStatus,
     start_date: startDate,
     end_date: endDate,
@@ -3486,8 +3421,8 @@ function buildCompanyContact({ request = {}, company = {}, contactVisible = true
   return {
     companyName,
     contactName: getFirstValue(request.contact_name, company.contact_name),
-    phone: getFirstValue(company.contact_phone, company.phone, request.contact_phone, request.contact_email_or_phone),
-    email: getFirstValue(company.contact_email, company.email, request.contact_email, request.contact_email_or_phone),
+    phone: getFirstValue(request.contact_phone, request.contact_email_or_phone, company.contact_phone, company.phone),
+    email: getFirstValue(request.contact_email, request.contact_email_or_phone, company.contact_email, company.email),
     messenger: getFirstValue(request.contact_kakao, company.kakao_id),
     readable: Boolean(company?.id || request.company_auth_user_id || companyName),
     visible: true,
@@ -3568,6 +3503,20 @@ function getUniquePreparationItems(items = []) {
   });
 }
 
+function getAssignmentReferenceFile(row = {}) {
+  const fileName = row.reference_file_name || "";
+  const filePath = row.reference_file_path || row.reference_file_url || "";
+  if (!fileName && !filePath) return null;
+
+  return {
+    id: `reference-${row.request_id || row.assignment_id || filePath}`,
+    file_name: fileName || filePath.split("/").pop() || "첨부 파일",
+    original_file_name: fileName || filePath.split("/").pop() || "첨부 파일",
+    file_path: getStoragePathFromUrl(filePath, REQUEST_REFERENCE_BUCKET) || filePath,
+    file_type: "참고 자료",
+  };
+}
+
 function getAssignmentReferenceFileFromRequest(request = {}, documents = []) {
   const document = documents.find((item) =>
     isKnownRequestMaterialPath(getFirstValue(item.storage_path, item.file_path, item.file_url))
@@ -3626,20 +3575,6 @@ function getFirstNonNumericValue(...values) {
   return "";
 }
 
-function isMissingColumnError(error, columnName) {
-  const message = [
-    error?.message,
-    error?.details,
-    error?.hint,
-  ].filter(Boolean).join(" ");
-  return (
-    error?.code === "42703" ||
-    error?.code === "PGRST204" ||
-    (columnName && message.includes(columnName)) ||
-    /schema cache|column .* does not exist/i.test(message)
-  );
-}
-
 function normalizeAssignmentStatusValue(status) {
   const normalized = String(status || "").trim();
   if (["assigned", "confirmed", "배정완료", "assignment_completed"].includes(normalized)) {
@@ -3659,25 +3594,10 @@ function getDisplayValue(value) {
   return text ? text : "-";
 }
 
-function getCompanyContactState(mat = {}) {
-  if (!isAssignedPreparationStatus(mat.assignment_status)) return "not_released";
-  if (mat.is_contact_visible === false) return "not_released";
-  if (mat.company_contact?.readable === false) return "error";
-  return "loaded";
-}
-
-function getCompanyContactValue(value, state) {
-  if (state === "not_released") return "연락처 공개 전";
-  if (state === "error") return "연락처 정보를 불러오지 못했습니다";
-  const text = String(value ?? "").trim();
-  return text ? text : "미등록";
-}
-
 function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
   const [materials, setMaterials] = useState([]);
   const [loadingMats, setLoadingMats] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const warnedContactRef = useRef(new Set());
 
 
   // Fetch materials when expanded
@@ -3710,19 +3630,25 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
   useEffect(() => {
     if (!expanded || !isAssignedPreparationStatus(mat.assignment_status)) return;
 
-    const warningKey = `${mat.id || ""}:${mat.request_id || ""}`;
-    if (mat.company_contact?.readable === false && !warnedContactRef.current.has(`unreadable:${warningKey}`)) {
-      warnedContactRef.current.add(`unreadable:${warningKey}`);
+    if (!mat.company_id) {
+      console.warn("request has no company_id", {
+        assignmentId: mat.id,
+        requestId: mat.request_id,
+      });
+      return;
+    }
+
+    if (mat.company_contact?.readable === false) {
       console.warn("company contact not readable, check RLS or join", {
         assignmentId: mat.id,
         requestId: mat.request_id,
         companyId: mat.company_id,
       });
     }
-  }, [expanded, mat.id, mat.request_id, mat.company_id, mat.company_contact?.readable, mat.assignment_status]);
+  }, [expanded, mat]);
 
 
-  const handleDownload = async (filePath) => {
+  const handleDownload = async (filePath, fileName) => {
     if (!filePath) return;
     if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
       window.open(filePath, "_blank", "noopener,noreferrer");
@@ -3748,15 +3674,14 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     if (!end || start === end) return start;
     return `${start} ~ ${end}`;
   })();
-  const contactState = getCompanyContactState(mat);
-  const canShowCompanyContact = contactState !== "not_released";
+  const canShowCompanyContact = isAssignedPreparationStatus(mat.assignment_status);
   const companyContact = mat.company_contact || {};
   const contactRows = [
-    ["기업명", getCompanyContactValue(companyContact.companyName, "loaded")],
-    ["담당자", getCompanyContactValue(companyContact.contactName, contactState)],
-    ["연락처", getCompanyContactValue(companyContact.phone, contactState)],
-    ["이메일", getCompanyContactValue(companyContact.email, contactState)],
-    ["카카오톡(ID)", getCompanyContactValue(companyContact.messenger, contactState)],
+    ["기업명", companyContact.companyName],
+    ["담당자", companyContact.contactName],
+    ["연락처", companyContact.phone],
+    ["이메일", companyContact.email],
+    ["카카오톡(ID)", companyContact.messenger],
   ];
 
   return (

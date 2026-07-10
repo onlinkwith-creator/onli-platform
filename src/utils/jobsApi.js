@@ -34,21 +34,12 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
 
 export async function attachPublicJobCounts(supabase, jobs) {
   return jobs.map((job) => {
-    const applicationCount = Number(
-      job.application_count ??
-        job.applicant_count ??
-        job.active_application_count ??
-        job.assigned_count ??
-        job.matched_count ??
-        0
-    );
+    const assignedCount = Number(job.assigned_count || job.matched_count || 0);
 
     return {
       ...job,
-      application_count: applicationCount,
-      applicant_count: applicationCount,
-      assigned_count: applicationCount,
-      matched_count: applicationCount,
+      assigned_count: assignedCount,
+      matched_count: assignedCount,
     };
   });
 }
