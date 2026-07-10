@@ -111,6 +111,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
   const submittingRef = useRef(false);
   const referenceFileInputRef = useRef(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const businessProfileRef = useRef(null);
 
   // Prepopulate from duplicate template
   useEffect(() => {
@@ -174,6 +175,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
             .eq("auth_user_id", user.id)
             .maybeSingle();
           if (!error && data) {
+            businessProfileRef.current = data;
             setForm(current => ({
               ...current,
               companyName: data.company_name || "",
@@ -187,6 +189,8 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
         }
       };
       fetchBusinessProfile();
+    } else {
+      businessProfileRef.current = null;
     }
   }, [user, duplicateTemplate]);
 
@@ -400,6 +404,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
 
     const requestPayload = {
       company_auth_user_id: user?.id || null,
+      company_id: businessProfileRef.current?.id || null,
       interpreter_id: interpreter?.id || null,
       interpreter_name: interpreter?.name || "",
       company_name: form.companyName,
@@ -501,6 +506,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       delete legacyRequestPayload.admin_checked;
       delete legacyRequestPayload.checked_at;
       delete legacyRequestPayload.request_no;
+      delete legacyRequestPayload.company_id;
       delete legacyRequestPayload.reference_file_name;
       delete legacyRequestPayload.reference_file_path;
       delete legacyRequestPayload.reference_file_url;

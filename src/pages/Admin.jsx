@@ -253,6 +253,7 @@ const ADMIN_TAB_ALIASES = {
 };
 const EMPTY_REQUEST_EDIT_DRAFT = {
   id: "",
+  company_id: null,
   title: "",
   event_name: "",
   company_name: "",
@@ -378,6 +379,8 @@ const STATUS_LABELS = {
   rejected: "거절",
 };
 const REQUEST_UPDATE_COLUMN_ALLOWLIST = new Set([
+  "company_id",
+  "company_auth_user_id",
   "event_name",
   "company_name",
   "request_no",
@@ -3041,6 +3044,7 @@ function sanitizeRecipientEmail(email) {
     const clientPrice = normalizeMoneyInput(draft.price);
     const requestPayload = filterRequestUpdatePayload({
       event_name: draft.event_name,
+      company_id: draft.company_id || undefined,
       company_name: draft.company_name,
       request_no: draft.request_no,
       request_type: normalizeRequestType(draft.request_type),
@@ -7355,8 +7359,10 @@ function BusinessManagement({
   const getBusinessRequests = (biz, sourceRequests = requests) => {
     if (!biz) return [];
     const authUserId = String(biz.auth_user_id || "");
+    const businessId = String(biz.id || "");
     const companyName = String(biz.company_name || "").trim();
     return sourceRequests.filter((request) => {
+      if (businessId && String(request.company_id || "") === businessId) return true;
       if (authUserId && String(request.company_auth_user_id || "") === authUserId) return true;
       return companyName && String(request.company_name || "").trim() === companyName;
     });
@@ -7396,6 +7402,16 @@ function BusinessManagement({
 
       const business = businessData || biz;
       const requestResults = [];
+      if (business.id) {
+        const result = await supabase
+          .from("requests")
+          .select("*")
+          .eq("company_id", business.id)
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (result.error && !isMissingColumnError(result.error)) throw result.error;
+        requestResults.push(...(result.data || []));
+      }
       if (business.auth_user_id) {
         const result = await supabase
           .from("requests")
@@ -14516,6 +14532,7 @@ function createRequestEditDraft(request = {}, job = null) {
 
   return {
     id: request.id || "",
+    company_id: request.company_id || null,
     title: eventName,
     event_name: eventName,
     company_name: companyName,

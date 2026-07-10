@@ -939,7 +939,12 @@ function InterpreterMypage({
         id,
         request_id,
         interpreter_id,
-        assigned_at
+        assigned_at,
+        status,
+        assignment_status,
+        contact_visible,
+        is_contact_visible,
+        contact_revealed
       `)
       .eq("interpreter_id", interpreterId)
       .order("assigned_at", { ascending: false });
@@ -970,6 +975,7 @@ function InterpreterMypage({
         assignment_status,
         operation_status,
         settlement_status,
+        company_id,
         company_auth_user_id,
         reference_file_name,
         reference_file_path,
@@ -998,10 +1004,11 @@ function InterpreterMypage({
       console.error("documents for assignments fetch failed", documentError);
     }
 
+    const companyIds = getUniqueIds((requests || []).map((item) => item.company_id));
     const companyAuthUserIds = getUniqueIds((requests || []).map((item) => item.company_auth_user_id));
     let companies = [];
-    if (companyAuthUserIds.length > 0) {
-      const { data: companyRows, error: companyError } = await supabase
+    if (companyIds.length > 0 || companyAuthUserIds.length > 0) {
+      let companyQuery = supabase
         .from("businesses")
         .select(`
           id,
@@ -1009,19 +1016,50 @@ function InterpreterMypage({
           company_name,
           contact_name,
           contact_phone,
-          contact_email
-        `)
-        .in("auth_user_id", companyAuthUserIds);
+          contact_email,
+          kakao_id
+        `);
+
+      if (companyIds.length > 0) {
+        companyQuery = companyQuery.in("id", companyIds);
+      } else {
+        companyQuery = companyQuery.in("auth_user_id", companyAuthUserIds);
+      }
+
+      const { data: companyRows, error: companyError } = await companyQuery;
 
       if (companyError) {
         console.error("businesses for assignments fetch failed", companyError);
       } else {
-        companies = companyRows || [];
+        companies = [...(companyRows || [])];
+      }
+
+      const foundAuthUserIds = new Set(companies.map((company) => String(company.auth_user_id || "")));
+      const missingAuthUserIds = companyAuthUserIds.filter((id) => !foundAuthUserIds.has(String(id)));
+      if (missingAuthUserIds.length > 0) {
+        const { data: fallbackRows, error: fallbackError } = await supabase
+          .from("businesses")
+          .select(`
+            id,
+            auth_user_id,
+            company_name,
+            contact_name,
+            contact_phone,
+            contact_email,
+            kakao_id
+          `)
+          .in("auth_user_id", missingAuthUserIds);
+        if (fallbackError) {
+          console.error("businesses auth fallback for assignments failed", fallbackError);
+        } else {
+          companies = [...companies, ...(fallbackRows || [])];
+        }
       }
     }
 
     const requestMap = new Map((requests || []).map((request) => [String(request.id), request]));
-    const companyMap = new Map((companies || []).map((company) => [String(company.auth_user_id), company]));
+    const companyById = new Map((companies || []).map((company) => [String(company.id), company]));
+    const companyByAuthUserId = new Map((companies || []).map((company) => [String(company.auth_user_id), company]));
     const docsByRequestId = new Map();
     (documents || []).forEach((document) => {
       const key = String(document.request_id);
@@ -1032,10 +1070,14 @@ function InterpreterMypage({
 
     return (assignments || []).map((assignment) => {
       const request = requestMap.get(String(assignment.request_id)) || {};
+      const company =
+        companyById.get(String(request.company_id)) ||
+        companyByAuthUserId.get(String(request.company_auth_user_id)) ||
+        {};
       return mapRequestInterpreterAssignmentRow({
         assignment,
         request,
-        company: companyMap.get(String(request.company_auth_user_id)) || {},
+        company,
         documents: docsByRequestId.get(String(assignment.request_id)) || [],
       });
     });
@@ -3369,7 +3411,6 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     assignment.assignment_status || assignment.status
   );
   const contactVisible =
-    assignmentStatus === "assigned" ||
     Boolean(assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
   const companyContact = buildCompanyContact({ request, company, contactVisible });
   const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
@@ -3379,7 +3420,7 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     matching_no: assignment.assignment_code || `request-interpreter-${assignment.id}`,
     job_id: request.job_id || null,
     request_id: assignment.request_id,
-    company_id: request.company_id || company.id || request.company_auth_user_id,
+    company_id: request.company_id || company.id || null,
     assignment_status: assignmentStatus,
     start_date: startDate,
     end_date: endDate,
@@ -3439,8 +3480,8 @@ function buildCompanyContact({ request = {}, company = {}, contactVisible = true
   return {
     companyName,
     contactName: getFirstValue(request.contact_name, company.contact_name),
-    phone: getFirstValue(request.contact_phone, request.contact_email_or_phone, company.contact_phone, company.phone),
-    email: getFirstValue(request.contact_email, request.contact_email_or_phone, company.contact_email, company.email),
+    phone: getFirstValue(company.contact_phone, company.phone, request.contact_phone, request.contact_email_or_phone),
+    email: getFirstValue(company.contact_email, company.email, request.contact_email, request.contact_email_or_phone),
     messenger: getFirstValue(request.contact_kakao, company.kakao_id),
     readable: Boolean(company?.id || request.company_auth_user_id || companyName),
     visible: true,
@@ -3612,10 +3653,25 @@ function getDisplayValue(value) {
   return text ? text : "-";
 }
 
+function getCompanyContactState(mat = {}) {
+  if (!isAssignedPreparationStatus(mat.assignment_status)) return "not_released";
+  if (mat.is_contact_visible === false) return "not_released";
+  if (mat.company_contact?.readable === false) return "error";
+  return "loaded";
+}
+
+function getCompanyContactValue(value, state) {
+  if (state === "not_released") return "연락처 공개 전";
+  if (state === "error") return "연락처 정보를 불러오지 못했습니다";
+  const text = String(value ?? "").trim();
+  return text ? text : "미등록";
+}
+
 function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
   const [materials, setMaterials] = useState([]);
   const [loadingMats, setLoadingMats] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const warnedContactRef = useRef(new Set());
 
 
   // Fetch materials when expanded
@@ -3648,7 +3704,9 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
   useEffect(() => {
     if (!expanded || !isAssignedPreparationStatus(mat.assignment_status)) return;
 
-    if (!mat.company_id) {
+    const warningKey = `${mat.id || ""}:${mat.request_id || ""}`;
+    if (!mat.company_id && !warnedContactRef.current.has(`missing:${warningKey}`)) {
+      warnedContactRef.current.add(`missing:${warningKey}`);
       console.warn("request has no company_id", {
         assignmentId: mat.id,
         requestId: mat.request_id,
@@ -3656,14 +3714,15 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
       return;
     }
 
-    if (mat.company_contact?.readable === false) {
+    if (mat.company_contact?.readable === false && !warnedContactRef.current.has(`unreadable:${warningKey}`)) {
+      warnedContactRef.current.add(`unreadable:${warningKey}`);
       console.warn("company contact not readable, check RLS or join", {
         assignmentId: mat.id,
         requestId: mat.request_id,
         companyId: mat.company_id,
       });
     }
-  }, [expanded, mat]);
+  }, [expanded, mat.id, mat.request_id, mat.company_id, mat.company_contact?.readable, mat.assignment_status]);
 
 
   const handleDownload = async (filePath, fileName) => {
@@ -3692,14 +3751,15 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     if (!end || start === end) return start;
     return `${start} ~ ${end}`;
   })();
-  const canShowCompanyContact = isAssignedPreparationStatus(mat.assignment_status);
+  const contactState = getCompanyContactState(mat);
+  const canShowCompanyContact = contactState !== "not_released";
   const companyContact = mat.company_contact || {};
   const contactRows = [
-    ["기업명", companyContact.companyName],
-    ["담당자", companyContact.contactName],
-    ["연락처", companyContact.phone],
-    ["이메일", companyContact.email],
-    ["카카오톡(ID)", companyContact.messenger],
+    ["기업명", getCompanyContactValue(companyContact.companyName, "loaded")],
+    ["담당자", getCompanyContactValue(companyContact.contactName, contactState)],
+    ["연락처", getCompanyContactValue(companyContact.phone, contactState)],
+    ["이메일", getCompanyContactValue(companyContact.email, contactState)],
+    ["카카오톡(ID)", getCompanyContactValue(companyContact.messenger, contactState)],
   ];
 
   return (
