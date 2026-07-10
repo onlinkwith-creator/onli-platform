@@ -678,7 +678,7 @@ function sanitizeRecipientEmail(email) {
     setLoading(true);
     setErrorMessage("");
 
-    if (!publicSupabase) {
+    if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
       setLoading(false);
       return;
@@ -688,19 +688,19 @@ function sanitizeRecipientEmail(email) {
       const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult, businessResult] =
         (
           await Promise.allSettled([
-            publicSupabase.from("requests").select("*").order("created_at", {
+            supabase.from("requests").select("*").order("created_at", {
               ascending: false,
               nullsFirst: false,
             }),
-            publicSupabase.from("jobs").select("*").order("created_at", {
+            supabase.from("jobs").select("*").order("created_at", {
               ascending: false,
               nullsFirst: false,
             }),
-            publicSupabase.from("interpreters").select("*").order("id", {
+            supabase.from("interpreters").select("*").order("id", {
               ascending: false,
             }),
             (async () => {
-              const result = await publicSupabase
+              const result = await supabase
                 .from("request_interpreters")
                 .select("id, request_id, interpreter_id, contact_visible")
                 .order("id", { ascending: false });
@@ -713,7 +713,7 @@ function sanitizeRecipientEmail(email) {
               }
 
               console.error("request_interpreters contact_visible select failed", result.error);
-              const fallbackResult = await publicSupabase
+              const fallbackResult = await supabase
                 .from("request_interpreters")
                 .select("id, request_id, interpreter_id")
                 .order("id", { ascending: false });
@@ -724,11 +724,11 @@ function sanitizeRecipientEmail(email) {
                 data: normalizeRequestInterpreterRows(fallbackResult.data),
               };
             })(),
-            publicSupabase
+            supabase
               .from("matchings")
               .select("id, matching_no, job_id, request_id, interpreter_id, start_date, end_date, status")
               .order("created_at", { ascending: false }),
-            publicSupabase.from("businesses").select("*").order("created_at", {
+            supabase.from("businesses").select("*").order("created_at", {
               ascending: false,
             }),
           ])
