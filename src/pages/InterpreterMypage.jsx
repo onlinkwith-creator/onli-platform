@@ -14,7 +14,7 @@ import {
   getJobSpecialty,
 } from "../utils/jobDisplay";
 import { formatDateRange } from "../utils/dateRange";
-import { normalizeCompanyContact } from "../utils/companyContact";
+import { fetchRequestDetail } from "../services/requestDetailService";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
   canWithdrawJobApplication,
@@ -944,36 +944,27 @@ function InterpreterMypage({
       return createLoadResult([], "배정내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
     }
 
-    const requestIds = [...new Set((assignments || []).map((item) => item.request_id).filter(Boolean))];
-    if (requestIds.length === 0) return createLoadResult([]);
-
-    const { data: requests, error: requestError } = await supabase
-      .from("requests")
-      .select(`
-        id, job_id, request_no, company_id, company_name, manager_name,
-        contact_name, phone, email, event_name, start_date, end_date,
-        event_date, event_location, event_start_time, event_end_time,
-        language_direction, interpretation_field, job_field, requested_level,
-        preferred_gender, dress_code, job_description, request_detail,
-        request_details, status, assignment_status, operation_status,
-        settlement_status, reference_file_name, reference_file_path,
-        reference_file_url
-      `)
-      .in("id", requestIds);
-
-    if (requestError) {
-      logInterpreterDataError("requests for assignments fetch failed", requestError);
-      return createLoadResult([], "의뢰 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    try {
+      const details = await Promise.all((assignments || []).map((assignment) =>
+        fetchRequestDetail(supabase, assignment.request_id)
+      ));
+      return createLoadResult((assignments || []).map((assignment, index) => {
+        const detail = details[index];
+        if (!detail) {
+          console.error("Failed to load assigned request", { requestId: assignment.request_id });
+        } else if (detail.companyLoadError) {
+          console.error("Failed to load company profile", {
+            requestId: assignment.request_id,
+            code: detail.companyLoadError?.code || "",
+            message: detail.companyLoadError?.message || "",
+          });
+        }
+        return mapRequestInterpreterAssignmentRow({ ...assignment, requestDetail: detail });
+      }));
+    } catch (requestError) {
+      logInterpreterDataError("shared request detail fetch failed", requestError);
+      return createLoadResult([], "의뢰 상세 데이터를 불러오지 못했습니다.");
     }
-
-    const requestMap = new Map((requests || []).map((request) => [String(request.id), request]));
-    return createLoadResult((assignments || []).map((assignment) => {
-      const request = requestMap.get(String(assignment.request_id)) || null;
-      if (!request) {
-        console.error("Failed to load assigned request", { requestId: assignment.request_id });
-      }
-      return mapRequestInterpreterAssignmentRow({ ...assignment, request });
-    }));
   };
 
   const fetchSettlementsData = async () => {
@@ -2319,7 +2310,10 @@ function InterpreterMypage({
                 )}
 
                 {activeTab === "preparation" && (
-                  <article className="interpreter-mypage-card animate-fade-in">
+                  <article
+                    className="interpreter-mypage-card animate-fade-in"
+                    data-source="shared-admin-request-detail-v1"
+                  >
                     <h2>업무 준비</h2>
                     <p style={{ margin: "0 0 16px", color: "#6b7280", fontSize: "13px" }}>
                       배정 확정 후 업무 준비 단계의 통역 일정입니다. 기업 자료를 확인하고 업무를 준비해 주세요.
@@ -3305,27 +3299,31 @@ function mapMyAssignmentRow(row = {}) {
 
 function mapRequestInterpreterAssignmentRow(row = {}) {
   const assignment = row.assignment || row;
-  const requestMissing = !row.request && !row.requests;
-  const request = row.request || (Array.isArray(row.requests) ? row.requests[0] : row.requests) || {};
-  const requestCompany = {
-    id: request.id,
-    company_name: request.company_name,
-    contact_name: getFirstDisplayValue(request.contact_name, request.manager_name),
-    contact_phone: request.phone,
-    contact_email: request.email,
-  };
+  const detail = row.requestDetail || null;
+  const requestMissing = !detail;
+  const request = detail?.request || {};
   const assignmentStatus = normalizeAssignmentStatusValue(
     assignment.assignment_status || assignment.status
   );
   const contactVisible =
     assignmentStatus === "assigned" ||
     Boolean(assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
-  const companyContact = buildCompanyContact({ company: requestCompany, contactVisible });
+  const companyContact = buildCompanyContact({
+    company: {
+      id: request.id,
+      company_name: detail?.company.name,
+      contact_name: detail?.contact.name,
+      contact_phone: detail?.contact.phone,
+      contact_email: detail?.contact.email,
+    },
+    contactVisible,
+    joinFailed: Boolean(detail?.companyLoadError),
+  });
   const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
   const endDate = getFirstValue(request.event_end_date, request.end_date);
   const mappedRequest = {
     id: assignment.id,
-    matching_no: assignment.assignment_code || `request-interpreter-${assignment.id}`,
+    matching_no: detail?.requestNumber || "관리번호 미등록",
     job_id: request.job_id || null,
     request_id: assignment.request_id,
     // Internal relationship key only. It is never rendered as company information.
@@ -3340,19 +3338,19 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     company_contact: companyContact,
     request_load_error: requestMissing,
     reference_file: getAssignmentReferenceFileFromRequest(request, []),
-    jobs: mapPublicJobFromRequestInterpreterRow({ request, startDate, endDate }),
+    jobs: mapPublicJobFromRequestInterpreterRow({ request, detail, startDate, endDate }),
   };
 
   return mappedRequest;
 }
 
-function mapPublicJobFromRequestInterpreterRow({ request = {}, startDate, endDate }) {
-  const title = getRequestDisplayTitle(request, { company_name: request.company_name });
-  const location = getFirstDisplayValue(request.event_location);
+function mapPublicJobFromRequestInterpreterRow({ request = {}, detail = null, startDate, endDate }) {
+  const title = detail?.title || "의뢰명 미등록";
+  const location = detail?.schedule.location || "";
 
   return {
     id: request.job_id || null,
-    job_no: getFirstDisplayValue(request.request_no),
+    job_no: detail?.requestNumber || "",
     title,
     event_name: getFirstDisplayValue(request.event_name) || title,
     date: startDate,
@@ -3376,16 +3374,8 @@ function mapPublicJobFromRequestInterpreterRow({ request = {}, startDate, endDat
   };
 }
 
-function getRequestDisplayTitle(request = {}, company = {}) {
-  const title = getFirstDisplayValue(request.event_name);
-  const companyName = normalizeCompanyContact(company).companyName;
-  const requestNo = getFirstDisplayValue(request.request_no);
-  return title || (companyName ? `${companyName} 행사` : "") || (requestNo ? `의뢰번호 ${requestNo}` : "의뢰명 미등록");
-}
-
 function buildCompanyContact({ company = {}, contactVisible = true, joinFailed = false }) {
-  const normalized = normalizeCompanyContact(company);
-  const companyName = normalized.companyName;
+  const companyName = company.company_name || "";
 
   if (!contactVisible) {
     return {
@@ -3402,10 +3392,10 @@ function buildCompanyContact({ company = {}, contactVisible = true, joinFailed =
 
   return {
     companyName,
-    contactName: normalized.contactName,
-    phone: normalized.phone,
-    email: normalized.email,
-    messenger: normalized.kakaoId,
+    contactName: company.contact_name || "",
+    phone: company.contact_phone || "",
+    email: company.contact_email || "",
+    messenger: company.kakao_id || "",
     readable: Boolean(company?.id),
     visible: true,
     loadError: joinFailed,
@@ -3576,9 +3566,9 @@ function getRequestMaterialBucket(filePath = "") {
   return REQUEST_MATERIAL_BUCKET;
 }
 
-function getDisplayValue(value) {
-  const text = String(value ?? "").trim();
-  return getFirstDisplayValue(text) || "미등록";
+function getCompanyContactDisplayValue(value) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || "미등록";
 }
 
 function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
@@ -3696,7 +3686,7 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
                   {contactRows.map(([label, value]) => (
                     <div key={label}>
                       <dt>{label}</dt>
-                      <dd>{getDisplayValue(value)}</dd>
+                      <dd>{getCompanyContactDisplayValue(value)}</dd>
                     </div>
                   ))}
                 </dl>

@@ -53,7 +53,11 @@ import {
 } from "../utils/scheduleConflict";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
-import { normalizeCompanyContact } from "../utils/companyContact";
+import {
+  fetchRequestBusinessProfile,
+  fetchRequestRows,
+  normalizeRequestDetail,
+} from "../services/requestDetailService";
 import { getLevelBadgeClass, normalizeLevel } from "../utils/levelBadge";
 import {
   getDuplicateApplicationIdSet,
@@ -689,10 +693,7 @@ function sanitizeRecipientEmail(email) {
       const [requestResult, jobResult, interpreterResult, assignmentResult, matchingResult, businessResult] =
         (
           await Promise.allSettled([
-            supabase.from("requests").select("*").order("created_at", {
-              ascending: false,
-              nullsFirst: false,
-            }),
+            fetchRequestRows(supabase).then((data) => ({ data, error: null })).catch((error) => ({ data: [], error })),
             supabase.from("jobs").select("*").order("created_at", {
               ascending: false,
               nullsFirst: false,
@@ -8512,7 +8513,13 @@ function RequestDetailPanel({
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [expandedLogIds, setExpandedLogIds] = useState(() => new Set());
   const [businessProfile, setBusinessProfile] = useState(null);
-  const businessContact = normalizeCompanyContact(businessProfile, safeRequest);
+  const normalizedRequestDetail = normalizeRequestDetail(safeRequest, businessProfile);
+  const businessContact = {
+    companyName: normalizedRequestDetail?.company.name || "",
+    contactName: normalizedRequestDetail?.contact.name || "",
+    phone: normalizedRequestDetail?.contact.phone || "",
+    email: normalizedRequestDetail?.contact.email || "",
+  };
   const [uploadedMaterials, setUploadedMaterials] = useState([]);
   const [eventStartDate, setEventStartDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
@@ -8593,16 +8600,8 @@ function RequestDetailPanel({
       }
       const fetchBiz = async () => {
         try {
-          const { data, error } = await supabase
-            .from("businesses")
-            .select("*")
-            .eq("auth_user_id", safeRequest.company_auth_user_id)
-            .maybeSingle();
-          if (!error && data) {
-            setBusinessProfile(data);
-          } else {
-            setBusinessProfile(null);
-          }
+          const data = await fetchRequestBusinessProfile(supabase, safeRequest);
+          setBusinessProfile(data);
         } catch (err) {
           console.error("Error fetching biz profile in admin request panel:", err);
           setBusinessProfile(null);
