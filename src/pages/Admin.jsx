@@ -3314,11 +3314,7 @@ function sanitizeRecipientEmail(email) {
       assignment?.interpreter_id;
 
     if (!interpreterId) {
-      console.warn("settlement row sync skipped: missing interpreter_id", {
-        requestId: request.id,
-        payload,
-      });
-      return { data: null, error: null, skipped: true };
+      return { data: null, error: null, status: "not_required" };
     }
 
     const existingSettlement =
@@ -3486,7 +3482,7 @@ function sanitizeRecipientEmail(email) {
 
     setSavingKey(`request-${request.id}`);
     const { data, error } = await updateRequestSettlementRow(request.id, requestPayload);
-    let settlementResult = { data: null, error: null };
+    let settlementResult = { data: null, error: null, status: "not_required" };
     if (!error) {
       settlementResult = await saveSettlementRecordForRequest(
         { ...request, ...payload, ...(data || {}) },
@@ -3514,12 +3510,32 @@ function sanitizeRecipientEmail(email) {
         payload,
         error: settlementResult.error,
       });
-      alert(`정산 레코드 저장에 실패했습니다: ${settlementResult.error.message || "원인을 확인해주세요."}`);
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
+        )
+      );
+      setSelectedRequest((current) =>
+        current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
+      );
+      await fetchAdminData();
+      await refreshAdminOperationsData();
+      alert("의뢰 금액은 저장되었지만 통역사 지급 내역 동기화에 실패했습니다.");
       return;
     }
 
-    if (!settlementResult.data) {
-      alert("통역사 지급액 저장 결과를 DB에서 반환받지 못했습니다.");
+    if (settlementResult.status !== "not_required" && !settlementResult.data) {
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
+        )
+      );
+      setSelectedRequest((current) =>
+        current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
+      );
+      await fetchAdminData();
+      await refreshAdminOperationsData();
+      alert("의뢰 금액은 저장되었지만 통역사 지급 내역 동기화 결과를 확인하지 못했습니다.");
       return;
     }
 
@@ -3531,23 +3547,29 @@ function sanitizeRecipientEmail(email) {
     setSelectedRequest((current) =>
       current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
     );
-    setSettlements((current) => upsertById(current, settlementResult.data));
-    const previousAmountForHistory =
-      previousSettlement?.amount === null || previousSettlement?.amount === undefined
-        ? null
-        : Number(previousSettlement.amount);
-    const nextAmountForHistory =
-      settlementResult.data.amount === null || settlementResult.data.amount === undefined
-        ? null
-        : Number(settlementResult.data.amount);
-    if (previousAmountForHistory !== nextAmountForHistory) {
-      queueMicrotask(() => {
-        recordInterpreterSettlementAmountChange(previousSettlement, settlementResult.data);
-      });
+    if (settlementResult.data) {
+      setSettlements((current) => upsertById(current, settlementResult.data));
+      const previousAmountForHistory =
+        previousSettlement?.amount === null || previousSettlement?.amount === undefined
+          ? null
+          : Number(previousSettlement.amount);
+      const nextAmountForHistory =
+        settlementResult.data.amount === null || settlementResult.data.amount === undefined
+          ? null
+          : Number(settlementResult.data.amount);
+      if (previousAmountForHistory !== nextAmountForHistory) {
+        queueMicrotask(() => {
+          recordInterpreterSettlementAmountChange(previousSettlement, settlementResult.data);
+        });
+      }
     }
     await fetchAdminData();
     await refreshAdminOperationsData();
-    alert("정산 정보가 저장되었습니다.");
+    alert(
+      settlementResult.status === "not_required"
+        ? "정산 금액이 저장되었습니다. 통역사 배정 후 지급 내역에 자동 반영됩니다."
+        : "정산 금액과 통역사 지급 내역이 저장되었습니다."
+    );
     return true;
   };
 
