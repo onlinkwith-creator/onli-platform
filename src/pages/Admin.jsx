@@ -57,6 +57,7 @@ import {
   fetchRequestRows,
   normalizeRequestDetail,
 } from "../services/requestDetailService";
+import { updateRequestStatus } from "../services/requestStatusService";
 import { getLevelBadgeClass, normalizeLevel } from "../utils/levelBadge";
 import {
   getDuplicateApplicationIdSet,
@@ -2728,159 +2729,9 @@ function sanitizeRecipientEmail(email) {
     });
   };
 
-  const updateRequestOperationStatus = async (request, nextStatus) => {
-    if (!supabase) {
-      alert(supabaseConfigError.message);
-      return;
-    }
-
-    const operationStatus = normalizeOperationStatus({ operation_status: nextStatus });
-    const linkedJobId = request?.job_id || null;
-    const jobPayload = {
-      operation_status: operationStatus,
-    };
-    const requestPayload = {
-      ...jobPayload,
-      updated_at: new Date().toISOString(),
-    };
-
-    setSavingKey(`request-${request.id}`);
-    try {
-      console.log("operation status update:", {
-        requestId: request.id,
-        jobId: linkedJobId,
-        nextOperationStatus: operationStatus,
-      });
-
-      let updatedJob = null;
-      if (linkedJobId) {
-        const { data, error } = await updateJobWithFallback(linkedJobId, jobPayload);
-        if (error) throw error;
-        updatedJob = data;
-      }
-
-      const { data, error } = await supabase
-        .from("requests")
-        .update(requestPayload)
-        .eq("id", request.id)
-        .select("*")
-        .single();
-
-      if (error) throw error;
-
-      if (updatedJob) {
-        setJobs((current) =>
-          current.map((job) =>
-            String(job.id) === String(linkedJobId)
-              ? { ...job, ...jobPayload, ...updatedJob }
-              : job
-          )
-        );
-      }
-      setRequests((current) =>
-        current.map((item) =>
-          item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
-        )
-      );
-      setSelectedRequest((current) =>
-        current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
-      );
-      await fetchAdminData();
-      await refreshAdminOperationsData();
-    } catch (error) {
-      console.error("operation status update error:", error);
-      alert(`운영 단계 상태 변경 실패: ${operationStatus} / ${error.message || "알 수 없는 오류"}`);
-    } finally {
-      setSavingKey("");
-    }
-  };
-
-  const updateRequestAssignmentStatus = async (request, nextStatus) => {
-    if (!supabase) {
-      alert(supabaseConfigError.message);
-      return;
-    }
-
-    const assignmentStatus = normalizeAssignmentStatus({ assignment_status: nextStatus });
-    const linkedJobId = request?.job_id || null;
-    const jobPayload = {
-      assignment_status: assignmentStatus,
-    };
-    const requestPayload = {
-      ...jobPayload,
-      updated_at: new Date().toISOString(),
-    };
-
-    setSavingKey(`request-${request.id}`);
-    try {
-      console.log("assignment status update:", {
-        requestId: request.id,
-        jobId: linkedJobId,
-        nextAssignmentStatus: assignmentStatus,
-      });
-
-      let updatedJob = null;
-      if (linkedJobId) {
-        const { data, error } = await updateJobWithFallback(linkedJobId, jobPayload);
-        if (error) throw error;
-        updatedJob = data;
-      }
-
-      const { data, error } = await supabase
-        .from("requests")
-        .update(requestPayload)
-        .eq("id", request.id)
-        .select("*")
-        .single();
-
-      if (error) throw error;
-
-      if (updatedJob) {
-        setJobs((current) =>
-          current.map((job) =>
-            String(job.id) === String(linkedJobId)
-              ? { ...job, ...jobPayload, ...updatedJob }
-              : job
-          )
-        );
-      }
-      setRequests((current) =>
-        current.map((item) =>
-          item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
-        )
-      );
-      setSelectedRequest((current) =>
-        current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
-      );
-      await fetchAdminData();
-      await refreshAdminOperationsData();
-    } catch (error) {
-      console.error("assignment status update error:", error);
-      alert(`배정 상태 변경 실패: ${assignmentStatus} / ${error.message || "알 수 없는 오류"}`);
-    } finally {
-      setSavingKey("");
-    }
-  };
-
   const updateRequestFlowStatus = async (request, changes) => {
     if (!supabase) {
       alert(supabaseConfigError.message);
-      return;
-    }
-
-    const changeKeys = Object.keys(changes || {});
-    if (
-      changeKeys.includes("operation_status") &&
-      !changeKeys.some((key) => ["assignment_status", "settlement_status", "status", "matching_status"].includes(key))
-    ) {
-      await updateRequestOperationStatus(request, changes.operation_status);
-      return;
-    }
-    if (
-      changeKeys.includes("assignment_status") &&
-      !changeKeys.some((key) => ["operation_status", "settlement_status", "status", "matching_status"].includes(key))
-    ) {
-      await updateRequestAssignmentStatus(request, changes.assignment_status);
       return;
     }
 
@@ -3115,26 +2966,11 @@ function sanitizeRecipientEmail(email) {
         return;
       }
 
-      const { data: updatedRequests, error: requestError } = await supabase
-        .from("requests")
-        .update(requestPayload)
-        .eq("id", draft.id)
-        .select();
-
-      if (requestError) {
-        logRequestUpdateFailure("Request update failed", {
-          payload: requestPayload,
-          requestId: draft.id,
-          error: requestError,
-        });
-        alert("의뢰 수정에 실패했습니다.");
-        return;
-      }
-
-      if (!updatedRequests || updatedRequests.length === 0) {
-        alert("수정 실패: 변경된 의뢰가 없습니다.");
-        return;
-      }
+      const updatedRequest = await updateRequestStatus({
+        supabase,
+        requestId: draft.id,
+        changes: requestPayload,
+      });
 
       let updatedJob = null;
       if (request.job_id) {
@@ -3149,7 +2985,7 @@ function sanitizeRecipientEmail(email) {
       setRequests((current) =>
         current.map((request) =>
           request.id === draft.id
-            ? { ...request, ...requestPayload, ...(updatedRequests[0] || {}) }
+            ? { ...request, ...requestPayload, ...updatedRequest }
             : request
         )
       );
@@ -3285,12 +3121,13 @@ function sanitizeRecipientEmail(email) {
       previousRequest = data;
     }
 
-    const { data, error } = await supabase
-      .from("requests")
-      .update(payload)
-      .eq("id", requestId)
-      .select("*")
-      .single();
+    let data = null;
+    let error = null;
+    try {
+      data = await updateRequestStatus({ supabase, requestId, changes: payload });
+    } catch (updateError) {
+      error = updateError;
+    }
 
     const handleNotification = async (updatedRequest) => {
       if (!previousRequest) return;
