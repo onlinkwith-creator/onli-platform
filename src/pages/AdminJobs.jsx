@@ -335,13 +335,17 @@ function AdminJobs({
         alert(jobResult.error.message);
         throw jobResult.error;
       }
-      if (requestResult.error) throw requestResult.error;
-      if (settlementResult.error) throw settlementResult.error;
+      if (requestResult.error) {
+        console.error("requests for jobs fetch failed:", requestResult.error);
+      }
+      if (settlementResult.error) {
+        console.error("settlements for jobs fetch failed:", settlementResult.error);
+      }
 
       const settlementAwareJobs = mergeJobsWithSettlementRows(
         jobResult.data || [],
-        requestResult.data || [],
-        settlementResult.data || []
+        requestResult.error ? [] : requestResult.data || [],
+        settlementResult.error ? [] : settlementResult.data || []
       );
 
       console.log("loaded jobs:", settlementAwareJobs);
@@ -350,8 +354,6 @@ function AdminJobs({
       setApplications(applicationData);
     } catch (error) {
       console.error(error);
-      setJobs([]);
-      setApplications([]);
       setErrorMessage(
         getSupabaseErrorMessage(error, "통역 공고를 불러오지 못했습니다.")
       );
@@ -498,10 +500,10 @@ function AdminJobs({
             notification_type: "job_updated",
             title: "의뢰 수정",
             message: `${form.title} 의뢰가 수정되었습니다.`,
-            related_id: editingId,
-            related_type: "job",
             status: "pending",
             metadata: {
+              related_id: editingId,
+              related_type: "job",
               updated_by: userData?.user?.id,
               updated_fields
             }

@@ -16,7 +16,6 @@ import {
   WITHDRAWN_ACCOUNT_MESSAGE,
   isWithdrawnInterpreter,
 } from "../utils/accountStatus";
-import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
   buildLegacyJobApplicationPayload,
@@ -415,54 +414,6 @@ function JobApply({
           interpreter_id: insertPayload?.interpreter_id,
         });
         throw error;
-      }
-
-      const emailPayload = {
-        requestId: data?.id || "",
-        applicationId: data?.id || "",
-        jobId: job.id,
-        name: form.name,
-        jobTitle: job.title || "공고 제목 미입력",
-        date: formatDateRange(job.start_date, job.end_date, job.event_date || job.date),
-        email: form.email,
-        phone: form.phone,
-        levelOrExperience: [form.japaneseLevel, form.experience]
-          .filter(Boolean)
-          .join(" / "),
-      };
-      try {
-        if (applicantEmail) {
-          const result = await sendAutoEmail(
-            "job_applied_user",
-            applicantEmail,
-            emailPayload
-          );
-          if (!result.ok) console.error("Applicant email failed", result.error || result);
-        } else {
-          console.warn("SKIP job_applied_user: no email", { form, application });
-          console.warn("EMAIL SKIPPED: SKIP APPLICANT EMAIL: form.email is empty", {
-            form,
-            application,
-          });
-        }
-      } catch (error) {
-        console.error("USER EMAIL FAILED", error);
-        console.error("Applicant email failed", error);
-      }
-
-      try {
-        const result = await sendAutoEmail("job_applied_admin", ADMIN_EMAILS, {
-          ...emailPayload,
-          name: form.name,
-          email: applicantEmail,
-          jobTitle: job.title || "공고 제목 미입력",
-        });
-        if (!result.ok) {
-          console.error("Job application admin email failed", result.error || result);
-        }
-      } catch (error) {
-        console.error("ADMIN EMAIL FAILED", error);
-        console.error("Job application admin email failed", error);
       }
 
       setSubmitted(true);

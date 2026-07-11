@@ -53,6 +53,7 @@ import {
 } from "../utils/scheduleConflict";
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
+import { normalizeCompanyContact } from "../utils/companyContact";
 import { getLevelBadgeClass, normalizeLevel } from "../utils/levelBadge";
 import {
   getDuplicateApplicationIdSet,
@@ -477,9 +478,9 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
         job_id,
         applicant_name,
         phone,
-        applicant_phone,
+        applicant_phone:phone,
         email,
-        applicant_email,
+        applicant_email:email,
         interpreter_id,
         message,
         status,
@@ -755,12 +756,12 @@ function sanitizeRecipientEmail(email) {
       const matchingData = getAdminData("matchings", matchingResult);
       const businessData = getAdminData("businesses", businessResult);
 
-      setRequests(requestData);
-      setJobs(jobData);
-      setInterpreters(interpreterData);
-      setAssignments(assignmentData);
-      setMatchings(matchingData);
-      setBusinesses(businessData);
+      if (!requestResult.error) setRequests(requestData);
+      if (!jobResult.error) setJobs(jobData);
+      if (!interpreterResult.error) setInterpreters(interpreterData);
+      if (!assignmentResult.error) setAssignments(assignmentData);
+      if (!matchingResult.error) setMatchings(matchingData);
+      if (!businessResult.error) setBusinesses(businessData);
 
       const jobApplicationResult = await fetchJobApplicationsWithJobs(jobData);
       const jobApplicationData = jobApplicationResult.error
@@ -769,7 +770,7 @@ function sanitizeRecipientEmail(email) {
       if (jobApplicationResult.error) {
         console.error("job_applications fetch failed:", jobApplicationResult.error);
       }
-      setJobApplications(jobApplicationData);
+      if (!jobApplicationResult.error) setJobApplications(jobApplicationData);
 
       console.log("loaded jobs:", jobData);
       console.log("loaded interpreters:", interpreterData);
@@ -1857,12 +1858,16 @@ function sanitizeRecipientEmail(email) {
       
       const baseUrl = SUPABASE_URL.replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "");
       const functionUrl = `${baseUrl}/functions/v1/send-email`;
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData?.session?.access_token) {
+        throw new Error("관리자 로그인 세션을 확인할 수 없습니다.");
+      }
 
       const res = await fetch(functionUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "Authorization": `Bearer ${sessionData.session.access_token}`,
           "apikey": SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
@@ -4289,6 +4294,7 @@ function sanitizeRecipientEmail(email) {
         current?.id === requestId ? { ...current, ...nextRequestChanges } : current
       );
     }
+    await fetchAdminData();
     alert("매칭이 취소되었습니다.");
   };
 
@@ -4365,10 +4371,12 @@ function sanitizeRecipientEmail(email) {
     if (!request?.job_id) return;
 
     const isAssigned = assignedCount >= requiredCount;
-    const status = isAssigned ? JOB_STATUS.ASSIGNED : JOB_STATUS.ASSIGNING;
+    const status = isAssigned ? JOB_STATUS.ASSIGNED : JOB_STATUS.RECRUITING;
     const assignmentStatus = isAssigned
       ? ASSIGNMENT_STATUS.ASSIGNED
-      : ASSIGNMENT_STATUS.ASSIGNING;
+      : assignedCount > 0
+        ? ASSIGNMENT_STATUS.ASSIGNING
+        : ASSIGNMENT_STATUS.WAITING;
     const { data, error } = await updateJobWithFallback(request.job_id, {
       status,
       assignment_status: assignmentStatus,
@@ -8504,6 +8512,7 @@ function RequestDetailPanel({
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [expandedLogIds, setExpandedLogIds] = useState(() => new Set());
   const [businessProfile, setBusinessProfile] = useState(null);
+  const businessContact = normalizeCompanyContact(businessProfile, safeRequest);
   const [uploadedMaterials, setUploadedMaterials] = useState([]);
   const [eventStartDate, setEventStartDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
@@ -8803,15 +8812,15 @@ function RequestDetailPanel({
             <h3>기본정보</h3>
             <dl className="admin-detail-list compact">
               <Info label="의뢰번호" value={formatManagementNumber(request.request_no)} />
-              <Info label="담당자" value={request.manager_name} />
+              <Info label="담당자" value={businessContact.contactName || "미등록"} />
               <Info label="의뢰 유형" value={requestType.label} />
               <Info label="지정 요청 통역사" value={designatedInterpreterName} />
               <Info label="지정 요청 상태" value={designatedRequestCheckStatus} />
               <Info label="배정 통역사" value={assignedInterpreterName || "-"} />
               <Info label="약관 동의" value={getAgreementStatusLabel(request)} />
               <Info label="동의 시간" value={formatDateTime(request.agreed_at)} />
-              <Info label="이메일" value={request.email} />
-              <Info label="연락처" value={request.phone} />
+              <Info label="이메일" value={businessContact.email || "미등록"} />
+              <Info label="연락처" value={businessContact.phone || "미등록"} />
               <Info
                 label="행사 기간"
                 value={formatDateRange(
@@ -8845,11 +8854,11 @@ function RequestDetailPanel({
             <div>
             <h3>기업</h3>
               <dl className="admin-detail-list compact">
-                <Info label="회사명" value={businessProfile.company_name} />
+                <Info label="회사명" value={businessContact.companyName || "미등록"} />
                 <Info label="사업자번호" value={businessProfile.business_number} />
-                <Info label="담당자명" value={businessProfile.contact_name} />
-                <Info label="담당자 연락처" value={businessProfile.contact_phone} />
-                <Info label="담당자 이메일" value={businessProfile.contact_email} />
+                <Info label="담당자명" value={businessContact.contactName || "미등록"} />
+                <Info label="담당자 연락처" value={businessContact.phone || "미등록"} />
+                <Info label="담당자 이메일" value={businessContact.email || "미등록"} />
                 <Info label="국가" value={businessProfile.country} />
                 <Info label="주요 분야" value={businessProfile.primary_fields?.join(", ") || "-"} />
                 <Info label="세금계산서" value={businessProfile.tax_invoice_required ? "필요" : "불필요"} />

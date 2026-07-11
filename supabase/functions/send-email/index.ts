@@ -1791,6 +1791,11 @@ async function sendSingleNotification({
   gmailUser?: string;
   gmailAppPassword?: string;
 }) {
+  const adminCheck = await assertAdminCaller(request, supabaseUrl, anonKey, serviceRoleKey);
+  if (!adminCheck.ok) {
+    return jsonResponse({ success: false, error: adminCheck.error }, adminCheck.status);
+  }
+
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   
   if (!gmailUser || !gmailAppPassword) {
@@ -1820,6 +1825,27 @@ async function sendSingleNotification({
   if (!to || !to.includes("@")) {
     return jsonResponse({ success: false, error: "recipient_email is missing or invalid" }, 400);
   }
+
+  const lockKey = `manual-notification:${notification_id}`;
+  const { error: lockError } = await supabase.from("mail_send_locks").insert({
+    key: lockKey,
+    type: "manual_notification",
+    target_email: to,
+    request_id: notification.related_request_id?.toString() || null,
+  });
+  if (lockError) {
+    if (lockError.code === "23505") {
+      return jsonResponse({
+        success: false,
+        error: "notification_send_in_progress",
+        message: "이미 발송 처리 중인 알림입니다.",
+      }, 409);
+    }
+    return jsonResponse({ success: false, error: lockError.message }, 500);
+  }
+  const releaseLock = async () => {
+    await supabase.from("mail_send_locks").delete().eq("key", lockKey);
+  };
 
   const type =
     notification.type ||
@@ -1880,7 +1906,11 @@ async function sendSingleNotification({
     statusText = previousStatus;
   }
 
-  const subject = `[ON-LI] ${reason}${relatedNo ? ` - ${relatedNo}` : ""}`;
+  const usesExistingApplicationTemplate =
+    type === "job_applied_user" || type === "job_applied_admin";
+  const subject = usesExistingApplicationTemplate
+    ? SUBJECTS[type as EmailType]
+    : `[ON-LI] ${reason}${relatedNo ? ` - ${relatedNo}` : ""}`;
   
   const originalMessage = String(notification.message || "");
   const fallbackMessage = "상세 내용은 ON-LI 사이트에서 확인해 주세요.";
@@ -1900,7 +1930,9 @@ async function sendSingleNotification({
     tableRows.push(["상태", statusText]);
   }
 
-  const html = layout(
+  const html = usesExistingApplicationTemplate
+    ? buildHtml(type as EmailType, metadata)
+    : layout(
     subject,
     `
       <p>안녕하세요.<br />ON-LI입니다.</p>
@@ -1913,7 +1945,7 @@ async function sendSingleNotification({
       <br />
       <p>감사합니다.<br />ON-LI 운영팀</p>
     `
-  );
+      );
 
   console.log("SEND EMAIL START", { notification_id, to, subject });
 
@@ -1921,6 +1953,7 @@ async function sendSingleNotification({
   try {
     transporter = createGmailTransporter(gmailUser, gmailAppPassword);
   } catch (e) {
+    await releaseLock();
     return jsonResponse({ success: false, error: "SMTP config error" }, 500);
   }
 
@@ -1954,6 +1987,7 @@ async function sendSingleNotification({
           })
         })
         .eq("id", notification_id);
+      await releaseLock();
 
       return new Response(JSON.stringify({
         success: false,
@@ -1979,9 +2013,11 @@ async function sendSingleNotification({
       .update({
         status: "sent",
         sent_at: new Date().toISOString(),
-        error_message: null
+        error_message: null,
+        provider_message_id: messageId
       })
       .eq("id", notification_id);
+    await releaseLock();
 
     return new Response(JSON.stringify({
       success: true,
@@ -2009,6 +2045,7 @@ async function sendSingleNotification({
         error_message: message
       })
       .eq("id", notification_id);
+    await releaseLock();
 
     return jsonResponse({
       success: false,

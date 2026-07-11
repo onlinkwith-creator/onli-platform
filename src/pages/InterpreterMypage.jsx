@@ -14,6 +14,7 @@ import {
   getJobSpecialty,
 } from "../utils/jobDisplay";
 import { formatDateRange } from "../utils/dateRange";
+import { normalizeCompanyContact } from "../utils/companyContact";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
   canWithdrawJobApplication,
@@ -69,6 +70,20 @@ const SETTLEMENT_DOCUMENT_TYPES = {
   },
 };
 
+function createLoadResult(data = [], errorMessage = "") {
+  return { data, errorMessage };
+}
+
+function logInterpreterDataError(label, error) {
+  console.error(label, {
+    code: error?.code || "",
+    message: error?.message || "",
+    details: error?.details || "",
+    hint: error?.hint || "",
+    error,
+  });
+}
+
 function InterpreterMypage({
   authLoading,
   user,
@@ -86,6 +101,8 @@ function InterpreterMypage({
   // Dynamic dashboard states
   const [applications, setApplications] = useState([]);
   const [matchings, setMatchings] = useState([]);
+  const [applicationsLoadError, setApplicationsLoadError] = useState("");
+  const [assignmentsLoadError, setAssignmentsLoadError] = useState("");
   const [settlements, setSettlements] = useState([]);
   const [paymentDocuments, setPaymentDocuments] = useState([]);
   const [activeTab, setActiveTab] = useState("profile");
@@ -277,14 +294,16 @@ function InterpreterMypage({
       // Fetch applications and matchings dynamically
       setLoadingData(true);
       try {
-        const [apps, mats, settlementRows, documentRows] = await Promise.all([
+        const [applicationResult, assignmentResult, settlementRows, documentRows] = await Promise.all([
           fetchApplicationsData(nextInterpreter.id),
           fetchMatchingsData(nextInterpreter.id),
           fetchSettlementsData(),
           fetchPaymentDocumentsData(),
         ]);
-        setApplications(apps);
-        setMatchings(mats);
+        setApplications(applicationResult.data);
+        setMatchings(assignmentResult.data);
+        setApplicationsLoadError(applicationResult.errorMessage);
+        setAssignmentsLoadError(assignmentResult.errorMessage);
         setSettlements(settlementRows);
         setPaymentDocuments(documentRows);
       } catch (err) {
@@ -406,7 +425,7 @@ function InterpreterMypage({
     setResumeFile(file);
   };
 
-  const handleDownloadResume = async (filePath, fileName) => {
+  const handleDownloadResume = async (filePath) => {
     if (!supabase || !filePath) return;
     try {
       const resolvedPath = getResumeStoragePath(filePath);
@@ -842,7 +861,7 @@ function InterpreterMypage({
   };
 
   const fetchApplicationsData = async (interpreterId) => {
-    if (!supabase || !interpreterId) return [];
+    if (!supabase || !interpreterId) return createLoadResult();
 
     const { data: applicationRows, error: applicationError } = await supabase
       .from("job_applications")
@@ -858,15 +877,15 @@ function InterpreterMypage({
       .order("created_at", { ascending: false });
 
     if (applicationError) {
-      console.error("job_applications fetch failed", applicationError);
-      return [];
+      logInterpreterDataError("job_applications fetch failed", applicationError);
+      return createLoadResult([], "지원내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
     }
 
     const jobIds = getUniqueIds((applicationRows || []).map((item) => item.job_id));
     if (jobIds.length === 0) {
-      return (applicationRows || []).map((application) =>
+      return createLoadResult((applicationRows || []).map((application) =>
         mapJobApplicationRow({ application })
-      );
+      ));
     }
 
     const { data: jobRows, error: jobError } = await supabase
@@ -889,31 +908,30 @@ function InterpreterMypage({
         people_count,
         people,
         status,
-        job_description,
         preference,
-        dress_code,
         preferred_gender
       `)
       .in("id", jobIds);
 
     if (jobError) {
-      console.error("jobs for applications fetch failed", jobError);
-      return (applicationRows || []).map((application) =>
-        mapJobApplicationRow({ application })
+      logInterpreterDataError("jobs for applications fetch failed", jobError);
+      return createLoadResult(
+        (applicationRows || []).map((application) => mapJobApplicationRow({ application })),
+        "지원한 공고 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
       );
     }
 
     const jobMap = new Map((jobRows || []).map((job) => [String(job.id), job]));
-    return (applicationRows || []).map((application) =>
+    return createLoadResult((applicationRows || []).map((application) =>
       mapJobApplicationRow({
         application,
         job: jobMap.get(String(application.job_id)),
       })
-    );
+    ));
   };
 
   const fetchMatchingsData = async (interpreterId) => {
-    if (!supabase || !interpreterId) return [];
+    if (!supabase || !interpreterId) return createLoadResult();
 
     const { data: assignments, error: assignmentError } = await supabase
       .from("request_interpreters")
@@ -921,106 +939,39 @@ function InterpreterMypage({
         id,
         request_id,
         interpreter_id,
-        assigned_at
+        assigned_at,
+        status,
+        contact_visible,
+        is_contact_visible,
+        contact_revealed,
+        requests!request_interpreters_request_id_fkey (
+          id, job_id, request_no, company_id, event_name, email,
+          start_date, end_date, event_date, event_location,
+          event_start_time, event_end_time, language_direction,
+          interpretation_field, job_field, requested_level,
+          preferred_gender, dress_code, job_description,
+          request_detail, request_details, status, assignment_status,
+          operation_status, settlement_status, reference_file_name,
+          reference_file_path, reference_file_url,
+          businesses!requests_company_id_fkey (
+            id, company_name, contact_name, contact_phone, contact_email
+          ),
+          documents!documents_request_id_fkey (
+            id, request_id, document_type, title, file_path, status
+          )
+        )
       `)
       .eq("interpreter_id", interpreterId)
       .order("assigned_at", { ascending: false });
 
     if (assignmentError) {
-      console.error("request_interpreters fetch failed", assignmentError);
-      return [];
+      logInterpreterDataError("request_interpreters fetch failed", assignmentError);
+      return createLoadResult([], "배정내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
     }
 
-    const requestIds = getUniqueIds((assignments || []).map((item) => item.request_id));
-    if (requestIds.length === 0) return [];
-
-    const { data: requests, error: requestError } = await supabase
-      .from("requests")
-      .select(`
-        id,
-        job_id,
-        request_no,
-        event_name,
-        company_name,
-        contact_name,
-        contact_email_or_phone,
-        start_date,
-        end_date,
-        event_date,
-        event_location,
-        status,
-        assignment_status,
-        operation_status,
-        settlement_status,
-        company_auth_user_id,
-        reference_file_name,
-        reference_file_path,
-        reference_file_url
-      `)
-      .in("id", requestIds);
-
-    if (requestError) {
-      console.error("requests for assignments fetch failed", requestError);
-      return [];
-    }
-
-    const { data: documents, error: documentError } = await supabase
-      .from("documents")
-      .select(`
-        id,
-        request_id,
-        document_type,
-        title,
-        file_path,
-        status
-      `)
-      .in("request_id", requestIds);
-
-    if (documentError) {
-      console.error("documents for assignments fetch failed", documentError);
-    }
-
-    const companyAuthUserIds = getUniqueIds((requests || []).map((item) => item.company_auth_user_id));
-    let companies = [];
-    if (companyAuthUserIds.length > 0) {
-      const { data: companyRows, error: companyError } = await supabase
-        .from("businesses")
-        .select(`
-          id,
-          auth_user_id,
-          company_name,
-          contact_name,
-          contact_phone,
-          contact_email
-        `)
-        .in("auth_user_id", companyAuthUserIds);
-
-      if (companyError) {
-        console.error("businesses for assignments fetch failed", companyError);
-      } else {
-        companies = companyRows || [];
-      }
-    }
-
-    const requestMap = new Map((requests || []).map((request) => [String(request.id), request]));
-    const companyMap = new Map((companies || []).map((company) => [String(company.auth_user_id), company]));
-    const docsByRequestId = new Map();
-    (documents || []).forEach((document) => {
-      const key = String(document.request_id);
-      const list = docsByRequestId.get(key) || [];
-      list.push(document);
-      docsByRequestId.set(key, list);
-    });
-
-    return (assignments || []).map((assignment) => {
-      const request = requestMap.get(String(assignment.request_id)) || {};
-      return mapRequestInterpreterAssignmentRow({
-        assignment,
-        request,
-        company: companyMap.get(String(request.company_auth_user_id)) || {},
-        documents: docsByRequestId.get(String(assignment.request_id)) || [],
-      });
-    });
+    return createLoadResult((assignments || []).map((assignment) =>
+      mapRequestInterpreterAssignmentRow(assignment)
+    ));
   };
 
   const fetchSettlementsData = async () => {
@@ -1097,7 +1048,8 @@ function InterpreterMypage({
       }
 
       const refreshedApplications = await fetchApplicationsData(interpreter.id);
-      setApplications(refreshedApplications);
+      setApplications(refreshedApplications.data);
+      setApplicationsLoadError(refreshedApplications.errorMessage);
       setExpandedApplicationIds((current) => {
         const next = new Set(current);
         next.delete(withdrawalTarget.id);
@@ -2139,6 +2091,11 @@ function InterpreterMypage({
                     )}
                     {loadingData ? (
                       <p className="loading-text">지원 내역을 불러오고 있습니다...</p>
+                    ) : applicationsLoadError ? (
+                      <div className="interpreter-empty-state" role="alert">
+                        <span className="empty-icon">⚠️</span>
+                        <p>{applicationsLoadError}</p>
+                      </div>
                     ) : applications.length === 0 ? (
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">📄</span>
@@ -2256,6 +2213,11 @@ function InterpreterMypage({
                     <h2>배정 내역 목록</h2>
                     {loadingData ? (
                       <p className="loading-text">배정 내역을 불러오고 있습니다...</p>
+                    ) : assignmentsLoadError ? (
+                      <div className="interpreter-empty-state" role="alert">
+                        <span className="empty-icon">⚠️</span>
+                        <p>{assignmentsLoadError}</p>
+                      </div>
                     ) : matchings.length === 0 ? (
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">💼</span>
@@ -2269,7 +2231,7 @@ function InterpreterMypage({
                         {matchings.map((mat) => {
                           const job = mat.jobs;
                           const jobTitle =
-                            job?.event_name || job?.title || "배정된 공고";
+                            job?.event_name || job?.title || "의뢰명 미등록";
                           const start = mat.start_date || job?.start_date;
                           const end = mat.end_date || job?.end_date;
                           const statusLabel = getMatchingStatusLabel(mat.status);
@@ -2278,14 +2240,14 @@ function InterpreterMypage({
                           const hasLinkedJob =
                             job?.id &&
                             String(mat.job_id) === String(job.id);
-                          const matchingNo = mat.matching_no || `Matching No.${mat.id}`;
+                          const matchingNo = mat.matching_no || "배정번호 미등록";
                           const scheduleText = formatDateRange(
                             start,
                             end,
                             job?.event_date || job?.date
                           );
                           const locationText =
-                            job?.location || job?.event_location || "장소 미등록";
+                            job?.location || job?.event_location || "미등록";
 
                           return (
                             <div key={mat.id} className="interpreter-assignment-card">
@@ -2845,6 +2807,8 @@ function ApplicationDetailPanel({
   );
 }
 
+// Kept as a presentation-only section for the existing detail layout.
+// eslint-disable-next-line no-unused-vars
 function JobInformationSection({
   job,
   startDate,
@@ -2903,7 +2867,6 @@ function JobInformationSection({
             label="공고 소개"
             value={
               job.description ||
-              job.job_description ||
               "등록된 공고 소개가 없습니다."
             }
           />
@@ -2916,7 +2879,7 @@ function JobInformationSection({
           />
           <ApplicationDetail
             label="우대사항 및 안내"
-            value={job.dress_code || job.preferred_gender || "별도 안내"}
+            value={job.preferred_gender || "별도 안내"}
           />
           <div className="application-detail-block">
             <strong>추가 안내사항</strong>
@@ -2982,7 +2945,6 @@ function AssignmentDetailPanel({
             label="공고 소개"
             value={
               job.description ||
-              job.job_description ||
               "등록된 공고 소개가 없습니다."
             }
           />
@@ -2995,7 +2957,7 @@ function AssignmentDetailPanel({
           />
           <ApplicationDetail
             label="우대사항 및 안내"
-            value={job.dress_code || job.preferred_gender || "별도 안내"}
+            value={job.preferred_gender || "별도 안내"}
           />
           <div className="application-detail-block">
             <strong>추가 안내사항</strong>
@@ -3262,6 +3224,7 @@ function mapPublicJobFromMypageRow(row = {}) {
   };
 }
 
+// eslint-disable-next-line no-unused-vars
 function mapMyApplicationRow(row = {}) {
   return {
     id: row.application_id,
@@ -3305,14 +3268,12 @@ function mapPublicJobFromJobRow(job = {}) {
     people_count: job.people_count,
     people: job.people || (job.people_count ? `${job.people_count}명` : ""),
     status: job.status,
-    description: job.job_description,
-    job_description: job.job_description,
     preference: job.preference,
-    dress_code: job.dress_code,
     preferred_gender: job.preferred_gender,
   };
 }
 
+// eslint-disable-next-line no-unused-vars
 function mapMyAssignmentRow(row = {}) {
   return {
     id: row.assignment_id,
@@ -3353,7 +3314,15 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
   const contactVisible =
     assignmentStatus === "assigned" ||
     Boolean(assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
-  const companyContact = buildCompanyContact({ request, company, contactVisible });
+  const companyJoinFailed = Boolean(request.company_id) && !company?.id;
+  if (companyJoinFailed) {
+    console.error("Failed to load company profile", {
+      assignmentId: assignment.id,
+      requestId: assignment.request_id,
+      companyId: request.company_id,
+    });
+  }
+  const companyContact = buildCompanyContact({ company, contactVisible, joinFailed: companyJoinFailed });
   const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
   const endDate = getFirstValue(request.event_end_date, request.end_date);
   const mappedRequest = {
@@ -3361,7 +3330,8 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     matching_no: assignment.assignment_code || `request-interpreter-${assignment.id}`,
     job_id: request.job_id || null,
     request_id: assignment.request_id,
-    company_id: request.company_id || company.id || request.company_auth_user_id,
+    // Internal relationship key only. It is never rendered as company information.
+    company_id: request.company_id || null,
     assignment_status: assignmentStatus,
     start_date: startDate,
     end_date: endDate,
@@ -3378,33 +3348,46 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
 }
 
 function mapPublicJobFromRequestInterpreterRow({ request = {}, startDate, endDate }) {
-  const title = getRequestDisplayTitle(request);
+  const company = Array.isArray(request.businesses) ? request.businesses[0] : request.businesses;
+  const title = getRequestDisplayTitle(request, company);
+  const location = getFirstDisplayValue(request.event_location);
 
   return {
-    id: request.job_id || request.id,
-    job_no: request.request_no,
+    id: request.job_id || null,
+    job_no: getFirstDisplayValue(request.request_no),
     title,
-    event_name: getFirstNonNumericValue(request.event_name, request.title) || title,
+    event_name: getFirstDisplayValue(request.event_name) || title,
     date: startDate,
     event_date: startDate,
     start_date: startDate,
     end_date: endDate,
-    location: request.event_location,
-    event_location: request.event_location,
+    location,
+    event_location: location,
+    language: getFirstDisplayValue(request.language_direction),
+    requested_level: getFirstDisplayValue(request.requested_level),
+    level: getFirstDisplayValue(request.requested_level),
+    field: getFirstDisplayValue(request.interpretation_field, request.job_field),
+    description: getFirstDisplayValue(
+      request.job_description,
+      request.request_details,
+      request.request_detail
+    ),
+    preference: getFirstDisplayValue(request.preferred_gender),
+    preferred_gender: getFirstDisplayValue(request.preferred_gender),
     status: "assigned",
   };
 }
 
-function getRequestDisplayTitle(request = {}) {
-  const title = getFirstNonNumericValue(request.event_name, request.title);
-  return title || (request.id ? `의뢰 ${request.id}` : "배정된 통역");
+function getRequestDisplayTitle(request = {}, company = {}) {
+  const title = getFirstDisplayValue(request.event_name);
+  const companyName = normalizeCompanyContact(company).companyName;
+  const requestNo = getFirstDisplayValue(request.request_no);
+  return title || (companyName ? `${companyName} 행사` : "") || (requestNo ? `의뢰번호 ${requestNo}` : "의뢰명 미등록");
 }
 
-function buildCompanyContact({ request = {}, company = {}, contactVisible = true }) {
-  const companyName = getFirstValue(
-    request.company_name,
-    company.company_name
-  );
+function buildCompanyContact({ company = {}, contactVisible = true, joinFailed = false }) {
+  const normalized = normalizeCompanyContact(company);
+  const companyName = normalized.companyName;
 
   if (!contactVisible) {
     return {
@@ -3415,17 +3398,19 @@ function buildCompanyContact({ request = {}, company = {}, contactVisible = true
       messenger: "연락처 공개 전",
       readable: true,
       visible: false,
+      loadError: false,
     };
   }
 
   return {
     companyName,
-    contactName: getFirstValue(request.contact_name, company.contact_name),
-    phone: getFirstValue(request.contact_phone, request.contact_email_or_phone, company.contact_phone, company.phone),
-    email: getFirstValue(request.contact_email, request.contact_email_or_phone, company.contact_email, company.email),
-    messenger: getFirstValue(request.contact_kakao, company.kakao_id),
-    readable: Boolean(company?.id || request.company_auth_user_id || companyName),
+    contactName: normalized.contactName,
+    phone: normalized.phone,
+    email: normalized.email,
+    messenger: normalized.kakaoId,
+    readable: Boolean(company?.id),
     visible: true,
+    loadError: joinFailed,
   };
 }
 
@@ -3567,10 +3552,14 @@ function getUniqueIds(values = []) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
-function getFirstNonNumericValue(...values) {
+function getFirstDisplayValue(...values) {
   for (const value of values) {
-    const text = getFirstValue(value);
-    if (text && !/^\d+$/.test(text)) return text;
+    const text = String(value ?? "").trim();
+    if (!text || /^\d+$/.test(text)) continue;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)) {
+      continue;
+    }
+    return text;
   }
   return "";
 }
@@ -3591,7 +3580,7 @@ function getRequestMaterialBucket(filePath = "") {
 
 function getDisplayValue(value) {
   const text = String(value ?? "").trim();
-  return text ? text : "-";
+  return getFirstDisplayValue(text) || "미등록";
 }
 
 function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel, prepBadgeStyle }) {
@@ -3638,17 +3627,10 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
       return;
     }
 
-    if (mat.company_contact?.readable === false) {
-      console.warn("company contact not readable, check RLS or join", {
-        assignmentId: mat.id,
-        requestId: mat.request_id,
-        companyId: mat.company_id,
-      });
-    }
   }, [expanded, mat]);
 
 
-  const handleDownload = async (filePath, fileName) => {
+  const handleDownload = async (filePath) => {
     if (!filePath) return;
     if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
       window.open(filePath, "_blank", "noopener,noreferrer");
@@ -3670,7 +3652,7 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     material.original_file_name || material.file_name || "자료 파일";
 
   const scheduleText = (() => {
-    if (!start && !end) return "-";
+    if (!start && !end) return "미등록";
     if (!end || start === end) return start;
     return `${start} ~ ${end}`;
   })();
@@ -3685,10 +3667,11 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
   ];
 
   return (
-    <div className="interpreter-prep-card">
+      <div className="interpreter-prep-card">
       <div className="prep-card-header" onClick={() => setExpanded((v) => !v)}>
         <div className="prep-card-info">
           <strong className="prep-card-title">{title}</strong>
+          {mat.jobs?.job_no && <span className="prep-card-meta">{mat.jobs.job_no}</span>}
           <span className="prep-card-meta">📅 {scheduleText}</span>
           <span className="prep-card-meta">📍 {location}</span>
         </div>
@@ -3709,14 +3692,18 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
           {canShowCompanyContact ? (
             <div className="prep-contact-section">
               <span className="prep-section-label">기업 연락처</span>
-              <dl className="prep-contact-card">
-                {contactRows.map(([label, value]) => (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd>{getDisplayValue(value)}</dd>
-                  </div>
-                ))}
-              </dl>
+              {companyContact.loadError ? (
+                <p className="prep-contact-note">기업 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
+              ) : (
+                <dl className="prep-contact-card">
+                  {contactRows.map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{getDisplayValue(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
           ) : (
             <div className="prep-contact-section muted">
