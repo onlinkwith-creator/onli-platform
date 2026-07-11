@@ -3569,6 +3569,14 @@ function sanitizeRecipientEmail(email) {
       options,
       "interpreterPaymentInput"
     );
+    const hasCompanyAmountInput = Object.prototype.hasOwnProperty.call(
+      options,
+      "companyAmountInput"
+    );
+    const rawCompanyAmountInput = String(options.companyAmountInput ?? "").trim();
+    const nextCompanyAmount = rawCompanyAmountInput === ""
+      ? null
+      : Number(rawCompanyAmountInput.replaceAll(",", ""));
     const rawInterpreterPaymentInput = String(options.interpreterPaymentInput ?? "").trim();
     const nextInterpreterPaymentAmount = rawInterpreterPaymentInput === ""
       ? null
@@ -3582,9 +3590,23 @@ function sanitizeRecipientEmail(email) {
       alert("통역사 지급액을 올바르게 입력해 주세요.");
       return;
     }
+    if (
+      hasCompanyAmountInput &&
+      nextCompanyAmount !== null &&
+      (Number.isNaN(nextCompanyAmount) || nextCompanyAmount < 0)
+    ) {
+      alert("기업 금액을 올바르게 입력해 주세요.");
+      return;
+    }
 
     const payload = {
       ...getSettlementSavePayload(request),
+      ...(hasCompanyAmountInput
+        ? {
+            company_amount: nextCompanyAmount,
+            client_price: nextCompanyAmount,
+          }
+        : {}),
       ...(hasInterpreterPaymentInput
         ? {
             settlement_final_amount: nextInterpreterPaymentAmount,
@@ -3593,12 +3615,16 @@ function sanitizeRecipientEmail(email) {
           }
         : {}),
     };
-    const companyAmount = normalizeMoneyInput(payload.company_amount ?? payload.client_price);
-    const interpreterAmountForProfit =
-      payload.settlement_final_amount === null || payload.settlement_final_amount === undefined
-        ? 0
-        : normalizeMoneyInput(payload.settlement_final_amount);
-    const platformProfit = companyAmount - interpreterAmountForProfit;
+    const companyAmount = hasCompanyAmountInput
+      ? nextCompanyAmount
+      : normalizeMoneyInput(payload.company_amount ?? payload.client_price);
+    const interpreterAmountForProfit = payload.settlement_final_amount === null
+      ? null
+      : normalizeMoneyInput(payload.settlement_final_amount);
+    const platformProfit =
+      companyAmount !== null && interpreterAmountForProfit !== null
+        ? companyAmount - interpreterAmountForProfit
+        : null;
     payload.platform_profit = platformProfit;
     payload.profit = platformProfit;
 
@@ -8460,9 +8486,19 @@ function RequestDetailPanel({
   const [eventStartDate, setEventStartDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
   const [openEventDatePicker, setOpenEventDatePicker] = useState(null);
+  const [companyAmountInputs, setCompanyAmountInputs] = useState({});
   const [interpreterPaymentInputs, setInterpreterPaymentInputs] = useState({});
   const eventDatePickerRef = useRef(null);
   const interpreterPaymentInputKey = String(safeRequest?.id || "");
+  const companyAmountInputKey = interpreterPaymentInputKey;
+  const savedCompanyAmountInput =
+    safeRequest.company_amount ?? safeRequest.client_price ?? "";
+  const hasCompanyAmountDraft =
+    companyAmountInputKey &&
+    Object.prototype.hasOwnProperty.call(companyAmountInputs, companyAmountInputKey);
+  const companyAmountInput = hasCompanyAmountDraft
+    ? companyAmountInputs[companyAmountInputKey]
+    : String(savedCompanyAmountInput);
   const savedInterpreterPaymentInput =
     settlement?.amount === null || settlement?.amount === undefined ? "" : String(settlement.amount);
   const hasInterpreterPaymentDraft =
@@ -8471,12 +8507,26 @@ function RequestDetailPanel({
   const interpreterPaymentInput = hasInterpreterPaymentDraft
     ? interpreterPaymentInputs[interpreterPaymentInputKey]
     : savedInterpreterPaymentInput;
-  const companyAmountForProfit = getCompanyAmount(safeRequest);
-  const interpreterAmountForProfit = normalizeMoneyInput(interpreterPaymentInput);
+  const companyAmountForProfit = companyAmountInput.trim() === ""
+    ? null
+    : Number(companyAmountInput.replaceAll(",", ""));
+  const interpreterAmountForProfit = interpreterPaymentInput.trim() === ""
+    ? null
+    : Number(interpreterPaymentInput.replaceAll(",", ""));
   const platformProfitPreview = useMemo(
-    () => companyAmountForProfit - interpreterAmountForProfit,
+    () => companyAmountForProfit !== null && interpreterAmountForProfit !== null
+      ? companyAmountForProfit - interpreterAmountForProfit
+      : null,
     [companyAmountForProfit, interpreterAmountForProfit]
   );
+
+  const handleCompanyAmountInputChange = (event) => {
+    if (!companyAmountInputKey) return;
+    setCompanyAmountInputs((current) => ({
+      ...current,
+      [companyAmountInputKey]: event.target.value.replace(/[^\d]/g, ""),
+    }));
+  };
 
   const handleInterpreterPaymentInputChange = (event) => {
     const value = event.target.value;
@@ -8495,9 +8545,18 @@ function RequestDetailPanel({
   };
 
   const handleSaveSettlement = async () => {
-    const saved = await saveSettlement(safeRequest, { interpreterPaymentInput });
+    const saved = await saveSettlement(safeRequest, {
+      companyAmountInput,
+      interpreterPaymentInput,
+    });
     if (!saved || !interpreterPaymentInputKey) return;
 
+    setCompanyAmountInputs((current) => {
+      if (!Object.prototype.hasOwnProperty.call(current, companyAmountInputKey)) return current;
+      const next = { ...current };
+      delete next[companyAmountInputKey];
+      return next;
+    });
     setInterpreterPaymentInputs((current) => {
       if (!Object.prototype.hasOwnProperty.call(current, interpreterPaymentInputKey)) {
         return current;
@@ -9008,11 +9067,15 @@ function RequestDetailPanel({
               <p className="admin-settlement-note">
                 희망 통역 레벨 기준 금액이 자동 입력됩니다. 필요 시 직접 수정할 수 있습니다.
               </p>
-              <NumberControl
-                label="기업 금액"
-                value={getCompanyAmount(safeRequest)}
-                onChange={(value) => safeRequest?.id && handlePriceDraft(safeRequest.id, "company_amount", value)}
-              />
+              <FieldControl label="기업 금액">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={companyAmountInput}
+                  onChange={handleCompanyAmountInputChange}
+                  placeholder="기업 금액 입력"
+                />
+              </FieldControl>
               <FieldControl label="통역사 지급액">
                 <input
                   type="text"
@@ -9023,11 +9086,11 @@ function RequestDetailPanel({
               </FieldControl>
               <div className="admin-profit">
                 <span>플랫폼 수익</span>
-                <strong className={platformProfitPreview < 0 ? "is-negative" : ""}>
-                  {formatJPY(platformProfitPreview)}
+                <strong className={platformProfitPreview !== null && platformProfitPreview < 0 ? "is-negative" : ""}>
+                  {platformProfitPreview === null ? "-" : formatJPY(platformProfitPreview)}
                 </strong>
               </div>
-              {platformProfitPreview < 0 && (
+              {platformProfitPreview !== null && platformProfitPreview < 0 && (
                 <p className="admin-settlement-note is-negative">
                   통역사 지급액이 기업 금액보다 큽니다. 플랫폼 수익이 음수입니다.
                 </p>
