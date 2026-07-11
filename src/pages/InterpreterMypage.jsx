@@ -935,32 +935,7 @@ function InterpreterMypage({
 
     const { data: assignments, error: assignmentError } = await supabase
       .from("request_interpreters")
-      .select(`
-        id,
-        request_id,
-        interpreter_id,
-        assigned_at,
-        status,
-        contact_visible,
-        is_contact_visible,
-        contact_revealed,
-        requests!request_interpreters_request_id_fkey (
-          id, job_id, request_no, company_id, event_name, email,
-          start_date, end_date, event_date, event_location,
-          event_start_time, event_end_time, language_direction,
-          interpretation_field, job_field, requested_level,
-          preferred_gender, dress_code, job_description,
-          request_detail, request_details, status, assignment_status,
-          operation_status, settlement_status, reference_file_name,
-          reference_file_path, reference_file_url,
-          businesses!requests_company_id_fkey (
-            id, company_name, contact_name, contact_phone, contact_email
-          ),
-          documents!documents_request_id_fkey (
-            id, request_id, document_type, title, file_path, status
-          )
-        )
-      `)
+      .select("id, request_id, interpreter_id, assigned_at, status, contact_visible, is_contact_visible, contact_revealed")
       .eq("interpreter_id", interpreterId)
       .order("assigned_at", { ascending: false });
 
@@ -969,9 +944,36 @@ function InterpreterMypage({
       return createLoadResult([], "배정내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
     }
 
-    return createLoadResult((assignments || []).map((assignment) =>
-      mapRequestInterpreterAssignmentRow(assignment)
-    ));
+    const requestIds = [...new Set((assignments || []).map((item) => item.request_id).filter(Boolean))];
+    if (requestIds.length === 0) return createLoadResult([]);
+
+    const { data: requests, error: requestError } = await supabase
+      .from("requests")
+      .select(`
+        id, job_id, request_no, company_id, company_name, manager_name,
+        contact_name, phone, email, event_name, start_date, end_date,
+        event_date, event_location, event_start_time, event_end_time,
+        language_direction, interpretation_field, job_field, requested_level,
+        preferred_gender, dress_code, job_description, request_detail,
+        request_details, status, assignment_status, operation_status,
+        settlement_status, reference_file_name, reference_file_path,
+        reference_file_url
+      `)
+      .in("id", requestIds);
+
+    if (requestError) {
+      logInterpreterDataError("requests for assignments fetch failed", requestError);
+      return createLoadResult([], "의뢰 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+
+    const requestMap = new Map((requests || []).map((request) => [String(request.id), request]));
+    return createLoadResult((assignments || []).map((assignment) => {
+      const request = requestMap.get(String(assignment.request_id)) || null;
+      if (!request) {
+        console.error("Failed to load assigned request", { requestId: assignment.request_id });
+      }
+      return mapRequestInterpreterAssignmentRow({ ...assignment, request });
+    }));
   };
 
   const fetchSettlementsData = async () => {
@@ -3303,26 +3305,22 @@ function mapMyAssignmentRow(row = {}) {
 
 function mapRequestInterpreterAssignmentRow(row = {}) {
   const assignment = row.assignment || row;
+  const requestMissing = !row.request && !row.requests;
   const request = row.request || (Array.isArray(row.requests) ? row.requests[0] : row.requests) || {};
-  const company = row.company || (Array.isArray(request.businesses)
-    ? request.businesses[0]
-    : request.businesses) || {};
-  const documents = row.documents || (Array.isArray(request.documents) ? request.documents : []);
+  const requestCompany = {
+    id: request.id,
+    company_name: request.company_name,
+    contact_name: getFirstDisplayValue(request.contact_name, request.manager_name),
+    contact_phone: request.phone,
+    contact_email: request.email,
+  };
   const assignmentStatus = normalizeAssignmentStatusValue(
     assignment.assignment_status || assignment.status
   );
   const contactVisible =
     assignmentStatus === "assigned" ||
     Boolean(assignment.contact_visible || assignment.is_contact_visible || assignment.contact_revealed);
-  const companyJoinFailed = Boolean(request.company_id) && !company?.id;
-  if (companyJoinFailed) {
-    console.error("Failed to load company profile", {
-      assignmentId: assignment.id,
-      requestId: assignment.request_id,
-      companyId: request.company_id,
-    });
-  }
-  const companyContact = buildCompanyContact({ company, contactVisible, joinFailed: companyJoinFailed });
+  const companyContact = buildCompanyContact({ company: requestCompany, contactVisible });
   const startDate = getFirstValue(request.event_start_date, request.start_date, request.event_date);
   const endDate = getFirstValue(request.event_end_date, request.end_date);
   const mappedRequest = {
@@ -3340,7 +3338,8 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     request_assignment_status: assignmentStatus,
     is_contact_visible: contactVisible,
     company_contact: companyContact,
-    reference_file: getAssignmentReferenceFileFromRequest(request, documents),
+    request_load_error: requestMissing,
+    reference_file: getAssignmentReferenceFileFromRequest(request, []),
     jobs: mapPublicJobFromRequestInterpreterRow({ request, startDate, endDate }),
   };
 
@@ -3348,8 +3347,7 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
 }
 
 function mapPublicJobFromRequestInterpreterRow({ request = {}, startDate, endDate }) {
-  const company = Array.isArray(request.businesses) ? request.businesses[0] : request.businesses;
-  const title = getRequestDisplayTitle(request, company);
+  const title = getRequestDisplayTitle(request, { company_name: request.company_name });
   const location = getFirstDisplayValue(request.event_location);
 
   return {
@@ -3616,20 +3614,6 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     });
   }, [expanded, mat.request_id]);
 
-  useEffect(() => {
-    if (!expanded || !isAssignedPreparationStatus(mat.assignment_status)) return;
-
-    if (!mat.company_id) {
-      console.warn("request has no company_id", {
-        assignmentId: mat.id,
-        requestId: mat.request_id,
-      });
-      return;
-    }
-
-  }, [expanded, mat]);
-
-
   const handleDownload = async (filePath) => {
     if (!filePath) return;
     if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
@@ -3665,6 +3649,19 @@ function InterpreterPrepCard({ mat, title, start, end, location, prepStatusLabel
     ["이메일", companyContact.email],
     ["카카오톡(ID)", companyContact.messenger],
   ];
+
+  if (mat.request_load_error) {
+    return (
+      <div className="interpreter-prep-card">
+        <div className="prep-card-header">
+          <div className="prep-card-info">
+            <strong className="prep-card-title">의뢰 정보를 불러오지 못했습니다</strong>
+            <span className="prep-card-meta">잠시 후 다시 시도해 주세요.</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
       <div className="interpreter-prep-card">
