@@ -45,7 +45,6 @@ import {
 import { formatDateRange, getDateRangeEnd, getDateRangeStart } from "../utils/dateRange";
 import { isDateRangeOverlappingMonth, normalizeDateToISO, formatDisplayDate } from "../utils/date";
 import {
-  ACTIVE_MATCHING_STATUSES,
   checkInterpreterScheduleConflict,
   findLocalScheduleConflicts,
   getScheduleRange,
@@ -4216,85 +4215,22 @@ function sanitizeRecipientEmail(email) {
 
     const assignmentId =
       typeof assignment === "object" ? assignment?.id : assignment;
-    const requestId =
-      typeof assignment === "object" ? assignment?.request_id : null;
 
     setSavingKey(`assignment-${assignmentId}`);
     const { error } = await supabase
       .from("request_interpreters")
       .delete()
       .eq("id", assignmentId);
-
-    let requestError = null;
-    let nextRequestChanges = null;
-    if (!error && requestId) {
-      const request = requests.find((item) => item.id === requestId);
-      const remainingAssignments = (assignmentsByRequest.get(requestId) || []).filter(
-        (assignment) => assignment.id !== assignmentId
-      );
-      const requiredCount = getRequestRequiredCount(request);
-      nextRequestChanges = buildAssignmentRequestChanges(
-        remainingAssignments,
-        requiredCount
-      );
-      const result = await updateRequestAssignmentRow(
-        requestId,
-        nextRequestChanges,
-        { status: nextRequestChanges.status }
-      );
-      requestError = result.error;
-      if (!requestError) {
-        await updateLinkedJobAssignmentStatus(
-          request,
-          remainingAssignments.length,
-          requiredCount,
-          remainingAssignments
-        );
-        const interpreter = getAssignmentInterpreter(assignment, interpreters);
-        if (interpreter?.id) {
-          const { error: matchingError } = await supabase
-            .from("matchings")
-            .update({ status: "cancelled" })
-            .eq("request_id", requestId)
-            .eq("interpreter_id", interpreter.id)
-            .in("status", ACTIVE_MATCHING_STATUSES);
-
-          if (matchingError) console.warn("matching schedule cancel skipped:", matchingError);
-          if (!matchingError) {
-            setMatchings((current) =>
-              current.map((matching) =>
-                Number(matching.request_id) === Number(requestId) &&
-                Number(matching.interpreter_id) === Number(interpreter.id)
-                  ? { ...matching, status: "cancelled" }
-                  : matching
-              )
-            );
-          }
-        }
-        await updateMatchingApplicationStatus(request, interpreter, APPLICATION_STATUS.PENDING);
-      }
-    }
     setSavingKey("");
 
-    if (error || requestError) {
-      console.error("매칭 취소 실패:", error || requestError);
-      alert(`매칭 취소에 실패했습니다: ${(error || requestError).message}`);
+    if (error) {
+      console.error("매칭 취소 실패:", error);
+      alert(`매칭 취소에 실패했습니다: ${error.message}`);
       return;
     }
 
-    setAssignments((current) =>
-      current.filter((assignment) => assignment.id !== assignmentId)
-    );
-    if (requestId && nextRequestChanges) {
-      setRequests((current) =>
-        current.map((request) =>
-          request.id === requestId ? { ...request, ...nextRequestChanges } : request
-        )
-      );
-      setSelectedRequest((current) =>
-        current?.id === requestId ? { ...current, ...nextRequestChanges } : current
-      );
-    }
+    // The request_interpreters lifecycle trigger atomically restores the
+    // application and recalculates request/job assignment state.
     await fetchAdminData();
     alert("매칭이 취소되었습니다.");
   };
