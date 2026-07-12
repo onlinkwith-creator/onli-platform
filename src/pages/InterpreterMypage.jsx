@@ -221,7 +221,7 @@ function InterpreterMypage({
     const { data, error } = await supabase
       .from("interpreters")
       .select("*")
-      .ilike("email", normalizedUserEmail);
+      .eq("auth_user_id", user.id);
 
     if (error) {
       console.error("Interpreter profile fetch failed", error);
@@ -231,14 +231,15 @@ function InterpreterMypage({
       return;
     }
 
-    let matches = (data || []).filter(
-      (item) => normalizeEmail(item.email) === normalizedUserEmail
-    );
+    let matches = data || [];
 
+    // Legacy profiles created before auth linking are recovered by exact email once,
+    // then linked to auth_user_id below. Never load the full interpreter table.
     if (matches.length === 0) {
       const { data: fallbackData, error: fallbackError } = await supabase
         .from("interpreters")
-        .select("*");
+        .select("*")
+        .ilike("email", normalizedUserEmail);
 
       if (fallbackError) {
         console.error("Interpreter profile fallback fetch failed", fallbackError);
@@ -2393,7 +2394,7 @@ function InterpreterMypage({
                     ) : settlements.length === 0 ? (
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">💰</span>
-                        <p>아직 정산 내역이 없습니다.</p>
+                        <p>배정된 업무의 정산 내역이 없습니다.</p>
                         <p className="empty-sub">
                           업무 완료 후 정산 예정 금액과 상태가 이곳에 표시됩니다.
                         </p>
@@ -3450,30 +3451,14 @@ function isAssignedMatchingStatus(status) {
   ].includes(normalized);
 }
 
-function isMatchedApplicationStatus(status) {
-  return String(status || "").trim() === "매칭완료";
-}
-
-function hasMatchedApplicationForAssignment(assignment, applications = []) {
-  const job = assignment?.jobs;
-  if (!assignment?.job_id || !job?.id) return false;
-  return applications.some(
-    (app) =>
-      isMatchedApplicationStatus(app.status) &&
-      String(app.job_id) === String(job.id)
-  );
-}
-
-function getPreparationAssignments(matchings = [], applications = []) {
+function getPreparationAssignments(matchings = []) {
   return matchings.filter(
-    (matching) =>
-      isAssignedMatchingStatus(matching.status) ||
-      hasMatchedApplicationForAssignment(matching, applications)
+    (matching) => isAssignedMatchingStatus(matching.status)
   );
 }
 
-function getVisiblePreparationItems(matchings = [], applications = []) {
-  return getUniquePreparationItems(getPreparationAssignments(matchings, applications));
+function getVisiblePreparationItems(matchings = []) {
+  return getUniquePreparationItems(getPreparationAssignments(matchings));
 }
 
 function getUniquePreparationItems(items = []) {
