@@ -797,6 +797,7 @@ function sanitizeRecipientEmail(email) {
             supabase
               .from("notifications")
               .select("*")
+              .is("deleted_at", null)
               .order("created_at", { ascending: false })
               .limit(300),
             supabase
@@ -1741,6 +1742,7 @@ function sanitizeRecipientEmail(email) {
         supabase
           .from("notifications")
           .select("*")
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(300),
         supabase
@@ -1835,6 +1837,27 @@ function sanitizeRecipientEmail(email) {
       }
     } catch (err) {
       console.error("refreshAdminOperationsData fatal error:", err);
+    }
+  };
+
+  const deleteNotificationHistory = async (sourceIds) => {
+    const ids = [...new Set((sourceIds || []).filter(Boolean))];
+    if (!supabase || ids.length === 0) return false;
+    setNotificationProcessing(true);
+    try {
+      const { error } = await supabase.from("notifications").update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user?.id || null,
+      }).in("id", ids);
+      if (error) throw error;
+      setNotificationEvents((current) => current.filter((item) => !ids.includes(item.source_id)));
+      return true;
+    } catch (error) {
+      console.error("notification history deletion failed:", error);
+      alert(`알림 이력 삭제 실패: ${error.message || "권한을 확인해주세요."}`);
+      return false;
+    } finally {
+      setNotificationProcessing(false);
     }
   };
 
@@ -3232,7 +3255,6 @@ function sanitizeRecipientEmail(email) {
     };
 
     if (!error) {
-      await handleNotification(data);
       return { data, error: null };
     }
 
@@ -3369,25 +3391,19 @@ function sanitizeRecipientEmail(email) {
       return nextPayload;
     }, {});
 
-    if (settlementRow?.id) {
-      const updatePayload = options.amountOnly
-        ? {
-            amount,
-            daily_rate: amount === null ? 0 : workDays > 0 ? amount / workDays : amount,
-          }
-        : settlementPayload;
-
-      return supabase
-        .from("settlements")
-        .update(updatePayload)
-        .eq("id", settlementRow.id)
-        .select(SETTLEMENTS_SELECT)
-        .single();
-    }
+    const upsertPayload = settlementRow?.id && options.amountOnly
+      ? {
+          ...settlementRow,
+          amount,
+          daily_rate: amount === null ? 0 : workDays > 0 ? amount / workDays : amount,
+        }
+      : { ...(settlementRow || {}), ...settlementPayload };
+    delete upsertPayload._request;
+    delete upsertPayload._settlement;
 
     return supabase
       .from("settlements")
-      .insert(settlementPayload)
+      .upsert(upsertPayload, { onConflict: "request_id,interpreter_id" })
       .select(SETTLEMENTS_SELECT)
       .single();
   };
@@ -5045,6 +5061,7 @@ function sanitizeRecipientEmail(email) {
                 onFiltersChange={setNotificationFilters}
                 processing={notificationProcessing}
                 onSendEmail={sendNotificationEmail}
+                onDelete={deleteNotificationHistory}
                 loadError={adminDataErrors.notifications}
               />
             )}
@@ -12382,9 +12399,11 @@ function NotificationHistoryManagement({
   onFiltersChange,
   processing = false,
   onSendEmail,
+  onDelete,
   loadError = null,
 }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
   const notificationItems = buildNotificationDisplayItems({
     events,
     requests,
@@ -12420,6 +12439,12 @@ function NotificationHistoryManagement({
     return true;
   });
   const failedCount = notificationItems.filter((event) => event.status === "failed").length;
+  const visibleIds = visibleEvents.map((event) => event.source_id).filter(Boolean);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+  const removeEvents = async (ids, message) => {
+    if (!window.confirm(message)) return;
+    if (await onDelete?.(ids)) setSelectedIds((current) => current.filter((id) => !ids.includes(id)));
+  };
   const updateFilter = (key, value) => {
     onFiltersChange?.({
       ...filters,
@@ -12480,6 +12505,16 @@ function NotificationHistoryManagement({
             aria-label="종료일"
           />
         </div>
+        <div className="admin-inline-actions">
+          <button type="button" className="admin-secondary" disabled={!selectedIds.length || processing}
+            onClick={() => removeEvents(selectedIds, `선택한 알림 이력 ${selectedIds.length}건을 삭제하시겠습니까?`)}>
+            선택 삭제
+          </button>
+          <button type="button" className="admin-save danger" disabled={!visibleIds.length || processing}
+            onClick={() => removeEvents(visibleIds, "현재 필터 조건에 해당하는 알림 이력을 모두 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")}>
+            전체 삭제
+          </button>
+        </div>
       </div>
       {visibleEvents.length === 0 ? (
         <>
@@ -12501,6 +12536,10 @@ function NotificationHistoryManagement({
           <table className="admin-table admin-notification-log-table">
             <thead>
               <tr>
+                <th><input type="checkbox" aria-label="전체 선택" checked={allSelected}
+                  onChange={(e) => setSelectedIds(e.target.checked
+                    ? [...new Set([...selectedIds, ...visibleIds])]
+                    : selectedIds.filter((id) => !visibleIds.includes(id)))} /></th>
                 <th>생성일</th>
                 <th>대상</th>
                 <th>알림 종류</th>
@@ -12515,6 +12554,11 @@ function NotificationHistoryManagement({
             <tbody>
               {visibleEvents.map((event) => (
                 <tr key={event.id}>
+                  <td><input type="checkbox" aria-label={`${event.title || "알림"} 선택`}
+                    checked={selectedIds.includes(event.source_id)}
+                    onChange={(e) => setSelectedIds((current) => e.target.checked
+                      ? [...new Set([...current, event.source_id])]
+                      : current.filter((id) => id !== event.source_id))} /></td>
                   <td>{formatDateTime(event.created_at)}</td>
                   <td>{event.recipientLabel}</td>
                   <td>{event.eventLabel}</td>
@@ -12535,6 +12579,10 @@ function NotificationHistoryManagement({
                         onClick={() => setSelectedEvent(event)}
                       >
                         상세
+                      </button>
+                      <button type="button" className="admin-save danger" disabled={processing}
+                        onClick={() => removeEvents([event.source_id], "이 알림 이력을 삭제하시겠습니까?")}>
+                        삭제
                       </button>
                     </div>
                   </td>
@@ -12642,9 +12690,12 @@ function NotificationEventDetailModal({
         </div>
         <dl className="admin-card-summary admin-notification-detail-list">
           <Info label="알림 종류" value={event.eventLabel} />
+          <Info label="제목" value={event.title || "-"} />
           <Info label="대상자" value={event.targetLabel} />
+          <Info label="대상 ID" value={event.recipient_id || "-"} />
           <Info label="채널" value={getNotificationChannelLabel(event.channel)} />
           <Info label="관련 번호" value={event.relatedLabel} />
+          <Info label="관련 의뢰명" value={getNotificationPayload(event)?.event_name || "-"} />
           <Info label="수신 이메일" value={event.recipient_email || "-"} />
           <Info label="상태" value={event.statusLabel} />
           <Info label="생성일" value={formatDateTime(event.created_at)} />
@@ -15243,6 +15294,7 @@ function mapNotificationsToEvents(notifications = []) {
       ? String(notification.related_request_id)
       : String(notification.related_document_id || notification.id),
     recipient_type: notification.recipient_type,
+    recipient_id: notification.recipient_id,
     recipient_name: notification.recipient_name,
     recipient_email: notification.recipient_email,
     recipient_phone: notification.recipient_phone,

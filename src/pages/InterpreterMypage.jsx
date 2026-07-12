@@ -977,7 +977,19 @@ function InterpreterMypage({
       return [];
     }
 
-    return (data || []).map(mapMySettlementRow);
+    const latestByRequest = new Map();
+    for (const row of data || []) {
+      const key = String(row.request_id || row.settlement_id);
+      const current = latestByRequest.get(key);
+      const isPersistedSettlement = !String(row.settlement_id || "").startsWith("request-interpreter-")
+        && !String(row.settlement_id || "").startsWith("matching-");
+      const currentIsFallback = current && (
+        String(current.settlement_id || "").startsWith("request-interpreter-")
+        || String(current.settlement_id || "").startsWith("matching-")
+      );
+      if (!current || (isPersistedSettlement && currentIsFallback)) latestByRequest.set(key, row);
+    }
+    return [...latestByRequest.values()].map(mapMySettlementRow);
   };
 
   const fetchPaymentDocumentsData = async () => {

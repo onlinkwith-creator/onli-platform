@@ -185,51 +185,15 @@ function mergeJobsWithSettlementRows(jobs = [], requests = [], settlements = [])
 async function updateJobWithFallback(jobId, changes) {
   const jobChanges = { ...(changes || {}) };
   delete jobChanges.updated_at;
-  let previousJob = null;
-  const statusFields = ["status", "assignment_status", "operation_status", "settlement_status"];
-  const hasStatusChange = statusFields.some(field => field in jobChanges);
 
   if (Object.keys(jobChanges).length === 0) {
     return { data: null, error: null };
   }
 
-  if (hasStatusChange) {
-    const { data } = await supabase
-      .from("jobs")
-      .select("status, assignment_status, operation_status, settlement_status")
-      .eq("id", jobId)
-      .single();
-    previousJob = data;
-  }
-
   let result = await supabase.from("jobs").update(jobChanges).eq("id", jobId).select("*").single();
 
-  const handleNotification = async (updatedJob) => {
-    if (!previousJob) return;
-
-    for (const field of statusFields) {
-      if (field in jobChanges && previousJob[field] !== updatedJob[field]) {
-        try {
-          const previousStatus = previousJob[field];
-          const nextStatus = updatedJob[field];
-          
-          await supabase.from("notifications").insert({
-            notification_type: "status_changed",
-            title: "상태 변경 알림",
-            message: `${updatedJob.title || updatedJob.event_name || "의뢰"} 상태가 ${previousStatus || "-"}에서 ${nextStatus}로 변경되었습니다.`,
-            channel: "internal",
-            recipient_type: "admin",
-            status: "pending"
-          });
-        } catch (err) {
-          console.error("Failed to insert status_changed notification", err);
-        }
-      }
-    }
-  };
-
   if (!result.error && result.data) {
-    await handleNotification(result.data);
+    // The database trigger creates de-duplicated admin/company/interpreter notifications.
   }
 
   if (result.error && isMissingColumnError(result.error)) {
@@ -244,7 +208,7 @@ async function updateJobWithFallback(jobId, changes) {
       .single();
       
     if (!result.error && result.data) {
-      await handleNotification(result.data);
+      // Notification creation is intentionally non-blocking and centralized in the database.
     }
   }
 
@@ -637,7 +601,7 @@ function AdminJobs({
 
       const { data, error } = await supabase
         .from("settlements")
-        .insert({
+        .upsert({
           request_id: Number(request.id),
           interpreter_id: Number(interpreterId),
           assignment_id: assignment?.id || null,
@@ -649,7 +613,7 @@ function AdminJobs({
           extra_amount: Number(request.settlement_extra_amount || 0),
           deduction_amount: Number(request.settlement_deduction_amount || 0),
           admin_memo: request.settlement_memo || "",
-        })
+        }, { onConflict: "request_id,interpreter_id" })
         .select(SETTLEMENTS_SELECT)
         .single();
 
