@@ -193,6 +193,8 @@ function InterpreterMypage({
     if (authLoading) return;
 
     if (!user) {
+      setSettlements([]);
+      setMatchings([]);
       setStatus("signedOut");
       setLoading(false);
       return;
@@ -293,12 +295,13 @@ function InterpreterMypage({
       }
 
       // Fetch applications and matchings dynamically
+      setSettlements([]);
       setLoadingData(true);
       try {
-        const [applicationResult, assignmentResult, settlementRows, documentRows] = await Promise.all([
+        const assignmentResult = await fetchMatchingsData(nextInterpreter.id);
+        const settlementRows = await fetchSettlementsData(nextInterpreter.id);
+        const [applicationResult, documentRows] = await Promise.all([
           fetchApplicationsData(nextInterpreter.id),
-          fetchMatchingsData(nextInterpreter.id),
-          fetchSettlementsData(),
           fetchPaymentDocumentsData(),
         ]);
         setApplications(applicationResult.data);
@@ -968,29 +971,65 @@ function InterpreterMypage({
     }
   };
 
-  const fetchSettlementsData = async () => {
-    if (!supabase) return [];
+  const fetchSettlementsData = async (interpreterId) => {
+    if (!supabase || !interpreterId) return [];
 
-    const { data, error } = await supabase.rpc("get_my_settlements");
+    const { data: assignmentRows, error: assignmentError } = await supabase
+      .from("request_interpreters")
+      .select("id,request_id,interpreter_id,status,assigned_at")
+      .eq("interpreter_id", interpreterId)
+      .eq("status", "assigned")
+      .order("assigned_at", { ascending: false });
+    if (assignmentError) throw assignmentError;
 
-    if (error) {
-      console.error("get_my_settlements RPC failed", error);
-      return [];
+    const latestAssignmentByRequest = new Map();
+    for (const assignment of assignmentRows || []) {
+      if (assignment.request_id && Number(assignment.interpreter_id) === Number(interpreterId)
+        && !latestAssignmentByRequest.has(String(assignment.request_id))) {
+        latestAssignmentByRequest.set(String(assignment.request_id), assignment);
+      }
+    }
+    const activeAssignments = [...latestAssignmentByRequest.values()];
+    const assignedRequestIds = activeAssignments.map((row) => row.request_id);
+    if (assignedRequestIds.length === 0) return [];
+
+    const [requestResult, settlementResult] = await Promise.all([
+      supabase.from("requests").select("*").in("id", assignedRequestIds),
+      supabase.from("settlements").select("*")
+        .eq("interpreter_id", interpreterId)
+        .in("request_id", assignedRequestIds)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
+    if (requestResult.error) throw requestResult.error;
+    if (settlementResult.error) throw settlementResult.error;
+
+    const requestMap = new Map((requestResult.data || []).map((row) => [String(row.id), row]));
+    const settlementMap = new Map();
+    for (const row of settlementResult.data || []) {
+      const key = `${row.request_id}:${row.interpreter_id}`;
+      if (!settlementMap.has(key)) settlementMap.set(key, row);
     }
 
-    const latestByRequest = new Map();
-    for (const row of data || []) {
-      const key = String(row.request_id || row.settlement_id);
-      const current = latestByRequest.get(key);
-      const isPersistedSettlement = !String(row.settlement_id || "").startsWith("request-interpreter-")
-        && !String(row.settlement_id || "").startsWith("matching-");
-      const currentIsFallback = current && (
-        String(current.settlement_id || "").startsWith("request-interpreter-")
-        || String(current.settlement_id || "").startsWith("matching-")
-      );
-      if (!current || (isPersistedSettlement && currentIsFallback)) latestByRequest.set(key, row);
-    }
-    return [...latestByRequest.values()].map(mapMySettlementRow);
+    return activeAssignments.map((assignment) => {
+      const request = requestMap.get(String(assignment.request_id));
+      if (!request || Number(assignment.interpreter_id) !== Number(interpreterId)) return null;
+      const settlement = settlementMap.get(`${assignment.request_id}:${interpreterId}`) || null;
+      return mapMySettlementRow({
+        settlement_id: settlement?.id || `request-interpreter-${assignment.id}`,
+        request_id: request.id,
+        public_job_code: request.request_no || request.request_code,
+        title: request.event_name || request.title,
+        event_name: request.event_name,
+        start_date: request.start_date || request.event_date,
+        end_date: request.end_date || request.event_date,
+        amount: settlement?.amount ?? request.settlement_final_amount ?? request.interpreter_payment ?? 0,
+        settlement_final_amount: settlement?.amount ?? request.settlement_final_amount ?? request.interpreter_payment ?? 0,
+        settlement_status: settlement?.settlement_status || settlement?.payout_status || request.settlement_status,
+        settlement_completed_at: settlement?.settlement_completed_at || settlement?.paid_at || request.settlement_completed_at,
+        settlement_work_days: settlement?.work_days || request.settlement_work_days,
+      });
+    }).filter(Boolean);
   };
 
   const fetchPaymentDocumentsData = async () => {
