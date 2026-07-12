@@ -1845,10 +1845,7 @@ function sanitizeRecipientEmail(email) {
     if (!supabase || ids.length === 0) return false;
     setNotificationProcessing(true);
     try {
-      const { error } = await supabase.from("notifications").update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: user?.id || null,
-      }).in("id", ids);
+      const { error } = await supabase.from("notifications").delete().in("id", ids);
       if (error) throw error;
       setNotificationEvents((current) => current.filter((item) => !ids.includes(item.source_id)));
       return true;
@@ -1907,12 +1904,17 @@ function sanitizeRecipientEmail(email) {
           body: data,
           notification_id: event.source_id || event.id,
         });
-        alert(
-          `이메일 발송 실패\n\n` +
-          `status: ${res.status}\n` +
-          `message: ${data?.message || data?.error || "상세 오류 없음"}\n` +
-          `smtp: ${JSON.stringify(data?.smtp || {}, null, 2)}`
-        );
+        if (res.status === 409 && data?.code === "ALREADY_SENT") {
+          await refreshAdminOperationsData();
+          alert("이미 발송 완료된 알림입니다.");
+          return true;
+        }
+        if (res.status === 409 && data?.code === "SEND_IN_PROGRESS") {
+          await refreshAdminOperationsData();
+          alert("현재 발송 처리 중입니다. 잠시 후 다시 확인해 주세요.");
+          return false;
+        }
+        alert(`이메일 발송 실패: ${data?.message || data?.error || `HTTP ${res.status}`}`);
         return false;
       }
 
@@ -1920,7 +1922,7 @@ function sanitizeRecipientEmail(email) {
 
       const smtp = data?.smtp ?? {};
 
-      if (!data?.success) {
+      if (!(data?.ok ?? data?.success)) {
         alert(
           `이메일 발송 실패: ${data?.message || data?.error || "알 수 없는 오류"}\n\n` +
           `accepted:\n${JSON.stringify(smtp.accepted ?? [])}\n\n` +
@@ -12476,6 +12478,7 @@ function NotificationHistoryManagement({
           >
             <option value="all">상태 전체</option>
             <option value="pending">발송 대기</option>
+            <option value="sending">발송 중</option>
             <option value="sent">발송 완료</option>
             <option value="failed">발송 실패</option>
           </select>
@@ -12507,11 +12510,11 @@ function NotificationHistoryManagement({
         </div>
         <div className="admin-inline-actions">
           <button type="button" className="admin-secondary" disabled={!selectedIds.length || processing}
-            onClick={() => removeEvents(selectedIds, `선택한 알림 이력 ${selectedIds.length}건을 삭제하시겠습니까?`)}>
+            onClick={() => removeEvents(selectedIds, `선택한 알림 이력 ${selectedIds.length}건만 삭제합니다. 이미 발송된 이메일은 취소되지 않습니다.`)}>
             선택 삭제
           </button>
           <button type="button" className="admin-save danger" disabled={!visibleIds.length || processing}
-            onClick={() => removeEvents(visibleIds, "현재 필터 조건에 해당하는 알림 이력을 모두 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")}>
+            onClick={() => removeEvents(visibleIds, "현재 필터 조건의 알림 이력만 삭제합니다. 이미 발송된 이메일은 취소되지 않으며 이 작업은 되돌릴 수 없습니다.")}>
             전체 삭제
           </button>
         </div>
@@ -12581,7 +12584,7 @@ function NotificationHistoryManagement({
                         상세
                       </button>
                       <button type="button" className="admin-save danger" disabled={processing}
-                        onClick={() => removeEvents([event.source_id], "이 알림 이력을 삭제하시겠습니까?")}>
+                        onClick={() => removeEvents([event.source_id], "이 알림 이력만 삭제합니다. 이미 발송된 이메일은 취소되지 않습니다.")}>
                         삭제
                       </button>
                     </div>
@@ -12709,7 +12712,7 @@ function NotificationEventDetailModal({
           <button type="button" className="admin-secondary" onClick={onClose}>
             닫기
           </button>
-          {isEmailNotification ? (
+          {isEmailNotification && event.status !== "sent" && !event.sent_at ? (
             <>
               <button
                 type="button"
@@ -12717,12 +12720,14 @@ function NotificationEventDetailModal({
                 disabled={processing}
                 onClick={() => onSendEmail?.(event)}
               >
-                {event.status === "sent" || event.sent_at ? "재발송" : "발송하기"}
+                {processing || event.status === "sending" ? "발송 중..." : event.status === "failed" ? "재발송" : "발송하기"}
               </button>
             </>
           ) : (
             <span className="admin-card-meta">
-              {getNotificationChannel(event) === "internal"
+              {event.status === "sent" || event.sent_at
+                ? "이미 발송 완료된 알림입니다."
+                : getNotificationChannel(event) === "internal"
                 ? "내부 알림은 이메일 발송 대상이 아닙니다."
                 : "수신 이메일 없음"}
             </span>
@@ -15401,6 +15406,7 @@ function getNotificationChannelLabel(channel) {
 function getNotificationStatusLabel(status) {
   const labels = {
     pending: "발송 대기",
+    sending: "발송 중",
     sent: "발송 완료",
     failed: "발송 실패",
   };

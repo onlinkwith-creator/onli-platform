@@ -1798,10 +1798,6 @@ async function sendSingleNotification({
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   
-  if (!gmailUser || !gmailAppPassword) {
-    return jsonResponse({ success: false, error: "Missing required email secrets" }, 500);
-  }
-
   const { data: notification, error } = await supabase
     .from("notifications")
     .select("*")
@@ -1809,43 +1805,49 @@ async function sendSingleNotification({
     .single();
 
   if (error || !notification) {
-    return jsonResponse({ success: false, error: "notification_not_found", message: "알림을 찾을 수 없습니다." }, 404);
+    return jsonResponse({ ok: false, code: "NOTIFICATION_NOT_FOUND", message: "알림을 찾을 수 없습니다.", notification_id }, 404);
+  }
+
+  if (notification.status === "sent" || notification.sent_at) {
+    return jsonResponse({ ok: false, code: "ALREADY_SENT", message: "이미 발송 완료된 알림입니다.", notification_id }, 409);
+  }
+  if (notification.status === "sending") {
+    return jsonResponse({ ok: false, code: "SEND_IN_PROGRESS", message: "현재 발송 처리 중입니다.", notification_id }, 409);
+  }
+  if (!gmailUser || !gmailAppPassword) {
+    await supabase.from("notifications").update({ status: "failed", sent_at: null, error_message: "이메일 서버 인증 설정 누락" }).eq("id", notification_id);
+    return jsonResponse({ ok: false, code: "SMTP_AUTH_FAILED", message: "이메일 발송 설정을 확인할 수 없습니다.", notification_id }, 500);
   }
 
   const to = String(notification.recipient_email || "").trim();
   const channel = String(notification.channel || "").trim().toLowerCase();
   if (channel !== "email") {
     return jsonResponse({
-      success: false,
-      error: "not_email_notification",
+      ok: false,
+      code: "INVALID_CHANNEL",
       message: "email 채널 알림만 메일 발송할 수 있습니다.",
+      notification_id,
     }, 400);
   }
 
   if (!to || !to.includes("@")) {
-    return jsonResponse({ success: false, error: "recipient_email is missing or invalid" }, 400);
+    return jsonResponse({ ok: false, code: "INVALID_RECIPIENT", message: "수신자 이메일 주소가 올바르지 않습니다.", notification_id }, 400);
   }
 
-  const lockKey = `manual-notification:${notification_id}`;
-  const { error: lockError } = await supabase.from("mail_send_locks").insert({
-    key: lockKey,
-    type: "manual_notification",
-    target_email: to,
-    request_id: notification.related_request_id?.toString() || null,
-  });
+  const { data: lockedNotification, error: lockError } = await supabase
+    .from("notifications")
+    .update({ status: "sending", error_message: null })
+    .eq("id", notification_id)
+    .in("status", ["pending", "failed"])
+    .select("id")
+    .maybeSingle();
   if (lockError) {
-    if (lockError.code === "23505") {
-      return jsonResponse({
-        success: false,
-        error: "notification_send_in_progress",
-        message: "이미 발송 처리 중인 알림입니다.",
-      }, 409);
-    }
-    return jsonResponse({ success: false, error: lockError.message }, 500);
+    console.error("[send-email] failed", { notificationId: notification_id, errorCode: lockError.code, errorMessage: lockError.message });
+    return jsonResponse({ ok: false, code: "DATABASE_UPDATE_FAILED", message: "발송 상태를 갱신하지 못했습니다.", notification_id }, 500);
   }
-  const releaseLock = async () => {
-    await supabase.from("mail_send_locks").delete().eq("key", lockKey);
-  };
+  if (!lockedNotification) {
+    return jsonResponse({ ok: false, code: "SEND_IN_PROGRESS", message: "현재 발송 처리 중입니다.", notification_id }, 409);
+  }
 
   const type =
     notification.type ||
@@ -1953,8 +1955,8 @@ async function sendSingleNotification({
   try {
     transporter = createGmailTransporter(gmailUser, gmailAppPassword);
   } catch (e) {
-    await releaseLock();
-    return jsonResponse({ success: false, error: "SMTP config error" }, 500);
+    await supabase.from("notifications").update({ status: "failed", error_message: "SMTP 설정 오류" }).eq("id", notification_id);
+    return jsonResponse({ ok: false, code: "SMTP_AUTH_FAILED", message: "이메일 발송 설정을 확인해 주세요.", notification_id }, 500);
   }
 
   try {
@@ -1987,11 +1989,9 @@ async function sendSingleNotification({
           })
         })
         .eq("id", notification_id);
-      await releaseLock();
-
       return new Response(JSON.stringify({
-        success: false,
-        error: "smtp_no_accepted_recipients",
+        ok: false,
+        code: "PROVIDER_REJECTED",
         message: "SMTP accepted 수신자가 없습니다.",
         smtp: {
           accepted,
@@ -2008,7 +2008,7 @@ async function sendSingleNotification({
       });
     }
 
-    await supabase
+    const { error: sentUpdateError } = await supabase
       .from("notifications")
       .update({
         status: "sent",
@@ -2017,10 +2017,16 @@ async function sendSingleNotification({
         provider_message_id: messageId
       })
       .eq("id", notification_id);
-    await releaseLock();
+    if (sentUpdateError) {
+      console.error("[send-email] failed", { notificationId: notification_id, errorCode: sentUpdateError.code, errorMessage: sentUpdateError.message });
+      return jsonResponse({ ok: false, code: "DATABASE_UPDATE_FAILED", message: "이메일은 발송됐지만 상태 반영에 실패했습니다.", notification_id, provider_message_id: messageId }, 500);
+    }
 
     return new Response(JSON.stringify({
+      ok: true,
       success: true,
+      status: "sent",
+      notification_id,
       message: "이메일 발송 완료",
       smtp: {
         accepted,
@@ -2045,12 +2051,12 @@ async function sendSingleNotification({
         error_message: message
       })
       .eq("id", notification_id);
-    await releaseLock();
-
+    console.error("[send-email] failed", { notificationId: notification_id, errorCode: (sendError as any)?.code, errorMessage: message, providerStatus: (sendError as any)?.response?.status });
     return jsonResponse({
-      success: false,
-      error: "smtp_error",
-      message,
+      ok: false,
+      code: "PROVIDER_REJECTED",
+      message: "이메일 제공자가 발송을 거부했습니다.",
+      notification_id,
       smtp: {
         accepted: [],
         rejected: [],
