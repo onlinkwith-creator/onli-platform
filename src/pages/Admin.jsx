@@ -3498,101 +3498,42 @@ function sanitizeRecipientEmail(email) {
       requestPayload.interpreter_fee = interpreterAmountForProfit;
       requestPayload.settlement_final_amount = interpreterAmountForProfit;
     }
-    const previousSettlement = request._settlement || safeSettlements.find(
-      (settlement) => String(settlement.request_id) === String(request.id)
-    ) || null;
-
     setSavingKey(`request-${request.id}`);
-    const { data, error } = await updateRequestSettlementRow(request.id, requestPayload);
-    let settlementResult = { data: null, error: null, status: "not_required" };
-    if (!error) {
-      settlementResult = await saveSettlementRecordForRequest(
-        { ...request, ...payload, ...(data || {}) },
-        payload,
-        { amountOnly: hasInterpreterPaymentInput }
-      );
-    }
-    setSavingKey("");
-
-    if (error) {
-      console.error("정산 저장 디버그:", {
-        table: "requests",
-        id: request.id,
-        payload: requestPayload,
-        error,
+    try {
+      const { data: result, error } = await supabase.rpc("save_request_financials", {
+        p_request_id: Number(request.id),
+        p_company_amount: companyAmount,
+        p_interpreter_amount: interpreterAmountForProfit,
       });
-      alert(`정산 저장에 실패했습니다: ${error.message || "원인을 확인해주세요."}`);
-      return;
-    }
-
-    if (settlementResult.error) {
-      console.error("정산 레코드 저장 실패:", {
-        table: "settlements",
-        requestId: request.id,
-        payload,
-        error: settlementResult.error,
-      });
-      setRequests((current) =>
-        current.map((item) =>
-          item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
-        )
-      );
-      setSelectedRequest((current) =>
-        current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
-      );
-      await fetchAdminData();
-      await refreshAdminOperationsData();
-      alert("의뢰 금액은 저장되었지만 통역사 지급 내역 동기화에 실패했습니다.");
-      return;
-    }
-
-    if (settlementResult.status !== "not_required" && !settlementResult.data) {
-      setRequests((current) =>
-        current.map((item) =>
-          item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
-        )
-      );
-      setSelectedRequest((current) =>
-        current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
-      );
-      await fetchAdminData();
-      await refreshAdminOperationsData();
-      alert("의뢰 금액은 저장되었지만 통역사 지급 내역 동기화 결과를 확인하지 못했습니다.");
-      return;
-    }
-
-    setRequests((current) =>
-      current.map((item) =>
-        item.id === request.id ? { ...item, ...requestPayload, ...(data || {}) } : item
-      )
-    );
-    setSelectedRequest((current) =>
-      current?.id === request.id ? { ...current, ...requestPayload, ...(data || {}) } : current
-    );
-    if (settlementResult.data) {
-      setSettlements((current) => upsertById(current, settlementResult.data));
-      const previousAmountForHistory =
-        previousSettlement?.amount === null || previousSettlement?.amount === undefined
-          ? null
-          : Number(previousSettlement.amount);
-      const nextAmountForHistory =
-        settlementResult.data.amount === null || settlementResult.data.amount === undefined
-          ? null
-          : Number(settlementResult.data.amount);
-      if (previousAmountForHistory !== nextAmountForHistory) {
-        queueMicrotask(() => {
-          recordInterpreterSettlementAmountChange(previousSettlement, settlementResult.data);
+      if (error) {
+        console.error("금액 및 정산 저장 실패", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
         });
+        throw error;
       }
+
+      const savedRequest = result?.request || requestPayload;
+      setRequests((current) => current.map((item) =>
+        item.id === request.id ? { ...item, ...savedRequest } : item
+      ));
+      setSelectedRequest((current) =>
+        current?.id === request.id ? { ...current, ...savedRequest } : current
+      );
+      await fetchAdminData();
+      await refreshAdminOperationsData();
+      alert(result?.settlement_synced
+        ? "의뢰 금액과 통역사 정산 내역이 저장되었습니다."
+        : "의뢰 금액이 저장되었습니다. 통역사 배정 후 정산 내역이 생성됩니다.");
+      return true;
+    } catch (error) {
+      alert(`금액 저장에 실패했습니다: ${error.message || "원인을 확인해주세요."}`);
+      return false;
+    } finally {
+      setSavingKey("");
     }
-    await fetchAdminData();
-    await refreshAdminOperationsData();
-    alert(
-      settlementResult.status === "not_required"
-        ? "정산 금액이 저장되었습니다. 통역사 배정 후 지급 내역에 자동 반영됩니다."
-        : "정산 금액과 통역사 지급 내역이 저장되었습니다."
-    );
-    return true;
   };
 
   const completeSettlementFromPendingModal = async (request) => {
@@ -3613,65 +3554,6 @@ function sanitizeRecipientEmail(email) {
   const openRequestDetailFromSettlementPending = (request) => {
     setIsSettlementPendingModalOpen(false);
     openRequestModal("detail", request);
-  };
-
-  const updateRequestSettlementRow = async (requestId, payload) => {
-    const request = requests.find((item) => String(item.id) === String(requestId));
-    const safePayload = filterRequestUpdatePayload(payload, request);
-    delete safePayload.company_fee;
-    delete safePayload.settlement_status;
-    delete safePayload.payment_status;
-    const { data, error } = await supabase
-      .from("requests")
-      .update(safePayload)
-      .eq("id", requestId)
-      .select("*")
-      .single();
-
-    if (!error) return { data, error: null };
-    if (!isMissingColumnError(error)) return { data: null, error };
-
-    logRequestUpdateFailure("Request settlement update column fallback", {
-      payload: safePayload,
-      requestId,
-      error,
-    });
-    const legacyPayload = Object.fromEntries(Object.entries({
-      client_price: payload.company_amount,
-      interpreter_price: payload.interpreter_payment,
-      profit: payload.platform_profit,
-    }).filter(([, value]) => value !== undefined));
-
-    let { data: fallbackData, error: fallbackError } = await supabase
-      .from("requests")
-      .update(legacyPayload)
-      .eq("id", requestId)
-      .select("*")
-      .single();
-
-    if (fallbackError && isMissingColumnError(fallbackError)) {
-      console.error("request settlement status fallback:", {
-        table: "requests",
-        id: requestId,
-        payload: legacyPayload,
-        error: fallbackError,
-      });
-      const minimumPayload = {
-        client_price: payload.company_amount,
-        interpreter_price: payload.interpreter_payment,
-        profit: payload.platform_profit,
-      };
-      const minimumResult = await supabase
-        .from("requests")
-        .update(minimumPayload)
-        .eq("id", requestId)
-        .select("*")
-        .single();
-      fallbackData = minimumResult.data;
-      fallbackError = minimumResult.error;
-    }
-
-    return { data: fallbackData, error: fallbackError };
   };
 
   const assignInterpreter = async (requestId) => {
