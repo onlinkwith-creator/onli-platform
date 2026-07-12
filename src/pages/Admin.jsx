@@ -3813,7 +3813,7 @@ function sanitizeRecipientEmail(email) {
     };
     let { data: assignmentData, error } = await supabase
       .from("request_interpreters")
-      .insert([payload])
+      .upsert([payload], { onConflict: "request_id,interpreter_id" })
       .select("id, request_id, interpreter_id, contact_visible")
       .single();
 
