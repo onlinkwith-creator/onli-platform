@@ -1448,6 +1448,8 @@ async function processNotifications({
         .update({
           status: "failed",
           sent_at: null,
+          failed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           error_message: errorMessage,
         })
         .eq("id", notification.id);
@@ -1713,16 +1715,9 @@ Deno.serve(async (request) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
-    console.log("REQUEST BODY", {
-      type,
-      to,
-      payload,
+    console.log("[send-email] request received", {
+      notificationId: body?.notification_id || body?.notificationId || null,
     });
-    console.log("TO:", to);
-    console.log("HAS GMAIL USER", !!gmailUser);
-    console.log("HAS GMAIL APP PASSWORD", !!gmailAppPassword);
-    console.log("HAS SUPABASE URL", !!supabaseUrl);
-    console.log("HAS SUPABASE SERVICE ROLE KEY", !!serviceRoleKey);
 
     if (!["gmail", "smtp"].includes(emailProvider)) {
       return jsonResponse({
@@ -1744,6 +1739,7 @@ Deno.serve(async (request) => {
     }
 
     const notification_id = String(body?.notification_id || body?.notificationId || "");
+    const force_resend = body?.force_resend === true;
     if (!notification_id) {
       return jsonResponse({
         success: false,
@@ -1755,6 +1751,7 @@ Deno.serve(async (request) => {
     return await sendSingleNotification({
       request,
       notification_id,
+      force_resend,
       supabaseUrl,
       serviceRoleKey,
       anonKey,
@@ -1777,6 +1774,7 @@ Deno.serve(async (request) => {
 async function sendSingleNotification({
   request,
   notification_id,
+  force_resend,
   supabaseUrl,
   serviceRoleKey,
   anonKey,
@@ -1785,6 +1783,7 @@ async function sendSingleNotification({
 }: {
   request: Request;
   notification_id: string;
+  force_resend: boolean;
   supabaseUrl: string;
   serviceRoleKey: string;
   anonKey: string;
@@ -1795,6 +1794,7 @@ async function sendSingleNotification({
   if (!adminCheck.ok) {
     return jsonResponse({ success: false, error: adminCheck.error }, adminCheck.status);
   }
+  console.log("[send-email] admin authenticated", { notificationId: notification_id });
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   
@@ -1807,12 +1807,16 @@ async function sendSingleNotification({
   if (error || !notification) {
     return jsonResponse({ ok: false, code: "NOTIFICATION_NOT_FOUND", message: "알림을 찾을 수 없습니다.", notification_id }, 404);
   }
+  console.log("[send-email] notification loaded", { notificationId: notification_id, status: notification.status });
 
-  if (notification.status === "sent" || notification.sent_at) {
-    return jsonResponse({ ok: false, code: "ALREADY_SENT", message: "이미 발송 완료된 알림입니다.", notification_id }, 409);
+  if ((notification.status === "sent" || notification.sent_at) && !force_resend) {
+    return jsonResponse({ ok: true, success: true, already_sent: true, status: "sent", message: "이미 발송 완료된 알림입니다.", notification_id }, 200);
   }
   if (notification.status === "sending") {
-    return jsonResponse({ ok: false, code: "SEND_IN_PROGRESS", message: "현재 발송 처리 중입니다.", notification_id }, 409);
+    const lastAttempt = notification.last_attempt_at ? new Date(notification.last_attempt_at).getTime() : 0;
+    if (Date.now() - lastAttempt < 5 * 60 * 1000) {
+      return jsonResponse({ ok: true, success: true, already_processing: true, status: "sending", message: "이미 발송 처리 중입니다.", notification_id }, 200);
+    }
   }
   if (!gmailUser || !gmailAppPassword) {
     await supabase.from("notifications").update({ status: "failed", sent_at: null, error_message: "이메일 서버 인증 설정 누락" }).eq("id", notification_id);
@@ -1836,9 +1840,13 @@ async function sendSingleNotification({
 
   const { data: lockedNotification, error: lockError } = await supabase
     .from("notifications")
-    .update({ status: "sending", error_message: null })
+    .update({
+      status: "sending", error_message: null, failed_at: null,
+      last_attempt_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      attempt_count: Number(notification.attempt_count || 0) + 1,
+    })
     .eq("id", notification_id)
-    .in("status", ["pending", "failed"])
+    .eq("status", notification.status)
     .select("id")
     .maybeSingle();
   if (lockError) {
@@ -1846,7 +1854,7 @@ async function sendSingleNotification({
     return jsonResponse({ ok: false, code: "DATABASE_UPDATE_FAILED", message: "발송 상태를 갱신하지 못했습니다.", notification_id }, 500);
   }
   if (!lockedNotification) {
-    return jsonResponse({ ok: false, code: "SEND_IN_PROGRESS", message: "현재 발송 처리 중입니다.", notification_id }, 409);
+    return jsonResponse({ ok: true, success: true, already_processing: true, status: "sending", message: "이미 발송 처리 중입니다.", notification_id }, 200);
   }
 
   const type =
@@ -1949,7 +1957,7 @@ async function sendSingleNotification({
     `
       );
 
-  console.log("SEND EMAIL START", { notification_id, to, subject });
+  console.log("[send-email] send attempt started", { notificationId: notification_id });
 
   let transporter;
   try {
@@ -1967,12 +1975,11 @@ async function sendSingleNotification({
       html,
     });
 
-    console.log("SMTP RESULT", JSON.stringify(result, null, 2));
-
     const accepted = Array.isArray(result.accepted) ? result.accepted : [];
     const rejected = Array.isArray(result.rejected) ? result.rejected : [];
     const response = result.response ?? null;
     const messageId = result.messageId ?? null;
+    console.log("[send-email] provider response received", { notificationId: notification_id, acceptedCount: accepted.length, rejectedCount: rejected.length, hasMessageId: Boolean(messageId) });
 
     if (accepted.length === 0) {
       await supabase
@@ -2014,13 +2021,16 @@ async function sendSingleNotification({
         status: "sent",
         sent_at: new Date().toISOString(),
         error_message: null,
-        provider_message_id: messageId
+        provider_message_id: messageId,
+        failed_at: null,
+        updated_at: new Date().toISOString(),
       })
       .eq("id", notification_id);
     if (sentUpdateError) {
       console.error("[send-email] failed", { notificationId: notification_id, errorCode: sentUpdateError.code, errorMessage: sentUpdateError.message });
       return jsonResponse({ ok: false, code: "DATABASE_UPDATE_FAILED", message: "이메일은 발송됐지만 상태 반영에 실패했습니다.", notification_id, provider_message_id: messageId }, 500);
     }
+    console.log("[send-email] database status updated", { notificationId: notification_id, status: "sent" });
 
     return new Response(JSON.stringify({
       ok: true,
@@ -2028,6 +2038,7 @@ async function sendSingleNotification({
       status: "sent",
       notification_id,
       message: "이메일 발송 완료",
+      sent_at: new Date().toISOString(),
       smtp: {
         accepted,
         rejected,
@@ -2048,7 +2059,9 @@ async function sendSingleNotification({
       .update({
         status: "failed",
         sent_at: null,
-        error_message: message
+        error_message: message,
+        failed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .eq("id", notification_id);
     console.error("[send-email] failed", { notificationId: notification_id, errorCode: (sendError as any)?.code, errorMessage: message, providerStatus: (sendError as any)?.response?.status });

@@ -1871,6 +1871,10 @@ function sanitizeRecipientEmail(email) {
       alert("이메일 채널 알림만 발송할 수 있습니다.");
       return false;
     }
+    const isResend = event.status === "sent" || Boolean(event.sent_at);
+    if (isResend && !window.confirm("이미 발송 완료된 이메일입니다. 동일 수신자에게 다시 발송하시겠습니까?")) {
+      return false;
+    }
 
     setNotificationProcessing(true);
     try {
@@ -1892,7 +1896,8 @@ function sanitizeRecipientEmail(email) {
           "apikey": SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
-          notification_id: event.source_id || event.id
+          notification_id: event.source_id || event.id,
+          force_resend: isResend,
         })
       });
 
@@ -1904,21 +1909,20 @@ function sanitizeRecipientEmail(email) {
           body: data,
           notification_id: event.source_id || event.id,
         });
-        if (res.status === 409 && data?.code === "ALREADY_SENT") {
-          await refreshAdminOperationsData();
-          alert("이미 발송 완료된 알림입니다.");
-          return true;
-        }
-        if (res.status === 409 && data?.code === "SEND_IN_PROGRESS") {
-          await refreshAdminOperationsData();
-          alert("현재 발송 처리 중입니다. 잠시 후 다시 확인해 주세요.");
-          return false;
-        }
         alert(`이메일 발송 실패: ${data?.message || data?.error || `HTTP ${res.status}`}`);
         return false;
       }
 
       await refreshAdminOperationsData();
+
+      if (data?.already_processing) {
+        alert("이미 발송 처리 중입니다.");
+        return true;
+      }
+      if (data?.already_sent) {
+        alert("이미 발송 완료된 알림입니다.");
+        return true;
+      }
 
       const smtp = data?.smtp ?? {};
 
@@ -12712,7 +12716,7 @@ function NotificationEventDetailModal({
           <button type="button" className="admin-secondary" onClick={onClose}>
             닫기
           </button>
-          {isEmailNotification && event.status !== "sent" && !event.sent_at ? (
+          {isEmailNotification ? (
             <>
               <button
                 type="button"
@@ -12720,7 +12724,7 @@ function NotificationEventDetailModal({
                 disabled={processing}
                 onClick={() => onSendEmail?.(event)}
               >
-                {processing || event.status === "sending" ? "발송 중..." : event.status === "failed" ? "재발송" : "발송하기"}
+                {processing || event.status === "sending" ? "발송 중..." : event.status === "failed" || event.status === "sent" || event.sent_at ? "재발송" : "발송하기"}
               </button>
             </>
           ) : (
