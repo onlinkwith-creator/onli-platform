@@ -6733,6 +6733,7 @@ function InterpreterSettlementManagement({
   return (
     <section className="admin-section">
       <SectionTitle count={`${rows.length}건`} title={title} />
+      <p className="admin-card-meta">실제 배정 관계가 확인된 의뢰만 정산 대상으로 표시됩니다.</p>
       <div className="admin-filter-bar admin-filters">
         <label className="admin-filter-search admin-search-control">
           <Search size={16} aria-hidden="true" />
