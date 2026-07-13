@@ -332,7 +332,7 @@ function createEmailTemplate({
 <body style="margin:0; padding:0; background:#F5F7FA; color:#1F2937; font-family:Arial,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; background:#F5F7FA;"><tr><td class="email-shell" align="center" style="padding:32px 16px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%; max-width:600px; border-collapse:separate; background:#FFFFFF; border-radius:12px; overflow:hidden;">
-<tr><td align="center" style="height:80px; padding:0 24px; background:#5B4CF0; color:#FFFFFF;"><div style="font-size:26px; line-height:1.2; font-weight:800; letter-spacing:1px;">ON-LI</div><div style="margin-top:5px; font-size:11px; line-height:1.3; font-weight:700;">ONLI Platform</div></td></tr>
+<tr><td align="center" style="height:80px; padding:0 24px; background:#5B4CF0; color:#FFFFFF;"><div style="font-size:26px; line-height:1.2; font-weight:800; letter-spacing:1px;">ON-LI</div><div style="margin-top:5px; font-size:11px; line-height:1.3; font-weight:700;">ON-Link Interpretation Platform</div></td></tr>
 <tr><td class="email-content" style="padding:40px;">
 <h1 class="email-title" style="margin:0 0 24px; color:#111827; font-size:28px; line-height:1.35; font-weight:800;">${escapeHtml(title)}</h1>
 <p style="margin:0 0 8px; font-size:15px; line-height:1.7; color:#374151;">안녕하세요.</p>
@@ -343,7 +343,7 @@ ${settlementProgress(status)}
 <div style="margin-top:24px; font-size:14px; line-height:1.8; color:#374151;">${message}</div>${information}${button}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin-top:32px; border-collapse:separate; border-radius:8px; background:#F8F7FF;"><tr><td style="padding:18px 20px; color:#4B5563; font-size:13px; line-height:1.7;"><strong style="display:block; margin-bottom:4px; color:#111827;">문의</strong>문의사항은 아래로 연락 부탁드립니다.<br><a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br>운영시간: 평일 09:00 ~ 18:00</td></tr></table>
 </td></tr>
-<tr><td style="padding:24px 40px; border-top:1px solid #E5E7EB; background:#F3F4F6; color:#6B7280; font-size:11px; line-height:1.7;"><strong style="color:#374151;">ON-LI</strong><br>ONLI Platform<br>Website: <a href="https://on-li.jp" style="color:#5B4CF0; text-decoration:none;">https://on-li.jp</a><br>E-mail: <a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br><br>본 메일은 시스템에 의해 자동 발송되었습니다.<br>문의는 회신하지 마시고 홈페이지를 이용해주시기 바랍니다.</td></tr>
+<tr><td style="padding:24px 40px; border-top:1px solid #E5E7EB; background:#F3F4F6; color:#6B7280; font-size:11px; line-height:1.7;"><strong style="color:#374151;">ON-LI</strong><br>ON-Link Interpretation Platform<br>Website: <a href="https://on-li.jp" style="color:#5B4CF0; text-decoration:none;">https://on-li.jp</a><br>E-mail: <a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br><br>본 메일은 시스템에 의해 자동 발송되었습니다.<br>문의는 회신하지 마시고 홈페이지를 이용해주시기 바랍니다.</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
