@@ -1007,6 +1007,19 @@ function sanitizeRecipientEmail(email) {
     () => loadAdminRequestRows({ requests, assignments, interpreters, settlements: safeSettlements }),
     [assignments, interpreters, requests, safeSettlements]
   );
+  const settlementExcludedRequests = useMemo(() => {
+    const assignedRequestIds = new Set(
+      assignments
+        .filter((assignment) => assignment.request_id && assignment.interpreter_id)
+        .map((assignment) => String(assignment.request_id))
+    );
+    return requests.filter(
+      (request) =>
+        !assignedRequestIds.has(String(request.id)) &&
+        !request.assigned_interpreter_id &&
+        !request.matched_interpreter_id
+    );
+  }, [assignments, requests]);
   const jobApplicationsByJob = useMemo(
     () => groupByStringKey(jobApplications, "job_id"),
     [jobApplications]
@@ -4853,6 +4866,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 settlementRequests={settlementManagementRows.pending}
+                excludedRequests={settlementExcludedRequests}
                 savingKey={savingKey}
                 settlements={safeSettlements}
                 setFilters={setSettlementFilters}
@@ -4871,6 +4885,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 settlementRequests={settlementManagementRows.confirmed}
+                excludedRequests={settlementExcludedRequests}
                 savingKey={savingKey}
                 settlements={safeSettlements}
                 setFilters={setSettlementFilters}
@@ -4889,6 +4904,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 settlementRequests={settlementManagementRows.paying}
+                excludedRequests={settlementExcludedRequests}
                 savingKey={savingKey}
                 settlements={safeSettlements}
                 setFilters={setSettlementFilters}
@@ -4907,6 +4923,7 @@ function sanitizeRecipientEmail(email) {
                 logs={settlementLogs}
                 requests={requests}
                 settlementRequests={settlementManagementRows.completed}
+                excludedRequests={settlementExcludedRequests}
                 savingKey={savingKey}
                 settlements={safeSettlements}
                 setFilters={setSettlementFilters}
@@ -6638,6 +6655,7 @@ function CompanyPaymentManagement({
 
 function InterpreterSettlementManagement({
   documents = [],
+  excludedRequests = [],
   filters,
   interpreters = [],
   logs = [],
@@ -6755,6 +6773,13 @@ function InterpreterSettlementManagement({
     <section className="admin-section">
       <SectionTitle count={`${rows.length}건`} title={title} />
       <p className="admin-card-meta">실제 배정 관계가 확인된 의뢰만 정산 대상으로 표시됩니다.</p>
+      {excludedRequests.length > 0 && (
+        <p className="admin-card-meta admin-settlement-exclusion-note">
+          정산 제외 {excludedRequests.length}건: {excludedRequests
+            .map((request) => request.request_no || request.id)
+            .join(", ")} (현재 request_interpreters 배정 관계 없음)
+        </p>
+      )}
       <div className="admin-filter-bar admin-filters">
         <label className="admin-filter-search admin-search-control">
           <Search size={16} aria-hidden="true" />

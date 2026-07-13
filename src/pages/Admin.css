@@ -1005,6 +1005,11 @@
   accent-color: #4f46e5;
 }
 
+.admin-settlement-exclusion-note {
+  margin-top: 6px;
+  color: #b45309;
+}
+
 .admin-notification-log-table {
   min-width: 1240px;
 }
