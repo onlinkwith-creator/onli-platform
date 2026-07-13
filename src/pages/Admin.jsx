@@ -7126,18 +7126,13 @@ function InterpreterSettlementManagement({
                   singleDateMode
                   startDate={draft.paid_at.slice(0, 10)}
                   endDate={draft.paid_at.slice(0, 10)}
-                  timeValue={draft.paid_at.slice(11, 16)}
                   allowClear
                   onChange={({ startDate }) =>
                     updateDraft(
                       "paid_at",
-                      startDate ? `${startDate}T${draft.paid_at.slice(11, 16) || "00:00"}` : ""
+                      startDate ? `${startDate}T${getCurrentAdminTimeInput()}` : ""
                     )
                   }
-                  onTimeChange={(time) => {
-                    const date = draft.paid_at.slice(0, 10);
-                    if (date) updateDraft("paid_at", `${date}T${time}`);
-                  }}
                 />
                 <FieldControl label="지급 방식">
                   <select
@@ -16120,6 +16115,10 @@ function adminDateTimeInputToISOString(value) {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(value || ""))) return null;
   const date = new Date(`${value}:00+09:00`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function getCurrentAdminTimeInput() {
+  return toAdminDateTimeInput(new Date()).slice(11, 16);
 }
 
 function isDateInRange(date, startDate, endDate, fallbackDate) {

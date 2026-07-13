@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import { ko } from "react-day-picker/locale";
 import {
@@ -23,8 +24,10 @@ function DateRangeInput({
   allowClear = false,
 }) {
   const pickerRef = useRef(null);
+  const calendarRef = useRef(null);
   const draftStartRef = useRef(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState(null);
   const normalizedStart = normalizeDateToISO(startDate);
   const normalizedEnd = normalizeDateToISO(endDate);
   const selectedRange = useMemo(
@@ -65,6 +68,28 @@ function DateRangeInput({
     });
   };
 
+  const updatePopoverPosition = useCallback(() => {
+    if (!pickerRef.current) return;
+    const anchor = pickerRef.current.getBoundingClientRect();
+    const viewportGap = 12;
+    const width = Math.min(356, window.innerWidth - viewportGap * 2);
+    const height = calendarRef.current?.offsetHeight || (timeValue !== null ? 440 : 380);
+    const spaceBelow = window.innerHeight - anchor.bottom - viewportGap;
+    const openAbove = spaceBelow < height && anchor.top > spaceBelow;
+    const top = openAbove
+      ? Math.max(viewportGap, anchor.top - height - 10)
+      : Math.max(
+          viewportGap,
+          Math.min(anchor.bottom + 10, window.innerHeight - height - viewportGap)
+        );
+    const left = Math.min(
+      Math.max(viewportGap, anchor.left),
+      window.innerWidth - width - viewportGap
+    );
+
+    setPopoverStyle({ top, left, width });
+  }, [timeValue]);
+
   const handleSelect = (range, selectedDay) => {
     const selectedDate = isoFromDate(selectedDay);
 
@@ -93,7 +118,7 @@ function DateRangeInput({
 
     updateRange(nextStartDate, nextEndDate);
 
-    if (singleDateMode || (nextStartDate && nextEndDate)) {
+    if ((singleDateMode && timeValue === null) || (!singleDateMode && nextStartDate && nextEndDate)) {
       setIsPickerOpen(false);
     }
   };
@@ -102,7 +127,7 @@ function DateRangeInput({
     if (!isPickerOpen) return undefined;
 
     const handlePointerDown = (event) => {
-      if (pickerRef.current?.contains(event.target)) return;
+      if (pickerRef.current?.contains(event.target) || calendarRef.current?.contains(event.target)) return;
       draftStartRef.current = null;
       setIsPickerOpen(false);
     };
@@ -120,6 +145,21 @@ function DateRangeInput({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isPickerOpen]);
+
+  useLayoutEffect(() => {
+    if (!isPickerOpen) return undefined;
+
+    updatePopoverPosition();
+    const frame = window.requestAnimationFrame(updatePopoverPosition);
+    const handleViewportChange = () => updatePopoverPosition();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [isPickerOpen, updatePopoverPosition]);
 
   return (
     <div className={`date-range-input${validationMessage ? " has-error" : ""}`}>
@@ -139,17 +179,6 @@ function DateRangeInput({
             active={isPickerOpen}
             onClick={handlePickerToggle}
           />
-          {singleDateMode && timeValue !== null && (
-            <div className="date-picker-card">
-              <span>시간</span>
-              <input
-                type="time"
-                value={timeValue}
-                onChange={(event) => onTimeChange?.(event.target.value)}
-                aria-label={`${label} 시간`}
-              />
-            </div>
-          )}
           {!singleDateMode && (
             <DatePickerButton
               label="종료일"
@@ -160,8 +189,14 @@ function DateRangeInput({
           )}
         </div>
 
-        {isPickerOpen && (
-          <div className="date-range-calendar-panel">
+        {isPickerOpen && popoverStyle && createPortal(
+          <div
+            ref={calendarRef}
+            className="date-range-calendar-panel is-portal"
+            style={popoverStyle}
+            role="dialog"
+            aria-label={`${label} 선택`}
+          >
             <DayPicker
               mode="range"
               locale={ko}
@@ -173,19 +208,32 @@ function DateRangeInput({
               fixedWeeks
               showOutsideDays
             />
+            {singleDateMode && timeValue !== null && (
+              <div className="date-picker-card date-picker-time-control">
+                <span>시간</span>
+                <input
+                  type="time"
+                  value={timeValue}
+                  onChange={(event) => onTimeChange?.(event.target.value)}
+                  aria-label={`${label} 시간`}
+                />
+              </div>
+            )}
+            {allowClear && normalizedStart && (
+              <button
+                type="button"
+                className="date-range-clear"
+                onClick={() => {
+                  updateRange("", "");
+                  setIsPickerOpen(false);
+                }}
+              >
+                날짜 초기화
+              </button>
+            )}
           </div>
-        )}
+        , document.body)}
       </div>
-
-      {allowClear && normalizedStart && (
-        <button
-          type="button"
-          className="date-range-clear"
-          onClick={() => updateRange("", "")}
-        >
-          날짜 초기화
-        </button>
-      )}
 
       {showQuickButtons && !singleDateMode && (
         <div className="date-range-quick" aria-label="빠른 기간 선택">
