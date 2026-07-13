@@ -51,6 +51,10 @@ const subjects = {
 type EmailType = keyof typeof subjects;
 type Payload = Record<string, unknown>;
 
+function isEmailType(value: unknown): value is EmailType {
+  return typeof value === "string" && Object.hasOwn(subjects, value);
+}
+
 type MailOptions = {
   from: string;
   to: string;
@@ -1811,7 +1815,7 @@ async function sendTestEmail({
   }
 }
 
-Deno.serve(async (request) => {
+Deno.serve(async (request: Request) => {
   console.log("FUNCTION START");
 
   if (request.method === "OPTIONS") {
@@ -1825,7 +1829,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({}));
     const action = String(body?.action || "");
-    const type = body?.type as EmailType;
+    const type = isEmailType(body?.type) ? body.type : undefined;
     let to =
       typeof body?.to === "string"
         ? body.to.trim()
@@ -1843,7 +1847,7 @@ Deno.serve(async (request) => {
     const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD") || Deno.env.get("EMAIL_API_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
 
     console.log("[send-email] request received", {
       notificationId: body?.notification_id || body?.notificationId || null,
@@ -2048,10 +2052,10 @@ async function sendSingleNotification({
     statusText = previousStatus;
   }
 
-  const usesExistingApplicationTemplate =
-    type === "job_applied_user" || type === "job_applied_admin";
-  const subject = normalizeSubject(usesExistingApplicationTemplate
-    ? SUBJECTS[type as EmailType]
+  const applicationTemplateType: EmailType | null =
+    type === "job_applied_user" || type === "job_applied_admin" ? type : null;
+  const subject = normalizeSubject(applicationTemplateType
+    ? subjects[applicationTemplateType]
     : `${reason}${relatedNo ? ` - ${relatedNo}` : ""}`);
   
   const originalMessage = String(notification.message || "");
@@ -2092,8 +2096,8 @@ async function sendSingleNotification({
       ? settlementStatusLabel(nextStatus, templateTitle)
       : inferredStatus(templateTitle);
 
-  const html = usesExistingApplicationTemplate
-    ? buildHtml(type as EmailType, metadata)
+  const html = applicationTemplateType
+    ? buildHtml(applicationTemplateType, metadata)
     : createEmailTemplate({
         title: templateTitle,
         status: templateStatus,
