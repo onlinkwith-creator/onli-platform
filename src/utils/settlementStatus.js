@@ -66,8 +66,8 @@ export function getSettlementStatusLabel(status) {
 export function getSettlementStatusBadgeClass(status) {
   const classes = {
     [ADMIN_SETTLEMENT_STATUS.WAITING]: "badge-yellow",
-    [ADMIN_SETTLEMENT_STATUS.CONFIRMED]: "badge-blue",
-    [ADMIN_SETTLEMENT_STATUS.PAYING]: "badge-purple",
+    [ADMIN_SETTLEMENT_STATUS.CONFIRMED]: "badge-purple",
+    [ADMIN_SETTLEMENT_STATUS.PAYING]: "badge-indigo",
     [ADMIN_SETTLEMENT_STATUS.COMPLETED]: "badge-green",
   };
   return classes[normalizeAdminSettlementStatus(status)] || "badge-yellow";

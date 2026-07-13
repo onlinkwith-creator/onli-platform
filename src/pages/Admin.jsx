@@ -1398,6 +1398,12 @@ function sanitizeRecipientEmail(email) {
     return null;
   };
 
+  const formatTabBadgeCount = (count) => {
+    if (count >= 1000) return "999+";
+    if (count >= 100) return "99+";
+    return count;
+  };
+
   const metricCards = [
     {
       label: "신규 의뢰",
@@ -4569,7 +4575,9 @@ function sanitizeRecipientEmail(email) {
                     onClick={() => switchSubTab(tab.id)}
                   >
                     {tab.label}
-                    {count !== null && <span>{count}</span>}
+                    {count !== null && tab.id !== "notification_history" && (
+                      <span>{formatTabBadgeCount(count)}</span>
+                    )}
                   </button>
                 );
               })}
@@ -12328,6 +12336,14 @@ function NotificationHistoryManagement({
     return true;
   });
   const failedCount = notificationItems.filter((event) => event.status === "failed").length;
+  const pendingCount = notificationItems.filter((event) => event.status === "pending").length;
+  const sentCount = notificationItems.filter((event) => event.status === "sent").length;
+  const todayKey = new Date().toDateString();
+  const todayCount = notificationItems.filter((event) => {
+    if (!event.created_at) return false;
+    const createdAt = new Date(event.created_at);
+    return !Number.isNaN(createdAt.getTime()) && createdAt.toDateString() === todayKey;
+  }).length;
   const visibleIds = visibleEvents.map((event) => event.source_id).filter(Boolean);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
   const removeEvents = async (ids, message) => {
@@ -12343,7 +12359,14 @@ function NotificationHistoryManagement({
 
   return (
     <section className="admin-section">
-      <SectionTitle count={`${visibleEvents.length}건`} title="알림 로그" />
+      <div className="admin-notification-history-heading">
+        <div>
+          <p className="admin-kicker">MANAGE</p>
+          <h2>알림 이력</h2>
+          <span>(전체 보관)</span>
+        </div>
+        <p>전체 보관 <strong>{notificationItems.length}건</strong></p>
+      </div>
       <div className="admin-section-toolbar admin-notification-toolbar">
         <div className="admin-filter-bar admin-filters">
           <select
@@ -12405,6 +12428,20 @@ function NotificationHistoryManagement({
             전체 삭제
           </button>
         </div>
+      </div>
+      <div className="admin-notification-log-summary" aria-label="알림 이력 요약">
+        {[
+          ["전체 보관", notificationItems.length],
+          ["오늘 생성", todayCount],
+          ["발송 대기", pendingCount],
+          ["발송 실패", failedCount],
+          ["발송 완료", sentCount],
+        ].map(([label, count]) => (
+          <div key={label} className="admin-notification-log-summary-item">
+            <span>{label}</span>
+            <strong>{count}건</strong>
+          </div>
+        ))}
       </div>
       {visibleEvents.length === 0 ? (
         <>

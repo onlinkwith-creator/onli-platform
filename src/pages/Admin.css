@@ -751,6 +751,87 @@
   justify-content: space-between;
 }
 
+.admin-notification-history-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.admin-notification-history-heading h2 {
+  display: inline;
+  margin: 0;
+  color: #111827;
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.admin-notification-history-heading > div > span {
+  margin-left: 7px;
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-notification-history-heading > p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-notification-history-heading > p strong {
+  margin-left: 4px;
+  color: #4f46e5;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.admin-notification-log-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 14px;
+}
+
+.admin-notification-log-summary-item {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.admin-notification-log-summary-item span {
+  display: block;
+  margin-bottom: 5px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-notification-log-summary-item strong {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+@media (max-width: 760px) {
+  .admin-notification-history-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-notification-log-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .admin-notification-log-table input[type="checkbox"] {
   width: 16px;
   height: 16px;
@@ -2946,6 +3027,12 @@
 .badge-purple {
   background: #f3e8ff;
   color: #7e22ce;
+}
+
+.badge-indigo {
+  border-color: #c7d2fe;
+  background-color: #e0e7ff;
+  color: #4338ca;
 }
 
 .badge-neutral {

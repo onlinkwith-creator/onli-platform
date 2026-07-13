@@ -114,7 +114,7 @@ export function getAssignmentStatusBadgeClass(status) {
   return {
     [ASSIGNMENT_STATUS.WAITING]: "flow-badge-gray",
     [ASSIGNMENT_STATUS.ASSIGNING]: "flow-badge-blue",
-    [ASSIGNMENT_STATUS.ASSIGNED]: "flow-badge-indigo",
+    [ASSIGNMENT_STATUS.ASSIGNED]: "flow-badge-blue",
   }[status] || "flow-badge-gray";
 }
 
