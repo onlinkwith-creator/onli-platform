@@ -240,6 +240,14 @@ function fieldFrom(payload: Payload, keys: string[], fallback = "-") {
   return key ? field(payload, key, fallback) : fallback;
 }
 
+function normalizeSubject(value: unknown) {
+  const cleanSubject = String(value || "운영 안내")
+    .replace(/^\[ON-LI\]\s*/i, "")
+    .replace(/^ON-LI\s*/i, "")
+    .trim();
+  return `[ON-LI] ${cleanSubject || "운영 안내"}`;
+}
+
 type EmailTemplateOptions = {
   title: string;
   status?: string;
@@ -320,7 +328,7 @@ function createEmailTemplate({
 <body style="margin:0; padding:0; background:#F5F7FA; color:#1F2937; font-family:Arial,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; background:#F5F7FA;"><tr><td class="email-shell" align="center" style="padding:32px 16px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%; max-width:600px; border-collapse:separate; background:#FFFFFF; border-radius:12px; overflow:hidden;">
-<tr><td align="center" style="height:80px; padding:0 24px; background:#5B4CF0; color:#FFFFFF;"><div style="font-size:26px; line-height:1.2; font-weight:800; letter-spacing:1px;">ON-LI</div><div style="margin-top:5px; font-size:11px; line-height:1.3; font-weight:700;">Korean-Japanese Business Matching Platform</div></td></tr>
+<tr><td align="center" style="height:80px; padding:0 24px; background:#5B4CF0; color:#FFFFFF;"><div style="font-size:26px; line-height:1.2; font-weight:800; letter-spacing:1px;">ON-LI</div><div style="margin-top:5px; font-size:11px; line-height:1.3; font-weight:700;">ONLI Platform</div></td></tr>
 <tr><td class="email-content" style="padding:40px;">
 <h1 class="email-title" style="margin:0 0 24px; color:#111827; font-size:28px; line-height:1.35; font-weight:800;">${escapeHtml(title)}</h1>
 <p style="margin:0 0 8px; font-size:15px; line-height:1.7; color:#374151;">안녕하세요.</p>
@@ -329,9 +337,9 @@ function createEmailTemplate({
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:separate; border:1px solid #E5E2FF; border-radius:10px; background:${badge.background};"><tr><td style="padding:20px;"><div style="margin-bottom:10px; color:#6B7280; font-size:12px; font-weight:700;">현재 상태</div><span style="display:inline-block; padding:8px 14px; border-radius:999px; background:${badge.color}; color:#FFFFFF; font-size:15px; line-height:1.2; font-weight:700;">${escapeHtml(status)}</span><p style="margin:14px 0 0; color:#374151; font-size:14px; line-height:1.7;">${escapeHtml(statusMessage(status))}</p></td></tr></table>
 ${settlementProgress(status)}
 <div style="margin-top:24px; font-size:14px; line-height:1.8; color:#374151;">${message}</div>${information}${button}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin-top:32px; border-collapse:separate; border-radius:8px; background:#F8F7FF;"><tr><td style="padding:18px 20px; color:#4B5563; font-size:13px; line-height:1.7;"><strong style="display:block; margin-bottom:4px; color:#111827;">문의</strong>문의사항은 아래로 연락 부탁드립니다.<br><a href="mailto:support@on-li.jp" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br>운영시간: 평일 09:00 ~ 18:00</td></tr></table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin-top:32px; border-collapse:separate; border-radius:8px; background:#F8F7FF;"><tr><td style="padding:18px 20px; color:#4B5563; font-size:13px; line-height:1.7;"><strong style="display:block; margin-bottom:4px; color:#111827;">문의</strong>문의사항은 아래로 연락 부탁드립니다.<br><a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br>운영시간: 평일 09:00 ~ 18:00</td></tr></table>
 </td></tr>
-<tr><td style="padding:24px 40px; border-top:1px solid #E5E7EB; background:#F3F4F6; color:#6B7280; font-size:11px; line-height:1.7;"><strong style="color:#374151;">ON-LI</strong><br>Korean-Japanese Business Matching Platform<br>Website: <a href="https://on-li.jp" style="color:#5B4CF0; text-decoration:none;">https://on-li.jp</a><br>E-mail: <a href="mailto:support@on-li.jp" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br><br>본 메일은 시스템에 의해 자동 발송되었습니다.<br>문의는 회신하지 마시고 홈페이지를 이용해주시기 바랍니다.</td></tr>
+<tr><td style="padding:24px 40px; border-top:1px solid #E5E7EB; background:#F3F4F6; color:#6B7280; font-size:11px; line-height:1.7;"><strong style="color:#374151;">ON-LI</strong><br>ONLI Platform<br>Website: <a href="https://on-li.jp" style="color:#5B4CF0; text-decoration:none;">https://on-li.jp</a><br>E-mail: <a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br><br>본 메일은 시스템에 의해 자동 발송되었습니다.<br>문의는 회신하지 마시고 홈페이지를 이용해주시기 바랍니다.</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -1442,7 +1450,7 @@ async function processNotificationEvents({
     }
 
     try {
-      const subject = notificationSubject(currentEvent.event_type);
+      const subject = normalizeSubject(notificationSubject(currentEvent.event_type));
       const html = buildNotificationHtml(currentEvent, payload);
       const sendResult = await transporter.sendMail({
         from: emailFrom,
@@ -1600,7 +1608,9 @@ async function processNotifications({
     }
 
     try {
-      const subject = notification.title || notificationSubject(notification.notification_type);
+      const subject = normalizeSubject(
+        notification.title || notificationSubject(notification.notification_type)
+      );
       const html = layout(
         notification.title || "ON-LI 알림",
         `
@@ -1990,11 +2000,12 @@ async function sendSingleNotification({
     client_recruiting_started: "통역사 모집 시작 안내",
     job_updated: "의뢰 수정 안내",
   };
-  const reason = reasonMap[type] || "ON-LI 운영 안내";
+  const reason = reasonMap[type] || "운영 안내";
 
   const metadata = notification.metadata || {};
   let realRequestNo = metadata.request_no || "";
   let realJobTitle = metadata.job_title || metadata.event_name || "";
+  let relatedRequest: Record<string, unknown> | null = null;
 
   if (metadata.job_id) {
     const { data: jobData } = await supabase
@@ -2008,13 +2019,14 @@ async function sendSingleNotification({
     }
   }
 
-  if ((!realRequestNo || !realJobTitle) && notification.related_request_id) {
+  if (notification.related_request_id) {
     const { data: requestData } = await supabase
       .from("requests")
-      .select("request_no, code, title, event_name")
+      .select("*")
       .eq("id", notification.related_request_id)
       .single();
     if (requestData) {
+      relatedRequest = requestData;
       if (!realRequestNo) realRequestNo = requestData.request_no || requestData.code || "";
       if (!realJobTitle) realJobTitle = requestData.title || requestData.event_name || "";
     }
@@ -2038,44 +2050,58 @@ async function sendSingleNotification({
 
   const usesExistingApplicationTemplate =
     type === "job_applied_user" || type === "job_applied_admin";
-  const subject = usesExistingApplicationTemplate
+  const subject = normalizeSubject(usesExistingApplicationTemplate
     ? SUBJECTS[type as EmailType]
-    : `[ON-LI] ${reason}${relatedNo ? ` - ${relatedNo}` : ""}`;
+    : `${reason}${relatedNo ? ` - ${relatedNo}` : ""}`);
   
   const originalMessage = String(notification.message || "");
   const fallbackMessage = "상세 내용은 ON-LI 사이트에서 확인해 주세요.";
   const displayMessage = originalMessage === "1" || !originalMessage.trim() ? fallbackMessage : originalMessage;
 
-  const tableRows: [string, string][] = [
-    ["발송 사유", reason],
+  const requestStartDate = relatedRequest?.start_date || relatedRequest?.event_date || metadata.start_date || metadata.event_date;
+  const requestEndDate = relatedRequest?.end_date || metadata.end_date;
+  const eventPeriod = requestStartDate && requestEndDate
+    ? `${requestStartDate} ~ ${requestEndDate}`
+    : requestStartDate || requestEndDate || "";
+  const requestInfo: Array<[string, string]> = [
+    ["행사명", escapeHtml(jobTitle && jobTitle !== "1" ? jobTitle : "")],
+    ["의뢰번호", escapeHtml(relatedNo)],
+    ["기업명", escapeHtml(relatedRequest?.company_name || metadata.company_name || "")],
+    ["통역사", escapeHtml(metadata.interpreter_name || metadata.recipient_name || "")],
+    ["행사기간", escapeHtml(eventPeriod)],
+    ["장소", escapeHtml(relatedRequest?.location || relatedRequest?.event_location || metadata.location || "")],
+    ["언어", escapeHtml(relatedRequest?.language || relatedRequest?.language_direction || metadata.language || "")],
+    ["현재 상태", escapeHtml(statusText && statusText !== "-" ? statusText : reason)],
   ];
-  
-  if (relatedNo) {
-    tableRows.push(["관련 의뢰", relatedNo]);
-  }
-  if (jobTitle && jobTitle !== "1") {
-    tableRows.push(["의뢰명", jobTitle]);
-  }
-  if (statusText && statusText !== "-") {
-    tableRows.push(["상태", statusText]);
-  }
+
+  const recipientType = String(notification.recipient_type || "admin").trim().toLowerCase();
+  const buttonText = recipientType === "admin"
+    ? "관리자 페이지 열기"
+    : recipientType === "interpreter"
+      ? "마이페이지에서 확인하기"
+      : "의뢰 확인하기";
+  const buttonUrl = recipientType === "admin"
+    ? appUrl("/admin/internal")
+    : recipientType === "interpreter"
+      ? appUrl("/interpreter-mypage")
+      : appUrl("/business/mypage");
+  const templateTitle = reason === "운영 안내" ? "운영 안내" : reason;
+  const templateStatus = type === "general" || templateTitle === "운영 안내"
+    ? "운영 알림"
+    : templateTitle.includes("정산")
+      ? settlementStatusLabel(nextStatus, templateTitle)
+      : inferredStatus(templateTitle);
 
   const html = usesExistingApplicationTemplate
     ? buildHtml(type as EmailType, metadata)
-    : layout(
-    subject,
-    `
-      <p>안녕하세요.<br />ON-LI입니다.</p>
-      <p>본 메일은 아래 사유로 발송되었습니다.</p>
-      <br />
-      ${infoTable(tableRows)}
-      <br />
-      <p><strong>■ 안내 내용</strong></p>
-      <p style="white-space: pre-wrap;">${escapeHtml(displayMessage)}</p>
-      <br />
-      <p>감사합니다.<br />ON-LI 운영팀</p>
-    `
-      );
+    : createEmailTemplate({
+        title: templateTitle,
+        status: templateStatus,
+        message: `<p style="margin:0; white-space:pre-wrap;">${escapeHtml(displayMessage)}</p>`,
+        requestInfo,
+        buttonText,
+        buttonUrl,
+      });
 
   console.log("[send-email] send attempt started", { notificationId: notification_id });
 

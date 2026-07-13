@@ -15,6 +15,7 @@ import {
   Search,
   ShieldAlert,
   Star,
+  Trash2,
   WalletCards,
   User,
   X,
@@ -601,6 +602,12 @@ function Admin({ onBackClick }) {
     channel: "all",
     startDate: "",
     endDate: "",
+  });
+  const [notificationHistoryType, setNotificationHistoryType] = useState(() => {
+    if (typeof window === "undefined") return "email";
+    return new URLSearchParams(window.location.search).get("notification_type") === "internal"
+      ? "internal"
+      : "email";
   });
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -1354,10 +1361,14 @@ function sanitizeRecipientEmail(email) {
     setActiveMainTab(SUB_TAB_TO_MAIN_TAB[normalizedSubTabId] || "new");
     setActiveSubTab(normalizedSubTabId);
     if (typeof window !== "undefined") {
+      const adminPath = getAdminPathForSubTab(normalizedSubTabId);
+      const pathWithNotificationType = normalizedSubTabId === "notification_history"
+        ? `${adminPath}&notification_type=${encodeURIComponent(notificationHistoryType)}`
+        : adminPath;
       window.history.replaceState(
         { page: "admin", subTab: normalizedSubTabId },
         "",
-        getAdminPathForSubTab(normalizedSubTabId)
+        pathWithNotificationType
       );
     }
   };
@@ -4955,6 +4966,8 @@ function sanitizeRecipientEmail(email) {
                 jobApplications={jobApplications}
                 filters={notificationFilters}
                 onFiltersChange={setNotificationFilters}
+                historyType={notificationHistoryType}
+                onHistoryTypeChange={setNotificationHistoryType}
                 processing={notificationProcessing}
                 onSendEmail={sendNotificationEmail}
                 onDelete={deleteNotificationHistory}
@@ -12280,6 +12293,25 @@ function sanitizeRecipientEmail(email) {
   return trimmed;
 }
 
+function isEmailNotificationHistoryItem(event = {}) {
+  const recipientType = String(event.recipient_type || "").trim().toLowerCase();
+  const targetType = String(event.target_type || "").trim().toLowerCase();
+  return (
+    getNotificationChannel(event) === "email" &&
+    Boolean(sanitizeRecipientEmail(event.recipient_email)) &&
+    recipientType !== "admin" &&
+    targetType !== "admin"
+  );
+}
+
+function getInternalNotificationPriority(event = {}) {
+  const payload = getNotificationPayload(event);
+  const value = String(
+    event.priority || payload.priority || payload.importance || payload.severity || "normal"
+  ).trim().toLowerCase();
+  return ["urgent", "critical", "high", "긴급"].includes(value) ? "urgent" : "normal";
+}
+
 function NotificationHistoryManagement({
   events = [],
   requests = [],
@@ -12294,6 +12326,8 @@ function NotificationHistoryManagement({
     endDate: "",
   },
   onFiltersChange,
+  historyType = "email",
+  onHistoryTypeChange,
   processing = false,
   onSendEmail,
   onDelete,
@@ -12301,6 +12335,8 @@ function NotificationHistoryManagement({
 }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [internalTypeFilter, setInternalTypeFilter] = useState("all");
+  const [internalPriorityFilter, setInternalPriorityFilter] = useState("all");
   const notificationItems = buildNotificationDisplayItems({
     events,
     requests,
@@ -12308,8 +12344,19 @@ function NotificationHistoryManagement({
     assignmentRows,
     jobApplications,
   });
-  const visibleEvents = notificationItems.filter((event) => {
-    if (filters.recipient !== "all") {
+  const emailItems = notificationItems.filter(isEmailNotificationHistoryItem);
+  const internalItems = notificationItems.filter((event) => !isEmailNotificationHistoryItem(event));
+  const activeItems = historyType === "internal" ? internalItems : emailItems;
+  const internalEventTypes = [...new Set(internalItems.map((event) => event.event_type).filter(Boolean))];
+  const visibleEvents = activeItems.filter((event) => {
+    if (historyType === "internal") {
+      if (internalTypeFilter !== "all" && event.event_type !== internalTypeFilter) return false;
+      if (
+        internalPriorityFilter !== "all" &&
+        getInternalNotificationPriority(event) !== internalPriorityFilter
+      ) return false;
+    }
+    if (historyType === "email" && filters.recipient !== "all") {
       const recipientType = String(event.recipient_type || "").trim().toLowerCase();
       if (filters.recipient === "company") {
         if (!["company", "client"].includes(recipientType)) return false;
@@ -12317,10 +12364,10 @@ function NotificationHistoryManagement({
         return false;
       }
     }
-    if (filters.status !== "all" && event.status !== filters.status) {
+    if (historyType === "email" && filters.status !== "all" && event.status !== filters.status) {
       return false;
     }
-    if (filters.channel !== "all" && getNotificationChannel(event) !== filters.channel) {
+    if (historyType === "email" && filters.channel !== "all" && getNotificationChannel(event) !== filters.channel) {
       return false;
     }
     if (filters.startDate && event.created_at) {
@@ -12335,15 +12382,24 @@ function NotificationHistoryManagement({
     }
     return true;
   });
-  const failedCount = notificationItems.filter((event) => event.status === "failed").length;
-  const pendingCount = notificationItems.filter((event) => event.status === "pending").length;
-  const sentCount = notificationItems.filter((event) => event.status === "sent").length;
+  const failedCount = emailItems.filter((event) => event.status === "failed").length;
+  const pendingCount = emailItems.filter((event) => event.status === "pending").length;
+  const sentCount = emailItems.filter((event) => event.status === "sent").length;
   const todayKey = new Date().toDateString();
-  const todayCount = notificationItems.filter((event) => {
+  const todayCount = activeItems.filter((event) => {
     if (!event.created_at) return false;
     const createdAt = new Date(event.created_at);
     return !Number.isNaN(createdAt.getTime()) && createdAt.toDateString() === todayKey;
   }).length;
+  const urgentCount = internalItems.filter(
+    (event) => getInternalNotificationPriority(event) === "urgent"
+  ).length;
+  const hasReadState = internalItems.some((event) => {
+    const payload = getNotificationPayload(event);
+    return [event.read_at, event.is_read, payload.read_at, payload.is_read].some(
+      (value) => value !== undefined && value !== null
+    );
+  });
   const visibleIds = visibleEvents.map((event) => event.source_id).filter(Boolean);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
   const removeEvents = async (ids, message) => {
@@ -12356,6 +12412,38 @@ function NotificationHistoryManagement({
       [key]: value,
     });
   };
+  const changeHistoryType = (nextType) => {
+    onHistoryTypeChange?.(nextType);
+    setSelectedIds([]);
+    setInternalTypeFilter("all");
+    setInternalPriorityFilter("all");
+    onFiltersChange?.({
+      recipient: "all",
+      status: "all",
+      channel: "all",
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+    });
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "notification_history");
+      url.searchParams.set("notification_type", nextType);
+      window.history.replaceState(
+        { page: "admin", subTab: "notification_history", notificationType: nextType },
+        "",
+        `${url.pathname}?${url.searchParams.toString()}`
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("notification_type") === historyType) return;
+    url.searchParams.set("tab", "notification_history");
+    url.searchParams.set("notification_type", historyType);
+    window.history.replaceState(window.history.state, "", `${url.pathname}?${url.searchParams.toString()}`);
+  }, [historyType]);
 
   return (
     <section className="admin-section">
@@ -12367,8 +12455,21 @@ function NotificationHistoryManagement({
         </div>
         <p>전체 보관 <strong>{notificationItems.length}건</strong></p>
       </div>
+      <div className="admin-notification-type-tabs" role="tablist" aria-label="알림 이력 유형">
+        <button type="button" role="tab" aria-selected={historyType === "email"}
+          className={historyType === "email" ? "is-active" : ""}
+          onClick={() => changeHistoryType("email")}>
+          이메일 알림 <span>{emailItems.length}</span>
+        </button>
+        <button type="button" role="tab" aria-selected={historyType === "internal"}
+          className={historyType === "internal" ? "is-active" : ""}
+          onClick={() => changeHistoryType("internal")}>
+          관리자 내부 알림 <span>{internalItems.length}</span>
+        </button>
+      </div>
       <div className="admin-section-toolbar admin-notification-toolbar">
         <div className="admin-filter-bar admin-filters">
+          {historyType === "email" ? <>
           <select
             className="admin-filter-select"
             value={filters.recipient}
@@ -12403,6 +12504,21 @@ function NotificationHistoryManagement({
             <option value="kakao">카카오</option>
             <option value="internal">내부</option>
           </select>
+          </> : <>
+          <select className="admin-filter-select" value={internalTypeFilter}
+            onChange={(event) => setInternalTypeFilter(event.target.value)} aria-label="알림 종류 필터">
+            <option value="all">알림 종류 전체</option>
+            {internalEventTypes.map((eventType) => (
+              <option key={eventType} value={eventType}>{getNotificationEventTypeLabel(eventType)}</option>
+            ))}
+          </select>
+          <select className="admin-filter-select" value={internalPriorityFilter}
+            onChange={(event) => setInternalPriorityFilter(event.target.value)} aria-label="중요도 필터">
+            <option value="all">중요도 전체</option>
+            <option value="urgent">긴급</option>
+            <option value="normal">일반</option>
+          </select>
+          </>}
           <input
             className="admin-filter-input"
             type="date"
@@ -12419,24 +12535,30 @@ function NotificationHistoryManagement({
           />
         </div>
         <div className="admin-inline-actions">
-          <button type="button" className="admin-secondary" disabled={!selectedIds.length || processing}
+          <button type="button" className="admin-secondary admin-notification-delete-selected" disabled={!selectedIds.length || processing}
             onClick={() => removeEvents(selectedIds, `선택한 알림 이력 ${selectedIds.length}건만 삭제합니다. 이미 발송된 이메일은 취소되지 않습니다.`)}>
-            선택 삭제
+            <Trash2 size={15} aria-hidden="true" />
+            {selectedIds.length ? `선택 삭제 (${selectedIds.length})` : "선택 삭제"}
           </button>
-          <button type="button" className="admin-save danger" disabled={!visibleIds.length || processing}
+          <button type="button" className="admin-notification-delete-all" disabled={!visibleIds.length || processing}
             onClick={() => removeEvents(visibleIds, "현재 필터 조건의 알림 이력만 삭제합니다. 이미 발송된 이메일은 취소되지 않으며 이 작업은 되돌릴 수 없습니다.")}>
-            전체 삭제
+            <Trash2 size={15} aria-hidden="true" /> 전체 삭제
           </button>
         </div>
       </div>
       <div className="admin-notification-log-summary" aria-label="알림 이력 요약">
-        {[
-          ["전체 보관", notificationItems.length],
+        {(historyType === "email" ? [
+          ["전체 이메일", emailItems.length],
           ["오늘 생성", todayCount],
           ["발송 대기", pendingCount],
           ["발송 실패", failedCount],
           ["발송 완료", sentCount],
-        ].map(([label, count]) => (
+        ] : [
+          ["전체 내부 알림", internalItems.length],
+          ["오늘 생성", todayCount],
+          ["긴급", urgentCount],
+          ["일반", internalItems.length - urgentCount],
+        ]).map(([label, count]) => (
           <div key={label} className="admin-notification-log-summary-item">
             <span>{label}</span>
             <strong>{count}건</strong>
@@ -12449,7 +12571,9 @@ function NotificationHistoryManagement({
             text={
               loadError
                 ? "알림 이력을 불러오지 못했습니다. 관리자 권한 또는 RLS 정책을 확인해주세요."
-                : "조건에 맞는 알림 이벤트가 없습니다."
+                : historyType === "email"
+                  ? "이메일 발송 이력이 없습니다."
+                  : "관리자 내부 알림이 없습니다."
             }
           />
           {loadError && (
@@ -12471,10 +12595,11 @@ function NotificationHistoryManagement({
                 <th>대상</th>
                 <th>알림 종류</th>
                 <th>제목</th>
-                <th>채널</th>
-                <th>상태</th>
-                <th>발송일</th>
-                <th>실패 사유</th>
+                {historyType === "email" ? <>
+                  <th>채널</th><th>상태</th><th>발송일</th><th>실패 사유</th>
+                </> : <>
+                  <th>관련 의뢰</th><th>중요도</th>{hasReadState && <th>읽음 상태</th>}
+                </>}
                 <th>관리</th>
               </tr>
             </thead>
@@ -12490,26 +12615,33 @@ function NotificationHistoryManagement({
                   <td>{event.recipientLabel}</td>
                   <td>{event.eventLabel}</td>
                   <td>{event.title || event.message || event.eventLabel}</td>
-                  <td>{getNotificationChannelLabel(event.channel)}</td>
-                  <td>
+                  {historyType === "email" ? <>
+                  <td>{getNotificationChannelLabel(event.channel)}</td><td>
                     <span className={`status-badge ${getStatusBadgeClass(event.status)}`}>
                       {event.statusLabel}
                     </span>
                   </td>
                   <td>{event.sent_at ? formatDateTime(event.sent_at) : "-"}</td>
                   <td className="admin-table-text">{event.error_message || "-"}</td>
+                  </> : <>
+                    <td>{event.relatedLabel || "-"}</td>
+                    <td><span className={`status-badge ${getInternalNotificationPriority(event) === "urgent" ? "badge-red" : "badge-gray"}`}>
+                      {getInternalNotificationPriority(event) === "urgent" ? "긴급" : "일반"}
+                    </span></td>
+                    {hasReadState && <td>{event.read_at || event.is_read || getNotificationPayload(event).read_at || getNotificationPayload(event).is_read ? "확인 완료" : "미확인"}</td>}
+                  </>}
                   <td>
-                    <div className="admin-inline-actions">
+                    <div className="admin-inline-actions admin-notification-row-actions">
                       <button
                         type="button"
-                        className="admin-secondary"
+                        className="admin-notification-detail-button"
                         onClick={() => setSelectedEvent(event)}
                       >
-                        상세
+                        <Eye size={14} aria-hidden="true" /> 상세 보기
                       </button>
-                      <button type="button" className="admin-save danger" disabled={processing}
+                      <button type="button" className="admin-notification-delete-button" disabled={processing}
                         onClick={() => removeEvents([event.source_id], "이 알림 이력만 삭제합니다. 이미 발송된 이메일은 취소되지 않습니다.")}>
-                        삭제
+                        <Trash2 size={14} aria-hidden="true" /> 삭제
                       </button>
                     </div>
                   </td>
@@ -12524,7 +12656,7 @@ function NotificationHistoryManagement({
           알림 조회 오류: {loadError.message || JSON.stringify(loadError)}
         </p>
       )}
-      {failedCount > 0 && (
+      {historyType === "email" && failedCount > 0 && (
         <p className="admin-empty-text">실패 {failedCount}건은 상세보기에서 다시 처리할 수 있습니다.</p>
       )}
       {selectedEvent && (
@@ -12533,6 +12665,7 @@ function NotificationHistoryManagement({
           processing={processing}
           onClose={() => setSelectedEvent(null)}
           onSendEmail={onSendEmail}
+          isInternal={historyType === "internal"}
         />
       )}
     </section>
@@ -12588,12 +12721,13 @@ function getNotificationRecipientLabel(event = {}, context = {}) {
 
 function NotificationEventDetailModal({
   event,
+  isInternal = false,
   processing = false,
   onClose,
   onSendEmail,
 }) {
   const payloadText = getNotificationPayloadSummary(event);
-  const isEmailNotification =
+  const isEmailNotification = !isInternal &&
     getNotificationChannel(event) === "email" &&
     Boolean(sanitizeRecipientEmail(event.recipient_email));
 
@@ -12620,23 +12754,29 @@ function NotificationEventDetailModal({
           <Info label="제목" value={event.title || "-"} />
           <Info label="대상자" value={event.targetLabel} />
           <Info label="대상 ID" value={event.recipient_id || "-"} />
-          <Info label="채널" value={getNotificationChannelLabel(event.channel)} />
           <Info label="관련 번호" value={event.relatedLabel} />
           <Info label="관련 의뢰명" value={getNotificationPayload(event)?.event_name || "-"} />
-          <Info label="수신 이메일" value={event.recipient_email || "-"} />
-          <Info label="상태" value={event.statusLabel} />
+          {isInternal ? (
+            <Info label="중요도" value={getInternalNotificationPriority(event) === "urgent" ? "긴급" : "일반"} />
+          ) : <>
+            <Info label="수신 이메일" value={event.recipient_email || "-"} />
+            <Info label="채널" value={getNotificationChannelLabel(event.channel)} />
+            <Info label="발송 상태" value={event.statusLabel} />
+          </>}
           <Info label="생성일" value={formatDateTime(event.created_at)} />
-          <Info label="처리일" value={formatDateTime(event.processed_at)} />
-          <Info label="발송일" value={formatDateTime(event.sent_at)} />
-          <Info label="재시도 횟수" value={`${event.retry_count || 0}회`} />
-          <Info label="실패 사유" value={event.error_message || "-"} />
-          <Info label="알림 내용/메모" value={payloadText} />
+          {!isInternal && <>
+            <Info label="처리일" value={formatDateTime(event.processed_at)} />
+            <Info label="발송일" value={formatDateTime(event.sent_at)} />
+            <Info label="재시도 횟수" value={`${event.retry_count || 0}회`} />
+            <Info label="실패 사유" value={event.error_message || "-"} />
+          </>}
+          <Info label={isInternal ? "안내 내용" : "본문 미리보기"} value={payloadText} />
         </dl>
         <div className="admin-modal-actions admin-notification-modal-actions">
           <button type="button" className="admin-secondary" onClick={onClose}>
             닫기
           </button>
-          {isEmailNotification ? (
+          {isInternal ? null : isEmailNotification ? (
             <>
               <button
                 type="button"

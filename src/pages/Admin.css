@@ -751,6 +751,123 @@
   justify-content: space-between;
 }
 
+.admin-notification-type-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f3f4f6;
+}
+
+.admin-notification-type-tabs button {
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-notification-type-tabs button span {
+  margin-left: 5px;
+  font-size: 12px;
+}
+
+.admin-notification-type-tabs button.is-active {
+  background: #5b4cf0;
+  color: #ffffff;
+}
+
+.admin-notification-delete-selected,
+.admin-notification-delete-all,
+.admin-notification-detail-button,
+.admin-notification-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.admin-notification-delete-selected,
+.admin-notification-delete-all {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 8px;
+}
+
+.admin-notification-delete-selected:not(:disabled) {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #dc2626;
+}
+
+.admin-notification-delete-selected:disabled {
+  border-color: #e5e7eb;
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.admin-notification-delete-all {
+  border: 1px solid #ef4444;
+  background: #ffffff;
+  color: #dc2626;
+}
+
+.admin-notification-delete-all:hover:not(:disabled) {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.admin-notification-delete-all:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-notification-detail-button,
+.admin-notification-delete-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.admin-notification-detail-button {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+}
+
+.admin-notification-detail-button:hover {
+  border-color: #5b4cf0;
+  background: #f8f7ff;
+  color: #5b4cf0;
+}
+
+.admin-notification-delete-button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #dc2626;
+}
+
+.admin-notification-delete-button:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.admin-notification-row-actions {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
 .admin-notification-history-heading {
   display: flex;
   align-items: flex-end;
@@ -829,6 +946,42 @@
 
   .admin-notification-log-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-notification-toolbar,
+  .admin-notification-toolbar .admin-filter-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-notification-log-table thead {
+    display: none;
+  }
+
+  .admin-notification-log-table,
+  .admin-notification-log-table tbody,
+  .admin-notification-log-table tr,
+  .admin-notification-log-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .admin-notification-log-table tr {
+    margin-bottom: 12px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+  }
+
+  .admin-notification-log-table td {
+    padding: 5px 0;
+    border: 0;
+  }
+
+  .admin-notification-row-actions {
+    margin-top: 6px;
   }
 }
 
