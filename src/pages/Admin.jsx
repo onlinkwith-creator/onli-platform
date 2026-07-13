@@ -6729,7 +6729,7 @@ function InterpreterSettlementManagement({
       daily_rate: dailyRate,
       extra_amount: toNumericInputString(settlement.extra_amount),
       deduction_amount: toNumericInputString(settlement.deduction_amount),
-      paid_at: settlement.paid_at ? String(settlement.paid_at).slice(0, 16) : "",
+      paid_at: toAdminDateTimeInput(settlement.paid_at),
       payment_method: settlement.payment_method || "",
       admin_memo: settlement.admin_memo || "",
     });
@@ -6785,7 +6785,7 @@ function InterpreterSettlementManagement({
       deduction_amount: parseNumericInput(draft.deduction_amount, 0),
       settlement_status: normalizeAdminSettlementStatus(draft.payout_status),
       payout_status: mapAdminSettlementStatusToPayoutStatus(draft.payout_status),
-      paid_at: draft.paid_at ? new Date(draft.paid_at).toISOString() : null,
+      paid_at: adminDateTimeInputToISOString(draft.paid_at),
     });
     if (ok) {
       setSelectedSettlementId(null);
@@ -7121,13 +7121,24 @@ function InterpreterSettlementManagement({
                   value={draft.deduction_amount}
                   onChange={(value) => updateNumericDraft("deduction_amount", value)}
                 />
-                <FieldControl label="정산 완료일">
-                  <input
-                    type="datetime-local"
-                    value={draft.paid_at}
-                    onChange={(event) => updateDraft("paid_at", event.target.value)}
-                  />
-                </FieldControl>
+                <DateRangeInput
+                  label="정산 완료일"
+                  singleDateMode
+                  startDate={draft.paid_at.slice(0, 10)}
+                  endDate={draft.paid_at.slice(0, 10)}
+                  timeValue={draft.paid_at.slice(11, 16)}
+                  allowClear
+                  onChange={({ startDate }) =>
+                    updateDraft(
+                      "paid_at",
+                      startDate ? `${startDate}T${draft.paid_at.slice(11, 16) || "00:00"}` : ""
+                    )
+                  }
+                  onTimeChange={(time) => {
+                    const date = draft.paid_at.slice(0, 10);
+                    if (date) updateDraft("paid_at", `${date}T${time}`);
+                  }}
+                />
                 <FieldControl label="지급 방식">
                   <select
                     className="admin-filter-select"
@@ -16085,6 +16096,30 @@ function adminISOFromDate(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function toAdminDateTimeInput(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value || "";
+  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
+}
+
+function adminDateTimeInputToISOString(value) {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(value || ""))) return null;
+  const date = new Date(`${value}:00+09:00`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function isDateInRange(date, startDate, endDate, fallbackDate) {

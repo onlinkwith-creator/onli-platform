@@ -18,6 +18,9 @@ function DateRangeInput({
   label = "행사 기간",
   required = false,
   error = "",
+  timeValue = null,
+  onTimeChange,
+  allowClear = false,
 }) {
   const pickerRef = useRef(null);
   const draftStartRef = useRef(null);
@@ -104,8 +107,18 @@ function DateRangeInput({
       setIsPickerOpen(false);
     };
 
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      draftStartRef.current = null;
+      setIsPickerOpen(false);
+    };
+
     document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isPickerOpen]);
 
   return (
@@ -114,6 +127,7 @@ function DateRangeInput({
         <span>{label}</span>
         <strong>
           선택 결과: {formatDisplayDateRange(normalizedStart, normalizedEnd)}
+          {singleDateMode && timeValue ? ` ${timeValue}` : ""}
         </strong>
       </div>
 
@@ -125,6 +139,17 @@ function DateRangeInput({
             active={isPickerOpen}
             onClick={handlePickerToggle}
           />
+          {singleDateMode && timeValue !== null && (
+            <div className="date-picker-card">
+              <span>시간</span>
+              <input
+                type="time"
+                value={timeValue}
+                onChange={(event) => onTimeChange?.(event.target.value)}
+                aria-label={`${label} 시간`}
+              />
+            </div>
+          )}
           {!singleDateMode && (
             <DatePickerButton
               label="종료일"
@@ -151,6 +176,16 @@ function DateRangeInput({
           </div>
         )}
       </div>
+
+      {allowClear && normalizedStart && (
+        <button
+          type="button"
+          className="date-range-clear"
+          onClick={() => updateRange("", "")}
+        >
+          날짜 초기화
+        </button>
+      )}
 
       {showQuickButtons && !singleDateMode && (
         <div className="date-range-quick" aria-label="빠른 기간 선택">
