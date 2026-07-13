@@ -2703,7 +2703,71 @@
 }
 
 .admin-settlement-table {
-  min-width: 1480px;
+  min-width: 2110px;
+}
+
+.admin-settlement-col-title {
+  width: 240px;
+}
+
+.admin-settlement-col-number {
+  width: 180px;
+}
+
+.admin-settlement-col-company {
+  width: 180px;
+}
+
+.admin-settlement-col-interpreter {
+  width: 160px;
+}
+
+.admin-settlement-col-work-date {
+  width: 200px;
+}
+
+.admin-settlement-col-daily-rate {
+  width: 110px;
+}
+
+.admin-settlement-col-work-days {
+  width: 90px;
+}
+
+.admin-settlement-col-total {
+  width: 140px;
+}
+
+.admin-settlement-col-status {
+  width: 120px;
+}
+
+.admin-settlement-col-date {
+  width: 120px;
+}
+
+.admin-settlement-col-document {
+  width: 110px;
+}
+
+.admin-settlement-col-actions {
+  width: 220px;
+}
+
+.admin-settlement-table th:nth-child(2),
+.admin-settlement-table td:nth-child(2),
+.admin-settlement-table th:nth-child(5),
+.admin-settlement-table td:nth-child(5) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.admin-settlement-table th:nth-child(6),
+.admin-settlement-table td:nth-child(6),
+.admin-settlement-table th:nth-child(8),
+.admin-settlement-table td:nth-child(8) {
+  text-align: right;
 }
 
 .admin-settlement-table .admin-date-cell {

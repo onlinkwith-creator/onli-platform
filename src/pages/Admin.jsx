@@ -6840,6 +6840,22 @@ function InterpreterSettlementManagement({
       ) : (
         <div className="admin-table-wrap">
           <table className="admin-table admin-settlement-table">
+            <colgroup>
+              <col className="admin-settlement-col-title" />
+              <col className="admin-settlement-col-number" />
+              <col className="admin-settlement-col-company" />
+              <col className="admin-settlement-col-interpreter" />
+              <col className="admin-settlement-col-work-date" />
+              <col className="admin-settlement-col-daily-rate" />
+              <col className="admin-settlement-col-work-days" />
+              <col className="admin-settlement-col-total" />
+              <col className="admin-settlement-col-status" />
+              <col className="admin-settlement-col-date" />
+              <col className="admin-settlement-col-date" />
+              <col className="admin-settlement-col-date" />
+              <col className="admin-settlement-col-document" />
+              <col className="admin-settlement-col-actions" />
+            </colgroup>
             <thead>
               <tr>
                 <th>의뢰명</th>
