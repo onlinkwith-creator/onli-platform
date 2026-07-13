@@ -749,6 +749,19 @@
 .admin-notification-toolbar {
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.admin-notification-toolbar .admin-filters {
+  gap: 10px;
+  margin: 0;
+  padding: 10px;
+}
+
+.admin-notification-toolbar .admin-filter-input,
+.admin-notification-toolbar .admin-filter-select {
+  margin: 0;
 }
 
 .admin-notification-type-tabs {
@@ -865,7 +878,8 @@
 
 .admin-notification-row-actions {
   flex-wrap: nowrap;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
 }
 
 .admin-notification-history-heading {
@@ -913,7 +927,7 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
-  margin: 12px 0 14px;
+  margin: 0 0 12px;
 }
 
 .admin-notification-log-summary-item {
@@ -989,6 +1003,44 @@
   width: 16px;
   height: 16px;
   accent-color: #4f46e5;
+}
+
+.admin-notification-log-table {
+  min-width: 1240px;
+}
+
+.admin-notification-log-table th,
+.admin-notification-log-table td {
+  height: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  vertical-align: middle;
+}
+
+.admin-notification-log-table th:first-child,
+.admin-notification-log-table td:first-child {
+  width: 40px;
+  padding-right: 4px;
+  padding-left: 4px;
+  text-align: center;
+}
+
+.admin-notification-log-table th:nth-child(2),
+.admin-notification-log-table td:nth-child(2) {
+  width: 145px;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.admin-notification-log-table th:nth-child(3),
+.admin-notification-log-table td:nth-child(3) {
+  width: 200px;
+}
+
+.admin-notification-log-table th:last-child,
+.admin-notification-log-table td:last-child {
+  width: 190px;
+  vertical-align: middle;
 }
 
 .admin-icon-button {

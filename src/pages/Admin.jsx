@@ -12295,12 +12295,28 @@ function sanitizeRecipientEmail(email) {
 
 function isEmailNotificationHistoryItem(event = {}) {
   const recipientType = String(event.recipient_type || "").trim().toLowerCase();
-  const targetType = String(event.target_type || "").trim().toLowerCase();
+  const payload = getNotificationPayload(event);
+  const targetRole = String(event.target_role || payload.target_role || "").trim().toLowerCase();
+  const recipientRole = recipientType || targetRole;
   return (
     getNotificationChannel(event) === "email" &&
     Boolean(sanitizeRecipientEmail(event.recipient_email)) &&
-    recipientType !== "admin" &&
-    targetType !== "admin"
+    ["company", "client", "interpreter"].includes(recipientRole)
+  );
+}
+
+function isAdminNotificationHistoryItem(event = {}) {
+  const payload = getNotificationPayload(event);
+  const recipientType = String(event.recipient_type || "").trim().toLowerCase();
+  const targetType = String(event.target_type || "").trim().toLowerCase();
+  const targetRole = String(event.target_role || payload.target_role || "").trim().toLowerCase();
+  return (
+    recipientType === "admin" ||
+    targetType === "admin" ||
+    targetRole === "admin" ||
+    getNotificationChannel(event) === "internal" ||
+    event.is_internal === true ||
+    payload.is_internal === true
   );
 }
 
@@ -12345,7 +12361,7 @@ function NotificationHistoryManagement({
     jobApplications,
   });
   const emailItems = notificationItems.filter(isEmailNotificationHistoryItem);
-  const internalItems = notificationItems.filter((event) => !isEmailNotificationHistoryItem(event));
+  const internalItems = notificationItems.filter(isAdminNotificationHistoryItem);
   const activeItems = historyType === "internal" ? internalItems : emailItems;
   const internalEventTypes = [...new Set(internalItems.map((event) => event.event_type).filter(Boolean))];
   const visibleEvents = activeItems.filter((event) => {
@@ -12464,7 +12480,7 @@ function NotificationHistoryManagement({
         <button type="button" role="tab" aria-selected={historyType === "internal"}
           className={historyType === "internal" ? "is-active" : ""}
           onClick={() => changeHistoryType("internal")}>
-          관리자 내부 알림 <span>{internalItems.length}</span>
+          관리자 알림 <span>{internalItems.length}</span>
         </button>
       </div>
       <div className="admin-section-toolbar admin-notification-toolbar">
@@ -12479,7 +12495,6 @@ function NotificationHistoryManagement({
             <option value="all">대상 전체</option>
             <option value="company">기업</option>
             <option value="interpreter">통역사</option>
-            <option value="admin">관리자</option>
           </select>
           <select
             className="admin-filter-select"
@@ -12554,7 +12569,7 @@ function NotificationHistoryManagement({
           ["발송 실패", failedCount],
           ["발송 완료", sentCount],
         ] : [
-          ["전체 내부 알림", internalItems.length],
+          ["전체 관리자 알림", internalItems.length],
           ["오늘 생성", todayCount],
           ["긴급", urgentCount],
           ["일반", internalItems.length - urgentCount],
@@ -12573,7 +12588,7 @@ function NotificationHistoryManagement({
                 ? "알림 이력을 불러오지 못했습니다. 관리자 권한 또는 RLS 정책을 확인해주세요."
                 : historyType === "email"
                   ? "이메일 발송 이력이 없습니다."
-                  : "관리자 내부 알림이 없습니다."
+                  : "관리자 알림이 없습니다."
             }
           />
           {loadError && (

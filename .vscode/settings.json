@@ -1,5 +1,6 @@
 {
   "deno.enable": true,
   "deno.enablePaths": ["supabase/functions"],
-  "deno.config": "supabase/functions/deno.json"
+  "deno.config": "supabase/functions/send-email/deno.json",
+  "deno.lint": true
 }
