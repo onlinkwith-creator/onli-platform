@@ -256,6 +256,14 @@ function fieldFrom(payload: Payload, keys: string[], fallback = "-") {
   return key ? field(payload, key, fallback) : fallback;
 }
 
+function formatKrw(value: unknown) {
+  if (value === null || value === undefined || value === "") return "미확인";
+  const amount = Number(String(value).replaceAll(",", ""));
+  return Number.isFinite(amount)
+    ? `₩${amount.toLocaleString("ko-KR")}`
+    : "미확인";
+}
+
 function normalizeSubject(value: unknown) {
   const cleanSubject = String(value || "운영 안내")
     .replace(/^\[ON-LI\]\s*/i, "")
@@ -1137,7 +1145,17 @@ function buildNotificationHtml(event: NotificationEvent, payload: Payload) {
               ]),
             ],
             ["행사명", fieldFrom(payload, ["event_name", "jobTitle", "title"])],
-            ["정산 상태", field(payload, "status")],
+            event.event_type === "interpreter_settlement_confirmed"
+              ? [
+                "정산 확정 금액",
+                escapeHtml(
+                  formatKrw(
+                    payload.amount ?? payload.final_payment_amount ??
+                      payload.finalAmount ?? payload.settlementAmount,
+                  ),
+                ),
+              ]
+              : ["정산 상태", field(payload, "status")],
           ])
         }
           ${linkButton("마이페이지 열기", appUrl("/interpreter-mypage"))}
@@ -1616,6 +1634,50 @@ async function enrichNotificationPayload(
           payload.recipient_email = interpreter.email;
         }
         if (interpreter?.name) payload.interpreter_name = interpreter.name;
+      }
+    }
+
+    if (
+      event.target_type === "settlement" ||
+      event.event_type.includes("settlement") ||
+      event.event_type.includes("payout")
+    ) {
+      const { data: settlement } = await supabase
+        .from("settlements")
+        .select("*")
+        .eq("id", event.target_id)
+        .maybeSingle();
+      Object.assign(
+        payload,
+        pickPublicPayload(settlement, [
+          "amount",
+          "request_id",
+          "interpreter_id",
+          "interpreter_auth_user_id",
+          "settlement_status",
+          "payout_status",
+        ]),
+      );
+
+      if (settlement?.request_id || payload.request_id) {
+        const { data: request } = await supabase
+          .from("requests")
+          .select("*")
+          .eq("id", settlement?.request_id || payload.request_id)
+          .maybeSingle();
+        Object.assign(
+          payload,
+          pickPublicPayload(request, [
+            "request_no",
+            "company_name",
+            "event_name",
+            "start_date",
+            "end_date",
+            "event_location",
+            "location",
+            "language",
+          ]),
+        );
       }
     }
   } catch (error) {
@@ -2522,6 +2584,7 @@ async function sendSingleNotification({
     status_changed: "의뢰 상태 변경 안내",
     assignment_completed: "배정 완료 안내",
     settlement_ready: "정산 대기 안내",
+    interpreter_settlement_confirmed: "정산 확정 안내",
     client_recruiting_started: "통역사 모집 시작 안내",
     job_updated: "의뢰 수정 안내",
   };
@@ -2573,6 +2636,49 @@ async function sendSingleNotification({
   const jobTitle = realJobTitle;
   const previousStatus = metadata.previous_status || "";
   const nextStatus = metadata.next_status || metadata.status || "";
+  const recipientType = String(notification.recipient_type || "admin").trim()
+    .toLowerCase();
+  const isSettlementConfirmedEmail =
+    type === "interpreter_settlement_confirmed" ||
+    (recipientType === "interpreter" &&
+      String(notification.title || "").includes("정산") &&
+      settlementStatusLabel(nextStatus, String(notification.title || "")) ===
+        "정산 확정");
+
+  let confirmedSettlementAmount: unknown;
+  if (isSettlementConfirmedEmail && notification.related_request_id) {
+    let settlementQuery = supabase
+      .from("settlements")
+      .select("amount,updated_at")
+      .eq("request_id", notification.related_request_id);
+    if (notification.recipient_id) {
+      settlementQuery = settlementQuery.eq(
+        "interpreter_auth_user_id",
+        notification.recipient_id,
+      );
+    }
+    const { data: settlementData, error: settlementError } =
+      await settlementQuery
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if (settlementError) {
+      console.error("[send-email] settlement amount lookup failed", {
+        notificationId: notification_id,
+        errorCode: settlementError.code,
+        errorMessage: settlementError.message,
+      });
+    } else {
+      confirmedSettlementAmount = settlementData?.amount;
+    }
+  }
+  if (
+    confirmedSettlementAmount === undefined ||
+    confirmedSettlementAmount === null
+  ) {
+    confirmedSettlementAmount = metadata.final_payment_amount ??
+      metadata.finalAmount ?? metadata.settlementAmount;
+  }
 
   let statusText = nextStatus || "-";
   if (previousStatus && nextStatus) {
@@ -2627,14 +2733,14 @@ async function sendSingleNotification({
           metadata.language || "",
       ),
     ],
-    [
-      "현재 상태",
-      escapeHtml(statusText && statusText !== "-" ? statusText : reason),
-    ],
+    isSettlementConfirmedEmail
+      ? ["정산 확정 금액", escapeHtml(formatKrw(confirmedSettlementAmount))]
+      : [
+        "현재 상태",
+        escapeHtml(statusText && statusText !== "-" ? statusText : reason),
+      ],
   ];
 
-  const recipientType = String(notification.recipient_type || "admin").trim()
-    .toLowerCase();
   const buttonText = recipientType === "admin"
     ? "관리자 페이지 열기"
     : recipientType === "interpreter"
