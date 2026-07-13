@@ -2781,6 +2781,10 @@
   display: none;
 }
 
+.admin-settlement-scroll-hint {
+  display: none;
+}
+
 .admin-settlement-card {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -7761,5 +7765,149 @@
 
   .admin-business-basic-panel {
     grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-settlement-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .admin-settlement-filters .admin-search-control,
+  .admin-settlement-filters > .admin-filter-select {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .admin-settlement-filters .admin-date-filter {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .admin-settlement-filters input,
+  .admin-settlement-filters select,
+  .admin-settlement-filters .admin-search-control {
+    min-height: 44px;
+  }
+
+  .admin-table-wrap:has(.admin-settlement-table) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
+  }
+
+  .admin-settlement-table {
+    display: table;
+    min-width: 1950px;
+    table-layout: auto;
+    font-size: 13px;
+  }
+
+  .admin-settlement-card-list {
+    display: none;
+  }
+
+  .admin-settlement-scroll-hint {
+    position: sticky;
+    left: 0;
+    display: block;
+    width: max-content;
+    margin: 0;
+    padding: 7px 10px;
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .admin-settlement-table th,
+  .admin-settlement-table td {
+    padding: 9px 10px;
+    font-size: 13px;
+  }
+
+  .admin-settlement-table th:first-child,
+  .admin-settlement-table td:first-child {
+    position: sticky;
+    left: 0;
+    min-width: 200px;
+    width: 200px;
+    z-index: 2;
+    background: #ffffff;
+    box-shadow: 5px 0 8px -7px rgba(15, 23, 42, 0.45);
+  }
+
+  .admin-settlement-table th:first-child {
+    z-index: 4;
+    background: #f8fafc;
+  }
+
+  .admin-settlement-table th:nth-child(2),
+  .admin-settlement-table td:nth-child(2) { min-width: 160px; }
+  .admin-settlement-table th:nth-child(3),
+  .admin-settlement-table td:nth-child(3) { min-width: 160px; }
+  .admin-settlement-table th:nth-child(4),
+  .admin-settlement-table td:nth-child(4) { min-width: 140px; }
+  .admin-settlement-table th:nth-child(5),
+  .admin-settlement-table td:nth-child(5) { min-width: 110px; }
+  .admin-settlement-table th:nth-child(6),
+  .admin-settlement-table td:nth-child(6) { min-width: 100px; }
+  .admin-settlement-table th:nth-child(7),
+  .admin-settlement-table td:nth-child(7) { min-width: 80px; }
+  .admin-settlement-table th:nth-child(8),
+  .admin-settlement-table td:nth-child(8) { min-width: 130px; }
+  .admin-settlement-table th:nth-child(9),
+  .admin-settlement-table td:nth-child(9),
+  .admin-settlement-table th:nth-child(n + 10):nth-child(-n + 12),
+  .admin-settlement-table td:nth-child(n + 10):nth-child(-n + 12) {
+    min-width: 110px;
+    white-space: nowrap;
+  }
+
+  .admin-settlement-table td:nth-child(6),
+  .admin-settlement-table td:nth-child(8),
+  .admin-settlement-table td:nth-child(n + 10):nth-child(-n + 12),
+  .admin-settlement-table .status-badge {
+    white-space: nowrap;
+  }
+
+  .admin-settlement-table button,
+  .admin-settlement-table select,
+  .admin-settlement-table input {
+    min-height: 44px;
+  }
+
+  .admin-settlement-table button,
+  .admin-settlement-table select {
+    margin: 0 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-settlement-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-settlement-filters .admin-date-filter {
+    grid-column: 1 / -1;
+  }
+
+  .admin-settlement-table th,
+  .admin-settlement-table td {
+    padding: 8px;
+    font-size: 13px;
   }
 }

@@ -2099,8 +2099,14 @@ function sanitizeRecipientEmail(email) {
         payout_status: changes.payout_status
           ? mapAdminSettlementStatusToPayoutStatus(changes.payout_status)
           : undefined,
-        work_days: changes.work_days ? Number(changes.work_days) : null,
-        daily_rate: changes.daily_rate ? normalizeMoneyInput(changes.daily_rate) : null,
+        work_days:
+          changes.work_days === "" || changes.work_days === null || changes.work_days === undefined
+            ? null
+            : Number(changes.work_days),
+        daily_rate:
+          changes.daily_rate === "" || changes.daily_rate === null || changes.daily_rate === undefined
+            ? null
+            : normalizeMoneyInput(changes.daily_rate),
         extra_amount: normalizeMoneyInput(changes.extra_amount),
         deduction_amount: normalizeMoneyInput(changes.deduction_amount),
         paid_at: changes.paid_at || null,
@@ -6711,16 +6717,18 @@ function InterpreterSettlementManagement({
     : [];
 
   const openDetail = (settlement) => {
+    const workDays = toNumericInputString(settlement.work_days);
+    const dailyRate = toNumericInputString(settlement.daily_rate);
     setSelectedSettlementId(settlement.id);
     setDraft({
-      amount: settlement.amount ?? 0,
+      amount: calculateSettlementBaseAmount(dailyRate, workDays),
       payout_status: normalizeAdminSettlementStatus(
         settlement.settlement_status || settlement.status || settlement.payout_status
       ),
-      work_days: settlement.work_days || "",
-      daily_rate: settlement.daily_rate || "",
-      extra_amount: settlement.extra_amount || 0,
-      deduction_amount: settlement.deduction_amount || 0,
+      work_days: workDays,
+      daily_rate: dailyRate,
+      extra_amount: toNumericInputString(settlement.extra_amount),
+      deduction_amount: toNumericInputString(settlement.deduction_amount),
       paid_at: settlement.paid_at ? String(settlement.paid_at).slice(0, 16) : "",
       payment_method: settlement.payment_method || "",
       admin_memo: settlement.admin_memo || "",
@@ -6729,6 +6737,17 @@ function InterpreterSettlementManagement({
 
   const updateDraft = (field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateNumericDraft = (field, value) => {
+    const sanitizedValue = sanitizeNumericInput(value);
+    setDraft((current) => {
+      const next = { ...current, [field]: sanitizedValue };
+      if (field === "daily_rate" || field === "work_days") {
+        next.amount = calculateSettlementBaseAmount(next.daily_rate, next.work_days);
+      }
+      return next;
+    });
   };
 
   const openPayoutDocument = async (document) => {
@@ -6759,6 +6778,11 @@ function InterpreterSettlementManagement({
 
     const ok = await updateSettlement(selectedSettlement.id, {
       ...draft,
+      amount: parseNumericInput(draft.amount, 0),
+      work_days: parseNumericInput(draft.work_days, null),
+      daily_rate: parseNumericInput(draft.daily_rate, null),
+      extra_amount: parseNumericInput(draft.extra_amount, 0),
+      deduction_amount: parseNumericInput(draft.deduction_amount, 0),
       settlement_status: normalizeAdminSettlementStatus(draft.payout_status),
       payout_status: mapAdminSettlementStatusToPayoutStatus(draft.payout_status),
       paid_at: draft.paid_at ? new Date(draft.paid_at).toISOString() : null,
@@ -6780,7 +6804,7 @@ function InterpreterSettlementManagement({
             .join(", ")} (현재 request_interpreters 배정 관계 없음)
         </p>
       )}
-      <div className="admin-filter-bar admin-filters">
+      <div className="admin-filter-bar admin-filters admin-settlement-filters">
         <label className="admin-filter-search admin-search-control">
           <Search size={16} aria-hidden="true" />
           <input
@@ -6839,6 +6863,7 @@ function InterpreterSettlementManagement({
         />
       ) : (
         <div className="admin-table-wrap">
+          <p className="admin-settlement-scroll-hint">좌우로 이동하여 추가 정보를 확인하세요.</p>
           <table className="admin-table admin-settlement-table">
             <colgroup>
               <col className="admin-settlement-col-title" />
@@ -7070,30 +7095,31 @@ function InterpreterSettlementManagement({
                 <NumberControl
                   label="최종 지급 금액"
                   value={draft.amount}
-                  onChange={(value) => updateDraft("amount", value)}
+                  readOnly
                 />
                 <FieldControl label="근무 일수">
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={draft.work_days}
-                    onChange={(event) => updateDraft("work_days", event.target.value)}
+                    onChange={(event) => updateNumericDraft("work_days", event.target.value)}
                   />
                 </FieldControl>
                 <NumberControl
                   label="일당"
                   value={draft.daily_rate}
-                  onChange={(value) => updateDraft("daily_rate", value)}
+                  onChange={(value) => updateNumericDraft("daily_rate", value)}
                 />
                 <NumberControl
                   label="추가 지급"
                   value={draft.extra_amount}
-                  onChange={(value) => updateDraft("extra_amount", value)}
+                  onChange={(value) => updateNumericDraft("extra_amount", value)}
                 />
                 <NumberControl
                   label="차감 금액"
                   value={draft.deduction_amount}
-                  onChange={(value) => updateDraft("deduction_amount", value)}
+                  onChange={(value) => updateNumericDraft("deduction_amount", value)}
                 />
                 <FieldControl label="정산 완료일">
                   <input
@@ -14391,15 +14417,38 @@ function formatRequestListNumber(request = {}) {
   return "ONLI REQ";
 }
 
-function NumberControl({ label, value, onChange }) {
+function sanitizeNumericInput(value) {
+  return String(value ?? "").replace(/[^0-9]/g, "");
+}
+
+function toNumericInputString(value) {
+  return value === null || value === undefined ? "" : sanitizeNumericInput(value);
+}
+
+function parseNumericInput(value, emptyValue = null) {
+  if (value === "" || value === null || value === undefined) return emptyValue;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : emptyValue;
+}
+
+function calculateSettlementBaseAmount(dailyRate, workDays) {
+  if (dailyRate === "" || workDays === "") return "";
+  const rate = Number(dailyRate);
+  const days = Number(workDays);
+  return Number.isFinite(rate) && Number.isFinite(days) ? String(rate * days) : "";
+}
+
+function NumberControl({ label, value, onChange, readOnly = false }) {
   return (
     <label className="admin-field-control">
       <span>{label}</span>
       <input
-        type="number"
-        min="0"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={value ?? ""}
+        readOnly={readOnly}
+        onChange={(event) => onChange?.(sanitizeNumericInput(event.target.value))}
       />
     </label>
   );
