@@ -37,20 +37,14 @@ import {
 } from "../utils/interpreterApproval";
 import {
   DUPLICATE_APPLICATION_MESSAGE,
-  buildLegacyJobApplicationPayload,
   findExistingJobApplication,
+  getApplicationPhoneDisplay,
   getJobApplicationSubmitErrorMessage,
   getSupabaseErrorDetails,
-  isAgreementColumnError,
   isDuplicateApplicationError,
   normalizeApplicationEmail,
   normalizeApplicationPhone,
 } from "../utils/applicationContact";
-import {
-  MANAGEMENT_NUMBER_CONFIG,
-  addManagementNumber,
-  isManagementNumberConflict,
-} from "../utils/managementNumber";
 import "./Jobs.css";
 
 const initialForm = {
@@ -306,19 +300,24 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     setInterpreterProfile(matchedInterpreter);
 
     const agreedAt = new Date().toISOString();
+    if (!job?.id) throw new Error("지원할 공고 정보를 찾을 수 없습니다.");
+    if (!matchedInterpreter?.id) throw new Error("통역사 프로필 정보를 찾을 수 없습니다.");
+
     const application = {
       job_id: job.id,
-      interpreter_id: matchedInterpreter?.id || null,
-      applicant_name: form.name.trim(),
-      email: applicantEmail,
-      message: [
-        form.message,
-        form.gender ? `성별: ${form.gender}` : "",
-        form.japaneseLevel ? `일본어 수준: ${form.japaneseLevel}` : "",
-        form.experience ? `통역 경험: ${form.experience}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
+      interpreter_id: matchedInterpreter.id,
+      applicant_name: form.name.trim() || null,
+      phone: applicantPhone || null,
+      email: applicantEmail || null,
+      message:
+        [
+          form.message,
+          form.gender ? `성별: ${form.gender}` : "",
+          form.japaneseLevel ? `일본어 수준: ${form.japaneseLevel}` : "",
+          form.experience ? `통역 경험: ${form.experience}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n") || null,
       status: "pending",
       agreed_terms: true,
       agreed_policy: true,
@@ -360,55 +359,19 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
         }
       }
 
-      const managementConfig = MANAGEMENT_NUMBER_CONFIG.job_applications;
-      let insertPayload = await addManagementNumber({
-        supabase,
-        table: "job_applications",
-        payload: application,
-        ...managementConfig,
-      });
-
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from("job_applications")
-        .insert([insertPayload])
+        .insert([application])
         .select("id")
         .single();
 
-      if (isManagementNumberConflict(error, managementConfig.column)) {
-        insertPayload = await addManagementNumber({
-          supabase,
-          table: "job_applications",
-          payload: application,
-          ...managementConfig,
-        });
-        const retryResult = await supabase
-          .from("job_applications")
-          .insert([insertPayload])
-          .select("id")
-          .single();
-        data = retryResult.data;
-        error = retryResult.error;
-      }
-
-      if (error && isAgreementColumnError(error)) {
-        const fallbackApplication = buildLegacyJobApplicationPayload(error, insertPayload);
-        const fallbackResult = await supabase
-          .from("job_applications")
-          .insert([fallbackApplication])
-          .select("id")
-          .single();
-        data = fallbackResult.data;
-        error = fallbackResult.error;
-      }
-
       if (error) {
         const errorDetails = getSupabaseErrorDetails(error);
-        console.error("지원 저장 실패:", {
+        console.error("job_applications insert failed", {
           ...errorDetails,
-          table: "job_applications",
-          payloadKeys: Object.keys(insertPayload || {}),
-          status: insertPayload?.status,
-          interpreter_id: insertPayload?.interpreter_id,
+          payload: import.meta.env.DEV
+            ? application
+            : { ...application, email: "[masked]", phone: "[masked]", message: "[masked]" },
         });
         throw error;
       }
@@ -684,7 +647,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                               <p className="summary-title">통역사 정보 자동 입력됨</p>
                               <div className="summary-details">
                                 <span><strong>이름:</strong> {interpreterProfile.name}</span>
-                                <span><strong>연락처:</strong> {interpreterProfile.phone}</span>
+                                <span><strong>연락처:</strong> {getApplicationPhoneDisplay(interpreterProfile.phone)}</span>
                                 <span><strong>이메일:</strong> {interpreterProfile.email}</span>
                                 <span><strong>레벨:</strong> {interpreterProfile.level || "LV1"}</span>
                               </div>

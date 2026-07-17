@@ -1,5 +1,5 @@
 export const DUPLICATE_APPLICATION_MESSAGE =
-  "이미 지원한 통역공고입니다.";
+  "이미 지원한 공고입니다.";
 
 const WITHDRAWABLE_APPLICATION_STATUSES = new Set([
   "pending",
@@ -11,20 +11,6 @@ const WITHDRAWABLE_APPLICATION_STATUSES = new Set([
 
 const NON_BLOCKING_APPLICATION_STATUSES = ["cancelled"];
 
-const LEGACY_JOB_APPLICATION_COLUMNS = [
-  "agreed_terms",
-  "agreed_policy",
-  "agreed_cancel_policy",
-  "agreed_at",
-  "cancel_policy_agreed_at",
-  "application_no",
-];
-
-const LEGACY_JOB_APPLICATION_COLUMN_GROUPS = [
-  ["agreed_cancel_policy", "cancel_policy_agreed_at"],
-  ["agreed_terms", "agreed_policy", "agreed_at"],
-];
-
 export function normalizeApplicationEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -33,13 +19,12 @@ export function normalizeApplicationPhone(value) {
   return String(value || "").replace(/[\s\-()]/g, "").trim();
 }
 
+export function getApplicationPhoneDisplay(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : "미등록";
+}
+
 export function isDuplicateApplicationError(error) {
-  return (
-    error?.code === "23505" &&
-    /job_applications.*(email|phone|interpreter)|applications.*(email|phone|interpreter)/i.test(
-      error?.message || ""
-    )
-  );
+  return error?.code === "23505";
 }
 
 export function getSupabaseErrorDetails(error) {
@@ -51,29 +36,17 @@ export function getSupabaseErrorDetails(error) {
   };
 }
 
-export function isAgreementColumnError(error) {
-  const message = [
-    error?.message,
-    error?.details,
-    error?.hint,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    error?.code === "42703" ||
-    error?.code === "PGRST204" ||
-    /agreed_|cancel_policy_agreed_at|column|schema cache/i.test(message)
-  );
-}
-
 export function getJobApplicationSubmitErrorMessage(error) {
   if (!error) {
     return "제출에 실패했습니다. 잠시 후 다시 시도해주세요.";
   }
 
   if (isDuplicateApplicationError(error)) {
-    return DUPLICATE_APPLICATION_MESSAGE;
+    return "이미 지원한 공고입니다.";
+  }
+
+  if (error?.code === "23503") {
+    return "공고 또는 통역사 정보가 올바르지 않습니다.";
   }
 
   if (
@@ -82,14 +55,22 @@ export function getJobApplicationSubmitErrorMessage(error) {
       error?.message || ""
     )
   ) {
-    return "지원 처리 권한이 없습니다. 로그인 상태와 통역사 승인 상태를 확인해주세요.";
+    return "지원서를 저장할 권한이 없습니다. 다시 로그인해 주세요.";
   }
 
-  if (/column .* does not exist|relation .* does not exist|schema cache/i.test(error?.message || "")) {
-    return "제출 중 시스템 오류가 발생했습니다. 관리자에게 문의해주세요.";
+  if (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column .* does not exist|schema cache/i.test(error?.message || "")
+  ) {
+    return "지원 저장에 필요한 DB 컬럼이 존재하지 않습니다.";
   }
 
-  return "제출에 실패했습니다. 잠시 후 다시 시도해주세요.";
+  if (error?.code === "22P02") {
+    return "지원 정보의 데이터 형식이 올바르지 않습니다.";
+  }
+
+  return "지원서를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
 export function canWithdrawJobApplication(status) {
@@ -126,43 +107,6 @@ export async function withdrawOwnJobApplication(
 
   if (error) throw error;
   return data || null;
-}
-
-export function buildLegacyJobApplicationPayload(error, payload) {
-  if (!payload) return payload;
-
-  const message = [
-    error?.message,
-    error?.details,
-    error?.hint,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const missingColumns = LEGACY_JOB_APPLICATION_COLUMNS.filter((column) =>
-    new RegExp(`\\b${column}\\b`, "i").test(message)
-  );
-
-  const columnsToRemove = missingColumns.length
-    ? missingColumns
-    : LEGACY_JOB_APPLICATION_COLUMNS;
-
-  LEGACY_JOB_APPLICATION_COLUMN_GROUPS.forEach((group) => {
-    if (group.some((column) => columnsToRemove.includes(column))) {
-      group.forEach((column) => {
-        if (!columnsToRemove.includes(column)) {
-          columnsToRemove.push(column);
-        }
-      });
-    }
-  });
-
-  const nextPayload = { ...payload };
-  columnsToRemove.forEach((column) => {
-    delete nextPayload[column];
-  });
-
-  return nextPayload;
 }
 
 export async function findExistingJobApplication(
