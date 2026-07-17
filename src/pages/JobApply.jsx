@@ -5,7 +5,12 @@ import TermsAgreement, {
 } from "../components/TermsAgreement";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import { useAuth } from "../hooks/useAuth";
-import { canApplyToJob, getJobStatusLabel, isPublicJob } from "../utils/jobStatus";
+import {
+  getApplicationAvailability,
+  getApplicationAvailabilityLabel,
+  getJobStatusLabel,
+  isPublicJob,
+} from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import {
@@ -216,8 +221,9 @@ function JobApply({
 
     if (submittingRef.current || submitting || submitted) return;
     if (!job) return;
-    if (!canApplyToJob(job)) {
-      setSubmitStatus({ type: "error", message: "지원할 수 없는 공고입니다." });
+    const availability = getApplicationAvailability(job);
+    if (!availability.allowed) {
+      setSubmitStatus({ type: "error", message: getApplicationAvailabilityLabel(availability) });
       return;
     }
     if (existingApplication) {
@@ -266,6 +272,14 @@ function JobApply({
       setSubmitStatus({ type: "error", message: message });
       alert(message);
       return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug("application consent state", {
+        agreedTerms: agreements.agreedTerms,
+        agreedPolicy: agreements.agreedPolicy,
+        agreedCancelPolicy: agreements.agreedCancelPolicy,
+      });
     }
 
     setSubmitting(true);
@@ -324,11 +338,11 @@ function JobApply({
             .filter(Boolean)
             .join("\n\n") || null,
         status: "pending",
-        agreed_terms: true,
-        agreed_policy: true,
-        agreed_cancel_policy: true,
-        agreed_at: agreedAt,
-        cancel_policy_agreed_at: agreedAt,
+        agreed_terms: Boolean(agreements.agreedTerms),
+        agreed_policy: Boolean(agreements.agreedPolicy),
+        agreed_cancel_policy: Boolean(agreements.agreedCancelPolicy),
+        agreed_at: areTermsAgreed(agreements, { requireCancelPolicy: true }) ? agreedAt : null,
+        cancel_policy_agreed_at: agreements.agreedCancelPolicy ? agreedAt : null,
       };
       const existingApplication = await findExistingJobApplication(supabase, {
         jobId: job.id,
@@ -366,7 +380,9 @@ function JobApply({
       const { data, error } = await supabase
         .from("job_applications")
         .insert([application])
-        .select("id")
+        .select(
+          "id, agreed_terms, agreed_policy, agreed_cancel_policy, agreed_at, cancel_policy_agreed_at"
+        )
         .single();
 
       if (error) {
@@ -379,6 +395,8 @@ function JobApply({
         });
         throw error;
       }
+
+      if (import.meta.env.DEV) console.debug("saved consent data", data);
 
       setSubmitted(true);
       setExistingApplication(data || { id: data?.id });
@@ -408,6 +426,8 @@ function JobApply({
       if (!submitted) setSubmitting(false);
     }
   };
+
+  const applicationAvailability = getApplicationAvailability(job || {});
 
   const goToJobs = () => {
     onSubmitSuccess();
@@ -621,13 +641,13 @@ function JobApply({
                     !user ||
                     !interpreterProfile ||
                     isWithdrawnInterpreter(interpreterProfile) ||
-                    !canApplyToJob(job) ||
+                    !applicationAvailability.allowed ||
                     !hasRegisteredResume(interpreterProfile) ||
                     !areTermsAgreed(agreements, { requireCancelPolicy: true })
                   }
                 >
-                  {!canApplyToJob(job)
-                    ? "마감됨"
+                  {!applicationAvailability.allowed
+                    ? getApplicationAvailabilityLabel(applicationAvailability)
                     : isWithdrawnInterpreter(interpreterProfile)
                       ? "지원 불가"
                     : submitted

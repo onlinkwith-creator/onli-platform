@@ -489,6 +489,11 @@ async function fetchJobApplicationsWithJobs(jobs = []) {
         interpreter_id,
         message,
         status,
+        agreed_terms,
+        agreed_policy,
+        agreed_cancel_policy,
+        agreed_at,
+        cancel_policy_agreed_at,
         created_at,
         jobs (
           id,
@@ -9446,11 +9451,11 @@ function JobApplicationsPanel({
                   />
                   <ApplicantDetailItem
                     label="약관 동의"
-                    value={getAgreementStatusLabel(application)}
+                    value={getJobApplicationAgreementStatusLabel(application)}
                   />
                   <ApplicantDetailItem
                     label="동의 시간"
-                    value={formatDateTime(application.agreed_at)}
+                    value={formatDateTime(getJobApplicationConsentTime(application))}
                   />
                 </div>
 
@@ -11369,8 +11374,11 @@ function ApplicationCard({
             <Info label="지원일" value={formatDate(application.created_at)} />
             <Info label="이메일" value={application.email || application.applicant_email || "-"} />
             <Info label="전화번호" value={application.phone || application.applicant_phone || "-"} />
-            <Info label="약관 동의" value={getAgreementStatusLabel(application)} />
-            <Info label="동의 시간" value={formatDateTime(application.agreed_at)} />
+            <Info label="약관 동의" value={getJobApplicationAgreementStatusLabel(application)} />
+            <Info
+              label="동의 시간"
+              value={formatDateTime(getJobApplicationConsentTime(application))}
+            />
             <Info label="메모" value={application.message || "지원 메모 없음"} />
           </dl>
 
@@ -18044,6 +18052,7 @@ function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -18055,6 +18064,18 @@ function formatDateTime(value) {
 
 function getAgreementStatusLabel(item = {}) {
   return item.agreed_terms && item.agreed_policy ? "완료" : "미동의";
+}
+
+function getJobApplicationAgreementStatusLabel(application = {}) {
+  return application.agreed_terms === true &&
+    application.agreed_policy === true &&
+    application.agreed_cancel_policy === true
+    ? "동의"
+    : "미동의";
+}
+
+function getJobApplicationConsentTime(application = {}) {
+  return application.agreed_at ?? application.cancel_policy_agreed_at ?? null;
 }
 
 function formatList(value) {

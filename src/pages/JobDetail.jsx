@@ -26,7 +26,14 @@ import {
   checkInterpreterScheduleConflict,
   getScheduleRange,
 } from "../utils/scheduleConflict";
-import { canApplyToJob, getJobStatusLabel, isPublicJob, normalizeJobStatus } from "../utils/jobStatus";
+import {
+  JOB_STATUS,
+  getApplicationAvailability,
+  getApplicationAvailabilityLabel,
+  getJobStatusLabel,
+  isPublicJob,
+  normalizeJobStatus,
+} from "../utils/jobStatus";
 import { formatDateRange } from "../utils/dateRange";
 import { getJobLevelSummary, getJobPayDisplay, getJobSpecialty } from "../utils/jobDisplay";
 import { attachPublicJobCounts } from "../utils/jobsApi";
@@ -217,8 +224,9 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
     if (submittingRef.current || submitting || submitted) return;
 
     if (!job) return;
-    if (!canApplyToJob(job)) {
-      setSubmitStatus({ type: "error", message: "지원할 수 없는 공고입니다." });
+    const availability = getApplicationAvailability(job);
+    if (!availability.allowed) {
+      setSubmitStatus({ type: "error", message: getApplicationAvailabilityLabel(availability) });
       return;
     }
     if (existingApplication) {
@@ -261,6 +269,14 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       setSubmitStatus({ type: "error", message: message });
       alert(message);
       return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug("application consent state", {
+        agreedTerms: agreements.agreedTerms,
+        agreedPolicy: agreements.agreedPolicy,
+        agreedCancelPolicy: agreements.agreedCancelPolicy,
+      });
     }
 
     setSubmitting(true);
@@ -319,11 +335,11 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
           .filter(Boolean)
           .join("\n\n") || null,
       status: "pending",
-      agreed_terms: true,
-      agreed_policy: true,
-      agreed_cancel_policy: true,
-      agreed_at: agreedAt,
-      cancel_policy_agreed_at: agreedAt,
+      agreed_terms: Boolean(agreements.agreedTerms),
+      agreed_policy: Boolean(agreements.agreedPolicy),
+      agreed_cancel_policy: Boolean(agreements.agreedCancelPolicy),
+      agreed_at: areTermsAgreed(agreements, { requireCancelPolicy: true }) ? agreedAt : null,
+      cancel_policy_agreed_at: agreements.agreedCancelPolicy ? agreedAt : null,
     };
 
     const existingApplication = await findExistingJobApplication(supabase, {
@@ -362,7 +378,9 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       const { data, error } = await supabase
         .from("job_applications")
         .insert([application])
-        .select("id")
+        .select(
+          "id, agreed_terms, agreed_policy, agreed_cancel_policy, agreed_at, cancel_policy_agreed_at"
+        )
         .single();
 
       if (error) {
@@ -375,6 +393,8 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
         });
         throw error;
       }
+
+      if (import.meta.env.DEV) console.debug("saved consent data", data);
 
       setSubmitted(true);
       setExistingApplication(data || { id: data?.id });
@@ -402,6 +422,8 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
       submittingRef.current = false;
     }
   };
+
+  const applicationAvailability = getApplicationAvailability(job || {});
 
   return (
     <div className="job-detail-page">
@@ -483,7 +505,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                     {(job.location || job.event_location || "장소 확인 중")} · {getRecruitmentCountDisplay(job)} · {getJobLevelBadgeLabel(job)}
                   </p>
                   <a className="job-detail-mobile-apply-link" href="#job-apply-section">
-                    {canApplyToJob(job) ? "지원하기" : getJobStatusLabel(job)}
+                    {getApplicationAvailabilityLabel(applicationAvailability)}
                   </a>
                 </section>
                 
@@ -599,7 +621,13 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                           {getJobStatusLabel(job)}
                         </span>
                       </div>
-                      <p>{canApplyToJob(job) ? "현재 지원 가능한 공고입니다." : "현재 지원 상태를 확인해주세요."}</p>
+                      <p>
+                        {applicationAvailability.allowed && normalizeJobStatus(job) === JOB_STATUS.ASSIGNING
+                          ? "배정 진행 중이며, 남은 인원에 한해 지원 가능합니다."
+                          : applicationAvailability.allowed
+                            ? "현재 지원 가능한 공고입니다."
+                            : getApplicationAvailabilityLabel(applicationAvailability)}
+                      </p>
                     </div>
 
                     {submitted ? (
@@ -681,12 +709,12 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                               disabled={
                                 submitting ||
                                 applicationCheckLoading ||
-                                !canApplyToJob(job) ||
+                                !applicationAvailability.allowed ||
                                 !hasRegisteredResume(interpreterProfile) ||
                                 !areTermsAgreed(agreements, { requireCancelPolicy: true })
                               }
                             >
-                              {canApplyToJob(job)
+                              {applicationAvailability.allowed
                                 ? applicationCheckLoading
                                   ? "지원 여부 확인 중..."
                                   : submitting
@@ -697,7 +725,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                                       지원하기
                                     </>
                                   )
-                                : getJobStatusLabel(job)}
+                                : getApplicationAvailabilityLabel(applicationAvailability)}
                             </button>
                           </form>
                         )}
