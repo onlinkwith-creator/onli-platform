@@ -394,6 +394,8 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
         throw error;
       }
 
+      alert("지원이 완료되었습니다.");
+
       if (import.meta.env.DEV) console.debug("saved consent data", data);
 
       setSubmitted(true);
