@@ -5,6 +5,14 @@ import {
   normalizeJobStatus as normalizeStandardJobStatus,
 } from "./status";
 import { getAssignedCount, getTotalPeopleCount } from "./jobRecruitment";
+import {
+  ASSIGNMENT_STATUS,
+  OPERATION_STATUS,
+  getAssignmentStatusLabel,
+  getOperationStatusLabel,
+  normalizeAssignmentStatus,
+  normalizeOperationStatus,
+} from "./operationsStatus";
 
 export { JOB_STATUS, JOB_STATUS_OPTIONS };
 
@@ -49,34 +57,37 @@ export function canApplyToJob(job = {}) {
   return getApplicationAvailability(job).allowed;
 }
 
-const APPLICATION_OPEN_STATUSES = new Set([
-  JOB_STATUS.RECRUITING,
-  JOB_STATUS.ASSIGNING,
-]);
-
 export function getApplicationAvailability(job = {}, { now = new Date() } = {}) {
   if (!job?.id) return { allowed: false, reason: "closed_status" };
-  if (!isPublicJob(job)) return { allowed: false, reason: "closed_status" };
-
-  const operationStatus = String(job.operation_status || "").trim().toLowerCase();
-  if (
-    [
-      "operation_in_progress",
-      "in_progress",
-      "operation_completed",
-      "completed",
-      "진행중",
-      "업무진행",
-      "업무완료",
-      "운영완료",
-    ].includes(operationStatus)
-  ) {
-    return { allowed: false, reason: "closed_status" };
+  if (!isPublicJob(job)) {
+    return { allowed: false, reason: "closed_status", label: getJobStatusLabel(job) };
   }
 
-  const status = normalizeJobStatus(job);
-  if (!APPLICATION_OPEN_STATUSES.has(status)) {
-    return { allowed: false, reason: "closed_status" };
+  const jobStatus = normalizeJobStatus(job);
+  if (
+    [JOB_STATUS.CLOSED, JOB_STATUS.ASSIGNED, JOB_STATUS.COMPLETED, JOB_STATUS.CANCELLED].includes(
+      jobStatus
+    )
+  ) {
+    return { allowed: false, reason: "closed_status", label: getJobStatusLabel(job) };
+  }
+
+  const operationStatus = normalizeOperationStatus(job);
+  if (operationStatus !== OPERATION_STATUS.BEFORE_OPERATION) {
+    return {
+      allowed: false,
+      reason: "closed_status",
+      label: getOperationStatusLabel(operationStatus),
+    };
+  }
+
+  const assignmentStatus = normalizeAssignmentStatus(job);
+  if (assignmentStatus !== ASSIGNMENT_STATUS.WAITING) {
+    return {
+      allowed: false,
+      reason: "closed_status",
+      label: getAssignmentStatusLabel(assignmentStatus),
+    };
   }
 
   const requiredCount = getTotalPeopleCount(job);
@@ -100,7 +111,7 @@ export function getApplicationAvailability(job = {}, { now = new Date() } = {}) 
 export function getApplicationAvailabilityLabel(availability = {}) {
   if (availability.reason === "capacity_full") return "모집 마감";
   if (availability.reason === "deadline_passed") return "지원 마감";
-  return availability.allowed ? "지원하기" : "지원 불가";
+  return availability.allowed ? "지원하기" : availability.label || "지원 불가";
 }
 
 function parseApplicationDeadline(value) {

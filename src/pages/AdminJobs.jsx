@@ -1319,7 +1319,7 @@ function getRequestHeadlineStatus(item = {}) {
       label: isDesignatedRequest(item) ? "통역사 확인중" : "배정중",
     };
   }
-  return { type: "assignment", value: statuses.assignment_status, label: "배정대기" };
+  return { type: "assignment", value: statuses.assignment_status, label: "모집중" };
 }
 
 function FlowStatusBadge({ label, type, value }) {

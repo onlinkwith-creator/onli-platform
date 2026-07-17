@@ -23,7 +23,7 @@ export const SETTLEMENT_FLOW_STATUS = {
 };
 
 export const ASSIGNMENT_STATUS_OPTIONS = [
-  { value: ASSIGNMENT_STATUS.WAITING, label: "배정대기" },
+  { value: ASSIGNMENT_STATUS.WAITING, label: "모집중" },
   { value: ASSIGNMENT_STATUS.ASSIGNING, label: "배정중" },
   { value: ASSIGNMENT_STATUS.ASSIGNED, label: "배정완료" },
 ];
@@ -94,7 +94,7 @@ export function normalizeSettlementFlowStatus(item = {}) {
 }
 
 export function getAssignmentStatusLabel(status) {
-  return getOptionLabel(ASSIGNMENT_STATUS_OPTIONS, status, "배정대기");
+  return getOptionLabel(ASSIGNMENT_STATUS_OPTIONS, status, "모집중");
 }
 
 export function getOperationStatusLabel(status) {

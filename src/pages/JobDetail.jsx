@@ -27,7 +27,6 @@ import {
   getScheduleRange,
 } from "../utils/scheduleConflict";
 import {
-  JOB_STATUS,
   getApplicationAvailability,
   getApplicationAvailabilityLabel,
   getJobStatusLabel,
@@ -624,11 +623,9 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
                         </span>
                       </div>
                       <p>
-                        {applicationAvailability.allowed && normalizeJobStatus(job) === JOB_STATUS.ASSIGNING
-                          ? "배정 진행 중이며, 남은 인원에 한해 지원 가능합니다."
-                          : applicationAvailability.allowed
-                            ? "현재 지원 가능한 공고입니다."
-                            : getApplicationAvailabilityLabel(applicationAvailability)}
+                        {applicationAvailability.allowed
+                          ? "현재 지원 가능한 공고입니다."
+                          : getApplicationAvailabilityLabel(applicationAvailability)}
                       </p>
                     </div>
 
