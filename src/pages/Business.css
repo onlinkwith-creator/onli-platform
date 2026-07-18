@@ -324,11 +324,15 @@
 }
 
 .business-section-head {
-  display: grid;
-  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
-  gap: 34px;
-  align-items: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 22px;
+}
+
+.business-section-head .business-kicker {
+  margin: 0;
 }
 
 .business-section h2,
@@ -470,14 +474,13 @@
   box-shadow: 0 14px 42px rgba(15, 23, 42, 0.06);
 }
 
-.business-request-band p:not(.business-kicker) {
+.business-request-content > p {
   max-width: 680px;
   margin-top: 12px;
 }
 
 @media (max-width: 980px) {
   .business-hero,
-  .business-section-head,
   .business-trust-section,
   .business-request-band {
     grid-template-columns: 1fr;

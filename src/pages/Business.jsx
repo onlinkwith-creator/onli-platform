@@ -203,7 +203,7 @@ function Business({
         </section>
 
         <section className="business-section business-trust-section">
-          <div>
+          <div className="business-section-head">
             <p className="business-kicker">WHY ON-LI</p>
             <h2>기업 담당자가 확인해야 할 운영 요소를 함께 관리합니다.</h2>
           </div>
@@ -227,9 +227,11 @@ function Business({
         </section>
 
         <section className="business-request-band" id="request">
-          <div>
-            <p className="business-kicker">REQUEST</p>
-            <h2>행사 일정과 장소를 알려주시면 견적을 준비합니다.</h2>
+          <div className="business-request-content">
+            <div className="business-section-head">
+              <p className="business-kicker">REQUEST</p>
+              <h2>행사 일정과 장소를 알려주시면 견적을 준비합니다.</h2>
+            </div>
             <p>
               기업명, 행사명, 진행 날짜, 장소, 필요한 통역 범위를 남겨주세요.
               운영팀이 확인 후 다음 절차를 안내합니다.
