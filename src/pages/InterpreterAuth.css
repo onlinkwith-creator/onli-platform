@@ -2359,6 +2359,163 @@
   border: 1px solid #e5e7eb !important;
 }
 
+.profile-multi-select {
+  position: relative;
+  width: 100%;
+}
+
+.profile-multi-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.profile-multi-select-trigger:focus {
+  outline: none;
+  border-color: #6d5dfc;
+  box-shadow: 0 0 0 3px rgba(109, 93, 252, 0.12);
+}
+
+.profile-multi-select-values {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-multi-select-placeholder {
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.profile-multi-select-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid rgba(109, 93, 252, 0.18);
+  border-radius: 999px;
+  background: rgba(109, 93, 252, 0.08);
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.profile-multi-select-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.profile-multi-select-chip-remove:focus-visible {
+  outline: 2px solid #6d5dfc;
+  outline-offset: 1px;
+}
+
+.profile-multi-select-arrow {
+  flex: 0 0 auto;
+  color: #6b7280;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.profile-multi-select-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.profile-edit-form .profile-multi-select-search {
+  width: 100%;
+  height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-size: 13px;
+}
+
+.profile-multi-select-options {
+  display: grid;
+  max-height: 208px;
+  margin-top: 6px;
+  overflow-y: auto;
+}
+
+.profile-multi-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #374151;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-multi-select-option:hover,
+.profile-multi-select-option:focus-visible {
+  background: rgba(109, 93, 252, 0.08);
+  color: #4f46e5;
+  outline: none;
+}
+
+.profile-multi-select-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.profile-multi-select-check.is-selected {
+  border-color: #6d5dfc;
+  background: #6d5dfc;
+}
+
+.profile-multi-select-empty {
+  margin: 8px;
+  color: #6b7280;
+  font-size: 13px;
+  text-align: center;
+}
+
 /* ========================
    Interpreter Prep Tab
    ======================== */

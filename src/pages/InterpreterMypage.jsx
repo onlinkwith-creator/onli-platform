@@ -48,6 +48,18 @@ const TABS = [
   { id: "schedule", label: "일정 및 캘린더", icon: "📅" },
 ];
 
+const SPECIALTY_OPTIONS = [
+  "뷰티", "화장품", "패션", "전시회", "박람회", "비즈니스 미팅", "바이어 상담", "기업 방문", "계약 상담",
+  "의료", "제약", "IT", "AI", "게임", "콘텐츠", "엔터테인먼트", "방송", "영화", "애니메이션",
+  "식품", "자동차", "전자", "무역", "관광", "수행통역",
+];
+
+const REGION_OPTIONS = [
+  "도쿄", "오사카", "교토", "고베", "나라", "시가", "요코하마", "치바", "사이타마", "나고야",
+  "시즈오카", "히로시마", "오카야마", "후쿠오카", "삿포로", "센다이", "다카마쓰", "마쓰야마",
+  "구마모토", "가고시마", "오키나와",
+];
+
 
 const SETTLEMENT_DOCUMENT_BUCKET = "resume-files";
 const REQUEST_REFERENCE_BUCKET = "request-files";
@@ -332,14 +344,10 @@ function InterpreterMypage({
       available_tasks: interpreter.available_tasks || interpreter.available_work || "",
     });
     setSpecialtiesInput(
-      Array.isArray(interpreter.specialties)
-        ? interpreter.specialties.filter(Boolean).join(", ")
-        : ""
+      normalizeMultiSelectValue(interpreter.specialties).join(", ")
     );
     setRegionsInput(
-      Array.isArray(interpreter.available_regions)
-        ? interpreter.available_regions.filter(Boolean).join(", ")
-        : ""
+      normalizeMultiSelectValue(interpreter.available_regions).join(", ")
     );
     setIsEditingProfile(true);
   };
@@ -361,14 +369,8 @@ function InterpreterMypage({
     if (isUpdatingProfile || !supabase || !interpreter) return;
     setIsUpdatingProfile(true);
 
-    const specialties = specialtiesInput
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const available_regions = regionsInput
-      .split(",")
-      .map((r) => r.trim())
-      .filter(Boolean);
+    const specialties = normalizeMultiSelectValue(specialtiesInput);
+    const available_regions = normalizeMultiSelectValue(regionsInput);
 
     const payload = {
       name: editForm.name,
@@ -1534,27 +1536,25 @@ function InterpreterMypage({
                           </div>
                         </div>
 
-                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
-                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>전문 분야 (쉼표로 구분)</span>
-                          <input
-                            type="text"
+                        <div className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>전문 분야</span>
+                          <SearchableMultiSelect
+                            options={SPECIALTY_OPTIONS}
+                            placeholder="전문 분야를 선택하세요"
                             value={specialtiesInput}
-                            onChange={(e) => setSpecialtiesInput(e.target.value)}
-                            placeholder="예: IT, 의료, 제조, 비즈니스 미팅"
-                            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                            onChange={setSpecialtiesInput}
                           />
-                        </label>
+                        </div>
 
-                        <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
-                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>활동 가능 지역 (쉼표로 구분)</span>
-                          <input
-                            type="text"
+                        <div className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>활동 가능 지역</span>
+                          <SearchableMultiSelect
+                            options={REGION_OPTIONS}
+                            placeholder="활동 가능 지역을 선택하세요"
                             value={regionsInput}
-                            onChange={(e) => setRegionsInput(e.target.value)}
-                            placeholder="예: 도쿄, 오사카, 서울, 후쿠오카"
-                            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                            onChange={setRegionsInput}
                           />
-                        </label>
+                        </div>
 
                         <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
                           <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>자기소개</span>
@@ -3065,6 +3065,122 @@ function ApplicationDetail({ label, value }) {
   );
 }
 
+function SearchableMultiSelect({ options, placeholder, value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selectRef = useRef(null);
+  const selectedValues = normalizeMultiSelectValue(value);
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredOptions = options.filter((option) => option.toLowerCase().includes(normalizedQuery));
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (selectRef.current && !selectRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setQuery("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const updateSelection = (nextValues) => onChange(nextValues.join(", "));
+
+  const toggleOption = (option) => {
+    updateSelection(
+      selectedValues.includes(option)
+        ? selectedValues.filter((selected) => selected !== option)
+        : [...selectedValues, option]
+    );
+  };
+
+  return (
+    <div ref={selectRef} className="profile-multi-select">
+      <div
+        className="profile-multi-select-trigger"
+        onClick={() => setIsOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setIsOpen((current) => !current);
+          }
+        }}
+        role="combobox"
+        tabIndex={0}
+        aria-expanded={isOpen}
+      >
+        <span className="profile-multi-select-values">
+          {selectedValues.length ? (
+            selectedValues.map((selected) => (
+              <span key={selected} className="profile-multi-select-chip">
+                {selected}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="profile-multi-select-chip-remove"
+                  aria-label={`${selected} 삭제`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    updateSelection(selectedValues.filter((valueItem) => valueItem !== selected));
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      updateSelection(selectedValues.filter((valueItem) => valueItem !== selected));
+                    }
+                  }}
+                >
+                  <X size={13} aria-hidden="true" />
+                </span>
+              </span>
+            ))
+          ) : (
+            <span className="profile-multi-select-placeholder">{placeholder}</span>
+          )}
+        </span>
+        <span className="profile-multi-select-arrow" aria-hidden="true">⌄</span>
+      </div>
+
+      {isOpen && (
+        <div className="profile-multi-select-menu">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="검색"
+            className="profile-multi-select-search"
+            autoFocus
+          />
+          <div className="profile-multi-select-options">
+            {filteredOptions.length ? (
+              filteredOptions.map((option) => {
+                const isSelected = selectedValues.includes(option);
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    className="profile-multi-select-option"
+                    onClick={() => toggleOption(option)}
+                  >
+                    <span className={`profile-multi-select-check ${isSelected ? "is-selected" : ""}`} aria-hidden="true">
+                      {isSelected ? "✓" : ""}
+                    </span>
+                    {option}
+                  </button>
+                );
+              })
+            ) : (
+              <p className="profile-multi-select-empty">검색 결과가 없습니다.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfileRow({ label, value }) {
   return (
     <div>
@@ -3226,6 +3342,11 @@ function getDaysRemaining(startDateStr) {
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeMultiSelectValue(value) {
+  const source = Array.isArray(value) ? value : String(value || "").split(",");
+  return [...new Set(source.map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
 function getResumeStoragePath(filePath) {
