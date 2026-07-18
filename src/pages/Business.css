@@ -323,6 +323,12 @@
   border-top: 1px solid #e5e7eb;
 }
 
+@media (min-width: 981px) {
+  #services {
+    margin-top: -80px;
+  }
+}
+
 .business-section-head {
   display: flex;
   flex-direction: column;
