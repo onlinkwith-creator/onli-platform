@@ -430,6 +430,21 @@
   margin-top: 22px;
 }
 
+/* Keep the experience card on one centered content axis without affecting the about card. */
+.interpreter-detail-content-grid > .profile-info-card:first-child .profile-section-head,
+.interpreter-detail-content-grid > .profile-info-card:first-child .profile-card-block {
+  text-align: center;
+}
+
+.interpreter-detail-content-grid > .profile-info-card:first-child .profile-experience-status,
+.interpreter-detail-content-grid > .profile-info-card:first-child .profile-badge-list {
+  justify-content: center;
+}
+
+.interpreter-detail-content-grid > .profile-info-card:first-child .profile-event-list li {
+  justify-content: center;
+}
+
 .profile-card-label {
   display: block;
   margin-bottom: 10px;
@@ -492,7 +507,7 @@
 
 .profile-soft-box {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   margin-top: 24px;
   padding: 18px;
   border: 1px solid rgba(124, 58, 237, 0.1);
@@ -502,9 +517,9 @@
 
 .profile-soft-box div {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: 108px minmax(0, 1fr);
   gap: 12px;
-  align-items: start;
+  align-items: baseline;
 }
 
 .profile-soft-box span {
@@ -562,9 +577,14 @@
 
 .profile-bottom-actions {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
   flex-shrink: 0;
+}
+
+.profile-bottom-actions .profile-primary-button,
+.profile-bottom-actions .profile-secondary-button {
+  height: 54px;
 }
 
 .interpreter-detail-message {
@@ -857,6 +877,10 @@
     margin-top: 16px;
   }
 
+  .interpreter-detail-content-grid > .profile-info-card:first-child .profile-event-list li {
+    align-items: center;
+  }
+
   .profile-card-label {
     margin-bottom: 8px;
     font-size: 12px;
@@ -896,6 +920,11 @@
   .profile-bottom-actions {
     flex-direction: column;
     gap: 8px;
+  }
+
+  .profile-bottom-actions .profile-primary-button,
+  .profile-bottom-actions .profile-secondary-button {
+    height: 48px;
   }
 }
 
