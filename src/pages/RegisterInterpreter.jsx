@@ -160,7 +160,6 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
 
     if (submittingRef.current) return;
     submittingRef.current = true;
-    setIsSubmitting(true);
 
     try {
     console.log("REGISTER SUBMIT START");
@@ -424,7 +423,6 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
     }, 700);
     } finally {
       submittingRef.current = false;
-      setIsSubmitting(false);
     }
   };
 

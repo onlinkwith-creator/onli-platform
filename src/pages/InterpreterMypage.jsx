@@ -55,11 +55,7 @@ const SPECIALTY_OPTIONS = [
   "식품", "자동차", "전자", "무역", "관광", "수행통역",
 ];
 
-const REGION_OPTIONS = [
-  "도쿄", "오사카", "교토", "고베", "나라", "시가", "요코하마", "치바", "사이타마", "나고야",
-  "시즈오카", "히로시마", "오카야마", "후쿠오카", "삿포로", "센다이", "다카마쓰", "마쓰야마",
-  "구마모토", "가고시마", "오키나와",
-];
+const REGION_OPTIONS = JAPAN_PREFECTURES;
 
 
 const SETTLEMENT_DOCUMENT_BUCKET = "resume-files";
@@ -189,7 +185,7 @@ function InterpreterMypage({
     available_tasks: "",
   });
   const [specialtiesInput, setSpecialtiesInput] = useState("");
-  const [selectedRegions, setSelectedRegions] = useState([]);
+  const [regionsInput, setRegionsInput] = useState("");
   const [customRegions, setCustomRegions] = useState([]);
   const [customRegionInput, setCustomRegionInput] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -349,15 +345,11 @@ function InterpreterMypage({
     setSpecialtiesInput(
       normalizeMultiSelectValue(interpreter.specialties).join(", ")
     );
-<<<<<<< HEAD
     setRegionsInput(
       normalizeMultiSelectValue(interpreter.available_regions).join(", ")
     );
-=======
-    setSelectedRegions(uniqueRegions(interpreter.available_regions || []));
     setCustomRegions(uniqueRegions(interpreter.custom_regions || []));
     setCustomRegionInput("");
->>>>>>> 170d413 (Update ON-LI features)
     setIsEditingProfile(true);
   };
 
@@ -373,16 +365,10 @@ function InterpreterMypage({
     setIsEditingProfile(false);
   };
 
-  const toggleSelectedRegion = (region) => {
-    setSelectedRegions((current) => current.includes(region)
-      ? current.filter((item) => item !== region)
-      : [...current, region]);
-  };
-
   const addCustomRegion = () => {
     const region = normalizeRegion(customRegionInput);
     if (!region) return;
-    if (!selectedRegions.includes(region) && !customRegions.includes(region)) {
+    if (!normalizeMultiSelectValue(regionsInput).includes(region) && !customRegions.includes(region)) {
       setCustomRegions((current) => [...current, region]);
     }
     setCustomRegionInput("");
@@ -393,16 +379,8 @@ function InterpreterMypage({
     if (isUpdatingProfile || !supabase || !interpreter) return;
     setIsUpdatingProfile(true);
 
-<<<<<<< HEAD
     const specialties = normalizeMultiSelectValue(specialtiesInput);
     const available_regions = normalizeMultiSelectValue(regionsInput);
-=======
-    const specialties = specialtiesInput
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const available_regions = uniqueRegions(selectedRegions);
->>>>>>> 170d413 (Update ON-LI features)
 
     const payload = {
       name: editForm.name,
@@ -1579,7 +1557,6 @@ function InterpreterMypage({
                           />
                         </div>
 
-<<<<<<< HEAD
                         <div className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
                           <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>활동 가능 지역</span>
                           <SearchableMultiSelect
@@ -1588,19 +1565,6 @@ function InterpreterMypage({
                             value={regionsInput}
                             onChange={setRegionsInput}
                           />
-=======
-                        <div className="edit-form-label full-width profile-region-editor">
-                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>활동 가능 지역</span>
-                          <div className="profile-region-options">
-                            {JAPAN_PREFECTURES.map((region) => (
-                              <button
-                                key={region}
-                                type="button"
-                                className={`profile-region-option${selectedRegions.includes(region) ? " is-selected" : ""}`}
-                                onClick={() => toggleSelectedRegion(region)}
-                              >{region}</button>
-                            ))}
-                          </div>
                           <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563", marginTop: "8px" }}>기타 활동 가능 지역</span>
                           <input
                             type="text"
@@ -1623,7 +1587,6 @@ function InterpreterMypage({
                               </span>
                             ))}
                           </div>
->>>>>>> 170d413 (Update ON-LI features)
                         </div>
 
                         <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
