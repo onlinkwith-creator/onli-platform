@@ -2869,6 +2869,49 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.admin-request-payment-editor {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #c7d2fe;
+  border-radius: 16px;
+  background: #f8faff;
+}
+
+.admin-request-payment-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.admin-request-payment-heading h3,
+.admin-request-payment-heading p {
+  margin: 0;
+}
+
+.admin-request-payment-heading p {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.admin-request-payment-heading > strong {
+  flex: 0 0 auto;
+  color: #4338ca;
+  font-size: 15px;
+}
+
+.admin-request-payment-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-request-payment-fields .date-range-fields {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .admin-table tbody tr:hover > td {
   background: #fbfdff;
 }
@@ -4397,6 +4440,15 @@
 
   .admin-payment-date-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-request-payment-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-request-payment-heading {
+    flex-direction: column;
+    gap: 8px;
   }
 }
 

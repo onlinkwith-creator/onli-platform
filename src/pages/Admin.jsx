@@ -2032,6 +2032,74 @@ function sanitizeRecipientEmail(email) {
     }
   };
 
+  const saveRequestCompanyPayment = async (request, changes) => {
+    if (!supabase || !request?.id) {
+      alert(request?.id ? supabaseConfigError.message : "의뢰 정보를 찾을 수 없습니다.");
+      return false;
+    }
+
+    setSavingKey(`request-payment-${request.id}`);
+    try {
+      const { data: existingPayment, error: lookupError } = await supabase
+        .from("payments")
+        .select("id, paid_at")
+        .eq("request_id", request.id)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+
+      const payload = {
+        payment_status: changes.payment_status,
+        due_date: changes.due_date || null,
+        paid_at: paymentDateToISOString(changes.paid_at, existingPayment?.paid_at),
+        updated_at: new Date().toISOString(),
+      };
+      let result;
+
+      if (existingPayment?.id) {
+        result = await supabase
+          .from("payments")
+          .update(payload)
+          .eq("id", existingPayment.id)
+          .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
+          .single();
+      } else {
+        result = await supabase
+          .from("payments")
+          .insert({
+            request_id: request.id,
+            company_id: request.company_id || null,
+            company_auth_user_id: request.company_auth_user_id || null,
+            amount: normalizeMoneyInput(request.company_amount ?? request.client_price) || 0,
+            ...payload,
+          })
+          .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
+          .single();
+      }
+
+      if (result.error) throw result.error;
+      setPayments((current) => {
+        const exists = current.some((payment) => payment.id === result.data.id);
+        return exists
+          ? current.map((payment) => (payment.id === result.data.id ? result.data : payment))
+          : [result.data, ...current];
+      });
+      await refreshAdminOperationsData();
+      alert("결제 정보가 저장되었습니다.");
+      return true;
+    } catch (error) {
+      console.error("request payment info save failed:", {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+      });
+      alert(`결제 정보 저장 실패: ${error?.message || "원인을 확인해주세요."}`);
+      return false;
+    } finally {
+      setSavingKey("");
+    }
+  };
+
   const recordInterpreterSettlementAmountChange = async (previousSettlement, nextSettlement) => {
     if (!supabase || !nextSettlement?.id) return;
 
@@ -5100,6 +5168,7 @@ function sanitizeRecipientEmail(email) {
                 job={activeRequestJob}
                 request={activeRequest}
                 requests={requests}
+                payments={safePayments}
                 settlements={safeSettlements}
                 savingKey={savingKey}
                 setAssignmentDrafts={setAssignmentDrafts}
@@ -5113,6 +5182,7 @@ function sanitizeRecipientEmail(email) {
                 handleContactVisibleChange={handleContactVisibleChange}
                 onSaveEdit={saveRequestEditDraft}
                 saveSettlement={saveSettlement}
+                saveRequestCompanyPayment={saveRequestCompanyPayment}
                 toggleRequestJobPublic={toggleRequestJobPublic}
                 updateApplicationStatus={updateJobApplicationStatus}
                 updateRequest={updateRequest}
@@ -5148,6 +5218,7 @@ function RequestActionModal({
   job,
   request,
   requests = [],
+  payments = [],
   settlements = [],
   savingKey,
   setAssignmentDrafts,
@@ -5161,6 +5232,7 @@ function RequestActionModal({
   handleContactVisibleChange,
   onSaveEdit,
   saveSettlement,
+  saveRequestCompanyPayment,
   toggleRequestJobPublic,
   updateApplicationStatus,
   updateRequest,
@@ -5218,6 +5290,7 @@ function RequestActionModal({
         <RequestDetailPanel
           request={request}
           requests={requests}
+          payments={payments}
           settlements={settlements}
           job={job}
           applications={applications}
@@ -5231,6 +5304,7 @@ function RequestActionModal({
           handlePriceDraft={handlePriceDraft}
           settlementTouched={settlementTouched}
           saveSettlement={saveSettlement}
+          saveRequestCompanyPayment={saveRequestCompanyPayment}
           removeAssignment={onRemoveAssignment}
           handleContactVisibleChange={handleContactVisibleChange}
           updateRequest={updateRequest}
@@ -8283,6 +8357,7 @@ function RequestDetailPanel({
   job,
   request,
   requests = [],
+  payments = [],
   settlements = [],
   savingKey,
   setAssignmentDrafts,
@@ -8290,6 +8365,7 @@ function RequestDetailPanel({
   handlePriceDraft,
   settlementTouched = {},
   saveSettlement,
+  saveRequestCompanyPayment,
   removeAssignment,
   handleContactVisibleChange,
   updateRequest,
@@ -8356,7 +8432,13 @@ function RequestDetailPanel({
   const [openEventDatePicker, setOpenEventDatePicker] = useState(null);
   const [companyAmountInputs, setCompanyAmountInputs] = useState({});
   const [interpreterPaymentInputs, setInterpreterPaymentInputs] = useState({});
+  const [paymentDueDate, setPaymentDueDate] = useState("");
+  const [paymentCompletedDate, setPaymentCompletedDate] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("unpaid");
   const eventDatePickerRef = useRef(null);
+  const companyPayment = payments.find(
+    (payment) => String(payment.request_id) === String(safeRequest.id)
+  ) || null;
   const interpreterPaymentInputKey = String(safeRequest?.id || "");
   const companyAmountInputKey = interpreterPaymentInputKey;
   const savedCompanyAmountInput =
@@ -8387,6 +8469,14 @@ function RequestDetailPanel({
       : null,
     [companyAmountForProfit, interpreterAmountForProfit]
   );
+
+  useEffect(() => {
+    setPaymentDueDate(companyPayment?.due_date || "");
+    setPaymentCompletedDate(
+      companyPayment?.paid_at ? toAdminDateTimeInput(companyPayment.paid_at).slice(0, 10) : ""
+    );
+    setPaymentStatus(companyPayment?.payment_status === "paid" ? "paid" : "unpaid");
+  }, [companyPayment?.due_date, companyPayment?.id, companyPayment?.paid_at, companyPayment?.payment_status, safeRequest.id]);
 
   const handleCompanyAmountInputChange = (event) => {
     if (!companyAmountInputKey) return;
@@ -8669,6 +8759,65 @@ function RequestDetailPanel({
       {activeTab === "basic" && (
         <div className="admin-detail-tab-content admin-detail-panel">
           <ManagementNumberBlock label="관리번호" value={request.request_no} />
+
+          <section className="admin-request-payment-editor" aria-labelledby="admin-request-payment-title">
+            <div className="admin-request-payment-heading">
+              <div>
+                <h3 id="admin-request-payment-title">기업 결제 정보</h3>
+                <p>기업페이지에 표시할 실제 입금 정보를 수정합니다.</p>
+              </div>
+              <strong>{formatDocumentAmount(companyPayment?.amount ?? savedCompanyAmountInput)}</strong>
+            </div>
+            <div className="admin-request-payment-fields">
+              <FieldControl label="결제 금액">
+                <input
+                  type="text"
+                  value={formatDocumentAmount(companyPayment?.amount ?? savedCompanyAmountInput)}
+                  readOnly
+                />
+              </FieldControl>
+              <DateRangeInput
+                startDate={paymentDueDate}
+                endDate={paymentDueDate}
+                onChange={({ startDate }) => setPaymentDueDate(startDate)}
+                singleDateMode
+                label="입금 기한"
+                allowClear
+              />
+              <DateRangeInput
+                startDate={paymentCompletedDate}
+                endDate={paymentCompletedDate}
+                onChange={({ startDate }) => setPaymentCompletedDate(startDate)}
+                singleDateMode
+                label="입금 완료일"
+                allowClear
+              />
+              <FieldControl label="결제 상태">
+                <select
+                  className="admin-filter-select"
+                  value={paymentStatus}
+                  onChange={(event) => setPaymentStatus(event.target.value)}
+                >
+                  <option value="unpaid">미입금</option>
+                  <option value="paid">입금 완료</option>
+                </select>
+              </FieldControl>
+            </div>
+            <div className="admin-card-actions">
+              <button
+                type="button"
+                className="admin-save"
+                disabled={savingKey === `request-payment-${safeRequest.id}`}
+                onClick={() => saveRequestCompanyPayment?.(safeRequest, {
+                  due_date: paymentDueDate,
+                  paid_at: paymentCompletedDate,
+                  payment_status: paymentStatus,
+                })}
+              >
+                {savingKey === `request-payment-${safeRequest.id}` ? "저장 중..." : "결제 정보 저장"}
+              </button>
+            </div>
+          </section>
 
           <div>
             <h3>기본정보</h3>
