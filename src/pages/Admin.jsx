@@ -2021,11 +2021,11 @@ function sanitizeRecipientEmail(email) {
         current.map((payment) => (payment.id === paymentId ? { ...payment, ...data } : payment))
       );
       await refreshAdminOperationsData();
-      alert("결제 상태가 저장되었습니다.");
+      alert("결제 정보가 저장되었습니다.");
       return true;
     } catch (error) {
       console.error("company payment update failed:", error);
-      alert(`결제 상태 저장 실패: ${error.message || "원인을 확인해주세요."}`);
+      alert(`결제 정보 저장 실패: ${error.message || "원인을 확인해주세요."}`);
       return false;
     } finally {
       setSavingKey("");
@@ -6427,7 +6427,7 @@ function CompanyPaymentManagement({
     setDraft({
       payment_status: payment.payment_status || "unpaid",
       payment_method: payment.payment_method || "",
-      paid_at: payment.paid_at ? String(payment.paid_at).slice(0, 16) : "",
+      paid_at: payment.paid_at ? toAdminDateTimeInput(payment.paid_at).slice(0, 10) : "",
       due_date: payment.due_date || "",
       admin_memo: payment.admin_memo || "",
     });
@@ -6441,7 +6441,7 @@ function CompanyPaymentManagement({
     if (!selectedPayment || !draft) return;
     const ok = await updatePayment(selectedPayment.id, {
       ...draft,
-      paid_at: draft.paid_at ? new Date(draft.paid_at).toISOString() : null,
+      paid_at: paymentDateToISOString(draft.paid_at, selectedPayment.paid_at),
     });
     if (ok) {
       setSelectedPaymentId(null);
@@ -6576,7 +6576,7 @@ function CompanyPaymentManagement({
               </dl>
             </section>
             <section>
-              <h3>상태 변경</h3>
+              <h3>결제 정보 수정</h3>
               <div className="admin-card-controls-grid">
                 <FieldControl label="결제 상태">
                   <select
@@ -6604,20 +6604,24 @@ function CompanyPaymentManagement({
                     ))}
                   </select>
                 </FieldControl>
-                <FieldControl label="입금 기한">
-                  <input
-                    type="date"
-                    value={draft.due_date}
-                    onChange={(event) => updateDraft("due_date", event.target.value)}
-                  />
-                </FieldControl>
-                <FieldControl label="입금일">
-                  <input
-                    type="datetime-local"
-                    value={draft.paid_at}
-                    onChange={(event) => updateDraft("paid_at", event.target.value)}
-                  />
-                </FieldControl>
+              </div>
+              <div className="admin-payment-date-grid">
+                <DateRangeInput
+                  startDate={draft.due_date}
+                  endDate={draft.due_date}
+                  onChange={({ startDate }) => updateDraft("due_date", startDate)}
+                  singleDateMode
+                  label="입금 기한"
+                  allowClear
+                />
+                <DateRangeInput
+                  startDate={draft.paid_at}
+                  endDate={draft.paid_at}
+                  onChange={({ startDate }) => updateDraft("paid_at", startDate)}
+                  singleDateMode
+                  label="입금 완료일"
+                  allowClear
+                />
               </div>
               <label className="admin-field-control">
                 <span>관리자 메모</span>
@@ -6635,7 +6639,7 @@ function CompanyPaymentManagement({
                   disabled={savingKey === `company-payment-${selectedPayment.id}`}
                   onClick={saveDraft}
                 >
-                  {savingKey === `company-payment-${selectedPayment.id}` ? "저장 중..." : "저장"}
+                  {savingKey === `company-payment-${selectedPayment.id}` ? "저장 중..." : "결제 정보 저장"}
                 </button>
               </div>
             </section>
@@ -16123,6 +16127,18 @@ function adminDateTimeInputToISOString(value) {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(value || ""))) return null;
   const date = new Date(`${value}:00+09:00`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function paymentDateToISOString(dateValue, existingValue) {
+  const normalizedDate = normalizeDateToISO(dateValue);
+  if (!normalizedDate) return null;
+
+  const existingDate = existingValue
+    ? toAdminDateTimeInput(existingValue).slice(0, 10)
+    : "";
+  if (existingDate === normalizedDate) return existingValue;
+
+  return adminDateTimeInputToISOString(`${normalizedDate}T${getCurrentAdminTimeInput()}`);
 }
 
 function getCurrentAdminTimeInput() {

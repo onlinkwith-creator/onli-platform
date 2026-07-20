@@ -42,6 +42,19 @@ const formatIssuedDate = (dateValue) => {
   return String(dateValue).slice(0, 10).replaceAll("-", ".");
 };
 
+const formatPaymentCompletedDate = (dateValue) => {
+  if (!dateValue) return "-";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+};
+
 const getDocumentStatusLabel = (status) => {
   if (status === "issued") return "발급완료";
   if (status === "draft") return "작성중";
@@ -1431,7 +1444,7 @@ function BusinessMypage({
                                 <div className="meta-item">
                                   <span className="meta-label">입금 완료일</span>
                                   <span className="meta-value">
-                                    {payment.paid_at ? String(payment.paid_at).slice(0, 10) : "-"}
+                                    {formatPaymentCompletedDate(payment.paid_at)}
                                   </span>
                                 </div>
                               </div>
