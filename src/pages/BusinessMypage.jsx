@@ -52,7 +52,12 @@ const formatPaymentCompletedDate = (dateValue) => {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(date);
+  }).format(date).replaceAll("-", ".");
+};
+
+const formatPaymentDueDate = (dateValue) => {
+  const datePart = String(dateValue || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart.replaceAll("-", ".") : "-";
 };
 
 const getDocumentStatusLabel = (status) => {
@@ -1439,7 +1444,7 @@ function BusinessMypage({
                                 </div>
                                 <div className="meta-item">
                                   <span className="meta-label">입금 기한</span>
-                                  <span className="meta-value">{payment.due_date || "-"}</span>
+                                  <span className="meta-value">{formatPaymentDueDate(payment.due_date)}</span>
                                 </div>
                                 <div className="meta-item">
                                   <span className="meta-label">입금 완료일</span>
