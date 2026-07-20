@@ -118,6 +118,56 @@ body,
   }
 }
 
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    min-height: 100dvh;
+  }
+
+  body {
+    overflow-wrap: anywhere;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    min-width: 0;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    font-size: 16px !important;
+  }
+
+  textarea {
+    min-height: 120px;
+    resize: vertical;
+  }
+
+  img,
+  svg,
+  video,
+  canvas,
+  iframe {
+    height: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  [class*="page"],
+  [class*="container"],
+  [class*="shell"] {
+    max-width: 100%;
+  }
+}
+
 #root {
   width: 100%;
   max-width: none;

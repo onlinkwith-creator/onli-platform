@@ -1706,3 +1706,111 @@
   background: #fee2e2;
   color: #b91c1c;
 }
+
+@media (max-width: 768px) {
+  .business-mypage {
+    min-height: 100dvh;
+    padding: 12px 12px calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .business-mypage-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+    padding: 18px 16px;
+  }
+
+  .business-mypage-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .business-mypage-actions > *,
+  .request-card-actions > *,
+  .business-document-actions > * {
+    min-height: 44px;
+  }
+
+  .business-mypage-tabs {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .business-mypage-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mypage-tab-btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  .request-meta-grid,
+  .contacts-grid,
+  .interpreter-details-dl,
+  .profile-form-grid,
+  .upload-fields {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .request-card,
+  .business-payment-section,
+  .material-upload-box,
+  .file-drop-zone {
+    width: 100%;
+    min-width: 0;
+    padding: 16px;
+  }
+
+  .status-timeline {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0;
+  }
+
+  .status-timeline::before {
+    top: 16px;
+    bottom: 16px;
+    left: 15px;
+    right: auto;
+    width: 3px;
+    height: auto;
+  }
+
+  .timeline-step {
+    align-items: center;
+    flex: none;
+    flex-direction: row;
+    gap: 12px;
+    min-height: 44px;
+    text-align: left;
+  }
+
+  .timeline-step .step-num {
+    flex: 0 0 32px;
+  }
+
+  .timeline-step .step-name {
+    margin-top: 0;
+    font-size: 14px;
+  }
+
+  .materials-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 480px) {
+  .business-mypage-actions,
+  .business-document-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

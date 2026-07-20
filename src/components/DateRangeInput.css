@@ -264,6 +264,11 @@
 }
 
 @media (max-width: 768px) {
+  .date-range-input {
+    width: 100%;
+    padding: 12px;
+  }
+
   .date-range-head {
     align-items: flex-start;
     flex-direction: column;
@@ -275,6 +280,14 @@
   }
 
   .date-range-calendar-panel {
-    width: 100%;
+    width: min(356px, calc(100vw - 24px));
+    max-height: calc(100dvh - 24px);
+  }
+
+  .date-range-calendar-panel .rdp-day_button,
+  .date-range-calendar-panel .rdp-button_previous,
+  .date-range-calendar-panel .rdp-button_next {
+    min-height: 44px;
+    min-width: 44px;
   }
 }

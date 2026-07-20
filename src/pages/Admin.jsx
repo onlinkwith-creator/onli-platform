@@ -5919,13 +5919,32 @@ function AdminModal({
   title,
   titleId,
 }) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.focus({ preventScroll: true });
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className={`admin-modal-card${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="admin-modal-head">
@@ -5936,7 +5955,7 @@ function AdminModal({
           </div>
           <div className="admin-modal-head-actions">
             {badge && <span className={badge.className}>{badge.label}</span>}
-            <button type="button" className="admin-modal-close" onClick={onClose}>
+            <button type="button" className="admin-modal-close" onClick={onClose} aria-label="상세 창 닫기">
               닫기
             </button>
           </div>

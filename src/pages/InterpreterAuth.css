@@ -2758,3 +2758,93 @@
 .prep-mat-download:hover {
   color: #3730a3;
 }
+
+@media (max-width: 768px) {
+  .interpreter-auth-page,
+  .interpreter-mypage {
+    min-height: 100dvh;
+    padding: 12px 12px calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .interpreter-auth-card,
+  .interpreter-mypage-head,
+  .interpreter-mypage-card,
+  .interpreter-mypage-tile,
+  .mypage-verification-card,
+  .interpreter-application-card,
+  .interpreter-assignment-card,
+  .timeline-content-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 16px;
+  }
+
+  .interpreter-mypage-head,
+  .interpreter-mypage-head-actions,
+  .application-card-head,
+  .assignment-card-head,
+  .profile-card-head,
+  .prep-card-header,
+  .prep-card-right {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .interpreter-mypage-tabs {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .interpreter-mypage-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .interpreter-mypage-tabs .mypage-tab-btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  .interpreter-form-grid,
+  .profile-form-grid,
+  .settlement-grid,
+  .settlement-document-grid,
+  .prep-contact-card,
+  .desktop-profile-details {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .interpreter-mypage button,
+  .interpreter-auth-page button,
+  .interpreter-mypage a {
+    min-height: 44px;
+  }
+
+  .application-withdrawal-modal,
+  .account-withdrawal-modal {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
+    overflow-y: auto;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .resume-selected-file-card,
+  .prep-mat-item {
+    min-width: 0;
+  }
+
+  .resume-selected-file-card strong,
+  .prep-mat-download {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}

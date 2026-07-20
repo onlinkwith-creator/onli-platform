@@ -5483,6 +5483,233 @@
   }
 }
 
+/* Production mobile workspace: keep every admin action reachable without page overflow. */
+@media (max-width: 768px) {
+  .admin-page {
+    min-height: 100dvh;
+    padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .admin-shell,
+  .admin-section,
+  .admin-operation-panel,
+  .admin-detail-tab-panel,
+  .admin-detail-tab-content {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .admin-header,
+  .admin-dashboard-actions,
+  .admin-section-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-header-actions,
+  .admin-dashboard-action-buttons,
+  .admin-card-actions,
+  .admin-modal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .admin-header-actions > *,
+  .admin-dashboard-action-buttons > *,
+  .admin-card-actions > *,
+  .admin-modal-actions > * {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    white-space: normal;
+  }
+
+  .admin-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .admin-metric-card {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .admin-main-tabs,
+  .admin-sub-tabs,
+  .admin-detail-tabs,
+  .modal-tabs {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-main-tabs::-webkit-scrollbar,
+  .admin-sub-tabs::-webkit-scrollbar,
+  .admin-detail-tabs::-webkit-scrollbar,
+  .modal-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-main-tabs button,
+  .admin-sub-tabs button,
+  .admin-detail-tabs button,
+  .modal-tabs button {
+    flex: 0 0 auto;
+    min-height: 44px;
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  .admin-filter-bar,
+  .admin-filters,
+  .admin-modal-edit-grid,
+  .admin-card-controls-grid,
+  .admin-request-controls,
+  .admin-request-payment-fields {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+  }
+
+  .admin-table-wrap,
+  .admin-document-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-settlement-scroll-hint,
+  .admin-settlement-table {
+    display: none;
+  }
+
+  .admin-settlement-card-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .admin-settlement-card {
+    width: 100%;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .admin-settlement-card-head,
+  .admin-list-card-head,
+  .admin-request-card-head {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .admin-settlement-card dl,
+  .admin-detail-list,
+  .admin-detail-list.compact,
+  .admin-card-summary,
+  .admin-request-summary {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-modal-overlay {
+    align-items: center;
+    padding: 8px !important;
+  }
+
+  .admin-modal-card,
+  .admin-request-detail-modal,
+  .admin-interpreter-detail-modal,
+  .admin-payment-detail-modal,
+  .admin-document-detail-modal,
+  .admin-business-detail-modal,
+  .admin-jobs-applicant-modal,
+  .admin-notification-detail-modal,
+  .admin-task-detail-modal,
+  .admin-urgent-detail-modal {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    height: calc(100dvh - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
+    border-radius: 16px !important;
+  }
+
+  .admin-modal-head,
+  .admin-interpreter-modal-head {
+    position: relative;
+    z-index: 5;
+    align-items: flex-start;
+    padding: 14px !important;
+    background: #fff;
+  }
+
+  .admin-modal-head-actions {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .admin-modal-close,
+  .admin-modal-icon-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .admin-modal-body,
+  .admin-interpreter-detail-body {
+    padding: 0 14px calc(20px + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  .admin-request-detail-modal .admin-detail-tabs {
+    top: 0;
+    margin: 0 -14px;
+    width: calc(100% + 28px);
+    padding: 8px 14px;
+    background: #fff;
+  }
+
+  .admin-request-detail-modal .admin-detail-tab-content {
+    padding: 16px 0 0 !important;
+  }
+
+  .admin-request-payment-editor,
+  .admin-operation-panel,
+  .admin-list-card,
+  .admin-request-card {
+    width: 100%;
+    min-width: 0;
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-page {
+    padding-inline: 10px;
+  }
+
+  .admin-header-actions,
+  .admin-dashboard-action-buttons,
+  .admin-card-actions,
+  .admin-modal-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-header h1 {
+    font-size: 23px;
+  }
+}
+
 /* --- Admin Interpreter Job Card Refactoring --- */
 .job-card-header {
   display: flex;

@@ -562,3 +562,17 @@
     padding: 22px;
   }
 }
+
+@media (max-width: 768px) {
+  .business-page {
+    min-height: 100dvh;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .business-header-cta,
+  .business-primary,
+  .business-secondary {
+    min-height: 44px !important;
+    touch-action: manipulation;
+  }
+}

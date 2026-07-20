@@ -1836,6 +1836,47 @@
   }
 }
 
+@media (max-width: 768px) {
+  .jobs-page,
+  .job-detail-page,
+  .job-apply-page {
+    min-height: 100dvh;
+    padding-right: 12px;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+    padding-left: 12px;
+  }
+
+  .jobs-toolbar,
+  .jobs-list-actions,
+  .job-detail-actions,
+  .job-apply-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .jobs-filter-grid,
+  .jobs-card-grid,
+  .job-detail-grid-premium,
+  .job-apply-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .jobs-filter-card,
+  .home-job-card,
+  .job-detail-card,
+  .job-apply-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .jobs-page button,
+  .job-detail-page button,
+  .job-apply-page button {
+    min-height: 44px;
+  }
+}
+
 /* ==========================================================================
    Responsive Breakdowns
    ========================================================================== */

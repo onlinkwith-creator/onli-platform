@@ -821,3 +821,40 @@
     flex: 1 1 auto;
   }
 }
+
+@media (max-width: 768px) {
+  .request-page {
+    min-height: 100dvh;
+    padding-right: 12px;
+    padding-bottom: calc(32px + env(safe-area-inset-bottom));
+    padding-left: 12px;
+  }
+
+  .request-form,
+  .request-section-card,
+  .request-submit-card,
+  .request-step-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .request-grid-2,
+  .request-grid-3,
+  .request-grid-request {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .request-form button,
+  .request-form input,
+  .request-form select,
+  .request-form textarea {
+    min-height: 44px;
+  }
+
+  .request-file-upload,
+  .request-file-row {
+    width: 100%;
+    min-width: 0;
+  }
+}
