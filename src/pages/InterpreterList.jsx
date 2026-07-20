@@ -14,6 +14,7 @@ import {
   isOnliCertified,
 } from "../utils/publicInterpreter";
 import "./InterpreterList.css";
+import { JAPAN_PREFECTURES, mergeRegions } from "../utils/regions";
 
 const initialFilters = {
   gender: "전체",
@@ -24,17 +25,7 @@ const initialFilters = {
   keyword: "",
 };
 
-const regionOptions = [
-  "전체",
-  "도쿄",
-  "카나가와",
-  "치바",
-  "사이타마",
-  "오사카",
-  "교토",
-  "후쿠오카",
-  "기타",
-];
+const regionOptions = ["전체", ...JAPAN_PREFECTURES];
 
 const fieldOptions = [
   "전체",
@@ -361,7 +352,7 @@ function InterpreterList({
                     const languageLabel = getInterpreterLanguageDisplay(person);
                     const summaryParts = isAuthenticated
                       ? [
-                          formatList(person.available_regions),
+                          formatList(mergeRegions(person.available_regions, person.custom_regions)),
                           tagBadges[0],
                           languageLabel,
                         ].filter((value) => value && value !== "-")
@@ -439,7 +430,7 @@ function InterpreterList({
                           <MobileInfoRow
                             icon={MapPin}
                             label="활동지역"
-                            value={isAuthenticated ? formatList(person.available_regions) : "로그인 후 확인"}
+                            value={isAuthenticated ? formatList(mergeRegions(person.available_regions, person.custom_regions)) : "로그인 후 확인"}
                           />
                           <MobileInfoRow
                             icon={Briefcase}
@@ -472,7 +463,7 @@ function InterpreterList({
                           />
                           <Info
                             label="활동 가능 지역"
-                            value={isAuthenticated ? formatList(person.available_regions) : "로그인 후 확인"}
+                            value={isAuthenticated ? formatList(mergeRegions(person.available_regions, person.custom_regions)) : "로그인 후 확인"}
                             masked={!isAuthenticated}
                           />
                           <Info
@@ -662,6 +653,7 @@ function getRegionText(person) {
     person.region,
     person.available_region,
     person.available_regions,
+    person.custom_regions,
     person.available_area,
   ]
     .map(normalizeText)
@@ -764,6 +756,7 @@ function getSearchText(person, includeSensitive = true) {
     person.region,
     person.available_region,
     person.available_regions,
+    person.custom_regions,
     person.experience,
     person.experience_count,
     getExperienceLabel(person),

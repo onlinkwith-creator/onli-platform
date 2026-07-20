@@ -10,6 +10,7 @@ import {
   addManagementNumber,
   isManagementNumberConflict,
 } from "../utils/managementNumber";
+import { JAPAN_PREFECTURES, normalizeRegion, uniqueRegions } from "../utils/regions";
 import "./RegisterInterpreter.css";
 
 const specialtyOptions = [
@@ -24,18 +25,7 @@ const specialtyOptions = [
   "일반 비즈니스",
 ];
 
-const regionOptions = [
-  "도쿄",
-  "가나가와",
-  "치바",
-  "사이타마",
-  "오사카",
-  "교토",
-  "효고",
-  "나고야",
-  "후쿠오카",
-  "기타",
-];
+const regionOptions = JAPAN_PREFECTURES;
 
 const levelSystemCards = [
   {
@@ -93,6 +83,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
   const [successMessage, setSuccessMessage] = useState("");
   const submittingRef = useRef(false);
   const [agreements, setAgreements] = useState(initialTermsAgreement);
+  const [customRegionInput, setCustomRegionInput] = useState("");
   const [form, setForm] = useState({
     name: "",
     gender: "",
@@ -108,6 +99,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
     experience_count: 0,
     specialties: [],
     availableRegions: [],
+    customRegions: [],
     availableTasks: "",
   });
   const authEmail = normalizeEmail(authUser?.email);
@@ -143,6 +135,22 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
     });
   };
 
+  const addCustomRegion = () => {
+    const region = normalizeRegion(customRegionInput);
+    if (!region) return;
+    setForm((current) => {
+      if ([...current.availableRegions, ...current.customRegions].includes(region)) return current;
+      return { ...current, customRegions: [...current.customRegions, region] };
+    });
+    setCustomRegionInput("");
+  };
+
+  const handleCustomRegionKeyDown = (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addCustomRegion();
+  };
+
   const handleAgreementChange = (name, checked) => {
     setAgreements((current) => ({ ...current, [name]: checked }));
   };
@@ -173,7 +181,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       return;
     }
 
-    if (form.availableRegions.length === 0) {
+    if (form.availableRegions.length === 0 && form.customRegions.length === 0) {
       setErrorMessage("활동 가능 지역을 선택해주세요.");
       return;
     }
@@ -254,6 +262,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       experience_count: form.has_experience ? Number(form.experience_count || 0) : 0,
       specialties: form.specialties,
       available_regions: form.availableRegions,
+      custom_regions: uniqueRegions(form.customRegions),
       available_tasks: form.availableTasks,
       agreed_terms: true,
       agreed_policy: true,
@@ -600,6 +609,34 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
                 values={form.availableRegions}
                 onToggle={(value) => toggleArrayValue("availableRegions", value)}
               />
+              <div className="register-custom-regions register-field-wide">
+                <label htmlFor="custom-region-input">기타 활동 가능 지역</label>
+                <input
+                  id="custom-region-input"
+                  value={customRegionInput}
+                  onChange={(event) => setCustomRegionInput(event.target.value)}
+                  onKeyDown={handleCustomRegionKeyDown}
+                  onBlur={addCustomRegion}
+                  placeholder="예) 하코네, 닛코, 비에이, 유후인 등"
+                />
+                {form.customRegions.length > 0 && (
+                  <div className="register-custom-region-tags">
+                    {form.customRegions.map((region) => (
+                      <span key={region} className="register-custom-region-tag">
+                        {region}
+                        <button
+                          type="button"
+                          aria-label={`${region} 삭제`}
+                          onClick={() => setForm((current) => ({
+                            ...current,
+                            customRegions: current.customRegions.filter((item) => item !== region),
+                          }))}
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <ChipGroup
                 title="전문 분야 선택"
                 description="강점이 있는 분야를 1개 이상 선택해주세요."

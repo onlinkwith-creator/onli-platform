@@ -27,6 +27,7 @@ import {
   isWithdrawnInterpreter,
 } from "../utils/accountStatus";
 import "./InterpreterAuth.css";
+import { JAPAN_PREFECTURES, mergeRegions, normalizeRegion, uniqueRegions } from "../utils/regions";
 import {
   Award,
   BriefcaseBusiness,
@@ -188,7 +189,9 @@ function InterpreterMypage({
     available_tasks: "",
   });
   const [specialtiesInput, setSpecialtiesInput] = useState("");
-  const [regionsInput, setRegionsInput] = useState("");
+  const [selectedRegions, setSelectedRegions] = useState([]);
+  const [customRegions, setCustomRegions] = useState([]);
+  const [customRegionInput, setCustomRegionInput] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   // Resume Submission States
@@ -346,9 +349,15 @@ function InterpreterMypage({
     setSpecialtiesInput(
       normalizeMultiSelectValue(interpreter.specialties).join(", ")
     );
+<<<<<<< HEAD
     setRegionsInput(
       normalizeMultiSelectValue(interpreter.available_regions).join(", ")
     );
+=======
+    setSelectedRegions(uniqueRegions(interpreter.available_regions || []));
+    setCustomRegions(uniqueRegions(interpreter.custom_regions || []));
+    setCustomRegionInput("");
+>>>>>>> 170d413 (Update ON-LI features)
     setIsEditingProfile(true);
   };
 
@@ -364,13 +373,36 @@ function InterpreterMypage({
     setIsEditingProfile(false);
   };
 
+  const toggleSelectedRegion = (region) => {
+    setSelectedRegions((current) => current.includes(region)
+      ? current.filter((item) => item !== region)
+      : [...current, region]);
+  };
+
+  const addCustomRegion = () => {
+    const region = normalizeRegion(customRegionInput);
+    if (!region) return;
+    if (!selectedRegions.includes(region) && !customRegions.includes(region)) {
+      setCustomRegions((current) => [...current, region]);
+    }
+    setCustomRegionInput("");
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     if (isUpdatingProfile || !supabase || !interpreter) return;
     setIsUpdatingProfile(true);
 
+<<<<<<< HEAD
     const specialties = normalizeMultiSelectValue(specialtiesInput);
     const available_regions = normalizeMultiSelectValue(regionsInput);
+=======
+    const specialties = specialtiesInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const available_regions = uniqueRegions(selectedRegions);
+>>>>>>> 170d413 (Update ON-LI features)
 
     const payload = {
       name: editForm.name,
@@ -378,6 +410,7 @@ function InterpreterMypage({
       gender: editForm.gender,
       specialties,
       available_regions,
+      custom_regions: uniqueRegions(customRegions),
       short_intro: editForm.intro,
       strength: editForm.career,
       available_tasks: editForm.available_tasks,
@@ -1546,6 +1579,7 @@ function InterpreterMypage({
                           />
                         </div>
 
+<<<<<<< HEAD
                         <div className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
                           <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>활동 가능 지역</span>
                           <SearchableMultiSelect
@@ -1554,6 +1588,42 @@ function InterpreterMypage({
                             value={regionsInput}
                             onChange={setRegionsInput}
                           />
+=======
+                        <div className="edit-form-label full-width profile-region-editor">
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563" }}>활동 가능 지역</span>
+                          <div className="profile-region-options">
+                            {JAPAN_PREFECTURES.map((region) => (
+                              <button
+                                key={region}
+                                type="button"
+                                className={`profile-region-option${selectedRegions.includes(region) ? " is-selected" : ""}`}
+                                onClick={() => toggleSelectedRegion(region)}
+                              >{region}</button>
+                            ))}
+                          </div>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: "#4b5563", marginTop: "8px" }}>기타 활동 가능 지역</span>
+                          <input
+                            type="text"
+                            value={customRegionInput}
+                            onChange={(event) => setCustomRegionInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") return;
+                              event.preventDefault();
+                              addCustomRegion();
+                            }}
+                            onBlur={addCustomRegion}
+                            placeholder="예) 하코네, 닛코, 비에이, 유후인 등"
+                            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "14px" }}
+                          />
+                          <div className="interpreter-regions-tags">
+                            {customRegions.map((region) => (
+                              <span key={region} className="interpreter-tag region removable-region-tag">
+                                {region}
+                                <button type="button" aria-label={`${region} 삭제`} onClick={() => setCustomRegions((current) => current.filter((item) => item !== region))}>×</button>
+                              </span>
+                            ))}
+                          </div>
+>>>>>>> 170d413 (Update ON-LI features)
                         </div>
 
                         <label className="edit-form-label full-width" style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left", marginBottom: "16px" }}>
@@ -1702,10 +1772,8 @@ function InterpreterMypage({
                               label="활동 가능 지역"
                               value={
                                 <div className="interpreter-regions-tags">
-                                  {Array.isArray(interpreter.available_regions) &&
-                                  interpreter.available_regions.filter(Boolean).length > 0 ? (
-                                    interpreter.available_regions
-                                      .filter(Boolean)
+                                  {mergeRegions(interpreter.available_regions, interpreter.custom_regions).length > 0 ? (
+                                    mergeRegions(interpreter.available_regions, interpreter.custom_regions)
                                       .map((reg, i) => (
                                         <span key={i} className="interpreter-tag region">
                                           {reg}
@@ -1822,9 +1890,8 @@ function InterpreterMypage({
                             <div className="profile-grid-item">
                               <span className="profile-label">활동 지역</span>
                               <strong className="profile-value">
-                                {Array.isArray(interpreter.available_regions) &&
-                                interpreter.available_regions.filter(Boolean).length > 0
-                                  ? interpreter.available_regions.filter(Boolean).slice(0, 2).join(", ")
+                                {mergeRegions(interpreter.available_regions, interpreter.custom_regions).length > 0
+                                  ? mergeRegions(interpreter.available_regions, interpreter.custom_regions).slice(0, 2).join(", ")
                                   : interpreter.region || "미입력"}
                               </strong>
                             </div>

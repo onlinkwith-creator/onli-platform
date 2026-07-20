@@ -544,6 +544,52 @@
   border: 1px solid #dcfce7;
 }
 
+.profile-region-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.profile-region-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-region-option {
+  padding: 7px 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  color: #374151;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profile-region-option.is-selected {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.profile-region-editor .interpreter-regions-tags {
+  justify-content: flex-start;
+}
+
+.removable-region-tag button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .interpreter-tag-level {
   display: inline-flex;
   width: fit-content;

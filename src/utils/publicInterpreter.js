@@ -6,6 +6,7 @@ export const PUBLIC_INTERPRETER_SELECT = [
   "short_intro",
   "specialties",
   "available_regions",
+  "custom_regions",
   "experience_count",
   "is_public",
   "status",
@@ -132,12 +133,13 @@ function formatStayPeriod(value) {
 }
 
 function formatAvailableRegions(interpreter) {
-  const regions = getList(
+  const selectedRegions = getList(
     interpreter.available_regions ||
       interpreter.available_region ||
       interpreter.available_area ||
       interpreter.region
   );
+  const regions = [...new Set([...selectedRegions, ...getList(interpreter.custom_regions)])];
   return regions.length > 0 ? `활동 가능 지역: ${regions.join(" / ")}` : "";
 }
 

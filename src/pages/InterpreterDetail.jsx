@@ -18,6 +18,7 @@ import {
   getInterpreterActivityStatusBadgeClass,
   getInterpreterActivityStatusLabel,
 } from "../utils/status";
+import { mergeRegions } from "../utils/regions";
 import "./InterpreterDetail.css";
 
 const DEFAULT_INTRO =
@@ -316,8 +317,9 @@ function getProfile(interpreter) {
       interpreter.interpretation_field
   );
   const tasks = getList(interpreter.available_tasks || interpreter.available_work);
-  const regions = getList(
-    interpreter.available_regions || interpreter.active_region || interpreter.region
+  const regions = mergeRegions(
+    getList(interpreter.available_regions || interpreter.active_region || interpreter.region),
+    getList(interpreter.custom_regions)
   );
   const intro = getFirstText(
     interpreter.self_intro,
