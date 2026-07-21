@@ -1,7 +1,15 @@
 begin;
 
 alter table public.documents
-  add column if not exists issued_at timestamptz not null default now();
+  add column if not exists issued_at timestamptz;
+
+update public.documents
+set issued_at = coalesce(issued_at, created_at, now())
+where issued_at is null;
+
+alter table public.documents
+  alter column issued_at set default now(),
+  alter column issued_at set not null;
 
 alter table public.settlements
   add column if not exists payout_due_date date;

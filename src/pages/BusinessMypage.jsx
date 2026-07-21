@@ -563,7 +563,13 @@ function BusinessMypage({
             .order("created_at", { ascending: false });
 
           if (docError) {
-            console.warn("Generated documents fetch skipped:", docError);
+            console.error("Generated documents fetch failed", {
+              code: docError?.code,
+              message: docError?.message,
+              details: docError?.details,
+              hint: docError?.hint,
+              error: docError,
+            });
             setDocuments([]);
           } else {
             setDocuments(docData || []);
