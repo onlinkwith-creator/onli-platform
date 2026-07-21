@@ -54,6 +54,8 @@ import {
 import { fetchJobApplications as fetchBaseJobApplications } from "../utils/jobsApi";
 import { getPositiveInteger } from "../utils/jobRecruitment";
 import {
+  applyCurrentBusinessesToRequests,
+  applyCurrentBusinessToRequest,
   fetchRequestBusinessProfile,
   fetchRequestRows,
   normalizeRequestDetail,
@@ -195,9 +197,11 @@ const INTERPRETER_ASSIGNMENT_HISTORY_SELECT = `
   id,
   request_id,
   interpreter_id,
+  status,
+  assigned_at,
   requests:request_id (
-    id,
-    request_no
+    *,
+    businesses:businesses!requests_company_id_fkey (*)
   )
 `;
 const INTERPRETER_UPDATE_COLUMNS = new Set([
@@ -780,7 +784,8 @@ function sanitizeRecipientEmail(email) {
       const matchingData = getAdminData("matchings", matchingResult);
       const businessData = getAdminData("businesses", businessResult);
 
-      if (!requestResult.error) setRequests(requestData);
+      const canonicalRequestData = applyCurrentBusinessesToRequests(requestData, businessData);
+      if (!requestResult.error) setRequests(canonicalRequestData);
       if (!jobResult.error) setJobs(jobData);
       if (!interpreterResult.error) setInterpreters(interpreterData);
       if (!assignmentResult.error) setAssignments(assignmentData);
@@ -925,6 +930,23 @@ function sanitizeRecipientEmail(email) {
       alert("수정되었습니다.");
       setBusinesses((current) =>
         current.map((biz) => (biz.id === bizId ? { ...biz, ...payload } : biz))
+      );
+      const updatedBusiness = {
+        ...(businesses.find((biz) => String(biz.id) === String(bizId)) || {}),
+        ...payload,
+        id: bizId,
+      };
+      setRequests((current) =>
+        current.map((request) =>
+          String(request.company_id || "") === String(bizId)
+            ? applyCurrentBusinessToRequest(request, updatedBusiness)
+            : request
+        )
+      );
+      setSelectedRequest((current) =>
+        current && String(current.company_id || "") === String(bizId)
+          ? applyCurrentBusinessToRequest(current, updatedBusiness)
+          : current
       );
     } catch (err) {
       console.error(err);
@@ -8705,7 +8727,7 @@ function RequestDetailPanel({
 
   useEffect(() => {
     Promise.resolve().then(() => {
-      if (!safeRequest?.company_auth_user_id) {
+      if (!safeRequest?.company_id && !safeRequest?.company_auth_user_id) {
         setBusinessProfile(null);
         return;
       }
@@ -8720,7 +8742,7 @@ function RequestDetailPanel({
       };
       fetchBiz();
     });
-  }, [safeRequest.company_auth_user_id]);
+  }, [safeRequest.company_id, safeRequest.company_auth_user_id]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -10080,7 +10102,6 @@ function InterpreterModal({
   modalType,
   requestAssignments = [],
   requests = [],
-  settlements = [],
   saving,
   noteDrafts = {},
   onChangeDraft,
@@ -10094,12 +10115,14 @@ function InterpreterModal({
 }) {
   const [activeInterpreterDetailTab, setActiveInterpreterDetailTab] = useState("basic");
   const [assignmentHistory, setAssignmentHistory] = useState([]);
+  const [assignmentHistorySettlements, setAssignmentHistorySettlements] = useState([]);
   const [assignmentHistoryLoading, setAssignmentHistoryLoading] = useState(false);
   const [assignmentHistoryError, setAssignmentHistoryError] = useState("");
 
   useEffect(() => {
     setActiveInterpreterDetailTab("basic");
     setAssignmentHistory([]);
+    setAssignmentHistorySettlements([]);
     setAssignmentHistoryError("");
   }, [interpreter?.id, modalType]);
 
@@ -10122,20 +10145,37 @@ function InterpreterModal({
       setAssignmentHistoryLoading(true);
       setAssignmentHistoryError("");
 
-      const { data, error } = await supabase
-        .from("request_interpreters")
-        .select(INTERPRETER_ASSIGNMENT_HISTORY_SELECT)
-        .eq("interpreter_id", interpreter.id)
-        .order("id", { ascending: false });
+      const [assignmentResult, settlementResult] = await Promise.all([
+        supabase
+          .from("request_interpreters")
+          .select(INTERPRETER_ASSIGNMENT_HISTORY_SELECT)
+          .eq("interpreter_id", interpreter.id)
+          .eq("status", "assigned")
+          .order("assigned_at", { ascending: false }),
+        supabase
+          .from("settlements")
+          .select(SETTLEMENTS_SELECT)
+          .eq("interpreter_id", interpreter.id)
+          .order("created_at", { ascending: false }),
+      ]);
 
       if (!isActive) return;
 
-      if (error) {
-        console.error("Failed to load interpreter history:", error);
+      if (assignmentResult.error) {
+        console.error("Failed to load interpreter history:", assignmentResult.error);
         setAssignmentHistory([]);
-        setAssignmentHistoryError(error.message || "이력 조회 중 오류가 발생했습니다.");
+        setAssignmentHistorySettlements([]);
+        setAssignmentHistoryError(
+          assignmentResult.error.message || "이력 조회 중 오류가 발생했습니다."
+        );
       } else {
-        setAssignmentHistory(dedupeInterpreterAssignmentHistory(data || []));
+        setAssignmentHistory(dedupeInterpreterAssignmentHistory(assignmentResult.data || []));
+        if (settlementResult.error) {
+          console.error("Failed to load interpreter history settlements:", settlementResult.error);
+          setAssignmentHistorySettlements([]);
+        } else {
+          setAssignmentHistorySettlements(settlementResult.data || []);
+        }
       }
 
       setAssignmentHistoryLoading(false);
@@ -10332,7 +10372,7 @@ function InterpreterModal({
                 error={assignmentHistoryError}
                 histories={assignmentHistory}
                 loading={assignmentHistoryLoading}
-                settlements={settlements}
+                settlements={assignmentHistorySettlements}
               />
             ) : activeInterpreterDetailTab === "adminHistory" ? (
               <InterpreterAdminHistoryTab
@@ -11062,10 +11102,24 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
         const settlement = getHistorySettlement(history, settlements);
         const requestName =
           request.event_name ||
+          request.title ||
           request.request_title ||
           request.project_name ||
-          request.request_no ||
           "의뢰명 미등록";
+        const business = Array.isArray(request.businesses)
+          ? request.businesses[0] || null
+          : request.businesses || null;
+        const assignmentStatus = getAssignmentStatusLabel(normalizeAssignmentStatus(history));
+        const operationStatus = getOperationStatusLabel(normalizeOperationStatus(request));
+        const settlementStatus = settlement
+          ? getSettlementStatusLabel(
+              settlement.settlement_status || settlement.payout_status
+            )
+          : getSettlementFlowStatusLabel(normalizeSettlementFlowStatus(request));
+        const workCompleted =
+          normalizeOperationStatus(request) === OPERATION_STATUS.COMPLETED
+            ? "완료"
+            : "미완료";
 
         return (
           <article className="admin-interpreter-history-card" key={`${history.request_id}-${history.interpreter_id}`}>
@@ -11076,36 +11130,36 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
                 </span>
                 <h3>{requestName}</h3>
               </div>
-              <span className="status-badge badge-blue">배정 완료</span>
+              <span className="status-badge badge-blue">{assignmentStatus}</span>
             </div>
             <dl className="admin-interpreter-history-details">
               <div>
                 <dt>기업명</dt>
-                <dd>-</dd>
+                <dd>{business?.company_name || "-"}</dd>
               </div>
               <div>
                 <dt>행사 기간</dt>
-                <dd>-</dd>
+                <dd>{formatDateRange(request.start_date, request.end_date, request.event_date)}</dd>
               </div>
               <div>
                 <dt>통역 언어</dt>
-                <dd>-</dd>
+                <dd>{request.language || request.language_direction || "-"}</dd>
               </div>
               <div>
                 <dt>통역 레벨</dt>
-                <dd>-</dd>
+                <dd>{request.settlement_level || request.requested_level || request.required_level || "-"}</dd>
               </div>
               <div>
                 <dt>배정 상태</dt>
-                <dd>배정 완료</dd>
+                <dd>{assignmentStatus}</dd>
               </div>
               <div>
                 <dt>운영 상태</dt>
-                <dd>-</dd>
+                <dd>{operationStatus}</dd>
               </div>
               <div>
                 <dt>정산 상태</dt>
-                <dd>{settlement ? getSettlementStatusLabel(settlement.settlement_status) : "-"}</dd>
+                <dd>{settlementStatus}</dd>
               </div>
               <div>
                 <dt>통역사 지급액</dt>
@@ -11113,7 +11167,7 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
               </div>
               <div>
                 <dt>업무 완료 여부</dt>
-                <dd>-</dd>
+                <dd>{workCompleted}</dd>
               </div>
             </dl>
           </article>

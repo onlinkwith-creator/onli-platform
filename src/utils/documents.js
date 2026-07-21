@@ -162,14 +162,64 @@ export function recalculatePaymentDraft(draft) {
   };
 }
 
+async function getCurrentBusinessForDocument(supabase, request = {}, sourceDocument = {}) {
+  const companyId = request.company_id || sourceDocument.company_id || null;
+  const companyAuthUserId =
+    request.company_auth_user_id || sourceDocument.company_auth_user_id || null;
+  if (!companyId && !companyAuthUserId) return null;
+
+  let query = supabase.from("businesses").select("*");
+  query = companyId
+    ? query.eq("id", companyId)
+    : query.eq("auth_user_id", companyAuthUserId);
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error(`최신 기업 정보를 불러오지 못했습니다: ${error.message}`);
+  if (!data) throw new Error("의뢰에 연결된 기업 정보를 찾을 수 없습니다.");
+  return data;
+}
+
+function applyCurrentBusinessToDocumentDraft(draft, business) {
+  if (!business) return draft;
+  const request = draft.request || {};
+  const currentRequest = {
+    ...request,
+    company_id: business.id,
+    company_auth_user_id: business.auth_user_id,
+    company_name: business.company_name || "",
+    contact_name: business.contact_name || "",
+    manager_name: business.contact_name || request.manager_name || "",
+    contact_email: business.contact_email || "",
+    company_email: business.contact_email || "",
+    email: business.contact_email || request.email || "",
+    contact_phone: business.contact_phone || "",
+    phone: business.contact_phone || "",
+    business_number: business.business_number || "",
+    company_country: business.country || "",
+  };
+  return {
+    ...draft,
+    request: currentRequest,
+    companyName: business.company_name || "",
+    contactName: business.contact_name || "",
+    businessNumber: business.business_number || "",
+    contactEmail: business.contact_email || "",
+    contactPhone: business.contact_phone || "",
+    country: business.country || "",
+  };
+}
+
 export async function createOnliDocument({ supabase, draft, userId }) {
   const documentType = normalizeDocumentType(draft.documentType);
+  const currentBusiness = documentType === "payout"
+    ? null
+    : await getCurrentBusinessForDocument(supabase, draft.request || {});
+  const canonicalDraft = applyCurrentBusinessToDocumentDraft(draft, currentBusiness);
   const normalizedDraft =
     documentType === "estimate"
-      ? recalculateEstimateDraft(draft)
+      ? recalculateEstimateDraft(canonicalDraft)
       : documentType === "payout"
-        ? recalculatePaymentDraft(draft)
-        : draft;
+        ? recalculatePaymentDraft(canonicalDraft)
+        : canonicalDraft;
 
   let storagePath;
   let documentNo;
@@ -183,17 +233,7 @@ export async function createOnliDocument({ supabase, draft, userId }) {
   }
 
   const request = normalizedDraft.request || {};
-  let companyId = null;
-  if (request.company_auth_user_id) {
-    const { data: bizData } = await supabase
-      .from("businesses")
-      .select("id")
-      .eq("auth_user_id", request.company_auth_user_id)
-      .maybeSingle();
-    if (bizData) {
-      companyId = bizData.id;
-    }
-  }
+  const companyId = currentBusiness?.id || request.company_id || null;
 
   const version = await getNextDocumentVersion(supabase, documentType, request.id);
   const fileName = `${documentNo}-v${version}.pdf`;
@@ -262,11 +302,19 @@ export async function createOnliDocumentVersion({
   userId,
 }) {
   const documentType = normalizeDocumentType(sourceDocument.document_type);
+  const currentBusiness = documentType === "payout"
+    ? null
+    : await getCurrentBusinessForDocument(
+        supabase,
+        draft.request || {},
+        sourceDocument
+      );
+  const canonicalDraft = applyCurrentBusinessToDocumentDraft(draft, currentBusiness);
   const normalizedDraft = documentType === "estimate"
-    ? recalculateEstimateDraft(draft)
+    ? recalculateEstimateDraft(canonicalDraft)
     : documentType === "payout"
-      ? recalculatePaymentDraft(draft)
-      : draft;
+      ? recalculatePaymentDraft(canonicalDraft)
+      : canonicalDraft;
   const request = normalizedDraft.request || {};
   const { data: versionRows, error: versionError } = await supabase
     .from("documents")
@@ -278,7 +326,7 @@ export async function createOnliDocumentVersion({
 
   const version = Number(versionRows?.[0]?.version || sourceDocument.version || 1) + 1;
   const fileName = `${sourceDocument.document_no}-v${version}.pdf`;
-  const companyId = sourceDocument.company_id || request.company_id || null;
+  const companyId = currentBusiness?.id || sourceDocument.company_id || request.company_id || null;
   const storagePath = documentType === "estimate"
     ? `estimates/${companyId || "no-company"}/${fileName}`
     : `${documentType}/${request.id || sourceDocument.request_id || "no-reference"}/${fileName}`;
