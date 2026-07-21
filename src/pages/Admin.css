@@ -8049,6 +8049,236 @@
   padding-bottom: 24px;
 }
 
+/* Settlement detail modal: presentation-only layout */
+.admin-modal-card.admin-payment-detail-modal {
+  width: min(960px, calc(100vw - 32px));
+  max-width: 960px;
+  max-height: calc(100vh - 32px) !important;
+  padding: 0;
+  border-radius: 20px;
+}
+
+.admin-payment-detail-modal .admin-modal-head {
+  position: relative;
+  z-index: 5;
+  margin: 0;
+  padding: 20px 24px 18px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+.admin-payment-detail-modal .admin-modal-body {
+  padding: 22px 24px 0;
+  scroll-padding-top: 16px;
+}
+
+.admin-settlement-detail-layout {
+  gap: 16px;
+}
+
+.admin-settlement-detail-section {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.admin-settlement-detail-section > h3 {
+  margin: 0 0 16px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid #eef2f7;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.admin-settlement-detail-summary .admin-detail-list.compact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 24px;
+}
+
+.admin-settlement-detail-company-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-settlement-detail-payout-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-payment-detail-modal .admin-field-control,
+.admin-payment-detail-modal .date-range-input {
+  min-width: 0;
+  gap: 7px;
+}
+
+.admin-payment-detail-modal .admin-field-control > span,
+.admin-payment-detail-modal .date-range-head > span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.admin-payment-detail-modal .admin-field-control input,
+.admin-payment-detail-modal .admin-field-control select,
+.admin-payment-detail-modal .admin-filter-select,
+.admin-payment-detail-modal .date-picker-card button,
+.admin-payment-detail-modal .date-picker-card input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  height: 42px;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.admin-payment-detail-modal .date-range-input {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.admin-payment-detail-modal .date-range-head {
+  display: contents;
+}
+
+.admin-payment-detail-modal .date-range-head > strong {
+  display: none;
+}
+
+.admin-payment-detail-modal .date-range-fields {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.admin-payment-detail-modal .date-range-clear {
+  margin-top: -2px;
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.admin-settlement-detail-full-field {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-top: 14px;
+}
+
+.admin-settlement-detail-company-grid .admin-settlement-detail-full-field {
+  margin-top: 0;
+}
+
+.admin-payment-detail-modal textarea {
+  width: 100%;
+  min-height: 88px;
+  box-sizing: border-box;
+  resize: vertical;
+  border-radius: 10px;
+}
+
+.admin-settlement-detail-save-actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #eef2f7;
+}
+
+.admin-settlement-detail-save-actions .admin-save {
+  width: auto;
+  min-width: 128px;
+}
+
+.admin-settlement-detail-documents > .admin-card-meta {
+  margin: -6px 0 14px;
+}
+
+.admin-settlement-document-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid #eef2f7;
+}
+
+.admin-settlement-document-row:first-of-type {
+  border-top: 0;
+}
+
+.admin-settlement-document-row > strong {
+  min-width: 0;
+  color: #1e293b;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.admin-settlement-document-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.admin-settlement-document-actions > button {
+  min-width: 84px;
+  min-height: 38px;
+}
+
+.admin-settlement-detail-bottom-space {
+  height: 20px;
+  flex: 0 0 20px;
+}
+
+@media (max-width: 760px) {
+  .admin-modal-card.admin-payment-detail-modal {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px) !important;
+    border-radius: 16px;
+  }
+
+  .admin-payment-detail-modal .admin-modal-head {
+    padding: 16px 18px;
+  }
+
+  .admin-payment-detail-modal .admin-modal-body {
+    padding: 16px 14px 0;
+  }
+
+  .admin-settlement-detail-section {
+    padding: 16px;
+  }
+
+  .admin-settlement-detail-summary .admin-detail-list.compact,
+  .admin-settlement-detail-company-grid,
+  .admin-settlement-detail-payout-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-settlement-document-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-settlement-document-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .admin-settlement-document-actions > button {
+    min-width: 0;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 980px) {
+  .admin-settlement-detail-payout-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .admin-request-detail-modal .admin-detail-tab-panel {
   display: flex;
   flex-direction: column;

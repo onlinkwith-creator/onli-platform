@@ -7195,9 +7195,9 @@ function InterpreterSettlementManagement({
             setPaymentDraft(null);
           }}
         >
-          <div className="admin-payment-detail-grid">
-            <section>
-              <h3>의뢰/통역사 정보</h3>
+          <div className="admin-payment-detail-grid admin-settlement-detail-layout">
+            <section className="admin-settlement-detail-section admin-settlement-detail-summary">
+              <h3>기본 정보</h3>
               <dl className="admin-detail-list compact">
                 <Info label="의뢰명" value={selectedRequest?.event_name || selectedRequest?.title || "정보 없음"} />
                 <Info
@@ -7224,9 +7224,9 @@ function InterpreterSettlementManagement({
                 <Info label="통역사명" value={selectedInterpreter?.name || "정보 없음"} />
               </dl>
             </section>
-            <section>
+            <section className="admin-settlement-detail-section admin-settlement-detail-company">
               <h3>기업 결제 정보</h3>
-              <div className="admin-request-payment-fields">
+              <div className="admin-request-payment-fields admin-settlement-detail-company-grid">
                 <FieldControl label="결제 금액">
                   <input type="text" value={formatDocumentAmount(selectedRequest?.company_amount)} readOnly />
                 </FieldControl>
@@ -7256,6 +7256,7 @@ function InterpreterSettlementManagement({
                     <option value="paid">입금 완료</option>
                   </select>
                 </FieldControl>
+                <div className="admin-settlement-detail-full-field">
                 <FieldControl label="관리자 결제 메모">
                   <textarea
                     rows={3}
@@ -7263,8 +7264,9 @@ function InterpreterSettlementManagement({
                     onChange={(event) => setPaymentDraft((current) => ({ ...current, admin_memo: event.target.value }))}
                   />
                 </FieldControl>
+                </div>
               </div>
-              <div className="admin-card-actions">
+              <div className="admin-card-actions admin-settlement-detail-save-actions">
                 <button
                   type="button"
                   className="admin-save"
@@ -7275,9 +7277,9 @@ function InterpreterSettlementManagement({
                 </button>
               </div>
             </section>
-            <section>
-              <h3>지급 정보</h3>
-              <div className="admin-card-controls-grid">
+            <section className="admin-settlement-detail-section admin-settlement-detail-payout">
+              <h3>통역사 지급 정보</h3>
+              <div className="admin-card-controls-grid admin-settlement-detail-payout-grid">
                 <FieldControl label="지급 상태">
                   <select
                     className="admin-filter-select"
@@ -7355,7 +7357,7 @@ function InterpreterSettlementManagement({
                   </select>
                 </FieldControl>
               </div>
-              <label className="admin-field-control">
+              <label className="admin-field-control admin-settlement-detail-full-field">
                 <span>관리자 메모</span>
                 <textarea
                   rows={4}
@@ -7364,7 +7366,7 @@ function InterpreterSettlementManagement({
                   placeholder="지급 확인 메모를 입력하세요."
                 />
               </label>
-              <div className="admin-card-actions">
+              <div className="admin-card-actions admin-settlement-detail-save-actions">
                 <button
                   type="button"
                   className="admin-save"
@@ -7375,7 +7377,7 @@ function InterpreterSettlementManagement({
                 </button>
               </div>
             </section>
-            <section>
+            <section className="admin-settlement-detail-section admin-settlement-detail-documents">
               <h3>정산 문서</h3>
               <p className="admin-card-meta">정산정보를 수정한 경우 최신 내용으로 문서를 재생성해 주세요.</p>
               {[
@@ -7383,17 +7385,19 @@ function InterpreterSettlementManagement({
                 ["payout_statement", payoutStatement, selectedSettlement.interpreter_id],
               ].map(([type, document, interpreterId]) => {
                 const busy = statementSavingKeys.has(`statement-${type}-${selectedSettlement.request_id}-${interpreterId || "company"}`);
-                return <div className="admin-card-actions" key={type}>
+                return <div className="admin-settlement-document-row" key={type}>
                   <strong>{getDocumentTypeLabel(type)} {document ? `· ${document.document_no} · v${document.version}` : ""}</strong>
-                  {document && <button type="button" className="admin-secondary" onClick={() => openPayoutDocument(document)}>미리보기</button>}
-                  {document && <button type="button" className="admin-secondary" onClick={() => openDocumentSignedUrl(supabase, document, { download: true })}>다운로드</button>}
-                  <button type="button" className="admin-save" disabled={busy} onClick={() => onGenerateStatement?.({ documentType:type, requestId:selectedSettlement.request_id, interpreterId, regenerate:Boolean(document) })}>
-                    {busy ? "생성 중..." : document ? "재생성" : "생성"}
-                  </button>
+                  <div className="admin-card-actions admin-settlement-document-actions">
+                    {document && <button type="button" className="admin-secondary" onClick={() => openPayoutDocument(document)}>미리보기</button>}
+                    {document && <button type="button" className="admin-secondary" onClick={() => openDocumentSignedUrl(supabase, document, { download: true })}>다운로드</button>}
+                    <button type="button" className="admin-save" disabled={busy} onClick={() => onGenerateStatement?.({ documentType:type, requestId:selectedSettlement.request_id, interpreterId, regenerate:Boolean(document) })}>
+                      {busy ? "생성 중..." : document ? "재생성" : "생성"}
+                    </button>
+                  </div>
                 </div>;
               })}
             </section>
-            <section>
+            <section className="admin-settlement-detail-section admin-settlement-detail-history">
               <h3>지급 이력 로그</h3>
               {selectedLogs.length === 0 ? (
                 <p className="admin-empty-text">아직 지급 이력이 없습니다.</p>
@@ -7411,6 +7415,7 @@ function InterpreterSettlementManagement({
                 </div>
               )}
             </section>
+            <div className="admin-settlement-detail-bottom-space" aria-hidden="true" />
           </div>
         </AdminModal>
       )}
