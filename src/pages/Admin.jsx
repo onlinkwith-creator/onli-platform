@@ -2484,6 +2484,10 @@ function sanitizeRecipientEmail(email) {
     setDocumentDraft(buildPaymentDraft(request, requestAssignments));
   };
 
+  const closeDocumentPreview = useCallback(() => {
+    setDocumentDraft(null);
+  }, []);
+
   const updateDocumentDraft = (field, value) => {
     setDocumentDraft((current) => {
       if (!current) return current;
@@ -5190,7 +5194,7 @@ function sanitizeRecipientEmail(email) {
                 draft={documentDraft}
                 saving={savingKey === `document-${documentDraft.documentType}-${documentDraft.request?.id || "new"}`}
                 onChange={updateDocumentDraft}
-                onClose={() => setDocumentDraft(null)}
+                onClose={closeDocumentPreview}
                 onConfirm={confirmDocumentGeneration}
               />
             )}
