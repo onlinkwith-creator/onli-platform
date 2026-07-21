@@ -28,6 +28,16 @@ const won=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)?`${Math.roun
 const isPositiveInteger=(value:unknown)=>typeof value==="number"&&Number.isSafeInteger(value)&&value>0;
 const errorMessage=(error:unknown)=>error instanceof Error?error.message:
   typeof error==="object"&&error!==null&&"message" in error?String(error.message):"문서 생성에 실패했습니다.";
+const wrapText=(value:unknown,font:any,size:number,maxWidth:number)=>{
+  const characters=Array.from(safe(value)); const lines:string[]=[]; let line="";
+  for(const character of characters){
+    const candidate=line+character;
+    if(line&&font.widthOfTextAtSize(candidate,size)>maxWidth){lines.push(line);line=character;}
+    else line=candidate;
+  }
+  if(line) lines.push(line);
+  return lines.length?lines:["-"];
+};
 
 Deno.serve(async(req)=>{
   const startedAt=Date.now();
@@ -80,14 +90,27 @@ Deno.serve(async(req)=>{
       ["공제금액",Number(settlement?.deduction_amount)>0?won(settlement.deduction_amount):"-"],["최종 지급금액",won(settlement?.amount??base)],
       ["지급예정일",date(settlement?.payout_due_date)],["지급완료일",date(settlement?.paid_at??settlement?.settlement_completed_at)],["지급 상태",safe(settlement?.payout_status??settlement?.settlement_status)]];
     const pdf=await PDFDocument.create(); pdf.registerFontkit(fontkit); const fontBytes=await fetch(FONT_URL).then(x=>{if(!x.ok)throw new Error("PDF 폰트를 불러오지 못했습니다.");return x.arrayBuffer()});
-    // Use a compact TrueType Korean font. Subsetting this font keeps Korean glyphs
-    // embedded without the CPU cost of embedding the 16 MB CJK OpenType font.
-    const font=await pdf.embedFont(fontBytes,{subset:true}); const page=pdf.addPage([595.28,841.89]);
-    page.drawText(type==="settlement_statement"?"정산서":"지급명세서",{x:48,y:785,size:25,font,color:rgb(.08,.12,.2)});
-    page.drawText("ON-LI",{x:480,y:792,size:14,font,color:rgb(.3,.2,.55)}); let y=744;
-    for(const [label,value] of rows){page.drawRectangle({x:48,y:y-7,width:145,height:28,color:rgb(.96,.96,.98)});page.drawText(label,{x:57,y,size:9,font});
-      const text=safe(value); const chunks=text.match(/.{1,38}/g)||["-"]; chunks.slice(0,2).forEach((chunk,i)=>page.drawText(chunk,{x:205,y:y-i*11,size:9,font})); y-=Math.max(32,chunks.length*11+10);}
-    page.drawText("발행자: ON-LI  |  본 문서는 저장된 정산정보를 기준으로 발행되었습니다.",{x:48,y:36,size:8,font,color:rgb(.35,.38,.45)});
+    // fontkit's Korean TrueType subsetting can emit inconsistent glyph IDs and
+    // advance widths. The compact 2 MB font is embedded whole for viewer-safe output.
+    const font=await pdf.embedFont(fontBytes,{subset:false}); const page=pdf.addPage([595.28,841.89]);
+    const pageWidth=595.28,margin=48,contentWidth=pageWidth-margin*2,labelWidth=145,valueX=205;
+    const title=type==="settlement_statement"?"정산서":"지급명세서";
+    page.drawText(title,{x:margin,y:785,size:25,font,color:rgb(.08,.12,.2)});
+    const logo="ON-LI",logoSize=14;
+    page.drawText(logo,{x:pageWidth-margin-font.widthOfTextAtSize(logo,logoSize),y:792,size:logoSize,font,color:rgb(.3,.2,.55)});
+    let top=754;
+    for(const [label,value] of rows){
+      const labelLines=wrapText(label,font,9,labelWidth-18);
+      const valueLines=wrapText(value,font,9,contentWidth-labelWidth-24);
+      const lineCount=Math.max(labelLines.length,valueLines.length);
+      const rowHeight=Math.max(32,14+lineCount*12); const bottom=top-rowHeight;
+      page.drawRectangle({x:margin,y:bottom+2,width:labelWidth,height:rowHeight-2,color:rgb(.96,.96,.98)});
+      labelLines.forEach((text,i)=>page.drawText(text,{x:margin+9,y:top-20-i*12,size:9,font,color:rgb(.16,.18,.23)}));
+      valueLines.forEach((text,i)=>page.drawText(text,{x:valueX,y:top-20-i*12,size:9,font,color:rgb(.08,.1,.14)}));
+      top=bottom;
+    }
+    const footer="발행자: ON-LI  |  본 문서는 저장된 정산정보를 기준으로 발행되었습니다.";
+    page.drawText(footer,{x:margin,y:36,size:8,font,color:rgb(.35,.38,.45),maxWidth:contentWidth});
     const bytes=await pdf.save(); uploaded=`statements/${type}/${requestId}/${interpreterId??"company"}/${row.document_no}-v${row.version}.pdf`;
     const up=await adminDb.storage.from("onli-documents").upload(uploaded,bytes,{contentType:"application/pdf",upsert:false}); if(up.error) throw up.error;
     const amount=type==="settlement_statement"?Number(r.company_amount??0):Number(settlement?.amount??base??0);
