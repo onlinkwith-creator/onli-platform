@@ -2,29 +2,53 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument, rgb } from "npm:pdf-lib@1.17.1";
 import fontkit from "npm:@pdf-lib/fontkit@1.1.1";
 
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
+const PRODUCTION_ORIGIN = "https://onli-platform.vercel.app";
+const ALLOWED_ORIGINS = new Set([
+  PRODUCTION_ORIGIN,
+  "http://localhost:5173",
+  "http://localhost:4173",
+]);
+const isAllowedOrigin = (origin: string) =>
+  ALLOWED_ORIGINS.has(origin) || /^https:\/\/onli-platform-[a-z0-9-]+\.vercel\.app$/.test(origin);
+const corsHeaders = (request: Request) => {
+  const origin = request.headers.get("Origin") || "";
+  return {
+    "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : PRODUCTION_ORIGIN,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+};
 const FONT_URL="https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf";
-const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
+const json=(body:unknown,status=200,headers:Record<string,string>)=>new Response(JSON.stringify(body),{status,headers:{...headers,"Content-Type":"application/json"}});
 const safe=(v:unknown)=>v===null||v===undefined||v===""?"-":String(v);
 const date=(v:unknown)=>safe(v)==="-"?"-":String(v).slice(0,10).replaceAll("-",".");
 const won=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)?`${Math.round(n).toLocaleString("ko-KR")}원`:"-"};
+const isPositiveInteger=(value:unknown)=>typeof value==="number"&&Number.isSafeInteger(value)&&value>0;
+const errorMessage=(error:unknown)=>error instanceof Error?error.message:
+  typeof error==="object"&&error!==null&&"message" in error?String(error.message):"문서 생성에 실패했습니다.";
 
 Deno.serve(async(req)=>{
-  if(req.method==="OPTIONS") return new Response("ok",{headers:cors});
+  const cors = corsHeaders(req);
+  if(req.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
+  if(req.method!=="POST") return json({error:"지원하지 않는 요청 방식입니다."},405,cors);
   let reserved:any=null; let uploaded="";
   try{
     const auth=req.headers.get("Authorization")||"";
-    if(!auth) return json({error:"로그인이 필요합니다."},401);
-    const url=Deno.env.get("SUPABASE_URL")!; const anon=Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    if(!auth) return json({error:"로그인이 필요합니다."},401,cors);
+    const url=Deno.env.get("SUPABASE_URL"); const anon=Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if(!url||!anon||!serviceKey) return json({error:"문서 생성 서버 설정을 확인해주세요."},500,cors);
     const userDb=createClient(url,anon,{global:{headers:{Authorization:auth}}});
     const adminDb=createClient(url,serviceKey,{auth:{persistSession:false}});
     const body=await req.json(); const type=body.document_type; const requestId=Number(body.request_id);
     const interpreterId=body.interpreter_id==null?null:Number(body.interpreter_id);
-    if(!["settlement_statement","payout_statement"].includes(type)||!Number.isFinite(requestId)) return json({error:"잘못된 문서 생성 요청입니다."},400);
+    if(!["settlement_statement","payout_statement"].includes(type)||!isPositiveInteger(requestId)||
+      (type==="payout_statement"&&!isPositiveInteger(interpreterId))) return json({error:"잘못된 문서 생성 요청입니다."},400,cors);
     const {data:row,error:reserveError}=await userDb.rpc("reserve_settlement_statement",{p_document_type:type,p_request_id:requestId,p_interpreter_id:interpreterId,p_regenerate:Boolean(body.regenerate)});
     if(reserveError) throw reserveError;
-    if(row.status==="issued") return json({document:row,reused:true});
+    if(row.status==="issued") return json({document:row,reused:true},200,cors);
     reserved=row;
     const {data:r,error:rError}=await adminDb.from("requests").select("*").eq("id",requestId).single(); if(rError) throw rError;
     const {data:biz}=await adminDb.from("businesses").select("*").eq("auth_user_id",r.company_auth_user_id).maybeSingle();
@@ -66,10 +90,10 @@ Deno.serve(async(req)=>{
     const metadata={request_no:r.request_no,event_name:r.event_name??r.title,notice:"본 문서는 저장된 정산정보를 기준으로 발행되었습니다.",source_updated_at:r.updated_at};
     const updated=await adminDb.from("documents").update({status:"issued",file_path:uploaded,amount,company_id:biz?.id??null,company_auth_user_id:r.company_auth_user_id??null,
       interpreter_auth_user_id:interpreter?.auth_user_id??null,metadata}).eq("id",row.id).select("*").single(); if(updated.error) throw updated.error;
-    return json({document:updated.data});
+    return json({document:updated.data},200,cors);
   }catch(error){
     if(uploaded){const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;await createClient(url,key).storage.from("onli-documents").remove([uploaded]);}
     if(reserved?.id){const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;await createClient(url,key).from("documents").delete().eq("id",reserved.id).eq("status","draft");}
-    console.error("settlement document generation failed",error); return json({error:error instanceof Error?error.message:"문서 생성에 실패했습니다."},400);
+    console.error("settlement document generation failed",error); return json({error:errorMessage(error)},400,cors);
   }
 });
