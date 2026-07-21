@@ -7,7 +7,27 @@ export async function generateSettlementDocument(supabase, payload) {
   const { data, error } = await supabase.functions.invoke("generate-settlement-document", {
     body: payload,
   });
-  if (error) throw new Error(error.message || "문서 생성 서버를 호출하지 못했습니다.");
+  if (error) {
+    let details = null;
+    try {
+      const response = error.context;
+      if (response?.clone) {
+        const text = await response.clone().text();
+        try {
+          details = JSON.parse(text);
+        } catch {
+          details = text;
+        }
+      }
+    } catch {
+      details = null;
+    }
+    console.error("Settlement document generation failed", { error, details, payload });
+    throw new Error(
+      details?.error || details?.message || (typeof details === "string" && details)
+        || error.message || "정산서 생성에 실패했습니다."
+    );
+  }
   if (!data?.document) throw new Error(data?.error || "문서 생성 결과가 없습니다.");
   return data.document;
 }

@@ -104,6 +104,7 @@ import {
   buildEstimateDraft,
   buildPaymentDraft,
   createOnliDocument,
+  createOnliDocumentVersion,
   downloadBlob,
   formatDocumentAmount,
   getDocumentTypeLabel,
@@ -115,6 +116,14 @@ import { generateSettlementDocument, latestStatement } from "../utils/settlement
 import { useAuth } from "../hooks/useAuth";
 import { WITHDRAWN_STATUS, isWithdrawnInterpreter } from "../utils/accountStatus";
 import "./Admin.css";
+
+const SETTLEMENT_DOCUMENT_TYPES = new Set([
+  "settlement_statement",
+  "payout_statement",
+]);
+
+const isSettlementDocumentType = (documentType) =>
+  SETTLEMENT_DOCUMENT_TYPES.has(documentType);
 
 // TODO: 실서비스 전에는 Supabase Auth 관리자 권한 필요.
 
@@ -1421,7 +1430,7 @@ function sanitizeRecipientEmail(email) {
       return generatedDocuments.filter((doc) => doc.document_type === "completion").length;
     }
     if (subTabId === "payout_documents") {
-      return generatedDocuments.filter((doc) => doc.document_type === "payout").length;
+      return generatedDocuments.filter((doc) => isSettlementDocumentType(doc.document_type)).length;
     }
     if (subTabId === "admin_memos") return adminMemoDisplayItems.length;
     if (subTabId === "notification_history") return notificationEvents.length;
@@ -2026,6 +2035,7 @@ function sanitizeRecipientEmail(email) {
           : selectedPaidAt || existingPayment?.paid_at || null;
 
       const payload = {
+        amount: normalizeMoneyInput(request.company_amount),
         payment_status: normalizedStatus,
         due_date: normalizeDateToISO(changes.due_date) || null,
         paid_at: normalizedPaidAt,
@@ -2053,7 +2063,7 @@ function sanitizeRecipientEmail(email) {
             request_id: request.id,
             company_id: request.company_id || null,
             company_auth_user_id: request.company_auth_user_id || null,
-            amount: normalizeMoneyInput(request.company_amount ?? request.client_price) || 0,
+            amount: normalizeMoneyInput(request.company_amount),
             ...payload,
           })
           .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
@@ -2561,73 +2571,15 @@ function sanitizeRecipientEmail(email) {
       return;
     }
 
-    const versions = generatedDocuments
-      .filter((item) => item.document_no === document.document_no)
-      .map((item) => Number(item.version || 1));
-    const nextVersion = Math.max(Number(document.version || 1), ...versions) + 1;
-    const amount = normalizeMoneyInput(draft.amount);
-    const metadata = {
-      ...(document.metadata || {}),
-      revision_note: draft.revisionNote || "",
-      admin_note: draft.adminNote || "",
-    };
-    const storagePath = [
-      document.document_type || "document",
-      document.request_id || document.interpreter_id || "no-reference",
-      `${document.document_no}-v${nextVersion}.pdf`,
-    ].join("/");
-
     setSavingKey(`document-version-${document.id}`);
     try {
-      const pdfBlob = await createAdminDocumentPdfBlob({
-        title: getDocumentTypeLabel(document.document_type),
-        rows: [
-          ["문서번호", document.document_no],
-          ["버전", `v${nextVersion}`],
-          ["관련 의뢰", metadata.eventName || metadata.event_name || document.title || "-"],
-          ["기업명", metadata.companyName || metadata.company_name || "-"],
-          ["통역사명", metadata.interpreterName || metadata.interpreter_name || "-"],
-          ["금액", formatDocumentAmount(amount)],
-          ["수정 메모", metadata.revision_note || "-"],
-          ["관리자 메모", metadata.admin_note || "-"],
-        ],
+      const { document: newDocument } = await createOnliDocumentVersion({
+        supabase,
+        sourceDocument: document,
+        draft,
+        userId: user?.id,
       });
-
-      const { error: uploadError } = await supabase.storage
-        .from(document.storage_bucket || "onli-documents")
-        .upload(storagePath, pdfBlob, {
-          contentType: "application/pdf",
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
-
-      const payload = {
-        document_type: document.document_type,
-        document_no: document.document_no,
-        status: "issued",
-        version: nextVersion,
-        request_id: document.request_id || null,
-        company_id: document.company_id || null,
-        company_auth_user_id: document.company_auth_user_id || null,
-        interpreter_id: document.interpreter_id || null,
-        interpreter_auth_user_id: document.interpreter_auth_user_id || null,
-        settlement_id: document.settlement_id || null,
-        title: document.title || getDocumentTypeLabel(document.document_type),
-        amount,
-        storage_bucket: document.storage_bucket || "onli-documents",
-        file_path: storagePath,
-        metadata,
-        created_by: user?.id || null,
-      };
-
-      const { data, error } = await supabase
-        .from("documents")
-        .insert([payload])
-        .select("*")
-        .single();
-      if (error) throw error;
-
-      setGeneratedDocuments((current) => uniqueById([data, ...current]));
+      setGeneratedDocuments((current) => uniqueById([newDocument, ...current]));
       alert("새 버전이 생성되었습니다.");
     } catch (error) {
       console.error("document version create failed:", error);
@@ -3611,7 +3563,7 @@ function sanitizeRecipientEmail(email) {
     };
     const companyAmount = hasCompanyAmountInput
       ? nextCompanyAmount
-      : normalizeMoneyInput(payload.company_amount ?? payload.client_price);
+      : normalizeMoneyInput(payload.company_amount);
     const interpreterAmountForProfit = payload.settlement_final_amount === null
       ? null
       : normalizeMoneyInput(payload.settlement_final_amount);
@@ -5066,6 +5018,7 @@ function sanitizeRecipientEmail(email) {
               "payout_documents",
             ].includes(activeSubTab) && (
               <DocumentManagement
+                businesses={businesses}
                 documents={generatedDocuments}
                 interpreters={interpreters}
                 initialType={
@@ -5074,7 +5027,7 @@ function sanitizeRecipientEmail(email) {
                     : activeSubTab === "completion_documents"
                       ? "completion"
                       : activeSubTab === "payout_documents"
-                        ? "payout"
+                        ? "settlement"
                         : "all"
                 }
                 requests={requests}
@@ -6003,6 +5956,24 @@ function AdminModal({
   );
 }
 
+function EstimateDraftFields({ draft, onChange }) {
+  return (
+    <div className="admin-modal-edit-grid">
+      <TextField label="기업명" value={draft.companyName} onChange={(value) => onChange("companyName", value)} />
+      <TextField label="담당자명" value={draft.contactName} onChange={(value) => onChange("contactName", value)} />
+      <TextField label="행사명" value={draft.eventName} onChange={(value) => onChange("eventName", value)} />
+      <TextField label="일정" value={draft.eventDate} onChange={(value) => onChange("eventDate", value)} />
+      <TextField label="장소" value={draft.location} onChange={(value) => onChange("location", value)} />
+      <TextField label="통역 레벨" value={draft.level} onChange={(value) => onChange("level", value)} />
+      <NumberControl label="단가" value={draft.unitPrice} onChange={(value) => onChange("unitPrice", value)} />
+      <NumberControl label="인원" value={draft.peopleCount} onChange={(value) => onChange("peopleCount", value)} />
+      <NumberControl label="업무 일수" value={draft.workDays} onChange={(value) => onChange("workDays", value)} />
+      <NumberControl label="할인" value={draft.discountAmount} onChange={(value) => onChange("discountAmount", value)} />
+      <NumberControl label="추가 비용" value={draft.extraAmount} onChange={(value) => onChange("extraAmount", value)} />
+    </div>
+  );
+}
+
 function DocumentPreviewModal({ draft, saving, onChange, onClose, onConfirm }) {
   const documentType = draft.documentType;
   const [isEditing, setIsEditing] = useState(false);
@@ -6652,12 +6623,12 @@ function CompanyPaymentManagement({
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ payment, requestNo, companyName, eventName }) => (
+              {rows.map(({ payment, request, requestNo, companyName, eventName }) => (
                 <tr key={payment.id}>
                   <td>{formatManagementNumber(requestNo)}</td>
                   <td>{companyName}</td>
                   <td>{eventName}</td>
-                  <td>{formatDocumentAmount(payment.amount)}</td>
+                  <td>{formatDocumentAmount(request.company_amount)}</td>
                   <td>
                     <span className={`status-badge ${getCompanyPaymentBadgeClass(payment.payment_status)}`}>
                       {getCompanyPaymentStatusLabel(payment.payment_status)}
@@ -7257,7 +7228,7 @@ function InterpreterSettlementManagement({
               <h3>기업 결제 정보</h3>
               <div className="admin-request-payment-fields">
                 <FieldControl label="결제 금액">
-                  <input type="text" value={formatDocumentAmount(selectedPayment?.amount)} readOnly />
+                  <input type="text" value={formatDocumentAmount(selectedRequest?.company_amount)} readOnly />
                 </FieldControl>
                 <DateRangeInput
                   startDate={paymentDraft?.due_date || ""}
@@ -8614,8 +8585,7 @@ function RequestDetailPanel({
   ) || null;
   const interpreterPaymentInputKey = String(safeRequest?.id || "");
   const companyAmountInputKey = interpreterPaymentInputKey;
-  const savedCompanyAmountInput =
-    safeRequest.company_amount ?? safeRequest.client_price ?? "";
+  const savedCompanyAmountInput = safeRequest.company_amount ?? "";
   const hasCompanyAmountDraft =
     companyAmountInputKey &&
     Object.prototype.hasOwnProperty.call(companyAmountInputs, companyAmountInputKey);
@@ -8954,7 +8924,7 @@ function RequestDetailPanel({
               <FieldControl label="결제 금액">
                 <input
                   type="text"
-                  value={formatDocumentAmount(companyPayment?.amount ?? savedCompanyAmountInput)}
+                  value={formatDocumentAmount(safeRequest.company_amount)}
                   readOnly
                 />
               </FieldControl>
@@ -12198,6 +12168,7 @@ function AssignmentManagement({
 }
 
 function DocumentManagement({
+  businesses = [],
   documents = [],
   initialType = "all",
   interpreters = [],
@@ -12224,6 +12195,14 @@ function DocumentManagement({
     () => new Map(interpreters.map((interpreter) => [String(interpreter.id), interpreter])),
     [interpreters]
   );
+  const businessMap = useMemo(() => {
+    const map = new Map();
+    businesses.forEach((business) => {
+      if (business.id != null) map.set(`id:${String(business.id)}`, business);
+      if (business.auth_user_id) map.set(`auth:${business.auth_user_id}`, business);
+    });
+    return map;
+  }, [businesses]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -12251,11 +12230,43 @@ function DocumentManagement({
 
   const startVersionDraft = () => {
     if (!selectedDocument) return;
+    if (selectedDocument.document_type !== "estimate") {
+      const request = getAdminDocumentRequest(selectedDocument, requestMap) || {};
+      setVersionDraft({
+        ...(selectedDocument.metadata || {}),
+        documentType: selectedDocument.document_type,
+        request,
+        amount: selectedDocument.amount || selectedDocument.metadata?.totalAmount || 0,
+        totalAmount: selectedDocument.amount || selectedDocument.metadata?.totalAmount || 0,
+        revisionNote: "",
+        adminNote: selectedDocument.metadata?.admin_note || "",
+      });
+      return;
+    }
+    const request = getAdminDocumentRequest(selectedDocument, requestMap) || {};
+    const business = businessMap.get(`id:${String(selectedDocument.company_id || request.company_id || "")}`)
+      || businessMap.get(`auth:${request.company_auth_user_id || selectedDocument.company_auth_user_id || ""}`)
+      || null;
+    const canonicalRequest = {
+      ...request,
+      company_name: business?.company_name || request.company_name || "",
+      contact_name: business?.contact_name || request.contact_name || request.manager_name || "",
+    };
+    const estimateDraft = buildEstimateDraft(canonicalRequest);
     setVersionDraft({
-      amount: selectedDocument.amount || selectedDocument.metadata?.totalAmount || 0,
+      ...estimateDraft,
+      ...(selectedDocument.metadata || {}),
+      request: canonicalRequest,
+      companyName: canonicalRequest.company_name,
+      contactName: canonicalRequest.contact_name,
+      totalAmount: Number(canonicalRequest.company_amount ?? estimateDraft.totalAmount),
       revisionNote: "",
       adminNote: selectedDocument.metadata?.admin_note || "",
     });
+  };
+
+  const updateVersionDraft = (field, value) => {
+    setVersionDraft((current) => recalculateEstimateDraft({ ...current, [field]: value }));
   };
 
   return (
@@ -12282,7 +12293,7 @@ function DocumentManagement({
           <option value="all">문서 종류: 전체</option>
           <option value="estimate">견적서</option>
           <option value="completion">업무확인서</option>
-          <option value="payout">정산서</option>
+          <option value="settlement">정산서</option>
         </select>
         <select
           className="admin-filter-select"
@@ -12337,13 +12348,16 @@ function DocumentManagement({
               {filteredDocuments.map((document) => {
                 const request = getAdminDocumentRequest(document, requestMap);
                 const interpreter = getAdminDocumentInterpreter(document, interpreterMap);
+                const business = businessMap.get(`id:${String(document.company_id || request?.company_id || "")}`)
+                  || businessMap.get(`auth:${request?.company_auth_user_id || document.company_auth_user_id || ""}`)
+                  || null;
 
                 return (
                   <tr key={document.id} onClick={() => setSelectedDocumentId(document.id)}>
                     <td>{document.document_no}</td>
                     <td>{getDocumentTypeLabel(document.document_type)}</td>
                     <td>{getAdminDocumentEventName(document, request)}</td>
-                    <td>{getAdminDocumentCompanyName(document, request)}</td>
+                    <td>{getAdminDocumentCompanyName(document, request, business)}</td>
                     <td>{getAdminDocumentInterpreterName(document, interpreter)}</td>
                     <td>{formatDate(document.created_at)}</td>
                     <td>v{document.version || 1}</td>
@@ -12393,7 +12407,10 @@ function DocumentManagement({
                   label="기업 정보"
                   value={getAdminDocumentCompanyName(
                     selectedDocument,
-                    getAdminDocumentRequest(selectedDocument, requestMap)
+                    getAdminDocumentRequest(selectedDocument, requestMap),
+                    businessMap.get(`id:${String(selectedDocument.company_id || getAdminDocumentRequest(selectedDocument, requestMap)?.company_id || "")}`)
+                      || businessMap.get(`auth:${getAdminDocumentRequest(selectedDocument, requestMap)?.company_auth_user_id || selectedDocument.company_auth_user_id || ""}`)
+                      || null
                   )}
                 />
                 <Info
@@ -12451,15 +12468,32 @@ function DocumentManagement({
 
             {versionDraft && (
               <section>
-                <h3>새 버전 수정</h3>
-                <div className="admin-modal-edit-grid">
+                <h3>{selectedDocument.document_type === "estimate" ? "견적서 새 버전 작성" : "새 버전 수정"}</h3>
+                {selectedDocument.document_type === "estimate" ? (
+                  <>
+                    <dl className="admin-detail-list compact">
+                      <Info label="문서번호" value={selectedDocument.document_no} />
+                      <Info label="다음 버전" value={`v${Number(latestVersion) + 1}`} />
+                      <Info label="의뢰번호" value={formatManagementNumber(versionDraft.request?.request_no)} />
+                      <Info label="최종 금액" value={formatDocumentAmount(versionDraft.totalAmount)} />
+                    </dl>
+                    <EstimateDraftFields draft={versionDraft} onChange={updateVersionDraft} />
+                    <FieldControl label="견적서 메모">
+                      <textarea
+                        rows={3}
+                        value={versionDraft.memo || ""}
+                        onChange={(event) => updateVersionDraft("memo", event.target.value)}
+                      />
+                    </FieldControl>
+                  </>
+                ) : (
                   <NumberControl
                     label="금액"
                     value={versionDraft.amount}
-                    onChange={(value) =>
-                      setVersionDraft((current) => ({ ...current, amount: value }))
-                    }
+                    onChange={(value) => setVersionDraft((current) => ({ ...current, amount: value }))}
                   />
+                )}
+                <div className="admin-modal-edit-grid">
                   <FieldControl label="수정 메모">
                     <textarea
                       rows={3}
@@ -16851,9 +16885,9 @@ function getAdminDocumentEventName(document = {}, request = null) {
   );
 }
 
-function getAdminDocumentCompanyName(document = {}, request = null) {
+function getAdminDocumentCompanyName(document = {}, request = null, business = null) {
   const metadata = document.metadata || {};
-  return metadata.companyName || metadata.company_name || request?.company_name || "-";
+  return business?.company_name || request?.company_name || metadata.companyName || metadata.company_name || "-";
 }
 
 function getAdminDocumentInterpreterName(document = {}, interpreter = null) {
@@ -16876,7 +16910,10 @@ function getAdminDocumentStatusLabel(status) {
 }
 
 function doesAdminDocumentMatchFilters(document, filters, requestMap, interpreterMap) {
-  if (filters.documentType !== "all" && document.document_type !== filters.documentType) {
+  const matchesDocumentType = filters.documentType === "settlement"
+    ? isSettlementDocumentType(document.document_type)
+    : document.document_type === filters.documentType;
+  if (filters.documentType !== "all" && !matchesDocumentType) {
     return false;
   }
   if (filters.status !== "all" && document.status !== filters.status) return false;
@@ -17738,14 +17775,7 @@ function doesRequestMatchSettlementManagementFilter(request = {}, filter = "all"
 }
 
 function getCompanyAmount(request = {}) {
-  return normalizeMoneyInput(
-    request.company_fee ??
-      request.company_amount ??
-      request.client_price ??
-      request.estimated_price ??
-      request.total_amount ??
-      request.amount
-  );
+  return normalizeMoneyInput(request.company_amount);
 }
 
 function getInterpreterPayment(request = {}) {
@@ -18293,111 +18323,6 @@ function upsertById(items, nextItem) {
 
 function formatJPY(value) {
   return `¥${Number(value || 0).toLocaleString()}`;
-}
-
-async function createAdminDocumentPdfBlob({ title, rows = [] }) {
-  const width = 1240;
-  const height = 1754;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, width, height);
-  context.fillStyle = "#111827";
-  context.font = "700 48px system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif";
-  context.fillText(title || "ON-LI 문서", 80, 120);
-  context.font = "400 24px system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif";
-  context.fillStyle = "#4b5563";
-  context.fillText(`발급일 ${new Date().toLocaleDateString("ko-KR")}`, 80, 162);
-  context.strokeStyle = "#111827";
-  context.lineWidth = 3;
-  context.beginPath();
-  context.moveTo(80, 195);
-  context.lineTo(width - 80, 195);
-  context.stroke();
-
-  let y = 270;
-  rows.forEach(([label, value]) => {
-    context.fillStyle = "#6b7280";
-    context.font = "700 22px system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif";
-    context.fillText(label, 80, y);
-    context.fillStyle = "#111827";
-    context.font = "400 26px system-ui, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif";
-    wrapPdfCanvasText(context, String(value || "-"), 260, y, width - 340, 34);
-    y += 58;
-  });
-
-  const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
-  const jpegBytes = dataUrlToBytes(jpegDataUrl);
-  return buildImagePdfBlob(jpegBytes, width, height);
-}
-
-function wrapPdfCanvasText(context, text, x, y, maxWidth, lineHeight) {
-  const words = text.split(/\s+/);
-  let line = "";
-  let lineY = y;
-  words.forEach((word) => {
-    const testLine = line ? `${line} ${word}` : word;
-    if (context.measureText(testLine).width > maxWidth && line) {
-      context.fillText(line, x, lineY);
-      line = word;
-      lineY += lineHeight;
-      return;
-    }
-    line = testLine;
-  });
-  if (line) context.fillText(line, x, lineY);
-}
-
-function dataUrlToBytes(dataUrl) {
-  const binary = atob(dataUrl.split(",")[1] || "");
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function buildImagePdfBlob(imageBytes, width, height) {
-  const encoder = new TextEncoder();
-  const parts = [];
-  const offsets = [];
-  let position = 0;
-  const append = (part) => {
-    const bytes = typeof part === "string" ? encoder.encode(part) : part;
-    parts.push(bytes);
-    position += bytes.length;
-  };
-  const object = (id, objectParts) => {
-    offsets[id] = position;
-    append(`${id} 0 obj\n`);
-    objectParts.forEach(append);
-    append("\nendobj\n");
-  };
-
-  append("%PDF-1.4\n");
-  object(1, ["<< /Type /Catalog /Pages 2 0 R >>"]);
-  object(2, ["<< /Type /Pages /Kids [3 0 R] /Count 1 >>"]);
-  object(3, [
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] `,
-    "/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>",
-  ]);
-  object(4, [
-    `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} `,
-    `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
-    imageBytes,
-    "\nendstream",
-  ]);
-  const content = `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ\n`;
-  object(5, [`<< /Length ${content.length} >>\nstream\n${content}endstream`]);
-  const xrefStart = position;
-  append("xref\n0 6\n0000000000 65535 f \n");
-  for (let id = 1; id <= 5; id += 1) {
-    append(`${String(offsets[id]).padStart(10, "0")} 00000 n \n`);
-  }
-  append(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
-  return new Blob(parts, { type: "application/pdf" });
 }
 
 function formatDate(value) {

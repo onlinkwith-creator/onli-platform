@@ -1446,7 +1446,7 @@ function BusinessMypage({
                               <div className="request-meta-grid">
                                 <div className="meta-item">
                                   <span className="meta-label">결제 금액</span>
-                                  <span className="meta-value">{formatDocumentAmount(payment.amount)}</span>
+                                  <span className="meta-value">{formatDocumentAmount(req.company_amount)}</span>
                                 </div>
                                 <div className="meta-item">
                                   <span className="meta-label">입금 기한</span>

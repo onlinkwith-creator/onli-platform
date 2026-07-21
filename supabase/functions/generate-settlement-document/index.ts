@@ -20,7 +20,7 @@ const corsHeaders = (request: Request) => {
     "Vary": "Origin",
   };
 };
-const FONT_URL="https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf";
+const FONT_URL="https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Regular.ttf";
 const json=(body:unknown,status=200,headers:Record<string,string>)=>new Response(JSON.stringify(body),{status,headers:{...headers,"Content-Type":"application/json"}});
 const safe=(v:unknown)=>v===null||v===undefined||v===""?"-":String(v);
 const date=(v:unknown)=>safe(v)==="-"?"-":String(v).slice(0,10).replaceAll("-",".");
@@ -30,6 +30,7 @@ const errorMessage=(error:unknown)=>error instanceof Error?error.message:
   typeof error==="object"&&error!==null&&"message" in error?String(error.message):"문서 생성에 실패했습니다.";
 
 Deno.serve(async(req)=>{
+  const startedAt=Date.now();
   const cors = corsHeaders(req);
   if(req.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
   if(req.method!=="POST") return json({error:"지원하지 않는 요청 방식입니다."},405,cors);
@@ -44,6 +45,7 @@ Deno.serve(async(req)=>{
     const adminDb=createClient(url,serviceKey,{auth:{persistSession:false}});
     const body=await req.json(); const type=body.document_type; const requestId=Number(body.request_id);
     const interpreterId=body.interpreter_id==null?null:Number(body.interpreter_id);
+    console.log("settlement generation started",{type,requestId,interpreterId,regenerate:Boolean(body.regenerate)});
     if(!["settlement_statement","payout_statement"].includes(type)||!isPositiveInteger(requestId)||
       (type==="payout_statement"&&!isPositiveInteger(interpreterId))) return json({error:"잘못된 문서 생성 요청입니다."},400,cors);
     const {data:row,error:reserveError}=await userDb.rpc("reserve_settlement_statement",{p_document_type:type,p_request_id:requestId,p_interpreter_id:interpreterId,p_regenerate:Boolean(body.regenerate)});
@@ -69,8 +71,8 @@ Deno.serve(async(req)=>{
       ["행사 또는 업무 기간",`${date(r.start_date??r.event_date)} ~ ${date(r.end_date??r.event_date)}`],["업무 장소",safe(r.event_location??r.location)],
       ["통역 언어",safe(r.language??r.interpretation_language)],["통역사 수",safe(r.requested_people_count??r.required_count)],
       ["기업 측 단가",won(r.company_unit_price??r.client_price)],["근무일수",safe(r.settlement_work_days??days)],
-      ["공급금액",won(r.company_amount??r.client_price??payment?.amount)],["세금 또는 추가 금액",won(r.company_tax_amount??r.settlement_extra_amount)],
-      ["최종 청구금액",won(payment?.amount??r.company_amount??r.client_price)],["입금기한",date(payment?.due_date)],["입금완료일",date(payment?.paid_at)],
+      ["공급금액",won(r.company_amount)],["세금 또는 추가 금액",won(r.company_tax_amount??r.settlement_extra_amount)],
+      ["최종 청구금액",won(r.company_amount)],["입금기한",date(payment?.due_date)],["입금완료일",date(payment?.paid_at)],
       ["입금 상태",safe(payment?.payment_status)]]:[
       ["문서번호",row.document_no],["발행일",date(row.issued_at)],["의뢰번호",safe(r.request_no)],["의뢰명",safe(r.event_name??r.title)],
       ["통역사명",safe(interpreter?.name)],["행사 또는 업무 기간",`${date(r.start_date??r.event_date)} ~ ${date(r.end_date??r.event_date)}`],
@@ -78,6 +80,8 @@ Deno.serve(async(req)=>{
       ["공제금액",Number(settlement?.deduction_amount)>0?won(settlement.deduction_amount):"-"],["최종 지급금액",won(settlement?.amount??base)],
       ["지급예정일",date(settlement?.payout_due_date)],["지급완료일",date(settlement?.paid_at??settlement?.settlement_completed_at)],["지급 상태",safe(settlement?.payout_status??settlement?.settlement_status)]];
     const pdf=await PDFDocument.create(); pdf.registerFontkit(fontkit); const fontBytes=await fetch(FONT_URL).then(x=>{if(!x.ok)throw new Error("PDF 폰트를 불러오지 못했습니다.");return x.arrayBuffer()});
+    // Use a compact TrueType Korean font. Subsetting this font keeps Korean glyphs
+    // embedded without the CPU cost of embedding the 16 MB CJK OpenType font.
     const font=await pdf.embedFont(fontBytes,{subset:true}); const page=pdf.addPage([595.28,841.89]);
     page.drawText(type==="settlement_statement"?"정산서":"지급명세서",{x:48,y:785,size:25,font,color:rgb(.08,.12,.2)});
     page.drawText("ON-LI",{x:480,y:792,size:14,font,color:rgb(.3,.2,.55)}); let y=744;
@@ -86,14 +90,15 @@ Deno.serve(async(req)=>{
     page.drawText("발행자: ON-LI  |  본 문서는 저장된 정산정보를 기준으로 발행되었습니다.",{x:48,y:36,size:8,font,color:rgb(.35,.38,.45)});
     const bytes=await pdf.save(); uploaded=`statements/${type}/${requestId}/${interpreterId??"company"}/${row.document_no}-v${row.version}.pdf`;
     const up=await adminDb.storage.from("onli-documents").upload(uploaded,bytes,{contentType:"application/pdf",upsert:false}); if(up.error) throw up.error;
-    const amount=type==="settlement_statement"?Number(payment?.amount??r.company_amount??r.client_price??0):Number(settlement?.amount??base??0);
+    const amount=type==="settlement_statement"?Number(r.company_amount??0):Number(settlement?.amount??base??0);
     const metadata={request_no:r.request_no,event_name:r.event_name??r.title,notice:"본 문서는 저장된 정산정보를 기준으로 발행되었습니다.",source_updated_at:r.updated_at};
     const updated=await adminDb.from("documents").update({status:"issued",file_path:uploaded,amount,company_id:biz?.id??null,company_auth_user_id:r.company_auth_user_id??null,
       interpreter_auth_user_id:interpreter?.auth_user_id??null,metadata}).eq("id",row.id).select("*").single(); if(updated.error) throw updated.error;
+    console.log("settlement generation completed",{type,requestId,interpreterId,version:row.version,durationMs:Date.now()-startedAt});
     return json({document:updated.data},200,cors);
   }catch(error){
     if(uploaded){const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;await createClient(url,key).storage.from("onli-documents").remove([uploaded]);}
     if(reserved?.id){const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;await createClient(url,key).from("documents").delete().eq("id",reserved.id).eq("status","draft");}
-    console.error("settlement document generation failed",error); return json({error:errorMessage(error)},400,cors);
+    console.error("settlement document generation failed",{error:errorMessage(error),stack:error instanceof Error?error.stack:null,durationMs:Date.now()-startedAt}); return json({error:errorMessage(error)},400,cors);
   }
 });

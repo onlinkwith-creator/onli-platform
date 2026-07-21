@@ -66,7 +66,7 @@ export function getRequestDateRange(item = {}) {
 export function buildEstimateDraft(request = {}) {
   const peopleCount = getPeopleCount(request);
   const workDays = getWorkDays(request);
-  const currentAmount = Number(request.company_amount ?? request.client_price ?? 0);
+  const currentAmount = Number(request.company_amount ?? 0);
   const unitPrice =
     currentAmount > 0
       ? Math.round(currentAmount / Math.max(1, peopleCount * workDays))
@@ -88,7 +88,7 @@ export function buildEstimateDraft(request = {}) {
     discountAmount: 0,
     extraAmount: 0,
     memo: request.estimate_memo || "",
-    totalAmount: subtotal,
+    totalAmount: currentAmount > 0 ? currentAmount : subtotal,
   };
 }
 
@@ -104,7 +104,7 @@ export function buildCompletionDraft(request = {}, assignments = []) {
     workTime: request.work_hours || formatTimeRange(request.event_start_time, request.event_end_time),
     confirmedAt: new Date().toISOString().slice(0, 10),
     memo: "",
-    totalAmount: Number(request.company_amount ?? request.client_price ?? 0),
+    totalAmount: Number(request.company_amount ?? 0),
   };
 }
 
@@ -251,6 +251,67 @@ export async function createOnliDocument({ supabase, draft, userId }) {
     }
     throw error;
   }
+
+  return { document: documentData, blob: pdfBlob, fileName };
+}
+
+export async function createOnliDocumentVersion({
+  supabase,
+  sourceDocument,
+  draft,
+  userId,
+}) {
+  const documentType = normalizeDocumentType(sourceDocument.document_type);
+  const normalizedDraft = documentType === "estimate"
+    ? recalculateEstimateDraft(draft)
+    : documentType === "payout"
+      ? recalculatePaymentDraft(draft)
+      : draft;
+  const request = normalizedDraft.request || {};
+  const { data: versionRows, error: versionError } = await supabase
+    .from("documents")
+    .select("version")
+    .eq("document_no", sourceDocument.document_no)
+    .order("version", { ascending: false })
+    .limit(1);
+  if (versionError) throw versionError;
+
+  const version = Number(versionRows?.[0]?.version || sourceDocument.version || 1) + 1;
+  const fileName = `${sourceDocument.document_no}-v${version}.pdf`;
+  const companyId = sourceDocument.company_id || request.company_id || null;
+  const storagePath = documentType === "estimate"
+    ? `estimates/${companyId || "no-company"}/${fileName}`
+    : `${documentType}/${request.id || sourceDocument.request_id || "no-reference"}/${fileName}`;
+  const pdfBlob = await renderDocumentPdf({
+    documentNo: sourceDocument.document_no,
+    version,
+    draft: normalizedDraft,
+  });
+  await uploadDocumentPdf(supabase, pdfBlob, storagePath);
+
+  const metadata = {
+    ...buildDocumentMetadata(normalizedDraft),
+    revision_note: normalizedDraft.revisionNote || "",
+    admin_note: normalizedDraft.adminNote || "",
+  };
+  const documentData = await createDocumentRecord(supabase, {
+    document_type: documentType,
+    document_no: sourceDocument.document_no,
+    status: "issued",
+    version,
+    request_id: request.id || sourceDocument.request_id || null,
+    company_id: companyId,
+    company_auth_user_id: request.company_auth_user_id || sourceDocument.company_auth_user_id || null,
+    interpreter_id: sourceDocument.interpreter_id || null,
+    interpreter_auth_user_id: sourceDocument.interpreter_auth_user_id || null,
+    settlement_id: sourceDocument.settlement_id || null,
+    title: sourceDocument.title || DOCUMENT_TYPES[documentType].label,
+    amount: Math.round(Number(normalizedDraft.totalAmount || 0)),
+    storage_bucket: sourceDocument.storage_bucket || DOCUMENT_BUCKET,
+    file_path: storagePath,
+    metadata,
+    created_by: userId || null,
+  });
 
   return { document: documentData, blob: pdfBlob, fileName };
 }
