@@ -2475,41 +2475,58 @@ function InterpreterMypage({
                           );
 
                           return (
-                          <div key={settlement.id} className="interpreter-assignment-card">
-                            <div className="card-top-row">
+                          <div key={settlement.id} className="interpreter-assignment-card interpreter-settlement-card">
+                            <div className="card-top-row interpreter-settlement-card-header">
                               <span className="matching-no">{settlement.publicJobCode || "정산"}</span>
                               <span className={`status-badge ${getStatusBadgeClass(settlement.settlementStatus)}`}>
                                 {getSettlementStatusLabel(settlement.settlementStatus)}
                               </span>
                             </div>
-                            <div className="assignment-list-summary">
+                            <div className="assignment-list-summary interpreter-settlement-summary">
                               <h3>{settlement.eventName || settlement.title || "배정된 통역"}</h3>
-                              <p className="assignment-primary-meta">
-                                업무일: {formatDateRange(settlement.startDate, settlement.endDate)}
-                              </p>
-                              <p className="assignment-secondary-meta">
-                                근무 일수: {settlement.workDays || "-"}일
-                              </p>
-                              <p className="assignment-secondary-meta">
-                                정산 예정 금액: {formatKRW(settlement.amount)}
-                              </p>
-                              <p className="assignment-language">
-                                정산 완료일: {formatDate(settlement.completedAt)}
-                              </p>
+                              <div className="interpreter-settlement-info-grid">
+                                <div className="interpreter-settlement-info-row">
+                                  <span className="interpreter-settlement-info-label">업무일</span>
+                                  <span className="interpreter-settlement-info-value">
+                                    {formatDateRange(settlement.startDate, settlement.endDate)}
+                                  </span>
+                                </div>
+                                <div className="interpreter-settlement-info-row">
+                                  <span className="interpreter-settlement-info-label">근무일수</span>
+                                  <span className="interpreter-settlement-info-value">
+                                    {settlement.workDays || "-"}일
+                                  </span>
+                                </div>
+                                <div className="interpreter-settlement-info-row">
+                                  <span className="interpreter-settlement-info-label">정산 예정 금액</span>
+                                  <span className="interpreter-settlement-info-value amount">
+                                    {formatKRW(settlement.amount)}
+                                  </span>
+                                </div>
+                                <div className="interpreter-settlement-info-row">
+                                  <span className="interpreter-settlement-info-label">정산 완료일</span>
+                                  <span className="interpreter-settlement-info-value">
+                                    {formatDate(settlement.completedAt)}
+                                  </span>
+                                </div>
+                              </div>
                               {documentRow && (
-                                <>
-                                  <p className="assignment-secondary-meta">
-                                    지급명세서 {documentRow.document_no} · v{documentRow.version || 1} · {String(documentRow.issued_at || documentRow.created_at).slice(0, 10)}
-                                  </p>
-                                  <div className="settlement-document-actions">
+                                <section className="interpreter-payout-document-panel">
+                                  <div className="interpreter-payout-document-copy">
+                                    <strong>지급명세서</strong>
+                                    <span>
+                                      {documentRow.document_no} · v{documentRow.version || 1} · {String(documentRow.issued_at || documentRow.created_at).slice(0, 10)}
+                                    </span>
+                                  </div>
+                                  <div className="interpreter-payout-document-actions">
                                     <button type="button" className="file-download-btn" onClick={() => openPaymentDocument(documentRow)}>
-                                      지급명세서 미리보기
+                                      미리보기
                                     </button>
                                     <button type="button" className="file-download-btn" onClick={() => openPaymentDocument(documentRow, true)}>
-                                      PDF 다운로드
+                                      다운로드
                                     </button>
                                   </div>
-                                </>
+                                </section>
                               )}
                             </div>
                           </div>

@@ -806,6 +806,187 @@
   margin-top: 16px;
 }
 
+.interpreter-settlement-card {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  background: #ffffff;
+}
+
+.interpreter-settlement-card .interpreter-settlement-card-header {
+  margin-bottom: 0;
+  gap: 16px;
+}
+
+.interpreter-settlement-card .matching-no {
+  color: #4f46e5;
+  font-size: 13px;
+}
+
+.interpreter-settlement-summary {
+  gap: 18px;
+  cursor: default;
+}
+
+.interpreter-settlement-summary h3 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.4;
+}
+
+.interpreter-settlement-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 28px;
+  padding: 18px;
+  border: 1px solid #e8edf4;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.interpreter-settlement-info-row {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.75fr) minmax(0, 1.25fr);
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.interpreter-settlement-info-label {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.interpreter-settlement-info-value {
+  min-width: 0;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.interpreter-settlement-info-value.amount {
+  color: #3730a3;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.interpreter-payout-document-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 0;
+  padding-top: 18px;
+  border-top: 1px solid #dbe3ee;
+}
+
+.interpreter-payout-document-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.interpreter-payout-document-copy strong {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.interpreter-payout-document-copy span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.interpreter-payout-document-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.interpreter-payout-document-actions .file-download-btn {
+  width: auto;
+  min-width: 88px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid #c7d2fe;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.interpreter-payout-document-actions .file-download-btn:last-child {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.interpreter-payout-document-actions .file-download-btn:hover {
+  border-color: #4f46e5;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.interpreter-payout-document-actions .file-download-btn:last-child:hover {
+  background: #4338ca;
+  color: #ffffff;
+}
+
+@media (max-width: 720px) {
+  .interpreter-settlement-card {
+    gap: 16px;
+    padding: 18px;
+  }
+
+  .interpreter-settlement-info-grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 15px;
+  }
+
+  .interpreter-payout-document-panel {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .interpreter-payout-document-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .interpreter-payout-document-actions .file-download-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 390px) {
+  .interpreter-settlement-card .interpreter-settlement-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .interpreter-settlement-info-row {
+    grid-template-columns: minmax(84px, 0.8fr) minmax(0, 1.2fr);
+    gap: 8px;
+  }
+
+  .interpreter-payout-document-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .application-expanded-panel,
 .assignment-expanded-panel {
   display: grid;
