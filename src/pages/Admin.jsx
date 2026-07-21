@@ -2643,6 +2643,51 @@ function sanitizeRecipientEmail(email) {
     }
   };
 
+  const deleteGeneratedDocument = async (document) => {
+    if (!supabase || !document?.id) return false;
+    const documentLabel = `${document.document_no || "문서"} v${document.version || 1}`;
+    if (!window.confirm(`${documentLabel}을(를) 삭제하시겠습니까?\n해당 버전의 DB 레코드와 PDF 파일만 삭제됩니다.`)) {
+      return false;
+    }
+
+    setSavingKey(`document-delete-${document.id}`);
+    try {
+      const { data: target, error: lookupError } = await supabase
+        .from("documents")
+        .select("id, document_no, version, storage_bucket, file_path")
+        .eq("id", document.id)
+        .single();
+      if (lookupError) throw lookupError;
+
+      if (target.file_path) {
+        const { error: storageError } = await supabase.storage
+          .from(target.storage_bucket || "onli-documents")
+          .remove([target.file_path]);
+        if (storageError) throw storageError;
+      }
+
+      const { data: deleted, error: deleteError } = await supabase
+        .from("documents")
+        .delete()
+        .eq("id", target.id)
+        .select("id")
+        .single();
+      if (deleteError) throw deleteError;
+
+      setGeneratedDocuments((current) =>
+        current.filter((item) => String(item.id) !== String(deleted.id))
+      );
+      alert(`${documentLabel}이(가) 삭제되었습니다.`);
+      return true;
+    } catch (error) {
+      console.error("document delete failed:", error);
+      alert(`문서 삭제 실패: ${error.message || "원인을 확인해주세요."}`);
+      return false;
+    } finally {
+      setSavingKey("");
+    }
+  };
+
   const updateRequestEditDraft = (name, value) => {
     setRequestEditDraft((current) => ({
       ...EMPTY_REQUEST_EDIT_DRAFT,
@@ -5058,6 +5103,7 @@ function sanitizeRecipientEmail(email) {
                   await createDocumentVersionFromExisting(document, draft);
                 }}
                 onOpenPdf={(document, options) => openDocumentSignedUrl(supabase, document, options)}
+                onDeleteDocument={deleteGeneratedDocument}
                 onVoidDocument={voidGeneratedDocument}
               />
             )}
@@ -12232,6 +12278,7 @@ function DocumentManagement({
   initialType = "all",
   interpreters = [],
   onCreateVersion,
+  onDeleteDocument,
   onOpenPdf,
   onVoidDocument,
   requests = [],
@@ -12401,6 +12448,7 @@ function DocumentManagement({
                 <th>생성일</th>
                 <th>버전</th>
                 <th>상태</th>
+                <th>관리</th>
               </tr>
             </thead>
             <tbody>
@@ -12421,6 +12469,23 @@ function DocumentManagement({
                     <td>{formatDate(document.created_at)}</td>
                     <td>v{document.version || 1}</td>
                     <td>{getAdminDocumentStatusLabel(document.status)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="admin-link-button danger"
+                        disabled={savingKey === `document-delete-${document.id}`}
+                        onClick={async (event) => {
+                          event.stopPropagation();
+                          const deleted = await onDeleteDocument(document);
+                          if (deleted && selectedDocumentId === document.id) {
+                            setSelectedDocumentId(null);
+                            setVersionDraft(null);
+                          }
+                        }}
+                      >
+                        {savingKey === `document-delete-${document.id}` ? "삭제 중..." : "삭제"}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}

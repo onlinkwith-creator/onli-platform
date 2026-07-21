@@ -115,7 +115,7 @@ const drawOfficialTable=(page:any,regular:any,bold:any,rows:unknown[][],startY:n
   });
   return top;
 };
-const drawCompanySettlementPdf=(pdf:any,regular:any,bold:any,row:any,r:any,biz:any,payment:any,amounts:any,japanese:any=null)=>{
+const drawCompanySettlementPdf=(pdf:any,regular:any,bold:any,row:any,r:any,biz:any,payment:any,amounts:any,companySettlementStatus:unknown,japanese:any=null)=>{
   const page=pdf.addPage([595.28,841.89]); const x=44,width=507;
   page.drawText("ON-LI",{x,y:786,size:22,font:bold,color:rgb(.07,.09,.13)});
   page.drawText("정산서",{x,y:744,size:19,font:bold,color:rgb(.07,.09,.13)});
@@ -149,7 +149,7 @@ const drawCompanySettlementPdf=(pdf:any,regular:any,bold:any,row:any,r:any,biz:a
   y-=38; page.drawText("입금 정보",{x,y,size:11,font:bold,color:rgb(.07,.09,.13)}); y-=12;
   drawOfficialTable(page,regular,bold,[
     ["결제 상태",paymentStatusLabel(payment?.payment_status)],["입금 기한",date(payment?.due_date)],
-    ["입금 완료일",date(payment?.paid_at)],["정산 상태",settlementStatusLabel(r.settlement_status)]
+    ["입금 완료일",date(payment?.paid_at)],["정산 상태",settlementStatusLabel(companySettlementStatus)]
   ],y,japanese);
   page.drawText("본 문서는 ON-LI 운영 시스템에 저장된 의뢰 및 정산 데이터를 기준으로 발행되었습니다.",{x,y:34,size:7.5,font:regular,color:rgb(.39,.45,.53),maxWidth:width});
   return page;
@@ -197,6 +197,17 @@ Deno.serve(async(req)=>{
       const sr=await adminDb.from("settlements").select("*").eq("request_id",requestId).eq("interpreter_id",interpreterId).single(); if(sr.error) throw sr.error; settlement=sr.data;
       const ir=await adminDb.from("interpreters").select("*").eq("id",interpreterId).single(); if(ir.error) throw ir.error; interpreter=ir.data;
     }
+    let companySettlementStatus:unknown=null;
+    if(type==="settlement_statement"){
+      const companySettlementResult=await adminDb.from("settlements")
+        .select("settlement_status,payout_status,updated_at")
+        .eq("request_id",requestId)
+        .order("updated_at",{ascending:false})
+        .limit(1)
+        .maybeSingle();
+      if(companySettlementResult.error) throw companySettlementResult.error;
+      companySettlementStatus=companySettlementResult.data?.settlement_status??companySettlementResult.data?.payout_status??r.settlement_status;
+    }
     if(type==="settlement_statement"&&!biz) throw new Error("연결된 기업 정보를 확인해주세요.");
     const days=Number(settlement?.work_days??r.settlement_work_days??1);
     const base=Number(settlement?.daily_rate??0)*days||Number(r.settlement_base_amount??0);
@@ -230,7 +241,7 @@ Deno.serve(async(req)=>{
         const japaneseBytes=await fetch(JAPANESE_FONT_URL).then(x=>{if(!x.ok)throw new Error("일본어 PDF 폰트를 불러오지 못했습니다.");return x.arrayBuffer()});
         japanese=await pdf.embedFont(japaneseBytes,{subset:false});
       }
-      drawCompanySettlementPdf(pdf,font,bold,row,r,biz,payment,companySettlementAmounts,japanese);
+      drawCompanySettlementPdf(pdf,font,bold,row,r,biz,payment,companySettlementAmounts,companySettlementStatus,japanese);
     }else{
       const page=pdf.addPage([595.28,841.89]);
       const pageWidth=595.28,margin=48,contentWidth=pageWidth-margin*2,labelWidth=145,valueX=205;
