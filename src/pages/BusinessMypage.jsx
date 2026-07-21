@@ -557,7 +557,7 @@ function BusinessMypage({
 
           const { data: docData, error: docError } = await supabase
             .from("documents")
-            .select("id, document_type, document_no, status, version, request_id, title, amount, storage_bucket, file_path, created_at")
+            .select("id, document_type, document_no, status, version, request_id, title, amount, storage_bucket, file_path, issued_at, created_at")
             .in("request_id", requestIds)
             .eq("status", "issued")
             .order("created_at", { ascending: false });
@@ -1317,7 +1317,7 @@ function BusinessMypage({
 
                       const estimateDocument = latestDocs["estimate"];
                       const payment = payments.find((item) => item.request_id === req.id);
-                      const documentRows = Object.values(latestDocs).sort((a, b) => {
+                      const documentRows = Object.values(latestDocs).filter((doc) => doc.document_type !== "payout_statement").sort((a, b) => {
                         const typeOrder = ["estimate", "completion", "payout", "contract", "attachment"];
                         const aIndex = typeOrder.indexOf(a.document_type);
                         const bIndex = typeOrder.indexOf(b.document_type);
@@ -1389,7 +1389,7 @@ function BusinessMypage({
                                           v{doc.version || 1} · {getDocumentStatusLabel(doc.status)}
                                         </span>
                                         <time dateTime={String(doc.created_at || "").slice(0, 10)}>
-                                          {formatIssuedDate(doc.created_at)}
+                                          {formatIssuedDate(doc.issued_at || doc.created_at)}
                                         </time>
                                       </div>
                                     </div>

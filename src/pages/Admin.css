@@ -2870,8 +2870,11 @@
 }
 
 .admin-request-payment-editor {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
-  padding: 18px;
+  box-sizing: border-box;
+  padding: 22px;
   border: 1px solid #c7d2fe;
   border-radius: 16px;
   background: #f8faff;
@@ -2887,7 +2890,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
 
 .admin-request-payment-heading h3,
@@ -2910,7 +2913,81 @@
 .admin-request-payment-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields > *,
+.admin-request-detail-modal .admin-request-payment-fields .admin-field-control,
+.admin-request-detail-modal .admin-request-payment-fields .date-range-input {
+  min-width: 0;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields .admin-field-control {
+  gap: 8px;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields input,
+.admin-request-detail-modal .admin-request-payment-fields select {
+  min-height: 48px;
+  border-color: #dbe3f0;
+  border-radius: 12px;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields input[readonly] {
+  background: #f8fafc;
+  color: #475569;
+  cursor: default;
+}
+
+.admin-request-payment-memo {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.admin-request-detail-modal .admin-request-payment-memo textarea {
+  width: 100%;
+  min-height: 104px;
+  box-sizing: border-box;
+  resize: vertical;
+  border-color: #dbe3f0;
+  border-radius: 12px;
+}
+
+.admin-request-payment-actions {
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields .date-range-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields .date-range-head {
+  display: contents;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields .date-range-head > span {
+  grid-row: 1;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields .date-range-picker-shell {
+  grid-row: 2;
+}
+
+.admin-request-detail-modal .admin-request-payment-fields .date-range-head > strong {
+  grid-row: 3;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
 }
 
 .admin-request-payment-fields .date-range-fields {
@@ -7849,6 +7926,19 @@
 }
 
 @media (max-width: 640px) {
+  .admin-request-detail-modal .admin-request-payment-editor {
+    padding: 16px;
+  }
+
+  .admin-request-detail-modal .admin-request-payment-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-request-detail-modal .admin-request-payment-actions,
+  .admin-request-detail-modal .admin-request-payment-actions .admin-save {
+    width: 100%;
+  }
+
   .admin-request-detail-modal .admin-modal-head {
     gap: 12px;
   }

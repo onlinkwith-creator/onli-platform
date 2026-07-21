@@ -1,0 +1,75 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { PDFDocument, rgb } from "npm:pdf-lib@1.17.1";
+import fontkit from "npm:@pdf-lib/fontkit@1.1.1";
+
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
+const FONT_URL="https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf";
+const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
+const safe=(v:unknown)=>v===null||v===undefined||v===""?"-":String(v);
+const date=(v:unknown)=>safe(v)==="-"?"-":String(v).slice(0,10).replaceAll("-",".");
+const won=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)?`${Math.round(n).toLocaleString("ko-KR")}원`:"-"};
+
+Deno.serve(async(req)=>{
+  if(req.method==="OPTIONS") return new Response("ok",{headers:cors});
+  let reserved:any=null; let uploaded="";
+  try{
+    const auth=req.headers.get("Authorization")||"";
+    if(!auth) return json({error:"로그인이 필요합니다."},401);
+    const url=Deno.env.get("SUPABASE_URL")!; const anon=Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const userDb=createClient(url,anon,{global:{headers:{Authorization:auth}}});
+    const adminDb=createClient(url,serviceKey,{auth:{persistSession:false}});
+    const body=await req.json(); const type=body.document_type; const requestId=Number(body.request_id);
+    const interpreterId=body.interpreter_id==null?null:Number(body.interpreter_id);
+    if(!["settlement_statement","payout_statement"].includes(type)||!Number.isFinite(requestId)) return json({error:"잘못된 문서 생성 요청입니다."},400);
+    const {data:row,error:reserveError}=await userDb.rpc("reserve_settlement_statement",{p_document_type:type,p_request_id:requestId,p_interpreter_id:interpreterId,p_regenerate:Boolean(body.regenerate)});
+    if(reserveError) throw reserveError;
+    if(row.status==="issued") return json({document:row,reused:true});
+    reserved=row;
+    const {data:r,error:rError}=await adminDb.from("requests").select("*").eq("id",requestId).single(); if(rError) throw rError;
+    const {data:biz}=await adminDb.from("businesses").select("*").eq("auth_user_id",r.company_auth_user_id).maybeSingle();
+    const {data:payment}=await adminDb.from("payments").select("*").eq("request_id",requestId).maybeSingle();
+    let settlement:any=null,interpreter:any=null;
+    if(type==="payout_statement"){
+      const {data:assigned}=await adminDb.from("request_interpreters").select("id").eq("request_id",requestId).eq("interpreter_id",interpreterId).eq("status","assigned").maybeSingle();
+      if(!assigned) throw new Error("실제 배정된 통역사만 지급명세서를 생성할 수 있습니다.");
+      const sr=await adminDb.from("settlements").select("*").eq("request_id",requestId).eq("interpreter_id",interpreterId).single(); if(sr.error) throw sr.error; settlement=sr.data;
+      const ir=await adminDb.from("interpreters").select("*").eq("id",interpreterId).single(); if(ir.error) throw ir.error; interpreter=ir.data;
+    }
+    if(type==="settlement_statement"&&!biz) throw new Error("연결된 기업 정보를 확인해주세요.");
+    const days=Number(settlement?.work_days??r.settlement_work_days??1);
+    const base=Number(settlement?.daily_rate??0)*days||Number(r.settlement_base_amount??0);
+    const rows=type==="settlement_statement"?[
+      ["문서번호",row.document_no],["발행일",date(row.issued_at)],["의뢰번호",safe(r.request_no)],["의뢰명",safe(r.event_name??r.title)],
+      ["기업명",safe(biz?.company_name??r.company_name)],["기업 담당자명",safe(biz?.contact_name??r.contact_name??r.manager_name)],
+      ["행사 또는 업무 기간",`${date(r.start_date??r.event_date)} ~ ${date(r.end_date??r.event_date)}`],["업무 장소",safe(r.event_location??r.location)],
+      ["통역 언어",safe(r.language??r.interpretation_language)],["통역사 수",safe(r.requested_people_count??r.required_count)],
+      ["기업 측 단가",won(r.company_unit_price??r.client_price)],["근무일수",safe(r.settlement_work_days??days)],
+      ["공급금액",won(r.company_amount??r.client_price??payment?.amount)],["세금 또는 추가 금액",won(r.company_tax_amount??r.settlement_extra_amount)],
+      ["최종 청구금액",won(payment?.amount??r.company_amount??r.client_price)],["입금기한",date(payment?.due_date)],["입금완료일",date(payment?.paid_at)],
+      ["입금 상태",safe(payment?.payment_status)]]:[
+      ["문서번호",row.document_no],["발행일",date(row.issued_at)],["의뢰번호",safe(r.request_no)],["의뢰명",safe(r.event_name??r.title)],
+      ["통역사명",safe(interpreter?.name)],["행사 또는 업무 기간",`${date(r.start_date??r.event_date)} ~ ${date(r.end_date??r.event_date)}`],
+      ["실제 근무일수",safe(days)],["통역사 일당",won(settlement?.daily_rate)],["기본 지급액",won(base)],
+      ["공제금액",Number(settlement?.deduction_amount)>0?won(settlement.deduction_amount):"-"],["최종 지급금액",won(settlement?.amount??base)],
+      ["지급예정일",date(settlement?.payout_due_date)],["지급완료일",date(settlement?.paid_at??settlement?.settlement_completed_at)],["지급 상태",safe(settlement?.payout_status??settlement?.settlement_status)]];
+    const pdf=await PDFDocument.create(); pdf.registerFontkit(fontkit); const fontBytes=await fetch(FONT_URL).then(x=>{if(!x.ok)throw new Error("PDF 폰트를 불러오지 못했습니다.");return x.arrayBuffer()});
+    const font=await pdf.embedFont(fontBytes,{subset:true}); const page=pdf.addPage([595.28,841.89]);
+    page.drawText(type==="settlement_statement"?"정산서":"지급명세서",{x:48,y:785,size:25,font,color:rgb(.08,.12,.2)});
+    page.drawText("ON-LI",{x:480,y:792,size:14,font,color:rgb(.3,.2,.55)}); let y=744;
+    for(const [label,value] of rows){page.drawRectangle({x:48,y:y-7,width:145,height:28,color:rgb(.96,.96,.98)});page.drawText(label,{x:57,y,size:9,font});
+      const text=safe(value); const chunks=text.match(/.{1,38}/g)||["-"]; chunks.slice(0,2).forEach((chunk,i)=>page.drawText(chunk,{x:205,y:y-i*11,size:9,font})); y-=Math.max(32,chunks.length*11+10);}
+    page.drawText("발행자: ON-LI  |  본 문서는 저장된 정산정보를 기준으로 발행되었습니다.",{x:48,y:36,size:8,font,color:rgb(.35,.38,.45)});
+    const bytes=await pdf.save(); uploaded=`statements/${type}/${requestId}/${interpreterId??"company"}/${row.document_no}-v${row.version}.pdf`;
+    const up=await adminDb.storage.from("onli-documents").upload(uploaded,bytes,{contentType:"application/pdf",upsert:false}); if(up.error) throw up.error;
+    const amount=type==="settlement_statement"?Number(payment?.amount??r.company_amount??r.client_price??0):Number(settlement?.amount??base??0);
+    const metadata={request_no:r.request_no,event_name:r.event_name??r.title,notice:"본 문서는 저장된 정산정보를 기준으로 발행되었습니다.",source_updated_at:r.updated_at};
+    const updated=await adminDb.from("documents").update({status:"issued",file_path:uploaded,amount,company_id:biz?.id??null,company_auth_user_id:r.company_auth_user_id??null,
+      interpreter_auth_user_id:interpreter?.auth_user_id??null,metadata}).eq("id",row.id).select("*").single(); if(updated.error) throw updated.error;
+    return json({document:updated.data});
+  }catch(error){
+    if(uploaded){const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;await createClient(url,key).storage.from("onli-documents").remove([uploaded]);}
+    if(reserved?.id){const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;await createClient(url,key).from("documents").delete().eq("id",reserved.id).eq("status","draft");}
+    console.error("settlement document generation failed",error); return json({error:error instanceof Error?error.message:"문서 생성에 실패했습니다."},400);
+  }
+});

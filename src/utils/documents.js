@@ -16,6 +16,8 @@ export const DOCUMENT_TYPES = {
     prefix: "ONLI-PAY",
     filePrefix: "payout",
   },
+  settlement_statement: { label: "기업용 정산서", prefix: "ONLI-STM", filePrefix: "settlement-statement" },
+  payout_statement: { label: "통역사용 지급명세서", prefix: "ONLI-PAY", filePrefix: "payout-statement" },
 };
 
 const A4 = { width: 1240, height: 1754 };

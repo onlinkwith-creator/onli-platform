@@ -111,6 +111,7 @@ import {
   recalculateEstimateDraft,
   recalculatePaymentDraft,
 } from "../utils/documents";
+import { generateSettlementDocument, latestStatement } from "../utils/settlementDocuments";
 import { useAuth } from "../hooks/useAuth";
 import { WITHDRAWN_STATUS, isWithdrawnInterpreter } from "../utils/accountStatus";
 import "./Admin.css";
@@ -180,7 +181,7 @@ const ADMIN_NOTES_SELECT =
 const ADMIN_ACTIVITY_LOGS_SELECT =
   "id, target_type, target_id, action_type, before_value, after_value, actor_user_id, created_at";
 const SETTLEMENTS_SELECT =
-  "id, request_id, interpreter_id, interpreter_auth_user_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
+  "id, request_id, interpreter_id, interpreter_auth_user_id, assignment_id, payout_document_id, amount, settlement_status, payout_status, work_days, daily_rate, extra_amount, deduction_amount, payout_due_date, settlement_confirmed_at, interpreter_payment_started_at, settlement_completed_at, paid_at, confirmed_by, paid_by, payment_method, admin_memo, created_at, updated_at";
 const INTERPRETER_ASSIGNMENT_HISTORY_SELECT = `
   id,
   request_id,
@@ -618,6 +619,7 @@ function Admin({ onBackClick }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [optionalDataError, setOptionalDataError] = useState("");
   const [savingKey, setSavingKey] = useState("");
+  const [statementSavingKeys, setStatementSavingKeys] = useState(() => new Set());
   const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [applicationsRequestId, setApplicationsRequestId] = useState(null);
   const [, setSelectedRequest] = useState(null);
@@ -2523,6 +2525,29 @@ function sanitizeRecipientEmail(email) {
       alert(`문서 생성 실패: ${error.message || "원인을 확인해주세요."}`);
     } finally {
       setSavingKey("");
+    }
+  };
+
+  const generateStatement = async ({ documentType, requestId, interpreterId = null, regenerate = false }) => {
+    const key = `statement-${documentType}-${requestId}-${interpreterId || "company"}`;
+    if (statementSavingKeys.has(key)) return null;
+    setStatementSavingKeys((current) => new Set(current).add(key));
+    try {
+      const document = await generateSettlementDocument(supabase, {
+        document_type: documentType, request_id: requestId,
+        interpreter_id: interpreterId, regenerate,
+      });
+      setGeneratedDocuments((current) => uniqueById([document, ...current]));
+      alert(`${getDocumentTypeLabel(documentType)}가 ${regenerate ? "새 버전으로 " : ""}생성되었습니다.`);
+      return document;
+    } catch (error) {
+      console.error("statement generation failed", error);
+      alert(`${getDocumentTypeLabel(documentType)} 생성 실패: ${error.message || "다시 시도해주세요."}`);
+      return null;
+    } finally {
+      setStatementSavingKeys((current) => {
+        const next = new Set(current); next.delete(key); return next;
+      });
     }
   };
 
@@ -4956,6 +4981,8 @@ function sanitizeRecipientEmail(email) {
                 onUpdateRequestSettlement={updateSettlementManagementStatus}
                 updateSettlement={updateInterpreterSettlement}
                 saveRequestCompanyPayment={saveRequestCompanyPayment}
+                onGenerateStatement={generateStatement}
+                statementSavingKeys={statementSavingKeys}
               />
             )}
 
@@ -4977,6 +5004,8 @@ function sanitizeRecipientEmail(email) {
                 onUpdateRequestSettlement={updateSettlementManagementStatus}
                 updateSettlement={updateInterpreterSettlement}
                 saveRequestCompanyPayment={saveRequestCompanyPayment}
+                onGenerateStatement={generateStatement}
+                statementSavingKeys={statementSavingKeys}
               />
             )}
 
@@ -4998,6 +5027,8 @@ function sanitizeRecipientEmail(email) {
                 onUpdateRequestSettlement={updateSettlementManagementStatus}
                 updateSettlement={updateInterpreterSettlement}
                 saveRequestCompanyPayment={saveRequestCompanyPayment}
+                onGenerateStatement={generateStatement}
+                statementSavingKeys={statementSavingKeys}
               />
             )}
 
@@ -5019,6 +5050,8 @@ function sanitizeRecipientEmail(email) {
                 onUpdateRequestSettlement={updateSettlementManagementStatus}
                 updateSettlement={updateInterpreterSettlement}
                 saveRequestCompanyPayment={saveRequestCompanyPayment}
+                onGenerateStatement={generateStatement}
+                statementSavingKeys={statementSavingKeys}
               />
             )}
 
@@ -6784,6 +6817,8 @@ function InterpreterSettlementManagement({
   onUpdateRequestSettlement,
   updateSettlement,
   saveRequestCompanyPayment,
+  onGenerateStatement,
+  statementSavingKeys = new Set(),
   loadError = null,
 }) {
   const [selectedSettlementId, setSelectedSettlementId] = useState(null);
@@ -6829,6 +6864,8 @@ function InterpreterSettlementManagement({
   const selectedPayment = selectedSettlement
     ? payments.find((payment) => String(payment.request_id) === String(selectedSettlement.request_id)) || null
     : null;
+  const companyStatement = selectedSettlement ? latestStatement(documents, "settlement_statement", selectedSettlement.request_id) : null;
+  const payoutStatement = selectedSettlement ? latestStatement(documents, "payout_statement", selectedSettlement.request_id, selectedSettlement.interpreter_id) : null;
 
   useEffect(() => {
     if (!selectedSettlement || !paymentDraft) return;
@@ -6853,6 +6890,7 @@ function InterpreterSettlementManagement({
       daily_rate: dailyRate,
       extra_amount: toNumericInputString(settlement.extra_amount),
       deduction_amount: toNumericInputString(settlement.deduction_amount),
+      payout_due_date: settlement.payout_due_date || "",
       paid_at: toAdminDateTimeInput(settlement.paid_at),
       payment_method: settlement.payment_method || "",
       admin_memo: settlement.admin_memo || "",
@@ -6916,6 +6954,7 @@ function InterpreterSettlementManagement({
       daily_rate: parseNumericInput(draft.daily_rate, null),
       extra_amount: parseNumericInput(draft.extra_amount, 0),
       deduction_amount: parseNumericInput(draft.deduction_amount, 0),
+      payout_due_date: draft.payout_due_date || null,
       settlement_status: normalizeAdminSettlementStatus(draft.payout_status),
       payout_status: mapAdminSettlementStatusToPayoutStatus(draft.payout_status),
       paid_at: adminDateTimeInputToISOString(draft.paid_at),
@@ -7307,6 +7346,14 @@ function InterpreterSettlementManagement({
                   onChange={(value) => updateNumericDraft("deduction_amount", value)}
                 />
                 <DateRangeInput
+                  label="지급 예정일"
+                  singleDateMode
+                  startDate={draft.payout_due_date || ""}
+                  endDate={draft.payout_due_date || ""}
+                  allowClear
+                  onChange={({ startDate }) => updateDraft("payout_due_date", startDate || "")}
+                />
+                <DateRangeInput
                   label="정산 완료일"
                   singleDateMode
                   startDate={draft.paid_at.slice(0, 10)}
@@ -7352,6 +7399,24 @@ function InterpreterSettlementManagement({
                   {savingKey === `settlement-${selectedSettlement.id}` ? "저장 중..." : "저장"}
                 </button>
               </div>
+            </section>
+            <section>
+              <h3>정산 문서</h3>
+              <p className="admin-card-meta">정산정보를 수정한 경우 최신 내용으로 문서를 재생성해 주세요.</p>
+              {[
+                ["settlement_statement", companyStatement, null],
+                ["payout_statement", payoutStatement, selectedSettlement.interpreter_id],
+              ].map(([type, document, interpreterId]) => {
+                const busy = statementSavingKeys.has(`statement-${type}-${selectedSettlement.request_id}-${interpreterId || "company"}`);
+                return <div className="admin-card-actions" key={type}>
+                  <strong>{getDocumentTypeLabel(type)} {document ? `· ${document.document_no} · v${document.version}` : ""}</strong>
+                  {document && <button type="button" className="admin-secondary" onClick={() => openPayoutDocument(document)}>미리보기</button>}
+                  {document && <button type="button" className="admin-secondary" onClick={() => openDocumentSignedUrl(supabase, document, { download: true })}>다운로드</button>}
+                  <button type="button" className="admin-save" disabled={busy} onClick={() => onGenerateStatement?.({ documentType:type, requestId:selectedSettlement.request_id, interpreterId, regenerate:Boolean(document) })}>
+                    {busy ? "생성 중..." : document ? "재생성" : "생성"}
+                  </button>
+                </div>;
+              })}
             </section>
             <section>
               <h3>지급 이력 로그</h3>
@@ -8880,7 +8945,6 @@ function RequestDetailPanel({
                 <h3 id="admin-request-payment-title">기업 결제 정보</h3>
                 <p>기업페이지에 표시할 실제 입금 정보를 수정합니다.</p>
               </div>
-              <strong>{formatDocumentAmount(companyPayment?.amount ?? savedCompanyAmountInput)}</strong>
             </div>
             <div className="admin-request-payment-fields">
               <FieldControl label="결제 금액">
@@ -8889,6 +8953,16 @@ function RequestDetailPanel({
                   value={formatDocumentAmount(companyPayment?.amount ?? savedCompanyAmountInput)}
                   readOnly
                 />
+              </FieldControl>
+              <FieldControl label="결제 상태">
+                <select
+                  className="admin-filter-select"
+                  value={paymentStatus}
+                  onChange={(event) => setPaymentStatus(event.target.value)}
+                >
+                  <option value="unpaid">미입금</option>
+                  <option value="paid">입금 완료</option>
+                </select>
               </FieldControl>
               <DateRangeInput
                 startDate={paymentDueDate}
@@ -8906,26 +8980,18 @@ function RequestDetailPanel({
                 label="입금 완료일"
                 allowClear
               />
-              <FieldControl label="결제 상태">
-                <select
-                  className="admin-filter-select"
-                  value={paymentStatus}
-                  onChange={(event) => setPaymentStatus(event.target.value)}
-                >
-                  <option value="unpaid">미입금</option>
-                  <option value="paid">입금 완료</option>
-                </select>
-              </FieldControl>
-              <FieldControl label="관리자 메모">
-                <textarea
-                  rows={3}
-                  value={paymentAdminMemo}
-                  onChange={(event) => setPaymentAdminMemo(event.target.value)}
-                  placeholder="기업 결제 관련 메모"
-                />
-              </FieldControl>
+              <div className="admin-request-payment-memo">
+                <FieldControl label="관리자 메모">
+                  <textarea
+                    rows={3}
+                    value={paymentAdminMemo}
+                    onChange={(event) => setPaymentAdminMemo(event.target.value)}
+                    placeholder="기업 결제 관련 메모"
+                  />
+                </FieldControl>
+              </div>
             </div>
-            <div className="admin-card-actions">
+            <div className="admin-card-actions admin-request-payment-actions">
               <button
                 type="button"
                 className="admin-save"

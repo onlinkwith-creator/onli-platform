@@ -37,7 +37,6 @@ import {
 } from "lucide-react";
 import {
   DOCUMENT_BUCKET,
-  formatDocumentAmount,
 } from "../utils/documents";
 
 const TABS = [
@@ -1050,8 +1049,8 @@ function InterpreterMypage({
 
     const { data, error } = await supabase
       .from("documents")
-      .select("id, document_type, document_no, status, version, request_id, title, amount, storage_bucket, file_path, created_at")
-      .eq("document_type", "payout")
+      .select("id, document_type, document_no, status, version, request_id, interpreter_id, title, amount, storage_bucket, file_path, issued_at, created_at")
+      .eq("document_type", "payout_statement")
       .eq("status", "issued")
       .order("created_at", { ascending: false });
 
@@ -1063,12 +1062,12 @@ function InterpreterMypage({
     return data || [];
   };
 
-  const openPaymentDocument = async (documentRow) => {
+  const openPaymentDocument = async (documentRow, download = false) => {
     try {
       const { data, error } = await supabase.storage
         .from(documentRow.storage_bucket || DOCUMENT_BUCKET)
         .createSignedUrl(documentRow.file_path, 600, {
-          download: `${documentRow.document_no || "ONLI-PAY"}.pdf`,
+          download: download ? `${documentRow.document_no || "ONLI-PAY"}.pdf` : false,
         });
       if (error) throw error;
       window.open(data.signedUrl, "_blank", "noopener,noreferrer");
@@ -2472,7 +2471,7 @@ function InterpreterMypage({
                       <div className="interpreter-assignment-list">
                         {settlements.map((settlement) => {
                           const documentRow = paymentDocuments.find(
-                            (doc) => doc.request_id === settlement.requestId
+                            (doc) => String(doc.request_id) === String(settlement.requestId)
                           );
 
                           return (
@@ -2500,15 +2499,16 @@ function InterpreterMypage({
                               {documentRow && (
                                 <>
                                   <p className="assignment-secondary-meta">
-                                    정산 내역서 금액: {formatDocumentAmount(documentRow.amount)}
+                                    지급명세서 {documentRow.document_no} · v{documentRow.version || 1} · {String(documentRow.issued_at || documentRow.created_at).slice(0, 10)}
                                   </p>
-                                  <button
-                                    type="button"
-                                    className="file-download-btn"
-                                    onClick={() => openPaymentDocument(documentRow)}
-                                  >
-                                    정산 내역서 PDF
-                                  </button>
+                                  <div className="settlement-document-actions">
+                                    <button type="button" className="file-download-btn" onClick={() => openPaymentDocument(documentRow)}>
+                                      지급명세서 미리보기
+                                    </button>
+                                    <button type="button" className="file-download-btn" onClick={() => openPaymentDocument(documentRow, true)}>
+                                      PDF 다운로드
+                                    </button>
+                                  </div>
                                 </>
                               )}
                             </div>
