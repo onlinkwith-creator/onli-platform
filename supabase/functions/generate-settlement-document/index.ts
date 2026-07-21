@@ -70,6 +70,36 @@ const settlementStatusLabel=(value:unknown)=>{
   if(["settlement_completed","settlement_done","payment_completed","payout_completed","completed","paid","done","정산_완료","정산완료","지급완료"].includes(status)) return "정산 완료";
   return "정산 대기";
 };
+const positiveNumber=(value:unknown)=>{
+  const number=Number(value);
+  return Number.isFinite(number)&&number>0?number:null;
+};
+const buildCompanySettlementAmounts=async(adminDb:any,request:any)=>{
+  const estimateResult=await adminDb.from("documents")
+    .select("metadata")
+    .eq("request_id",request.id)
+    .eq("document_type","estimate")
+    .eq("status","issued")
+    .order("created_at",{ascending:false})
+    .limit(1)
+    .maybeSingle();
+  if(estimateResult.error) throw estimateResult.error;
+
+  const estimate=estimateResult.data?.metadata??{};
+  const companyUnitPrice=positiveNumber(estimate.unitPrice);
+  const interpreterCount=positiveNumber(request.requested_people_count??request.required_count??estimate.peopleCount);
+  const workDays=positiveNumber(request.settlement_work_days??estimate.workDays);
+  if(!companyUnitPrice) throw new Error("기업 견적서의 1명·1일 기준 단가를 확인해주세요.");
+  if(!interpreterCount) throw new Error("기업용 정산서의 통역사 수를 확인해주세요.");
+  if(!workDays) throw new Error("기업용 정산서의 근무일수를 확인해주세요.");
+
+  return {
+    companyUnitPrice,
+    interpreterCount,
+    workDays,
+    baseSupplyAmount:companyUnitPrice*workDays*interpreterCount,
+  };
+};
 const drawOfficialTable=(page:any,regular:any,bold:any,rows:unknown[][],startY:number,japanese:any=null)=>{
   const x=44,width=507,labelWidth=148,fontSize=8.5,lineHeight=10.5;
   let top=startY;
@@ -85,7 +115,7 @@ const drawOfficialTable=(page:any,regular:any,bold:any,rows:unknown[][],startY:n
   });
   return top;
 };
-const drawCompanySettlementPdf=(pdf:any,regular:any,bold:any,row:any,r:any,biz:any,payment:any,japanese:any=null)=>{
+const drawCompanySettlementPdf=(pdf:any,regular:any,bold:any,row:any,r:any,biz:any,payment:any,amounts:any,japanese:any=null)=>{
   const page=pdf.addPage([595.28,841.89]); const x=44,width=507;
   page.drawText("ON-LI",{x,y:786,size:22,font:bold,color:rgb(.07,.09,.13)});
   page.drawText("정산서",{x,y:744,size:19,font:bold,color:rgb(.07,.09,.13)});
@@ -100,13 +130,13 @@ const drawCompanySettlementPdf=(pdf:any,regular:any,bold:any,row:any,r:any,biz:a
     ["의뢰번호",safe(r.request_no)],["의뢰명",displayName(r.event_name??r.title)],
     ["행사 또는 업무 기간",`${date(r.start_date??r.event_date)} ~ ${date(r.end_date??r.event_date)}`],
     ["업무 장소",safe(r.event_location??r.location)],["통역 언어",safe(r.language??r.interpretation_language)],
-    ["통역사 수",safe(r.requested_people_count??r.required_count)]
+    ["통역사 수",`${amounts.interpreterCount}명`]
   ],630,japanese);
 
   y-=20; page.drawText("정산 내역",{x,y,size:11,font:bold,color:rgb(.07,.09,.13)}); y-=12;
   y=drawOfficialTable(page,regular,bold,[
-    ["기업 측 단가",optionalWon(r.company_unit_price??r.client_price)],["통역사 수",safe(r.requested_people_count??r.required_count)],
-    ["근무일수",safe(r.settlement_work_days)],["기본 공급금액",optionalWon(r.company_amount)],
+    ["기업 측 단가",won(amounts.companyUnitPrice)],["통역사 수",`${amounts.interpreterCount}명`],
+    ["근무일수",`${amounts.workDays}일`],["기본 공급금액",`${won(amounts.companyUnitPrice)} × ${amounts.workDays}일 × ${amounts.interpreterCount}명 = ${won(amounts.baseSupplyAmount)}`],
     ["할인금액",optionalWon(r.company_discount_amount)],["추가 비용",optionalWon(r.company_extra_amount??r.settlement_extra_amount)],
     ["세금 또는 세금 포함 추가 금액",optionalWon(r.company_tax_amount)],["최종 청구금액",optionalWon(r.company_amount)]
   ],y,japanese);
@@ -170,13 +200,16 @@ Deno.serve(async(req)=>{
     if(type==="settlement_statement"&&!biz) throw new Error("연결된 기업 정보를 확인해주세요.");
     const days=Number(settlement?.work_days??r.settlement_work_days??1);
     const base=Number(settlement?.daily_rate??0)*days||Number(r.settlement_base_amount??0);
+    const companySettlementAmounts=type==="settlement_statement"
+      ?await buildCompanySettlementAmounts(adminDb,r)
+      :null;
     const rows=type==="settlement_statement"?[
       ["문서번호",row.document_no],["발행일",date(row.issued_at)],["의뢰번호",safe(r.request_no)],["의뢰명",safe(r.event_name??r.title)],
       ["기업명",safe(biz?.company_name??r.company_name)],["기업 담당자명",safe(biz?.contact_name??r.contact_name??r.manager_name)],
       ["행사 또는 업무 기간",`${date(r.start_date??r.event_date)} ~ ${date(r.end_date??r.event_date)}`],["업무 장소",safe(r.event_location??r.location)],
-      ["통역 언어",safe(r.language??r.interpretation_language)],["통역사 수",safe(r.requested_people_count??r.required_count)],
-      ["기업 측 단가",won(r.company_unit_price??r.client_price)],["근무일수",safe(r.settlement_work_days??days)],
-      ["공급금액",won(r.company_amount)],["세금 또는 추가 금액",won(r.company_tax_amount??r.settlement_extra_amount)],
+      ["통역 언어",safe(r.language??r.interpretation_language)],["통역사 수",`${companySettlementAmounts!.interpreterCount}명`],
+      ["기업 측 단가",won(companySettlementAmounts!.companyUnitPrice)],["근무일수",`${companySettlementAmounts!.workDays}일`],
+      ["공급금액",won(companySettlementAmounts!.baseSupplyAmount)],["세금 또는 추가 금액",won(r.company_tax_amount??r.settlement_extra_amount)],
       ["최종 청구금액",won(r.company_amount)],["입금기한",date(payment?.due_date)],["입금완료일",date(payment?.paid_at)],
       ["입금 상태",safe(payment?.payment_status)]]:[
       ["문서번호",row.document_no],["발행일",date(row.issued_at)],["의뢰번호",safe(r.request_no)],["의뢰명",safe(r.event_name??r.title)],
@@ -197,7 +230,7 @@ Deno.serve(async(req)=>{
         const japaneseBytes=await fetch(JAPANESE_FONT_URL).then(x=>{if(!x.ok)throw new Error("일본어 PDF 폰트를 불러오지 못했습니다.");return x.arrayBuffer()});
         japanese=await pdf.embedFont(japaneseBytes,{subset:false});
       }
-      drawCompanySettlementPdf(pdf,font,bold,row,r,biz,payment,japanese);
+      drawCompanySettlementPdf(pdf,font,bold,row,r,biz,payment,companySettlementAmounts,japanese);
     }else{
       const page=pdf.addPage([595.28,841.89]);
       const pageWidth=595.28,margin=48,contentWidth=pageWidth-margin*2,labelWidth=145,valueX=205;
