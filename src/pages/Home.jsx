@@ -30,6 +30,7 @@ import {
   Briefcase,
   Languages,
   Award,
+  BadgeCheck,
   UserCheck,
   ArrowRight,
   Menu,
@@ -634,7 +635,17 @@ function InterpreterCard({ interpreter, onProfileClick }) {
                 {statusLabel}
               </span>
               <span className={`registration-badge ${isOnliCertified(interpreter) ? "verified verified-badge" : "regular"} home-interpreter-registration-badge`}>
-                {isOnliCertified(interpreter) ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
+                {isOnliCertified(interpreter) ? (
+                  <>
+                    <BadgeCheck size={12} aria-hidden="true" />
+                    ON-LI 인증 통역사
+                  </>
+                ) : (
+                  <>
+                    <span className="registration-indicator" aria-hidden="true" />
+                    등록 통역사
+                  </>
+                )}
               </span>
             </div>
           </div>

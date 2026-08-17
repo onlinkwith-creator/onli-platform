@@ -2,7 +2,6 @@ import { canApplyToJob, getJobStatusLabel, normalizeJobStatus } from "../utils/j
 import { formatCompactJobDateRange } from "../utils/dateRange";
 import { getJobSpecialty } from "../utils/jobDisplay";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
-import { getLevelBadgeClass, getLevelBadgeStyle } from "../utils/levelBadge";
 import { Calendar, MapPin, Users, Award, Briefcase } from "lucide-react";
 
 function JobCard({ job, onApplyClick, onDetailClick, className = "" }) {
@@ -57,12 +56,7 @@ function JobCard({ job, onApplyClick, onDetailClick, className = "" }) {
           </div>
           <div className="home-job-info-item min-w-0">
             <Award size={15} aria-hidden="true" />
-            <span
-              className={`home-job-level-badge ${getLevelBadgeClass(levelLabel)}`}
-              style={getLevelBadgeStyle(levelLabel)}
-            >
-              {levelLabel}
-            </span>
+            <span className="truncate">{levelLabel}</span>
           </div>
           <div className="home-job-info-item min-w-0">
             <Briefcase size={15} aria-hidden="true" />
@@ -101,9 +95,9 @@ function getRequiredLevelDisplay(job = {}) {
     job.target_level ||
     job.required_level ||
     "";
-  const matched = String(level).match(/lv\s*(\d)/i);
+  const matched = String(level).match(/(?:lv|level)?\s*([1-4])/i);
 
-  if (matched) return `Lv${matched[1]}`;
+  if (matched) return `Lv ${matched[1]}`;
   return level || "운영팀 추천";
 }
 

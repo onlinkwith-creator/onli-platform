@@ -1298,12 +1298,6 @@
   color: #6574b8;
 }
 
-.home-jobs-preview .home-job-info-item .home-job-level-badge {
-  justify-self: start;
-  padding: 4px 9px !important;
-  font-size: 11px !important;
-}
-
 .home-jobs-preview .home-job-card button.apply-btn-active {
   border: 1px solid #cfd6ec;
   background: #ffffff;
@@ -1364,6 +1358,7 @@
 .home-interpreter-left-badges {
   display: flex !important;
   align-items: center !important;
+  flex-wrap: wrap !important;
   gap: 6px !important;
 }
 
@@ -1402,15 +1397,38 @@
 }
 
 .registration-badge.verified {
-  background: rgba(16, 185, 129, 0.08) !important;
-  color: #059669 !important;
-  border: none !important;
+  background: #edf9f5 !important;
+  color: #116b59 !important;
+  border: 1px solid #c9eadf !important;
 }
 
 .registration-badge.regular {
-  background: rgba(107, 114, 128, 0.08) !important;
-  color: #6b7280 !important;
-  border: none !important;
+  background: #f4f6f8 !important;
+  color: #5f6b7a !important;
+  border: 1px solid #e2e7ed !important;
+}
+
+.registration-badge svg {
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+}
+
+.registration-indicator {
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 999px;
+  background: #8a94a3;
+}
+
+.home-interpreter-status-badge::before {
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
 }
 
 .home-interpreter-card .home-job-status,
@@ -1430,6 +1448,7 @@
   align-items: center !important;
   justify-content: center !important;
   box-sizing: border-box !important;
+  margin: 0 !important;
 }
 
 .level-badge {

@@ -5,7 +5,7 @@ import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
 } from "../utils/status";
-import { Briefcase, Languages, MapPin, Star } from "lucide-react";
+import { BadgeCheck, Briefcase, Languages, MapPin, Star } from "lucide-react";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import {
   PUBLIC_INTERPRETER_SELECT,
@@ -358,6 +358,7 @@ function InterpreterList({
                         ].filter((value) => value && value !== "-")
                       : [languageLabel].filter((value) => value && value !== "-");
                     const experienceCount = person.experience_count ? Number(person.experience_count) : 0;
+                    const activityStatus = getInterpreterActivityStatusValue(person);
                     const displayName = isAuthenticated ? person.name || "이름 미입력" : "로그인 후 확인";
                     const openDetail = () => {
                       if (!isAuthenticated) {
@@ -402,13 +403,11 @@ function InterpreterList({
                               {displayName}
                             </h2>
                             <div className="interpreter-list-compact-badges">
-                              <span className="interpreter-list-activity-badge">
+                              <span className={`interpreter-list-activity-badge ${activityStatus}`}>
                                 <span className="dot" />
                                 {getInterpreterStatusLabel(person)}
                               </span>
-                              <span className={`interpreter-list-mobile-verification ${isOnliCertified(person) ? "verified" : "regular"}`}>
-                                {isOnliCertified(person) ? "⭐ ON-LI 인증 통역사" : "○ 등록 통역사"}
-                              </span>
+                              <InterpreterVerificationBadge person={person} className="interpreter-list-mobile-verification" />
                             </div>
                           </div>
 
@@ -451,16 +450,6 @@ function InterpreterList({
                         </div>
 
                         <div className="interpreter-list-info-section">
-                          <Info
-                            label="인증 상태"
-                            value={
-                              isOnliCertified(person) ? (
-                                <span className="interpreter-verification-badge verified">⭐ ON-LI 인증 통역사</span>
-                              ) : (
-                                <span className="interpreter-verification-badge regular">○ 등록 통역사</span>
-                              )
-                            }
-                          />
                           <Info
                             label="활동 가능 지역"
                             value={isAuthenticated ? formatList(mergeRegions(person.available_regions, person.custom_regions)) : "로그인 후 확인"}
@@ -607,6 +596,21 @@ function MobileInfoRow({ icon: Icon, label, value }) {
         <strong>{value || "-"}</strong>
       </div>
     </div>
+  );
+}
+
+function InterpreterVerificationBadge({ person, className = "" }) {
+  const certified = isOnliCertified(person);
+
+  return (
+    <span className={`${className} ${certified ? "verified" : "regular"}`.trim()}>
+      {certified ? (
+        <BadgeCheck size={12} aria-hidden="true" />
+      ) : (
+        <span className="interpreter-registration-indicator" aria-hidden="true" />
+      )}
+      {certified ? "ON-LI 인증 통역사" : "등록 통역사"}
+    </span>
   );
 }
 
@@ -775,11 +779,15 @@ function getExperienceLabel(person) {
 }
 
 function getInterpreterStatusLabel(person) {
+  return getInterpreterActivityStatusLabel(getInterpreterActivityStatusValue(person));
+}
+
+function getInterpreterActivityStatusValue(person) {
   const status = String(person.activity_status || "").trim().toLowerCase();
   if (Object.values(INTERPRETER_ACTIVITY_STATUS).includes(status)) {
-    return getInterpreterActivityStatusLabel(status);
+    return status;
   }
-  return getInterpreterActivityStatusLabel(INTERPRETER_ACTIVITY_STATUS.ACTIVE);
+  return INTERPRETER_ACTIVITY_STATUS.ACTIVE;
 }
 
 function getLevelClass(level) {

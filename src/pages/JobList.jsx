@@ -571,9 +571,9 @@ function getRequiredLevelDisplay(job = {}) {
     job.target_level ||
     job.required_level ||
     "";
-  const matched = String(level).match(/lv\s*(\d)/i);
+  const matched = String(level).match(/(?:lv|level)?\s*([1-4])/i);
 
-  if (matched) return `Lv${matched[1]}`;
+  if (matched) return `Lv ${matched[1]}`;
   return level || "운영팀 추천";
 }
 
