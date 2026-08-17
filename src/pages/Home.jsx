@@ -278,68 +278,19 @@ function Home({
           </p>
 
           <p className="home-sub-badge">전시회 · 상담회 · 비즈니스 미팅 특화</p>
-        </section>
 
-        <section className="home-feature-card">
-          <h3>ON-LI의 특징</h3>
-
-          <div className="home-feature-list">
-            <Feature
-              symbol="01"
-              title="필요한 통역사를, 공고 하나로."
-              text="조건을 올리면 맞는 통역사가 직접 지원합니다."
-            />
-            <Feature
-              symbol="02"
-              title="감이 아닌, 검증된 기준으로 선택."
-              text="경험·분야·레벨을 보고 비교하세요."
-            />
-            <Feature
-              symbol="03"
-              title="모집부터 정산까지 한 번에."
-              text="매칭부터 관리까지 ON-LI에서 간편하게."
-            />
+          <div className="home-hero-actions" aria-label="ON-LI 주요 시작 메뉴">
+            <button type="button" className="home-hero-primary" onClick={onRequestClick}>
+              통역 의뢰하기
+              <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" className="home-hero-secondary" onClick={onListClick}>
+              통역사 둘러보기
+            </button>
           </div>
         </section>
+
       </main>
-
-      <section className="home-about-summary" aria-labelledby="home-about-summary-title">
-        <div>
-          <p className="home-brand-sub">ABOUT ON-LI</p>
-          <h2 id="home-about-summary-title">필요한 현장에 맞는 통역 인재를 빠르게 연결합니다.</h2>
-          <p>
-            전시회 · 상담회 · 기업 미팅에 맞는
-            <br />
-            검증된 통역 인재를 빠르게 연결합니다.
-          </p>
-        </div>
-        <button type="button" onClick={onAboutClick}>
-          ON-LI 소개 보기
-        </button>
-      </section>
-
-      <section className="home-mobile-overview-slider" aria-label="ON-LI 특징">
-        <article className="home-mobile-overview-slide">
-          <h3>ON-LI의 특징</h3>
-          <div className="home-mobile-feature-list">
-            <Feature
-              symbol="01"
-              title="필요한 통역사를, 공고 하나로."
-              text="조건을 올리면 맞는 통역사가 직접 지원합니다."
-            />
-            <Feature
-              symbol="02"
-              title="감이 아닌, 검증된 기준으로 선택."
-              text="경험·분야·레벨을 보고 비교하세요."
-            />
-            <Feature
-              symbol="03"
-              title="모집부터 정산까지 한 번에."
-              text="매칭부터 관리까지 ON-LI에서 간편하게."
-            />
-          </div>
-        </article>
-      </section>
 
       <section className="home-cta-stack" aria-label="ON-LI 이용 안내">
         <div className="home-company-cta">
@@ -612,18 +563,6 @@ function HomeCarousel({
       >
         ›
       </button>
-    </div>
-  );
-}
-
-function Feature({ symbol, title, text }) {
-  return (
-    <div className="home-feature">
-      <span className="home-feature-symbol">{symbol}</span>
-      <div>
-        <strong>{title}</strong>
-        <span>{text}</span>
-      </div>
     </div>
   );
 }
