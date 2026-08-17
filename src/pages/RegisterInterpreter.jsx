@@ -480,13 +480,32 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       <div className="register-shell">
         <section className="register-hero">
           <div className="register-hero-copy">
-            <p className="register-kicker">ON-LI INTERPRETER</p>
-            <h1>통역사 등록하기</h1>
-            <p>
-              한국어와 일본어 능력을 바탕으로 전시회·상담회·비즈니스 현장에서
-              활동할 통역사를 모집합니다. 등록 후 ON-LI 운영팀 검토를 거쳐 승인
-              여부를 안내드립니다.
-            </p>
+            <div className="register-hero-text">
+              <nav className="register-breadcrumb" aria-label="현재 위치">
+                <button type="button" onClick={onBackClick}>홈</button>
+                <span aria-hidden="true">/</span>
+                <span>통역사 등록</span>
+              </nav>
+              <p className="register-kicker">ON-LI INTERPRETER</p>
+              <h1>통역사 등록하기</h1>
+              <p>
+                한국어와 일본어 능력을 바탕으로 전시회·상담회·비즈니스 현장에서
+                활동할 통역사를 모집합니다. 등록 후 ON-LI 운영팀 검토를 거쳐 승인
+                여부를 안내드립니다.
+              </p>
+            </div>
+            <div className="register-hero-actions">
+              <button type="button" onClick={onBackClick} className="register-hero-button">
+                메인으로
+              </button>
+              <button
+                type="button"
+                onClick={onLoginClick}
+                className="register-hero-button is-primary"
+              >
+                통역사 로그인
+              </button>
+            </div>
           </div>
         </section>
 
