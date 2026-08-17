@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Eye, FileText, UserRound } from "lucide-react";
+import {
+  Bell,
+  Building2,
+  ClipboardList,
+  Download,
+  Eye,
+  FileText,
+  FolderOpen,
+  Handshake,
+  MessageCircle,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
 import { supabase } from "../supabase";
 import {
   PUBLIC_INTERPRETER_SELECT,
@@ -1195,6 +1207,37 @@ function BusinessMypage({
           </div>
         </header>
 
+        <section className="business-summary-grid" aria-label="기업 활동 요약">
+          <article className="business-summary-card">
+            <span className="business-summary-icon"><ClipboardList size={19} aria-hidden="true" /></span>
+            <div>
+              <p>전체 의뢰</p>
+              <strong>{requests.length}</strong><small>건</small>
+            </div>
+          </article>
+          <article className="business-summary-card">
+            <span className="business-summary-icon"><UsersRound size={19} aria-hidden="true" /></span>
+            <div>
+              <p>배정 통역</p>
+              <strong>{assignments.length}</strong><small>명</small>
+            </div>
+          </article>
+          <article className="business-summary-card">
+            <span className="business-summary-icon"><FolderOpen size={19} aria-hidden="true" /></span>
+            <div>
+              <p>관리 자료</p>
+              <strong>{materials.length}</strong><small>건</small>
+            </div>
+          </article>
+          <article className="business-summary-card">
+            <span className="business-summary-icon"><Bell size={19} aria-hidden="true" /></span>
+            <div>
+              <p>최근 알림</p>
+              <strong>{notifications.length}</strong><small>건</small>
+            </div>
+          </article>
+        </section>
+
         {/* Dashboard Content Layout */}
         <div className="business-mypage-grid">
           
@@ -1205,31 +1248,31 @@ function BusinessMypage({
                 className={`mypage-tab-btn ${activeTab === "requests" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("requests")}
               >
-                <span className="tab-icon">📋</span> 내 의뢰 현황
+                <span className="tab-icon"><ClipboardList size={17} aria-hidden="true" /></span> 내 의뢰 현황
               </button>
               <button
                 className={`mypage-tab-btn ${activeTab === "interpreters" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("interpreters")}
               >
-                <span className="tab-icon">🤝</span> 배정 통역
+                <span className="tab-icon"><Handshake size={17} aria-hidden="true" /></span> 배정 통역
               </button>
               <button
                 className={`mypage-tab-btn ${activeTab === "materials" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("materials")}
               >
-                <span className="tab-icon">📂</span> 자료 관리
+                <span className="tab-icon"><FolderOpen size={17} aria-hidden="true" /></span> 자료 관리
               </button>
               <button
                 className={`mypage-tab-btn ${activeTab === "profile" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("profile")}
               >
-                <span className="tab-icon">👤</span> 기업 정보
+                <span className="tab-icon"><Building2 size={17} aria-hidden="true" /></span> 기업 정보
               </button>
               <button
                 className={`mypage-tab-btn ${activeTab === "inquiry" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("inquiry")}
               >
-                <span className="tab-icon">💬</span> 문의
+                <span className="tab-icon"><MessageCircle size={17} aria-hidden="true" /></span> 문의
               </button>
             </nav>
             
@@ -1254,7 +1297,6 @@ function BusinessMypage({
                       type="button"
                       onClick={onNewRequestClick}
                       className="btn-edit-trigger"
-                      style={{ background: "linear-gradient(135deg, #5b5cf0, #7c3aed)", color: "#fff", border: "none" }}
                     >
                       + 새 통역 의뢰하기
                     </button>
@@ -1266,7 +1308,7 @@ function BusinessMypage({
                 {!loadingData && notifications.length > 0 && (
                   <div className="client-notifications-panel">
                     <h3 className="panel-title">
-                      <span className="panel-icon">🔔</span> 최근 알림
+                      <Bell className="panel-icon" size={17} aria-hidden="true" /> 최근 알림
                     </h3>
                     <ul className="notification-list">
                       {notifications.map((notif) => (
@@ -1302,7 +1344,6 @@ function BusinessMypage({
                       type="button"
                       onClick={onNewRequestClick}
                       className="btn-edit-trigger"
-                      style={{ background: "linear-gradient(135deg, #5b5cf0, #7c3aed)", color: "#fff", border: "none", marginTop: "16px" }}
                     >
                       새 통역 의뢰하기
                     </button>

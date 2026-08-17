@@ -1814,3 +1814,537 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ==========================================================================
+   Business mypage refresh — approved dashboard concept
+   ========================================================================== */
+.business-mypage {
+  padding: 42px 24px 90px;
+  background: #f5f7fa;
+  color: #17273b;
+}
+
+.business-mypage .mypage-bg-glow {
+  display: none;
+}
+
+.business-mypage-shell {
+  width: min(100%, 1180px);
+}
+
+.business-mypage-head,
+.business-summary-card,
+.business-mypage-tabs,
+.sidebar-contact-info,
+.business-mypage-card {
+  border: 1px solid #e2e7ed;
+  background: #ffffff;
+  box-shadow: 0 8px 28px rgba(13, 37, 61, 0.045);
+}
+
+.business-mypage-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 40px;
+  margin-bottom: 16px;
+  padding: 34px 38px;
+  border-radius: 18px;
+  background: linear-gradient(112deg, #ffffff 0%, #ffffff 58%, #f5f6fb 100%);
+}
+
+.head-kicker {
+  margin-bottom: 8px;
+  color: #4053a2;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.business-mypage-head h1 {
+  color: #0d253d;
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 850;
+  line-height: 1.25;
+  letter-spacing: -0.035em;
+}
+
+.head-status-row {
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.profile-badge,
+.status-pill {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.profile-badge {
+  border: 1px solid #dce3f5;
+  background: #f4f6fc;
+  color: #4053a2;
+}
+
+.status-pill.approved {
+  border: 1px solid #d2eddf;
+  background: #edf9f4;
+  color: #188563;
+}
+
+.business-mypage-actions {
+  gap: 9px;
+}
+
+.business-mypage .btn-nav,
+.business-mypage .btn-signout {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #d8dee7;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #34445a;
+  font-size: 12px;
+  font-weight: 750;
+  box-shadow: none;
+}
+
+.business-mypage .btn-nav:hover,
+.business-mypage .btn-signout:hover {
+  border-color: #aeb9c8;
+  background: #f9fafb;
+  color: #0d253d;
+}
+
+.business-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.business-summary-card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 92px;
+  padding: 18px;
+  border-radius: 14px;
+  text-align: left;
+}
+
+.business-summary-icon {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #eef1fb;
+  color: #4053a2;
+}
+
+.business-summary-card p {
+  margin: 0 0 5px;
+  color: #637083;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.business-summary-card strong {
+  color: #0d253d;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.business-summary-card small {
+  margin-left: 3px;
+  color: #8994a3;
+  font-size: 10px;
+}
+
+.business-mypage-grid {
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.business-mypage-sidebar {
+  position: sticky;
+  top: 18px;
+  gap: 14px;
+}
+
+.business-mypage-tabs {
+  gap: 4px;
+  padding: 10px;
+  border-radius: 15px;
+}
+
+.mypage-tab-btn {
+  min-height: 46px;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 9px;
+  color: #526174;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.mypage-tab-btn:hover {
+  background: #f7f8fb;
+  color: #0d253d;
+}
+
+.mypage-tab-btn.is-active {
+  background: #eef1fb;
+  color: #4053a2;
+}
+
+.tab-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.sidebar-contact-info {
+  padding: 20px;
+  border-radius: 15px;
+}
+
+.sidebar-contact-info h3 {
+  margin-bottom: 8px;
+  color: #0d253d;
+  font-size: 14px;
+}
+
+.sidebar-contact-info p {
+  margin-bottom: 15px;
+  color: #637083;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.contact-tel,
+.contact-email {
+  margin-top: 6px;
+  color: #34445a;
+  font-size: 11.5px;
+  font-weight: 750;
+}
+
+.business-mypage-main-content {
+  min-width: 0;
+}
+
+.business-mypage-card {
+  padding: 28px;
+  border-radius: 16px;
+}
+
+.card-header-with-action {
+  gap: 18px;
+  margin-bottom: 22px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.card-header-with-action h2 {
+  color: #0d253d;
+  font-size: 19px;
+  letter-spacing: -0.025em;
+}
+
+.data-count-label {
+  color: #637083;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.business-mypage .btn-edit-trigger {
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid #4053a2;
+  border-radius: 9px;
+  background: #4053a2;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 800;
+  box-shadow: none;
+}
+
+.business-mypage .btn-edit-trigger:hover {
+  border-color: #34458e;
+  background: #34458e;
+  color: #ffffff;
+  transform: none;
+  box-shadow: none;
+}
+
+.client-notifications-panel {
+  margin: 0 0 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.client-notifications-panel .panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: #0d253d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.client-notifications-panel .panel-icon {
+  flex: 0 0 auto;
+  color: #4053a2;
+}
+
+.client-notifications-panel .notification-list {
+  gap: 8px;
+  max-height: 246px;
+}
+
+.client-notifications-panel .notification-item {
+  min-height: 56px;
+  padding: 11px 14px;
+  border: 1px solid #edf0f4;
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+
+.client-notifications-panel .notification-item:hover {
+  border-color: #dfe4eb;
+  background: #ffffff;
+  transform: none;
+}
+
+.client-notifications-panel .notif-badge {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #eef1fb;
+  color: #4053a2;
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.client-notifications-panel .notif-time {
+  color: #8994a3;
+  font-size: 9.5px;
+}
+
+.client-notifications-panel .notif-text {
+  color: #526174;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.business-requests-list {
+  gap: 14px;
+}
+
+.business-request-card {
+  padding: 20px;
+  border: 1px solid #e2e7ed;
+  border-radius: 13px;
+  background: #ffffff;
+}
+
+.business-request-card:hover {
+  border-color: #cfd7e3;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(13, 37, 61, 0.055);
+  transform: none;
+}
+
+.request-no-badge,
+.status-badge {
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.business-request-card h3,
+.request-card-title {
+  color: #0d253d;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.request-meta-grid {
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom-color: #edf0f4;
+}
+
+.meta-item {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 9px;
+  background: #f7f9fb;
+}
+
+.meta-label {
+  color: #8994a3;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.meta-value {
+  color: #34445a;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.business-payment-section,
+.business-documents-section {
+  border-color: #e2e7ed;
+  border-radius: 10px;
+  background: #f9fafc;
+}
+
+.timeline-section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #edf0f4;
+}
+
+.business-mypage button:focus-visible,
+.business-mypage input:focus-visible,
+.business-mypage select:focus-visible,
+.business-mypage textarea:focus-visible {
+  outline: 3px solid rgba(64, 83, 162, 0.18);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .business-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .business-mypage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .business-mypage-sidebar {
+    position: static;
+  }
+
+  .business-mypage-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .mypage-tab-btn {
+    flex: 0 0 auto;
+    min-width: max-content;
+    justify-content: flex-start;
+  }
+
+  .sidebar-contact-info {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .business-mypage {
+    padding: 20px 14px calc(64px + env(safe-area-inset-bottom));
+  }
+
+  .business-mypage-head {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 28px 22px;
+  }
+
+  .business-mypage-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .business-mypage-card {
+    padding: 22px 18px;
+  }
+
+  .card-header-with-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .card-header-with-action > div {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .request-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .business-mypage {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .business-mypage-head h1 {
+    font-size: 27px;
+  }
+
+  .business-summary-grid {
+    gap: 8px;
+  }
+
+  .business-summary-card {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 9px;
+    min-height: 78px;
+    padding: 13px;
+  }
+
+  .business-summary-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .business-summary-card strong {
+    font-size: 18px;
+  }
+
+  .business-summary-card p {
+    font-size: 10px;
+  }
+
+  .client-notifications-panel .notif-text {
+    white-space: normal;
+  }
+
+  .request-meta-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .business-mypage *,
+  .business-mypage *::before,
+  .business-mypage *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
