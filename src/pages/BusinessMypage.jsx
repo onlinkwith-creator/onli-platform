@@ -1748,9 +1748,10 @@ function BusinessMypage({
                             type="button"
                             disabled={uploadingMaterial}
                             onClick={handleUploadMaterialClick}
-                            className="btn-save"
+                            className="btn-save material-upload-button"
                           >
-                            {uploadingMaterial ? "업로드 중..." : "📁 컴퓨터에서 파일 선택"}
+                            <FolderOpen size={15} aria-hidden="true" />
+                            {uploadingMaterial ? "업로드 중..." : "컴퓨터에서 파일 선택"}
                           </button>
                           <small>PDF, JPG, PNG 파일 형식만 지원합니다. (최대 10MB)</small>
                         </div>

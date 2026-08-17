@@ -1115,9 +1115,9 @@
 .req-indicator {
   font-size: 11px;
   font-weight: 800;
-  color: #667386;
-  background: transparent;
-  border: 1px solid #dfe4eb;
+  color: #4053a2;
+  background: #f4f6fc;
+  border: 1px solid #dce3f5;
   padding: 3px 7px;
   border-radius: 4px;
 }
@@ -1428,8 +1428,27 @@
   white-space: nowrap;
 }
 .clickable-file {
-  color: #5b5cf0;
+  color: #405a7d;
   font-weight: 750;
+}
+
+.file-drop-zone .material-upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #4053a2;
+  background: #4053a2;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.file-drop-zone .material-upload-button:hover {
+  border-color: #34458e;
+  background: #34458e;
+  color: #ffffff;
+  transform: none;
+  box-shadow: none;
 }
 .material-row-actions {
   display: flex;
