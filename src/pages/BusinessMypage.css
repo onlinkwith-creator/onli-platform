@@ -2348,3 +2348,122 @@
     transition: none !important;
   }
 }
+
+/* Business mypage detail polish: resilient notification copy and restrained profile tags */
+.client-notifications-panel,
+.client-notifications-panel .notification-list,
+.client-notifications-panel .notification-item {
+  min-width: 0;
+}
+
+.client-notifications-panel .notification-item {
+  overflow: visible;
+}
+
+.client-notifications-panel .notif-header {
+  min-width: 0;
+  gap: 12px;
+}
+
+.client-notifications-panel .notif-badge,
+.client-notifications-panel .notif-time {
+  flex: 0 0 auto;
+}
+
+.client-notifications-panel .notif-text {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.assignment-request-info,
+.profile-info-left,
+.tags-container {
+  min-width: 0;
+}
+
+.assignment-request-info,
+.profile-info-left {
+  flex-wrap: wrap;
+}
+
+.req-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.interpreter-level-badge,
+.certified-badge,
+.assigned-interpreter-card .biz-field-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  margin: 0;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.interpreter-level-badge {
+  color: #526174;
+  background: #f6f7f9;
+  border-color: #dfe4eb;
+}
+
+.interpreter-level-badge.level-lv2 {
+  color: #356a58;
+  background: #f2f8f5;
+  border-color: #d5e7df;
+}
+
+.interpreter-level-badge.level-lv3 {
+  color: #3f638c;
+  background: #f2f6fb;
+  border-color: #d7e2f0;
+}
+
+.interpreter-level-badge.level-lv4 {
+  color: #675778;
+  background: #f6f3f8;
+  border-color: #e2dced;
+}
+
+.certified-badge {
+  color: #4053a2;
+  background: #f4f6fc;
+  border-color: #dce3f5;
+}
+
+.assigned-interpreter-card .tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.assigned-interpreter-card .biz-field-tag {
+  color: #526174;
+  background: #f7f8fa;
+  border-color: #e2e7ed;
+}
+
+@media (max-width: 640px) {
+  .profile-info-left {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .interpreter-name {
+    flex-basis: 100%;
+  }
+}

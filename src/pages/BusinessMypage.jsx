@@ -1565,6 +1565,10 @@ function BusinessMypage({
                       const specialtiesList = Array.isArray(interpreter.specialties)
                         ? interpreter.specialties.filter(Boolean)
                         : (interpreter.specialties || "").split(",").map((s) => s.trim()).filter(Boolean);
+                      const interpreterLevel = interpreter.level || "Lv1";
+                      const interpreterLevelClass = String(interpreterLevel)
+                        .replace(/\s+/g, "")
+                        .toLowerCase();
 
                       return (
                         <article key={assign.id} className="assigned-interpreter-card">
@@ -1580,7 +1584,9 @@ function BusinessMypage({
                               <div className="profile-header">
                                 <div className="profile-info-left">
                                   <h3 className="interpreter-name">{interpreter.name}</h3>
-                                  <span className="interpreter-level-badge">{interpreter.level || "Lv1"}</span>
+                                  <span className={`interpreter-level-badge level-${interpreterLevelClass}`}>
+                                    {interpreterLevel}
+                                  </span>
                                   {isCertified && (
                                     <span className="certified-badge">ON-LI 인증</span>
                                   )}
