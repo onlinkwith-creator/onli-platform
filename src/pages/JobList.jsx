@@ -10,7 +10,7 @@ import { formatCompactJobDateRange } from "../utils/dateRange";
 import { getJobSpecialty } from "../utils/jobDisplay";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import { fetchPublicJobs } from "../utils/jobsApi";
-import { Calendar, MapPin, Users, Award, Briefcase } from "lucide-react";
+import { Calendar, MapPin, Users, Award, Briefcase, Search } from "lucide-react";
 import "./Jobs.css";
 
 const initialFilters = {
@@ -188,43 +188,32 @@ function JobList({
       <div className="home-bg-glow" />
       <div className="jobs-shell">
         
-        {/* Premium Recruiter Hero Section */}
+        {/* Jobs page introduction */}
         <div className="jobs-hero-container">
           <div className="jobs-hero-left">
-            <div className="jobs-hero-actions">
-              <button type="button" onClick={onBackClick} className="jobs-back-btn">
-                ← 메인으로
-              </button>
-              <button
-                type="button"
-                className="jobs-create-btn"
-                onClick={onCreateJobClick}
-              >
-                + 통역공고 등록
-              </button>
-            </div>
+            <nav className="jobs-breadcrumb" aria-label="현재 위치">
+              <button type="button" onClick={onBackClick}>홈</button>
+              <span aria-hidden="true">/</span>
+              <span>통역 공고</span>
+            </nav>
             <span className="jobs-kicker">ON-LI JOBS</span>
             <h1 className="jobs-hero-title">전체 통역 공고</h1>
             <p className="jobs-hero-subtitle">
-              전시회·상담회·비즈니스 현장에 맞는<br />
-              통역 공고를 확인하세요.
+              전시회·상담회·비즈니스 현장에 맞는 통역 공고를 확인하세요.
             </p>
           </div>
 
-          <div className="jobs-hero-right">
-            <div className="jobs-hero-illustration-wrapper">
-              <div className="jobs-hero-illustration">
-                <div className="illustration-glow-circle-1" />
-                <div className="illustration-glow-circle-2" />
-                <div className="illustration-card-mockup">
-                  <span className="mockup-badge">Recruiting</span>
-                  <div className="mockup-lines">
-                    <div className="mockup-line-1" />
-                    <div className="mockup-line-2" />
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="jobs-hero-actions">
+            <button type="button" onClick={onBackClick} className="jobs-back-btn">
+              메인으로
+            </button>
+            <button
+              type="button"
+              className="jobs-create-btn"
+              onClick={onCreateJobClick}
+            >
+              + 통역공고 등록
+            </button>
           </div>
         </div>
 
@@ -273,7 +262,12 @@ function JobList({
               className={`jobs-filter-card ${isMobileFilterOpen ? "is-open" : "is-collapsed"}`}
             >
               <div className="jobs-filter-head">
-                <h2 className="jobs-filter-title">통역 공고 검색 필터</h2>
+                <div className="jobs-filter-heading">
+                  <h2 className="jobs-filter-title">공고 검색</h2>
+                  <p className="jobs-filter-description">
+                    원하는 조건을 선택해 통역 공고를 빠르게 찾아보세요.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={resetFilters}
@@ -284,6 +278,18 @@ function JobList({
               </div>
 
               <div className="jobs-filter-grid">
+                <label className="jobs-filter-field jobs-keyword-field">
+                  <span className="jobs-filter-label">키워드 검색</span>
+                  <span className="jobs-keyword-input-wrap">
+                    <Search size={18} aria-hidden="true" />
+                    <input
+                      value={filters.keyword}
+                      onChange={(e) => updateFilter("keyword", e.target.value)}
+                      placeholder="공고명, 기업명, 장소 검색"
+                      className="jobs-filter-input"
+                    />
+                  </span>
+                </label>
                 <FilterSelect
                   label="통역 분야"
                   value={filters.field}
@@ -317,15 +323,6 @@ function JobList({
                   onChange={(val) => updateFilter("status", val)}
                   options={statusOptions}
                 />
-                <label className="jobs-filter-field">
-                  <span className="jobs-filter-label">키워드 검색</span>
-                  <input
-                    value={filters.keyword}
-                    onChange={(e) => updateFilter("keyword", e.target.value)}
-                    placeholder="공고명, 기업명, 장소 검색"
-                    className="jobs-filter-input"
-                  />
-                </label>
               </div>
             </div>
 
