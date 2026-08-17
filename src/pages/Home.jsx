@@ -20,10 +20,6 @@ import { fetchPublicJobs } from "../utils/jobsApi";
 import "./Home.css";
 import {
   Building2,
-  Camera,
-  Clock,
-  Mail,
-  MessageCircle,
   UserRound,
   User,
   MapPin,
@@ -449,68 +445,68 @@ function Home({
         )}
       </section>
 
-      <footer className="home-footer" id="contact">
-        <div className="home-footer-top">
-          <div className="home-footer-brand" aria-label="ON-LI 브랜드">
-            <div className="home-footer-logo-area">
-              <img src="/logo.png" alt="ON-LI Logo" className="home-footer-logo" />
-              <div className="home-footer-brand-text-group">
-                <span className="home-footer-brand-title">ON-LI</span>
-                <span className="home-footer-brand-subtitle">On-Link Interpretation</span>
-              </div>
-            </div>
-            <span className="home-footer-brand-desc">한일 비즈니스 통역 매칭 플랫폼</span>
+      <section className="home-contact-cta" id="contact" aria-labelledby="home-contact-title">
+        <div className="home-contact-cta-inner">
+          <div className="home-contact-cta-copy">
+            <h2 id="home-contact-title">통역 의뢰에 대해 궁금한 점이 있으신가요?</h2>
+            <p>운영시간 평일 10:00–18:00 · 카카오톡 또는 메일로 문의해 주세요.</p>
           </div>
-          <div className="home-footer-contact" aria-label="운영 문의">
-            <a
-              className="home-footer-contact-item"
-              href="https://www.instagram.com/onlink_official?igsh=NjZkb3ZkN3NtZG1y&utm_source=qr"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Camera size={22} aria-hidden="true" />
-              <span>Instagram</span>
-            </a>
-            <a
-              className="home-footer-contact-item"
-              href="http://pf.kakao.com/_xeNxfxhX"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <MessageCircle size={22} aria-hidden="true" />
-              <span>KakaoTalk</span>
-            </a>
-            <a className="home-footer-contact-item" href="mailto:onlinkwith@gmail.com,onlinkcp@gmail.com">
-              <Mail size={22} aria-hidden="true" />
-              <span>메일 문의</span>
-            </a>
-            <span className="home-footer-contact-item" aria-label="운영시간">
-              <Clock size={22} aria-hidden="true" />
-              <span>평일 10:00 - 18:00</span>
-            </span>
-          </div>
+          <a className="home-contact-cta-button" href="mailto:onlinkwith@gmail.com,onlinkcp@gmail.com">
+            메일 문의하기
+          </a>
         </div>
+      </section>
 
-        <nav className="home-footer-policies" aria-label="약관 및 정책">
-          <a className="home-footer-link" href="/business">
-            기업 고객
-          </a>
-          <a className="home-footer-link" href="/terms">
-            이용약관
-          </a>
-          <a className="home-footer-link" href="/client-policy">
-            기업 이용약관
-          </a>
-          <a className="home-footer-link" href="/interpreter-policy">
-            통역사 활동 약관
-          </a>
-          <a className="home-footer-link" href="/privacy">
-            개인정보처리방침
-          </a>
-        </nav>
+      <footer className="home-footer">
+        <div className="home-footer-inner">
+          <div className="home-footer-top">
+            <div className="home-footer-brand" aria-label="ON-LI 브랜드">
+              <div className="home-footer-logo-area">
+                <img src="/logo.png" alt="ON-LI Logo" className="home-footer-logo" />
+                <div className="home-footer-brand-text-group">
+                  <span className="home-footer-brand-title">ON-LI</span>
+                  <span className="home-footer-brand-subtitle">On-Link Interpretation</span>
+                </div>
+              </div>
+              <span className="home-footer-brand-desc">한일 비즈니스 통역 매칭 플랫폼</span>
+            </div>
+            <div className="home-footer-contact" aria-label="운영 문의">
+              <a
+                className="home-footer-contact-item"
+                href="https://www.instagram.com/onlink_official?igsh=NjZkb3ZkN3NtZG1y&utm_source=qr"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Instagram
+              </a>
+              <a
+                className="home-footer-contact-item"
+                href="http://pf.kakao.com/_xeNxfxhX"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                KakaoTalk
+              </a>
+              <a className="home-footer-contact-item" href="mailto:onlinkwith@gmail.com,onlinkcp@gmail.com">
+                메일 문의
+              </a>
+              <span className="home-footer-contact-item" aria-label="운영시간">
+                평일 10:00–18:00
+              </span>
+            </div>
+          </div>
 
-        <div className="home-footer-divider" aria-hidden="true" />
-        <span className="home-footer-copy">© 2025 ON-LI. All rights reserved. | 사업자등록번호: 141-15-02905</span>
+          <nav className="home-footer-policies" aria-label="약관 및 정책">
+            <a className="home-footer-link" href="/business">기업 고객</a>
+            <a className="home-footer-link" href="/terms">이용약관</a>
+            <a className="home-footer-link" href="/client-policy">기업 이용약관</a>
+            <a className="home-footer-link" href="/interpreter-policy">통역사 활동 약관</a>
+            <a className="home-footer-link" href="/privacy">개인정보처리방침</a>
+          </nav>
+
+          <div className="home-footer-divider" aria-hidden="true" />
+          <span className="home-footer-copy">© 2025 ON-LI. All rights reserved. | 사업자등록번호: 141-15-02905</span>
+        </div>
       </footer>
     </div>
   );
