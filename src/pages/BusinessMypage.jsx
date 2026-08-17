@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Building2,
+  ChevronDown,
   ClipboardList,
   Download,
   Eye,
@@ -232,6 +233,7 @@ function BusinessMypage({
   const [documents, setDocuments] = useState([]);
   const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [areNotificationsOpen, setAreNotificationsOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [activeTab, setActiveTab] = useState("requests"); // "requests", "profile", "interpreters", "materials", "inquiry"
@@ -1308,28 +1310,47 @@ function BusinessMypage({
                 {!loadingData && notifications.length > 0 && (
                   <div className="client-notifications-panel">
                     <h3 className="panel-title">
-                      <Bell className="panel-icon" size={17} aria-hidden="true" /> 최근 알림
+                      <button
+                        type="button"
+                        className="notifications-toggle"
+                        aria-expanded={areNotificationsOpen}
+                        aria-controls="business-recent-notifications"
+                        onClick={() => setAreNotificationsOpen((isOpen) => !isOpen)}
+                      >
+                        <span className="notifications-toggle-label">
+                          <Bell className="panel-icon" size={17} aria-hidden="true" />
+                          최근 알림
+                          <span className="notifications-count">{notifications.length}건</span>
+                        </span>
+                        <ChevronDown
+                          className={`notifications-toggle-icon ${areNotificationsOpen ? "is-open" : ""}`}
+                          size={17}
+                          aria-hidden="true"
+                        />
+                      </button>
                     </h3>
-                    <ul className="notification-list">
-                      {notifications.map((notif) => (
-                        <li key={notif.id} className="notification-item">
-                          <div className="notif-header">
-                            <span className="notif-badge">
-                              {getClientNotificationLabel(notif.event_type)}
-                            </span>
-                            <span className="notif-time">
-                              {new Date(notif.created_at).toLocaleDateString("ko-KR", {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          <p className="notif-text">{getClientNotificationText(notif)}</p>
-                        </li>
-                      ))}
-                    </ul>
+                    {areNotificationsOpen && (
+                      <ul id="business-recent-notifications" className="notification-list">
+                        {notifications.map((notif) => (
+                          <li key={notif.id} className="notification-item">
+                            <div className="notif-header">
+                              <span className="notif-badge">
+                                {getClientNotificationLabel(notif.event_type)}
+                              </span>
+                              <span className="notif-time">
+                                {new Date(notif.created_at).toLocaleDateString("ko-KR", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p className="notif-text">{getClientNotificationText(notif)}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
 
@@ -1565,6 +1586,10 @@ function BusinessMypage({
                       const specialtiesList = Array.isArray(interpreter.specialties)
                         ? interpreter.specialties.filter(Boolean)
                         : (interpreter.specialties || "").split(",").map((s) => s.trim()).filter(Boolean);
+                      const interpreterLevel = interpreter.level || "Lv1";
+                      const interpreterLevelClass = String(interpreterLevel)
+                        .replace(/\s+/g, "")
+                        .toLowerCase();
 
                       return (
                         <article key={assign.id} className="assigned-interpreter-card">
@@ -1580,7 +1605,9 @@ function BusinessMypage({
                               <div className="profile-header">
                                 <div className="profile-info-left">
                                   <h3 className="interpreter-name">{interpreter.name}</h3>
-                                  <span className="interpreter-level-badge">{interpreter.level || "Lv1"}</span>
+                                  <span className={`interpreter-level-badge level-${interpreterLevelClass}`}>
+                                    {interpreterLevel}
+                                  </span>
                                   {isCertified && (
                                     <span className="certified-badge">ON-LI 인증</span>
                                   )}
@@ -1721,9 +1748,10 @@ function BusinessMypage({
                             type="button"
                             disabled={uploadingMaterial}
                             onClick={handleUploadMaterialClick}
-                            className="btn-save"
+                            className="btn-save material-upload-button"
                           >
-                            {uploadingMaterial ? "업로드 중..." : "📁 컴퓨터에서 파일 선택"}
+                            <FolderOpen size={15} aria-hidden="true" />
+                            {uploadingMaterial ? "업로드 중..." : "컴퓨터에서 파일 선택"}
                           </button>
                           <small>PDF, JPG, PNG 파일 형식만 지원합니다. (최대 10MB)</small>
                         </div>

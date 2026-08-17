@@ -1115,9 +1115,10 @@
 .req-indicator {
   font-size: 11px;
   font-weight: 800;
-  color: #7c3aed;
-  background: #f5f3ff;
-  padding: 3px 6px;
+  color: #4053a2;
+  background: #f4f6fc;
+  border: 1px solid #dce3f5;
+  padding: 3px 7px;
   border-radius: 4px;
 }
 .req-title {
@@ -1427,8 +1428,27 @@
   white-space: nowrap;
 }
 .clickable-file {
-  color: #5b5cf0;
+  color: #405a7d;
   font-weight: 750;
+}
+
+.file-drop-zone .material-upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #4053a2;
+  background: #4053a2;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.file-drop-zone .material-upload-button:hover {
+  border-color: #34458e;
+  background: #34458e;
+  color: #ffffff;
+  transform: none;
+  box-shadow: none;
 }
 .material-row-actions {
   display: flex;
@@ -2103,11 +2123,67 @@
 .client-notifications-panel .panel-title {
   display: flex;
   align-items: center;
-  gap: 8px;
   margin: 0 0 12px;
   color: #0d253d;
   font-size: 13px;
   font-weight: 800;
+}
+
+.client-notifications-panel .notifications-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #0d253d;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.client-notifications-panel .notifications-toggle:hover {
+  background: #f7f8fa;
+}
+
+.client-notifications-panel .notifications-toggle:focus-visible {
+  outline: 2px solid #4053a2;
+  outline-offset: 2px;
+}
+
+.client-notifications-panel .notifications-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.client-notifications-panel .notifications-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid #e2e7ed;
+  border-radius: 999px;
+  background: #f7f8fa;
+  color: #667386;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.client-notifications-panel .notifications-toggle-icon {
+  flex: 0 0 auto;
+  color: #718096;
+  transition: transform 180ms ease;
+}
+
+.client-notifications-panel .notifications-toggle-icon.is-open {
+  transform: rotate(180deg);
 }
 
 .client-notifications-panel .panel-icon {
@@ -2117,7 +2193,7 @@
 
 .client-notifications-panel .notification-list {
   gap: 8px;
-  max-height: 246px;
+  max-height: none;
 }
 
 .client-notifications-panel .notification-item {
@@ -2346,5 +2422,124 @@
   .business-mypage *::after {
     scroll-behavior: auto !important;
     transition: none !important;
+  }
+}
+
+/* Business mypage detail polish: resilient notification copy and restrained profile tags */
+.client-notifications-panel,
+.client-notifications-panel .notification-list,
+.client-notifications-panel .notification-item {
+  min-width: 0;
+}
+
+.client-notifications-panel .notification-item {
+  overflow: visible;
+}
+
+.client-notifications-panel .notif-header {
+  min-width: 0;
+  gap: 12px;
+}
+
+.client-notifications-panel .notif-badge,
+.client-notifications-panel .notif-time {
+  flex: 0 0 auto;
+}
+
+.client-notifications-panel .notif-text {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.assignment-request-info,
+.profile-info-left,
+.tags-container {
+  min-width: 0;
+}
+
+.assignment-request-info,
+.profile-info-left {
+  flex-wrap: wrap;
+}
+
+.req-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.interpreter-level-badge,
+.certified-badge,
+.assigned-interpreter-card .biz-field-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  margin: 0;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.interpreter-level-badge {
+  color: #334155;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.interpreter-level-badge.level-lv2 {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.interpreter-level-badge.level-lv3 {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.interpreter-level-badge.level-lv4 {
+  color: #6d28d9;
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+
+.certified-badge {
+  color: #116b59;
+  background: #edf9f5;
+  border-color: #c9eadf;
+}
+
+.assigned-interpreter-card .tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.assigned-interpreter-card .biz-field-tag {
+  color: #526174;
+  background: #f7f8fa;
+  border-color: #e2e7ed;
+}
+
+@media (max-width: 640px) {
+  .profile-info-left {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .interpreter-name {
+    flex-basis: 100%;
   }
 }
