@@ -1115,9 +1115,10 @@
 .req-indicator {
   font-size: 11px;
   font-weight: 800;
-  color: #7c3aed;
-  background: #f5f3ff;
-  padding: 3px 6px;
+  color: #667386;
+  background: transparent;
+  border: 1px solid #dfe4eb;
+  padding: 3px 7px;
   border-radius: 4px;
 }
 .req-title {
@@ -2472,27 +2473,27 @@
 }
 
 .interpreter-level-badge {
-  color: #526174;
-  background: #f6f7f9;
-  border-color: #dfe4eb;
+  color: #334155;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 .interpreter-level-badge.level-lv2 {
-  color: #356a58;
-  background: #f2f8f5;
-  border-color: #d5e7df;
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 .interpreter-level-badge.level-lv3 {
-  color: #3f638c;
-  background: #f2f6fb;
-  border-color: #d7e2f0;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
 }
 
 .interpreter-level-badge.level-lv4 {
-  color: #675778;
-  background: #f6f3f8;
-  border-color: #e2dced;
+  color: #6d28d9;
+  background: #f5f3ff;
+  border-color: #ddd6fe;
 }
 
 .certified-badge {
