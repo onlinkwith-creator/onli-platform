@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 import TermsAgreement, {
   areTermsAgreed,
   initialTermsAgreement,
@@ -26,6 +27,51 @@ const specialtyOptions = [
 ];
 
 const regionOptions = JAPAN_PREFECTURES;
+
+const regionGroups = [
+  {
+    id: "hokkaido-sendai",
+    label: "홋카이도·센다이 주변",
+    hint: "홋카이도, 아오모리, 미야기 외",
+    regions: ["홋카이도", "아오모리", "이와테", "미야기", "아키타", "야마가타", "후쿠시마"],
+  },
+  {
+    id: "tokyo-yokohama",
+    label: "도쿄·요코하마 주변",
+    hint: "도쿄, 가나가와, 치바, 사이타마 외",
+    regions: ["이바라키", "도치기", "군마", "사이타마", "치바", "도쿄", "가나가와"],
+  },
+  {
+    id: "nagoya-shizuoka",
+    label: "나고야·시즈오카 주변",
+    hint: "아이치, 시즈오카, 나가노, 니가타 외",
+    regions: ["니가타", "도야마", "이시카와", "후쿠이", "야마나시", "나가노", "기후", "시즈오카", "아이치", "미에"],
+  },
+  {
+    id: "osaka-kyoto",
+    label: "오사카·교토 주변",
+    hint: "오사카, 교토, 효고, 나라 외",
+    regions: ["시가", "교토", "오사카", "효고", "나라", "와카야마"],
+  },
+  {
+    id: "hiroshima-okayama",
+    label: "히로시마·오카야마 주변",
+    hint: "히로시마, 오카야마, 야마구치 외",
+    regions: ["돗토리", "시마네", "오카야마", "히로시마", "야마구치"],
+  },
+  {
+    id: "takamatsu-matsuyama",
+    label: "다카마쓰·마쓰야마 주변",
+    hint: "가가와, 에히메, 고치, 도쿠시마",
+    regions: ["도쿠시마", "가가와", "에히메", "고치"],
+  },
+  {
+    id: "fukuoka-okinawa",
+    label: "후쿠오카·오키나와 주변",
+    hint: "후쿠오카, 구마모토, 오키나와 외",
+    regions: ["후쿠오카", "사가", "나가사키", "구마모토", "오이타", "미야자키", "가고시마", "오키나와"],
+  },
+];
 
 const levelSystemCards = [
   {
@@ -619,12 +665,12 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
                 />
               </Field>
 
-              <ChipGroup
-                title="활동 가능 지역"
-                description="활동 가능한 지역을 모두 선택해주세요."
-                options={regionOptions}
+              <RegionSelector
                 values={form.availableRegions}
-                onToggle={(value) => toggleArrayValue("availableRegions", value)}
+                onChange={(availableRegions) => setForm((current) => ({
+                  ...current,
+                  availableRegions,
+                }))}
               />
               <div className="register-custom-regions register-field-wide">
                 <label htmlFor="custom-region-input">기타 활동 가능 지역</label>
@@ -881,6 +927,132 @@ function Field({ label, children, className = "", ...inputProps }) {
       <span>{label}</span>
       {children || <input {...inputProps} />}
     </label>
+  );
+}
+
+function RegionSelector({ values, onChange }) {
+  const [query, setQuery] = useState("");
+  const [openGroups, setOpenGroups] = useState(["tokyo-yokohama"]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const allSelected = regionOptions.every((region) => values.includes(region));
+
+  const filteredGroups = regionGroups
+    .map((group) => ({
+      ...group,
+      visibleRegions: normalizedQuery
+        ? group.regions.filter((region) => region.toLowerCase().includes(normalizedQuery))
+        : group.regions,
+    }))
+    .filter((group) => group.visibleRegions.length > 0);
+
+  const toggleGroup = (groupId) => {
+    setOpenGroups((current) => (
+      current.includes(groupId)
+        ? current.filter((id) => id !== groupId)
+        : [...current, groupId]
+    ));
+  };
+
+  const toggleRegion = (region) => {
+    onChange(
+      values.includes(region)
+        ? values.filter((value) => value !== region)
+        : [...values, region],
+    );
+  };
+
+  return (
+    <div className="register-region-selector register-field-wide">
+      <div className="register-region-head">
+        <div>
+          <h3>활동 가능 지역</h3>
+          <p>지역명으로 검색하거나 대표 도시 그룹을 열어 선택해주세요.</p>
+        </div>
+        <p className="register-region-count">
+          {values.length > 0 ? `${values.length}개 선택` : "아직 선택 전"}
+        </p>
+      </div>
+
+      <div className="register-region-toolbar">
+        <label className="register-region-search">
+          <Search aria-hidden="true" />
+          <span className="sr-only">지역명 검색</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="도쿄, 오사카처럼 지역명 검색"
+          />
+        </label>
+        <button
+          type="button"
+          className={`register-all-regions${allSelected ? " is-selected" : ""}`}
+          onClick={() => onChange(allSelected ? [] : [...regionOptions])}
+          aria-pressed={allSelected}
+        >
+          <span className="register-region-checkbox" aria-hidden="true">
+            {allSelected && <Check />}
+          </span>
+          일본 전역 활동 가능
+        </button>
+      </div>
+
+      {values.length > 0 && (
+        <div className="register-region-selection">
+          <span>선택됨</span>
+          <div>
+            {allSelected ? (
+              <button type="button" onClick={() => onChange([])}>
+                일본 전역 <X aria-hidden="true" />
+              </button>
+            ) : values.map((region) => (
+              <button type="button" key={region} onClick={() => toggleRegion(region)}>
+                {region} <X aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="register-region-groups">
+        {filteredGroups.map((group) => {
+          const selectedCount = group.regions.filter((region) => values.includes(region)).length;
+          const isOpen = normalizedQuery || openGroups.includes(group.id);
+          return (
+            <section className={`register-region-group${isOpen ? " is-open" : ""}`} key={group.id}>
+              <button
+                type="button"
+                className="register-region-trigger"
+                onClick={() => toggleGroup(group.id)}
+                aria-expanded={Boolean(isOpen)}
+              >
+                <span className="register-region-label">
+                  <strong>{group.label}</strong>
+                  <small>{group.hint}</small>
+                </span>
+                {selectedCount > 0 && <span className="register-region-group-count">{selectedCount}</span>}
+                <ChevronDown className="register-region-chevron" aria-hidden="true" />
+              </button>
+              {isOpen && (
+                <div className="register-region-options">
+                  {group.visibleRegions.map((region) => (
+                    <SelectChip
+                      key={region}
+                      label={region}
+                      selected={values.includes(region)}
+                      onClick={() => toggleRegion(region)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })}
+        {filteredGroups.length === 0 && (
+          <p className="register-region-empty">일치하는 지역이 없습니다. 기타 활동 가능 지역에 직접 입력해주세요.</p>
+        )}
+      </div>
+    </div>
   );
 }
 
