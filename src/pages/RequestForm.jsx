@@ -662,18 +662,13 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
   return (
     <div className="request-page">
       <div className="request-container">
-        <button
-          type="button"
-          onClick={onBackClick}
-          className={`request-back-button${
-            isGeneralRequest ? " main-return-button" : ""
-          }`}
-        >
-          {isGeneralRequest ? "메인으로 돌아가기" : "상세 페이지로"}
-        </button>
-
         <header className="request-hero">
-          <div>
+          <div className="request-hero-copy">
+            <nav className="request-breadcrumb" aria-label="현재 위치">
+              <button type="button" onClick={onBackClick}>홈</button>
+              <span aria-hidden="true">/</span>
+              <span>통역 의뢰</span>
+            </nav>
             <p className="request-eyebrow">ON-LI REQUEST</p>
             <h1>통역 의뢰</h1>
             <p className="request-description">
@@ -684,10 +679,40 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
               접수 후 ON-LI 담당자가 조건을 확인하고 빠르게 연락드립니다.
             </p>
           </div>
-          <div className="request-hero-mark" aria-hidden="true">
-            <span />
+          <div className="request-hero-actions">
+            <button
+              type="button"
+              onClick={onBackClick}
+              className={`request-back-button${
+                isGeneralRequest ? " main-return-button" : ""
+              }`}
+            >
+              {isGeneralRequest ? "메인으로" : "상세 페이지로"}
+            </button>
           </div>
         </header>
+
+        <section className="request-guide-grid" aria-label="통역 의뢰 안내">
+          <div className="request-guide-panel">
+            <span className="request-guide-kicker">REQUEST GUIDE</span>
+            <h2>필요한 조건만 알려주시면<br />적합한 통역사를 연결합니다.</h2>
+            <p>일정과 현장 조건을 바탕으로 ON-LI 운영팀이 의뢰 내용을 검토합니다.</p>
+            <div className="request-guide-items">
+              <div><strong>01</strong><span>일정·장소 입력</span></div>
+              <div><strong>02</strong><span>통역 조건 선택</span></div>
+              <div><strong>03</strong><span>운영팀 검토</span></div>
+            </div>
+          </div>
+          <aside className="request-preparation-card">
+            <h2>접수 전 준비사항</h2>
+            <ul>
+              <li>행사 일정과 장소</li>
+              <li>필요 인원과 통역 분야</li>
+              <li>선택 사항인 참고 자료</li>
+            </ul>
+            <p><strong>빠른 안내</strong> 영업일 기준 3시간 이내 연락드립니다.</p>
+          </aside>
+        </section>
 
         <div className="request-step-card" aria-label="통역 의뢰 진행 단계">
           {requestSteps.map((step, index) => (
@@ -855,7 +880,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
             </label>
           </SectionBlock>
 
-          {errorMessage && <p className="request-error">{errorMessage}</p>}
+          {errorMessage && <p className="request-error" role="alert">{errorMessage}</p>}
 
           <TermsAgreement
             agreements={agreements}
