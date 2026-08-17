@@ -31,6 +31,7 @@ import {
   Languages,
   Award,
   UserCheck,
+  ArrowRight,
   Menu,
   X,
 } from "lucide-react";
@@ -356,8 +357,9 @@ function Home({
             <p className="home-brand-sub">JOBS</p>
             <h2>통역 공고</h2>
           </div>
-          <button type="button" onClick={onJobsClick}>
-            전체 공고 확인하기
+          <button type="button" onClick={onJobsClick} className="home-section-action">
+            <span>전체 공고 확인하기</span>
+            <ArrowRight size={17} aria-hidden="true" />
           </button>
         </div>
 
@@ -385,8 +387,9 @@ function Home({
                   />
                 ))}
             </HomeCarousel>
-            <button type="button" onClick={onJobsClick} className="home-jobs-mobile-more home-mobile-section-action">
-              전체 공고 확인하기
+            <button type="button" onClick={onJobsClick} className="home-jobs-mobile-more home-mobile-section-action home-section-action">
+              <span>전체 공고 확인하기</span>
+              <ArrowRight size={17} aria-hidden="true" />
             </button>
           </>
         )}
@@ -398,8 +401,9 @@ function Home({
             <p className="home-brand-sub">INTERPRETERS</p>
             <h2>등록된 통역사</h2>
           </div>
-          <button type="button" onClick={onListClick}>
-            전체 통역사 보기
+          <button type="button" onClick={onListClick} className="home-section-action">
+            <span>전체 통역사 보기</span>
+            <ArrowRight size={17} aria-hidden="true" />
           </button>
         </div>
 
@@ -436,8 +440,9 @@ function Home({
               ))}
             </div>
 
-            <button type="button" onClick={onListClick} className="home-mobile-section-action">
-              전체 통역사 보기
+            <button type="button" onClick={onListClick} className="home-mobile-section-action home-section-action">
+              <span>전체 통역사 보기</span>
+              <ArrowRight size={17} aria-hidden="true" />
             </button>
           </>
         )}
