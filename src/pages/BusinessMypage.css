@@ -2103,11 +2103,67 @@
 .client-notifications-panel .panel-title {
   display: flex;
   align-items: center;
-  gap: 8px;
   margin: 0 0 12px;
   color: #0d253d;
   font-size: 13px;
   font-weight: 800;
+}
+
+.client-notifications-panel .notifications-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #0d253d;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.client-notifications-panel .notifications-toggle:hover {
+  background: #f7f8fa;
+}
+
+.client-notifications-panel .notifications-toggle:focus-visible {
+  outline: 2px solid #4053a2;
+  outline-offset: 2px;
+}
+
+.client-notifications-panel .notifications-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.client-notifications-panel .notifications-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid #e2e7ed;
+  border-radius: 999px;
+  background: #f7f8fa;
+  color: #667386;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.client-notifications-panel .notifications-toggle-icon {
+  flex: 0 0 auto;
+  color: #718096;
+  transition: transform 180ms ease;
+}
+
+.client-notifications-panel .notifications-toggle-icon.is-open {
+  transform: rotate(180deg);
 }
 
 .client-notifications-panel .panel-icon {
@@ -2117,7 +2173,7 @@
 
 .client-notifications-panel .notification-list {
   gap: 8px;
-  max-height: 246px;
+  max-height: none;
 }
 
 .client-notifications-panel .notification-item {

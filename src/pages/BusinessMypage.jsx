@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Building2,
+  ChevronDown,
   ClipboardList,
   Download,
   Eye,
@@ -232,6 +233,7 @@ function BusinessMypage({
   const [documents, setDocuments] = useState([]);
   const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [areNotificationsOpen, setAreNotificationsOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [activeTab, setActiveTab] = useState("requests"); // "requests", "profile", "interpreters", "materials", "inquiry"
@@ -1308,28 +1310,47 @@ function BusinessMypage({
                 {!loadingData && notifications.length > 0 && (
                   <div className="client-notifications-panel">
                     <h3 className="panel-title">
-                      <Bell className="panel-icon" size={17} aria-hidden="true" /> 최근 알림
+                      <button
+                        type="button"
+                        className="notifications-toggle"
+                        aria-expanded={areNotificationsOpen}
+                        aria-controls="business-recent-notifications"
+                        onClick={() => setAreNotificationsOpen((isOpen) => !isOpen)}
+                      >
+                        <span className="notifications-toggle-label">
+                          <Bell className="panel-icon" size={17} aria-hidden="true" />
+                          최근 알림
+                          <span className="notifications-count">{notifications.length}건</span>
+                        </span>
+                        <ChevronDown
+                          className={`notifications-toggle-icon ${areNotificationsOpen ? "is-open" : ""}`}
+                          size={17}
+                          aria-hidden="true"
+                        />
+                      </button>
                     </h3>
-                    <ul className="notification-list">
-                      {notifications.map((notif) => (
-                        <li key={notif.id} className="notification-item">
-                          <div className="notif-header">
-                            <span className="notif-badge">
-                              {getClientNotificationLabel(notif.event_type)}
-                            </span>
-                            <span className="notif-time">
-                              {new Date(notif.created_at).toLocaleDateString("ko-KR", {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          <p className="notif-text">{getClientNotificationText(notif)}</p>
-                        </li>
-                      ))}
-                    </ul>
+                    {areNotificationsOpen && (
+                      <ul id="business-recent-notifications" className="notification-list">
+                        {notifications.map((notif) => (
+                          <li key={notif.id} className="notification-item">
+                            <div className="notif-header">
+                              <span className="notif-badge">
+                                {getClientNotificationLabel(notif.event_type)}
+                              </span>
+                              <span className="notif-time">
+                                {new Date(notif.created_at).toLocaleDateString("ko-KR", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p className="notif-text">{getClientNotificationText(notif)}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
 
