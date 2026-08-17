@@ -5,7 +5,7 @@ import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
 } from "../utils/status";
-import { BadgeCheck, Briefcase, Languages, MapPin, Star } from "lucide-react";
+import { BadgeCheck, Briefcase, Languages, MapPin, Search, Star } from "lucide-react";
 import { isPublicInterpreterVisible } from "../utils/accountStatus";
 import {
   PUBLIC_INTERPRETER_SELECT,
@@ -205,12 +205,14 @@ function InterpreterList({
     <div className="interpreter-list-page">
       <div className="home-bg-glow" />
       <div className="interpreter-list-shell">
-        {/* Premium Recruiter Hero Section */}
+        {/* Interpreter directory introduction */}
         <div className="interpreter-list-hero-content interpreter-hero">
           <div className="interpreter-list-hero-text">
-            <button onClick={onBackClick} className="main-return-button">
-              ← 메인으로
-            </button>
+            <nav className="interpreter-list-breadcrumb" aria-label="현재 위치">
+              <button type="button" onClick={onBackClick}>홈</button>
+              <span aria-hidden="true">/</span>
+              <span>통역사</span>
+            </nav>
             <span className="interpreter-list-hero-label">검증된 전문가와 함께하세요</span>
             <h1 className="interpreter-list-hero-title">등록 통역사</h1>
             <p className="interpreter-list-hero-subtitle">
@@ -221,19 +223,9 @@ function InterpreterList({
               인증 여부와 조건에 맞는 통역사를 찾아보세요.
             </p>
           </div>
-          <div className="interpreter-list-hero-illustration interpreter-hero-visual">
-            <div className="illustration-glow-circle-1" />
-            <div className="illustration-glow-circle-2" />
-            <div className="illustration-card-mockup verified-system-card">
-              <span className="mockup-badge">ON-LI VERIFIED</span>
-              <h3 className="mockup-card-title">실무형 통역사 검증 시스템</h3>
-              <div className="mockup-bullets">
-                <span>✓ 전시회</span>
-                <span>✓ 상담회</span>
-                <span>✓ 비즈니스 미팅 대응</span>
-              </div>
-            </div>
-          </div>
+          <button type="button" onClick={onBackClick} className="main-return-button">
+            메인으로
+          </button>
         </div>
 
         {loading ? (
@@ -252,7 +244,12 @@ function InterpreterList({
               }`}
             >
               <div className="interpreter-list-filter-head">
-                <h2 className="interpreter-list-filter-title">통역사 검색 필터</h2>
+                <div className="interpreter-list-filter-heading">
+                  <h2 className="interpreter-list-filter-title">통역사 검색</h2>
+                  <p className="interpreter-list-filter-description">
+                    원하는 조건을 선택해 적합한 통역사를 빠르게 찾아보세요.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={resetFilters}
@@ -262,6 +259,18 @@ function InterpreterList({
                 </button>
               </div>
 
+              <label className="interpreter-list-filter-field interpreter-list-keyword-field">
+                <span className="interpreter-list-filter-label">키워드 검색</span>
+                <span className="interpreter-list-keyword-input-wrap">
+                  <Search size={18} aria-hidden="true" />
+                  <input
+                    value={filters.keyword}
+                    onChange={(event) => updateFilter("keyword", event.target.value)}
+                    placeholder="이름, 지역, 분야, 경력 검색"
+                    className="interpreter-list-filter-input"
+                  />
+                </span>
+              </label>
               <FilterSelect
                 label="성별"
                 value={filters.gender}
@@ -293,15 +302,6 @@ function InterpreterList({
                 options={ageOptions}
                 hint="나이는 만 나이 기준입니다."
               />
-              <label className="interpreter-list-filter-field">
-                <span className="interpreter-list-filter-label">키워드 검색</span>
-                <input
-                  value={filters.keyword}
-                  onChange={(event) => updateFilter("keyword", event.target.value)}
-                  placeholder="이름, 지역, 분야, 경력 검색"
-                  className="interpreter-list-filter-input"
-                />
-              </label>
             </div>
 
             {/* Grid stats & sorting select */}
