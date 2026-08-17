@@ -31,8 +31,13 @@ import { JAPAN_PREFECTURES, mergeRegions, normalizeRegion, uniqueRegions } from 
 import {
   Award,
   BriefcaseBusiness,
+  CalendarDays,
   CircleCheck,
   FileText,
+  FolderCheck,
+  Pencil,
+  UserRound,
+  WalletCards,
   X,
 } from "lucide-react";
 import {
@@ -40,12 +45,12 @@ import {
 } from "../utils/documents";
 
 const TABS = [
-  { id: "profile", label: "프로필 정보", icon: "👤" },
-  { id: "applications", label: "지원 내역", icon: "📄" },
-  { id: "assignments", label: "배정 내역", icon: "💼" },
-  { id: "preparation", label: "업무 준비", icon: "🗂️" },
-  { id: "settlements", label: "정산", icon: "💰" },
-  { id: "schedule", label: "일정 및 캘린더", icon: "📅" },
+  { id: "profile", label: "프로필 정보", icon: UserRound },
+  { id: "applications", label: "지원 내역", icon: FileText },
+  { id: "assignments", label: "배정 내역", icon: BriefcaseBusiness },
+  { id: "preparation", label: "업무 준비", icon: FolderCheck },
+  { id: "settlements", label: "정산", icon: WalletCards },
+  { id: "schedule", label: "일정 및 캘린더", icon: CalendarDays },
 ];
 
 const SPECIALTY_OPTIONS = [
@@ -1297,11 +1302,21 @@ function InterpreterMypage({
       <div className="interpreter-mypage-shell">
         <section className="interpreter-mypage-head">
           <div className="interpreter-mypage-userinfo desktop-header-only">
+            <nav className="interpreter-mypage-breadcrumb" aria-label="현재 위치">
+              <button type="button" onClick={onHomeClick}>홈</button>
+              <span aria-hidden="true">/</span>
+              <span>통역사 마이페이지</span>
+            </nav>
             <p className="interpreter-auth-kicker">ON-LI INTERPRETER PROFILE</p>
             <h1>{interpreter ? `${interpreter.name} 통역사 마이페이지` : "통역사 마이페이지"}</h1>
             <p className="interpreter-mypage-email">{interpreter?.email || user.email}</p>
           </div>
           <div className="interpreter-mypage-userinfo mobile-header-only">
+            <nav className="interpreter-mypage-breadcrumb" aria-label="현재 위치">
+              <button type="button" onClick={onHomeClick}>홈</button>
+              <span aria-hidden="true">/</span>
+              <span>통역사 마이페이지</span>
+            </nav>
             <p className="interpreter-auth-kicker">ON-LI INTERPRETER PROFILE</p>
             <h1 className="mobile-user-name">{interpreter ? interpreter.name : "통역사 마이페이지"}</h1>
             <p className="mobile-user-label">통역사 마이페이지</p>
@@ -1429,17 +1444,22 @@ function InterpreterMypage({
             <section className="interpreter-mypage-grid">
               {/* Sidebar Tabs */}
               <div className="interpreter-mypage-tabs">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className={`mypage-tab-btn ${activeTab === tab.id ? "is-active" : ""}`}
-                    onClick={() => setActiveTab(tab.id)}
-                  >
-                    <span className="tab-icon">{tab.icon}</span>
-                    <span className="tab-label">{tab.label}</span>
-                  </button>
-                ))}
+                {TABS.map((tab) => {
+                  const TabIcon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={`mypage-tab-btn ${activeTab === tab.id ? "is-active" : ""}`}
+                      onClick={() => setActiveTab(tab.id)}
+                    >
+                      <span className="tab-icon">
+                        <TabIcon size={17} aria-hidden="true" />
+                      </span>
+                      <span className="tab-label">{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Dynamic Content Pane */}
@@ -1457,7 +1477,8 @@ function InterpreterMypage({
                             onClick={handleStartEdit}
                             style={{ padding: "6px 12px", fontSize: "13px", height: "36px", display: "flex", alignItems: "center", gap: "6px", margin: 0 }}
                           >
-                            ✏️ 프로필 수정
+                            <Pencil size={15} aria-hidden="true" />
+                            프로필 수정
                           </button>
                         )}
                         <div className="status-selector-wrapper">
