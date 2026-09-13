@@ -15,7 +15,7 @@ import InterpreterMypage from "./pages/InterpreterMypage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import PolicyPage, { POLICY_PAGES } from "./pages/PolicyPage";
-import { useAuth, ADMIN_EMAILS } from "./hooks/useAuth";
+import { useAuth } from "./hooks/useAuth";
 import { supabase } from "./supabase";
 import BusinessRegister from "./pages/BusinessRegister";
 import BusinessMypage from "./pages/BusinessMypage";
@@ -307,18 +307,21 @@ function App() {
       }
 
       const email = currentUser.email.toLowerCase();
-      const isAdminEmail = ADMIN_EMAILS.includes(email);
       let isDbAdmin = false;
       const { data: adminData } = await supabase
         .from("admin_users")
-        .select("status")
-        .ilike("email", email)
+        .select("status, auth_user_id")
+        .eq("auth_user_id", currentUser.id)
         .maybeSingle();
-      if (adminData && adminData.status === "active") {
+      if (
+        adminData &&
+        adminData.auth_user_id === currentUser.id &&
+        adminData.status === "active"
+      ) {
         isDbAdmin = true;
       }
 
-      if (isAdminEmail || isDbAdmin) {
+      if (isDbAdmin) {
         navigateAdminJobs();
         return;
       }

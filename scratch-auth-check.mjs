@@ -1,15 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
-const supabase = createClient("https://mhtxknpdpakjvhlhrgwq.supabase.co", "sb_publishable_DXXJItmPtQR9M-JK62WRFA_Ty02EuCC");
 
-// Sign in with an existing test account to verify login works
-// First try to sign in with password to test login flow
-const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-  email: "onli-flow-kim-minjun@example.invalid",
-  password: "wrong_password_test",
-});
-console.log("Login test (wrong pw):", signInErr?.message || "unexpected success");
-
-// Check what error code is returned
-if (signInErr) {
-  console.log("Error code:", signInErr.code, "Status:", signInErr.status);
+const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, ONLI_TEST_EMAIL, ONLI_TEST_PASSWORD } = process.env;
+if (!VITE_SUPABASE_URL || !VITE_SUPABASE_ANON_KEY || !ONLI_TEST_EMAIL || !ONLI_TEST_PASSWORD) {
+  throw new Error("Provide Supabase and test account environment variables.");
 }
+const client = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+const { error } = await client.auth.signInWithPassword({ email: ONLI_TEST_EMAIL, password: ONLI_TEST_PASSWORD });
+console.log(error ? { ok: false, code: error.code } : { ok: true });
+if (!error) await client.auth.signOut({ scope: "local" });
+process.exitCode = error ? 1 : 0;

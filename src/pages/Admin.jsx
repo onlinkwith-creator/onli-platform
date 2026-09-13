@@ -1587,9 +1587,7 @@ function sanitizeRecipientEmail(email) {
   const createAdminUser = async () => {
     const email = adminAccountDraft.email.trim().toLowerCase();
     const authUserId = adminAccountDraft.auth_user_id.trim();
-    const currentEmail = user?.email?.trim().toLowerCase() || "";
-    const currentAdminRole =
-      currentEmail === "onlinkwith@gmail.com" ? "owner" : adminProfile?.role || "staff";
+    const currentAdminRole = adminProfile?.role || "staff";
 
     if (currentAdminRole !== "owner") {
       alert("owner 권한이 있는 관리자만 추가할 수 있습니다.");
@@ -5142,7 +5140,6 @@ function sanitizeRecipientEmail(email) {
               <AdminAccountsManagement
                 adminProfile={adminProfile}
                 adminUsers={adminUsers}
-                currentUser={user}
                 onOpenAdminAccountModal={openAdminAccountModal}
               />
             )}
@@ -5795,14 +5792,12 @@ function AdminAccountModal({
   saving,
 }) {
   // 현재 로그인 계정의 권한
-  const currentEmail = currentUser?.email?.trim().toLowerCase() || "";
   const currentAdminUser = adminUsers.find(
-    (adminUser) => adminUser.email?.trim().toLowerCase() === currentEmail && !adminUser.isFallback
+    (adminUser) =>
+      adminUser.auth_user_id === currentUser?.id && !adminUser.isFallback
   );
   const currentRole =
-    currentEmail === "onlinkwith@gmail.com"
-      ? "owner"
-      : currentAdminUser?.role || adminProfile?.role || "확인 필요";
+    currentAdminUser?.role || adminProfile?.role || "확인 필요";
   const currentAdminRole = currentRole || "staff";
   const canManageAdmins = currentAdminRole === "owner";
 
@@ -5881,7 +5876,7 @@ function AdminAccountModal({
             <MessageBox text="등록된 관리자 계정이 없습니다." />
           ) : (
             adminUsers.map((adminUser) => {
-              const isSelf = adminUser.email?.trim().toLowerCase() === currentEmail;
+              const isSelf = adminUser.auth_user_id === currentUser?.id;
               const isDbRegistered = !adminUser.isFallback;
               const loginStatus = adminUser.auth_user_id
                 ? (isSelf ? "현재 로그인 중" : "권한 연동됨")
@@ -12786,12 +12781,9 @@ function AdminMemoManagement({ items = [] }) {
 function AdminAccountsManagement({
   adminProfile,
   adminUsers,
-  currentUser,
   onOpenAdminAccountModal,
 }) {
-  const currentEmail = currentUser?.email?.trim().toLowerCase() || "";
-  const currentRole =
-    currentEmail === "onlinkwith@gmail.com" ? "owner" : adminProfile?.role || "staff";
+  const currentRole = adminProfile?.role || "staff";
 
   return (
     <section className="admin-section">

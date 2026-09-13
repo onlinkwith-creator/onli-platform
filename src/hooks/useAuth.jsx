@@ -1,21 +1,6 @@
 import { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 
-const FALLBACK_ADMIN_EMAILS = [
-  "onlinkwith@gmail.com",
-  "onlinkcp@gmail.com",
-];
-
-export const ADMIN_EMAILS = parseAdminEmails(import.meta.env.VITE_ADMIN_EMAILS);
-
-function parseAdminEmails(value) {
-  const emails = String(value || "")
-    .split(",")
-    .map(normalizeEmail)
-    .filter((email) => email.includes("@"));
-  return emails.length > 0 ? emails : FALLBACK_ADMIN_EMAILS;
-}
-
 export function normalizeEmail(value) {
   if (typeof value !== "string") return "";
   return value.trim().toLowerCase();
@@ -23,22 +8,16 @@ export function normalizeEmail(value) {
 
 /**
  * 관리자 판정 통합 함수
- * 1순위: onlinkwith@gmail.com owner fallback
- * 2순위: admin_users DB 레코드 (email 일치 && status === "active")
+ * admin_users의 Auth 사용자 연결과 활성 상태로만 관리자 권한을 판정합니다.
  */
 export function isAdminUser(user, adminProfile) {
   if (!user) return false;
-  const email = normalizeEmail(user.email);
-  if (!email) return false;
-  // 1. owner fallback
-  if (ADMIN_EMAILS.includes(email)) return true;
-  // 2. DB 레코드 기반
-  if (
+  return Boolean(
     adminProfile &&
-    normalizeEmail(adminProfile.email) === email &&
-    adminProfile.status === "active"
-  ) return true;
-  return false;
+      adminProfile.auth_user_id === user.id &&
+      adminProfile.status === "active" &&
+      ["owner", "admin", "staff"].includes(adminProfile.role)
+  );
 }
 
 function getAuthError() {
@@ -88,7 +67,6 @@ export function AuthProvider({ children }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
-      console.log("onAuthStateChange event:", event, nextSession);
       setSession(nextSession || null);
       setUser(nextSession?.user || null);
       setAuthReady(true);
@@ -100,7 +78,7 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // admin_users 테이블에서 프로필 조회 (실패해도 이메일 백업으로 판정)
+  // admin_users 테이블에서 현재 Auth 사용자와 연결된 관리자 프로필을 조회합니다.
   useEffect(() => {
     if (!authReady) return;
 
@@ -113,18 +91,16 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     const fetchAdminProfile = async () => {
-      const email = normalizeEmail(user.email);
       const { data, error } = await supabase
         .from("admin_users")
-        .select("id, email, role, status, created_at")
-        .ilike("email", email)
+        .select("id, auth_user_id, email, role, status, created_at")
+        .eq("auth_user_id", user.id)
         .maybeSingle();
 
       if (!mounted) return;
 
       if (error) {
-        // 테이블이 없거나 조회 실패 시 → 이메일 백업으로 판정
-        console.warn("admin_users fetch skipped (table may not exist):", error.message);
+        console.warn("admin_users fetch failed:", error.message);
         setAdminProfile(null);
       } else {
         setAdminProfile(data || null);
