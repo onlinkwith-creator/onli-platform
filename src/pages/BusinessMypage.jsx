@@ -309,10 +309,7 @@ function BusinessMypage({
       // Fetch requests
       setLoadingData(true);
       const { data: reqData, error: reqError } = await supabase
-        .from("requests")
-        .select("*")
-        .eq("company_auth_user_id", user.id)
-        .order("created_at", { ascending: false });
+        .rpc("get_portal_requests");
 
       if (reqError) {
         console.error("Error fetching requests:", reqError);
@@ -324,56 +321,9 @@ function BusinessMypage({
           const requestIds = fetchedRequests.map((r) => r.id);
 
           // 1. Fetch assigned interpreters
-          let assignmentResult = await supabase
-            .from("request_interpreters")
-            .select(`
-              id,
-              request_id,
-              interpreter_id,
-              contact_visible,
-              interpreter:interpreters (
-                id,
-                name,
-                level,
-                auth_user_id,
-                approved,
-                jlpt,
-                specialties,
-                experience_count,
-                phone,
-                kakao_or_line,
-                email
-              )
-            `)
-            .in("request_id", requestIds);
-
-          if (assignmentResult.error) {
-            console.error(
-              "request_interpreters contact_visible select failed",
-              assignmentResult.error
-            );
-            assignmentResult = await supabase
-              .from("request_interpreters")
-              .select(`
-                id,
-                request_id,
-                interpreter_id,
-                interpreter:interpreters (
-                  id,
-                  name,
-                  level,
-                  auth_user_id,
-                  approved,
-                  jlpt,
-                  specialties,
-                  experience_count,
-                  phone,
-                  kakao_or_line,
-                  email
-                )
-              `)
-              .in("request_id", requestIds);
-          }
+          const assignmentResult = await supabase.rpc("get_company_portal_assignments", {
+            p_request_ids: requestIds,
+          });
 
           const assignData = assignmentResult.data;
           const assignError = assignmentResult.error;
@@ -387,10 +337,7 @@ function BusinessMypage({
             }));
             console.log("assigned interpreter raw", baseAssignments);
             let revealedContactRows = [];
-            const revealedContactResult = await supabase.rpc(
-              "get_company_assignment_interpreter_contacts",
-              { p_request_ids: requestIds }
-            );
+            const revealedContactResult = { data: [], error: null };
 
             if (revealedContactResult.error) {
               console.error("company assignment interpreter contacts fetch failed", revealedContactResult.error);

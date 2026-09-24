@@ -1011,7 +1011,7 @@ function InterpreterMypage({
     if (assignedRequestIds.length === 0) return [];
 
     const [requestResult, settlementResult] = await Promise.all([
-      supabase.from("requests").select("*").in("id", assignedRequestIds),
+      supabase.rpc("get_portal_requests", { p_request_ids: assignedRequestIds }),
       supabase.from("settlements").select("*")
         .eq("interpreter_id", interpreterId)
         .in("request_id", assignedRequestIds)

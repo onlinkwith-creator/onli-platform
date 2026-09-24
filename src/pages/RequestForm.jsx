@@ -13,11 +13,6 @@ import {
   OPERATION_STATUS,
   SETTLEMENT_FLOW_STATUS,
 } from "../utils/operationsStatus";
-import {
-  MANAGEMENT_NUMBER_CONFIG,
-  addManagementNumber,
-  isManagementNumberConflict,
-} from "../utils/managementNumber";
 import { normalizeRequestType } from "../utils/designatedRequest";
 import "./RequestForm.css";
 
@@ -273,7 +268,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       throw error;
     }
 
-    const filePath = getReferenceStoragePath(file);
+    const filePath = getReferenceStoragePath(file, user.id);
 
     const { error } = await supabase.storage
       .from(requestReferenceBucket)
@@ -335,6 +330,11 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
 
     if (!supabase) {
       setErrorMessage(supabaseConfigError.message);
+      return;
+    }
+
+    if (!user?.id) {
+      setErrorMessage("기업 계정으로 로그인한 후 의뢰해주세요.");
       return;
     }
 
@@ -454,73 +454,10 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       selected_interpreter_id: interpreter?.id || null,
       selected_interpreter_name: interpreter?.name || "",
     };
-    const managementConfig = MANAGEMENT_NUMBER_CONFIG.requests;
-    let insertPayload = await addManagementNumber({
-      supabase,
-      table: "requests",
-      payload: designatedPayload,
-      ...managementConfig,
+    const insertPayload = designatedPayload;
+    const { data, error } = await supabase.rpc("submit_company_request", {
+      p_payload: insertPayload,
     });
-
-    console.log("COMPANY REQUEST BEFORE DB INSERT");
-
-    let { data, error } = await supabase
-      .from("requests")
-      .insert([insertPayload])
-      .select("id")
-      .single();
-
-    if (isManagementNumberConflict(error, managementConfig.column)) {
-      insertPayload = await addManagementNumber({
-        supabase,
-        table: "requests",
-        payload: designatedPayload,
-        ...managementConfig,
-      });
-      const retryResult = await supabase
-        .from("requests")
-        .insert([insertPayload])
-        .select("id")
-        .single();
-      data = retryResult.data;
-      error = retryResult.error;
-    }
-
-    console.log("COMPANY REQUEST DB INSERT RESULT", {
-      data,
-      error,
-    });
-
-    if (error && isMissingColumnError(error)) {
-      const legacyRequestPayload = { ...requestPayload };
-      delete legacyRequestPayload.assignment_status;
-      delete legacyRequestPayload.operation_status;
-      delete legacyRequestPayload.settlement_status;
-      delete legacyRequestPayload.matching_status;
-      delete legacyRequestPayload.request_type;
-      delete legacyRequestPayload.admin_checked;
-      delete legacyRequestPayload.checked_at;
-      delete legacyRequestPayload.request_no;
-      delete legacyRequestPayload.reference_file_name;
-      delete legacyRequestPayload.reference_file_path;
-      delete legacyRequestPayload.reference_file_url;
-      delete legacyRequestPayload.event_start_time;
-      delete legacyRequestPayload.event_end_time;
-      delete legacyRequestPayload.language_direction;
-      delete legacyRequestPayload.materials_available;
-      delete legacyRequestPayload.estimate_status;
-      const fallbackResult = await supabase
-        .from("requests")
-        .insert([legacyRequestPayload])
-        .select("id")
-        .single();
-      data = fallbackResult.data;
-      error = fallbackResult.error;
-      console.log("COMPANY REQUEST DB INSERT FALLBACK RESULT", {
-        data,
-        error,
-      });
-    }
 
     if (error) {
       if (isAgreementColumnError(error)) {
@@ -534,7 +471,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       });
       console.error("request insert error:", error);
       const message = isSupabasePermissionError(error)
-        ? "통역사는 통역 의뢰를 할 수 없습니다."
+        ? "승인된 기업 계정으로 로그인한 후 의뢰해주세요."
         : "의뢰 저장에 실패했습니다. 다시 시도해주세요.";
       setErrorMessage(message);
       alert(message);
@@ -917,13 +854,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
   );
 }
 
-function isMissingColumnError(error) {
-  return (
-    error?.code === "42703" ||
-    error?.code === "PGRST204" ||
-    /column|schema cache/i.test(error?.message || "")
-  );
-}
 function isSupabasePermissionError(error) {
   if (!error) return false;
   const message = String(error.message || "").toLowerCase();
@@ -970,12 +900,12 @@ function getReferenceFileValidationMessage(file) {
   return "";
 }
 
-function getReferenceStoragePath(file) {
+function getReferenceStoragePath(file, userId) {
   const extension = getFileExtension(file.name) || "bin";
   const timestamp = getStorageTimestamp();
   const storageId = getStorageId().replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
 
-  return `requests/reference_files/request_${timestamp}_${storageId}.${extension}`;
+  return `${userId}/requests/reference_files/request_${timestamp}_${storageId}.${extension}`;
 }
 
 function getFileExtension(fileName) {

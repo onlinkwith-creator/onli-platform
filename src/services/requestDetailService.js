@@ -86,16 +86,9 @@ export function normalizeRequestDetail(request, businessProfile = null, companyL
 }
 
 export async function fetchRequestDetail(client, requestId) {
-  const rows = await fetchRequestRows(client, { requestIds: [requestId] });
-  const request = rows[0] || null;
+  const { data, error } = await client.rpc("get_portal_requests", { p_request_ids: [requestId] });
+  if (error) throw error;
+  const request = data?.[0] || null;
   if (!request) return null;
-  try {
-    const businessProfile = await fetchRequestBusinessProfile(client, request);
-    if ((request.company_id || request.company_auth_user_id) && !businessProfile) {
-      return normalizeRequestDetail(request, null, new Error("Linked business profile was not returned"));
-    }
-    return normalizeRequestDetail(request, businessProfile);
-  } catch (error) {
-    return normalizeRequestDetail(request, null, error);
-  }
+  return normalizeRequestDetail(request, request.business_profile || null);
 }
