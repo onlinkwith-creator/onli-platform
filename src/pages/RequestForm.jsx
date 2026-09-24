@@ -5,7 +5,6 @@ import TermsAgreement, {
 } from "../components/TermsAgreement";
 import DateRangeInput from "../components/DateRangeInput";
 import { supabase, supabaseConfigError } from "../supabase";
-import { ADMIN_EMAILS, getEmailRecipient, sendAutoEmail } from "../lib/email";
 import { getUrgency } from "../utils/pricing";
 import { MATCHING_STATUS } from "../utils/status";
 import {
@@ -455,7 +454,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       selected_interpreter_name: interpreter?.name || "",
     };
     const insertPayload = designatedPayload;
-    const { data, error } = await supabase.rpc("submit_company_request", {
+    const { error } = await supabase.rpc("submit_company_request", {
       p_payload: insertPayload,
     });
 
@@ -476,105 +475,6 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       setErrorMessage(message);
       alert(message);
       return;
-    }
-
-    const companyEmail = getEmailRecipient(
-      form.contactEmail,
-      requestPayload.email,
-      requestPayload.contact_email_or_phone
-    );
-    const emailPayload = {
-      requestId: data?.id || "",
-      request_id: data?.id || "",
-      companyName: requestPayload.company_name,
-      contactName: requestPayload.contact_name,
-      contactEmail: companyEmail || requestPayload.contact_email_or_phone,
-      contact: requestPayload.contact_email_or_phone,
-      eventName: requestPayload.event_name,
-      date:
-        requestPayload.start_date === requestPayload.end_date
-          ? requestPayload.start_date
-          : `${requestPayload.start_date} ~ ${requestPayload.end_date}`,
-      location: requestPayload.event_location,
-      requestedLevel: requestPayload.requested_level,
-      requestedPeopleCount: requestPayload.requested_people_count,
-      languageDirection: requestPayload.language_direction,
-      eventTime: formatTimeRange(form.startTime, form.endTime),
-      interpretationField: requestPayload.interpretation_field,
-      interpretationTypes: form.interpretationTypes.join(", "),
-      requestDetails: form.requestDetails || "-",
-      designatedInterpreterName: interpreter?.name || "",
-    };
-
-    console.log("COMPANY REQUEST SUCCESS - START EMAILS", companyEmail);
-    console.log("COMPANY REQUEST START EMAIL FLOW");
-    console.log("COMPANY EMAIL TARGET:", companyEmail);
-
-    try {
-      if (companyEmail) {
-        const result = await sendAutoEmail(
-          "company_request_received_user",
-          companyEmail,
-          emailPayload
-        );
-        if (!result.ok) console.error("Company email failed", result.error || result);
-      } else {
-        console.warn("SKIP company_request_received_user: no email", form);
-        console.warn(
-          "EMAIL SKIPPED: SKIP COMPANY EMAIL: company email is empty",
-          {
-            form,
-            requestPayload,
-            companyEmail,
-          }
-        );
-      }
-    } catch (error) {
-      console.error("USER EMAIL FAILED", error);
-      console.error("Company email failed", error);
-    }
-
-    if (interpreter?.id) {
-      try {
-        console.log("DESIGNATED INTERPRETER EMAIL START");
-        const result = await sendAutoEmail(
-          "designated_request_received_interpreter",
-          "",
-          {
-            ...emailPayload,
-            interpreterId: interpreter.id,
-            interpreter_id: interpreter.id,
-            interpreterName: interpreter.name || "",
-          }
-        );
-        if (!result.ok) {
-          console.error("Designated interpreter email failed", result.error || result);
-        } else {
-          console.log("Designated interpreter email sent successfully", {
-            interpreterId: interpreter.id,
-            resolvedInBrowser: false,
-          });
-        }
-      } catch (error) {
-        console.error("DESIGNATED INTERPRETER EMAIL FAILED", error);
-      }
-    }
-
-    try {
-      console.log("COMPANY ADMIN EMAIL START");
-      const result = await sendAutoEmail(
-        "company_request_received_admin",
-        ADMIN_EMAILS,
-        {
-          ...emailPayload,
-          companyName: form.companyName,
-          email: companyEmail,
-        }
-      );
-      if (!result.ok) console.error("Company admin email failed", result.error || result);
-    } catch (error) {
-      console.error("ADMIN EMAIL FAILED", error);
-      console.error("Company admin email failed", error);
     }
 
     alert(
