@@ -30,7 +30,9 @@ try {
       agreed_policy boolean,agreed_at timestamptz,created_at timestamptz default now(),
       company_amount numeric default 0,interpreter_payment numeric default 0,
       platform_profit numeric default 0,profit numeric default 0,admin_memo text,
-      status text default 'pending',request_type text,interpreter_id bigint,interpreter_name text,
+      status text default 'pending',matching_status text default 'pending',
+      assignment_status text default 'assignment_pending',request_type text,
+      interpreter_id bigint,interpreter_name text,
       reference_file_path text,reference_file_url text,storage_folder_id text);
     create table request_interpreters(id bigint primary key,request_id bigint,
       interpreter_id bigint,status text,contact_visible boolean);
@@ -151,13 +153,16 @@ try {
   assert.equal(inserted.company_amount,'0');
   assert.equal(inserted.profit,'0');
   assert.equal(inserted.status,'pending');
+  assert.equal(inserted.matching_status,'draft');
+  assert.equal(inserted.assignment_status,'assignment_pending');
   const designated = await rows('select submit_company_request($1::jsonb) as data',[JSON.stringify({
     ...payload,request_type:'designated',interpreter_id:1,interpreter_name:'FORGED'
   })]);
   await db.exec('reset role');
-  const designatedRow = (await rows('select interpreter_id,interpreter_name from requests where id=$1',[designated[0].data.id]))[0];
+  const designatedRow = (await rows('select interpreter_id,interpreter_name,assignment_status from requests where id=$1',[designated[0].data.id]))[0];
   assert.equal(Number(designatedRow.interpreter_id),1);
   assert.equal(designatedRow.interpreter_name,'Interpreter A');
+  assert.equal(designatedRow.assignment_status,'assignment_in_progress');
   await login(company);
   await assert.rejects(rows('select submit_company_request($1::jsonb)',[JSON.stringify({
     ...payload,request_type:'designated',interpreter_id:2

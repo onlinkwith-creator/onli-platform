@@ -199,6 +199,9 @@ begin
     safe:=safe||jsonb_build_object('interpreter_id',selected_interpreter.id,
       'interpreter_name',selected_interpreter.name);
   end if;
+  safe:=safe||jsonb_build_object('matching_status','draft',
+    'assignment_status',case when safe->>'request_type'='designated'
+      then 'assignment_in_progress' else 'assignment_pending' end);
   safe:=safe||jsonb_build_object('company_auth_user_id',auth.uid(),'company_id',business.id,
     'company_name',business.company_name,'contact_name',business.contact_name,'manager_name',business.contact_name,
     'email',business.contact_email,'phone',business.contact_phone,
