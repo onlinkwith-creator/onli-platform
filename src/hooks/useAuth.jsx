@@ -38,15 +38,15 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [adminProfile, setAdminProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [resolvedAdminUserId, setResolvedAdminUserId] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  const loading = !authReady || Boolean(user && resolvedAdminUserId !== user.id);
   const authError = getAuthError();
 
   useEffect(() => {
     if (!supabase) {
       queueMicrotask(() => {
         setAuthReady(true);
-        setLoading(false);
       });
       return undefined;
     }
@@ -84,7 +84,7 @@ export function AuthProvider({ children }) {
 
     if (!supabase || !user) {
       setAdminProfile(null);
-      setLoading(false);
+      setResolvedAdminUserId(null);
       return;
     }
 
@@ -106,7 +106,7 @@ export function AuthProvider({ children }) {
         setAdminProfile(data || null);
       }
 
-      setLoading(false);
+      setResolvedAdminUserId(user.id);
     };
 
     fetchAdminProfile();
