@@ -5,7 +5,6 @@ import TermsAgreement, {
   initialTermsAgreement,
 } from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
-import { ADMIN_EMAILS, sendAutoEmail } from "../lib/email";
 import {
   MANAGEMENT_NUMBER_CONFIG,
   addManagementNumber,
@@ -149,11 +148,6 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
     availableTasks: "",
   });
   const authEmail = normalizeEmail(authUser?.email);
-
-  useEffect(() => {
-    if (!authEmail) return;
-    setForm((current) => ({ ...current, email: authEmail }));
-  }, [authEmail]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -317,6 +311,7 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       ...profilePayload,
       approved: false,
       status: "pending",
+      is_public: false,
     };
     const existingInterpreter = await findExistingInterpreterProfile(user, userEmail);
     const isReactivatingWithdrawn = isWithdrawnProfile(existingInterpreter);
@@ -331,8 +326,9 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
         auth_user_id: user.id,
         ...(isReactivatingWithdrawn
           ? {
-              status: "active",
-              is_public: true,
+              status: "pending",
+              approved: false,
+              is_public: false,
               withdrawn_at: null,
             }
           : {}),
@@ -395,72 +391,10 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
       kakaoId: profilePayload.kakao_or_line,
     });
 
-    console.log("INTERPRETER REGISTER SUCCESS");
-    console.log("REGISTER FORM EMAIL CHECK", {
-      email: form.email,
-      mail: form.mail,
-      interpreter_email: form.interpreter_email,
-      contact_email: form.contact_email,
-    });
-
-    const interpreterEmail = (
-      form.email ||
-      form.mail ||
-      form.interpreter_email ||
-      form.contact_email ||
-      ""
-    ).trim();
-
-    console.log("INTERPRETER USER EMAIL TARGET", interpreterEmail);
-
-    if (interpreterEmail) {
-      try {
-        console.log("SEND interpreter_registered_user START", interpreterEmail);
-
-        const result = await sendAutoEmail("interpreter_registered_user", interpreterEmail, {
-          requestId: data?.id || "",
-          interpreterId: data?.id || "",
-          name: form.name,
-          email: interpreterEmail,
-        });
-
-        if (!result.ok) {
-          console.error("interpreter_registered_user failed", result.error || result);
-        }
-
-        console.log("SEND interpreter_registered_user DONE");
-      } catch (e) {
-        console.error("interpreter_registered_user failed", e);
-      }
-    } else {
-      console.warn("SKIP interpreter_registered_user: no interpreter email", form);
-    }
-
-    try {
-      console.log("SEND interpreter_registered_admin START");
-
-      const result = await sendAutoEmail("interpreter_registered_admin", ADMIN_EMAILS, {
-        requestId: data?.id || "",
-        interpreterId: data?.id || "",
-        name: form.name,
-        email: interpreterEmail,
-        phone: form.phone,
-        kakaoOrLine: form.kakaoOrLine.trim(),
-      });
-
-      if (!result.ok) {
-        console.error("interpreter_registered_admin failed", result.error || result);
-      }
-
-      console.log("SEND interpreter_registered_admin DONE");
-    } catch (e) {
-      console.error("interpreter_registered_admin failed", e);
-    }
-
     setAgreements(initialTermsAgreement);
     setSuccessMessage(
       isReactivatingWithdrawn
-        ? "재가입 신청이 완료되었습니다. 프로필 정보가 다시 활성화되었습니다."
+        ? "재가입 신청이 완료되었습니다. 관리자 승인 후 활동할 수 있습니다."
         : "등록 신청이 완료되었습니다. 승인 후 마이페이지 이용을 위해 통역사 계정을 생성해주세요."
     );
     setTimeout(() => {

@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "lint": "eslint .",
-    "test:security": "node scripts/test-portal-security.mjs",
+    "test:security": "node scripts/test-portal-security.mjs && node scripts/test-interpreter-security.mjs",
     "preview": "vite preview",
     "seed:test-requests": "node scripts/seed-test-requests.mjs"
   },
