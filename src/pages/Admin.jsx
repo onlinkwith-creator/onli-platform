@@ -82,7 +82,7 @@ import {
   normalizeOperationStatus,
   normalizeSettlementFlowStatus,
 } from "../utils/operationsStatus";
-import { getEmailRecipient, sendAdminAutoEmail, sendAutoEmail } from "../lib/email";
+import { getEmailRecipient } from "../lib/email";
 import {
   getDesignatedInterpreterName,
   getRequestTypeLabel,
@@ -2347,17 +2347,11 @@ function sanitizeRecipientEmail(email) {
     }
 
     const interpreter = interpreters.find((item) => item.id === id);
-    const isNewApproval =
-      updatePayload.status === "active" &&
-      interpreter &&
-      interpreter.status !== "active";
     const nextInterpreter = data[0] || { ...interpreter, ...updatePayload };
-    const shouldSendResumeVerifiedEmail =
+    const resumeVerificationQueued =
       interpreter &&
       isInterpreterResumeVerificationComplete(nextInterpreter) &&
-      !isInterpreterResumeVerificationComplete(interpreter) &&
-      !getResumeVerifiedEmailSentAt(interpreter) &&
-      !getResumeVerifiedEmailSentAt(nextInterpreter);
+      !isInterpreterResumeVerificationComplete(interpreter);
 
     setInterpreters((current) =>
       current.map((item) => (item.id === id ? { ...item, ...nextInterpreter } : item))
@@ -2366,66 +2360,12 @@ function sanitizeRecipientEmail(email) {
       current?.id === id ? { ...current, ...nextInterpreter } : current
     );
 
-    if (isNewApproval) {
-      void sendAutoEmail("interpreter_approved", interpreter.email, {
-        requestId: interpreter.id,
-        interpreterId: interpreter.id,
-        name: interpreter.name,
-        email: interpreter.email,
-        availableRegions: formatListOrMissing(interpreter.available_regions),
-        specialties: formatListOrMissing(interpreter.specialties),
-      });
-    }
-
     let resumeVerifiedFeedback = "";
-    if (shouldSendResumeVerifiedEmail) {
+    if (resumeVerificationQueued) {
       const recipientEmail = getInterpreterVerificationEmail(nextInterpreter);
-
-      if (!recipientEmail) {
-        resumeVerifiedFeedback =
-          "검증 완료 처리됨. 등록 이메일이 없어 안내 메일은 발송되지 않았습니다.";
-      } else {
-        const emailResult = await sendAutoEmail("resume_verified", recipientEmail, {
-          requestId: nextInterpreter.id,
-          interpreterId: nextInterpreter.id,
-          name: nextInterpreter.name,
-          email: recipientEmail,
-          dedupeKey: `resume_verified:${nextInterpreter.id}`,
-        });
-
-        if (emailResult.ok) {
-          const sentAt = new Date().toISOString();
-          const timestampResult = await updateInterpreterResumeVerifiedEmailSentAt(
-            nextInterpreter.id,
-            sentAt
-          );
-
-          if (!timestampResult.error) {
-            nextInterpreter.resume_verified_email_sent_at = sentAt;
-            setInterpreters((current) =>
-              current.map((item) =>
-                item.id === id
-                  ? { ...item, resume_verified_email_sent_at: sentAt }
-                  : item
-              )
-            );
-            setSelectedInterpreter((current) =>
-              current?.id === id
-                ? { ...current, resume_verified_email_sent_at: sentAt }
-                : current
-            );
-          } else {
-            console.error("검증 완료 이메일 발송 시각 저장 실패:", timestampResult.error);
-          }
-
-          resumeVerifiedFeedback =
-            "이력서 검증 완료 처리 및 안내 이메일 발송이 완료되었습니다.";
-        } else {
-          console.error("이력서 검증 완료 안내 이메일 발송 실패:", emailResult.error || emailResult);
-          resumeVerifiedFeedback =
-            "검증 완료 처리는 완료되었지만 안내 이메일 발송에 실패했습니다.";
-        }
-      }
+      resumeVerifiedFeedback = recipientEmail
+        ? "검증 완료 안내가 알림 대기열에 등록되었습니다. 알림 관리에서 발송해주세요."
+        : "검증 완료 처리됨. 등록 이메일이 없어 안내 메일은 대기열에 등록되지 않았습니다.";
     }
 
     await fetchAdminData();
@@ -2816,32 +2756,6 @@ function sanitizeRecipientEmail(email) {
     setSelectedRequest((current) =>
       current?.id === id ? { ...current, ...payload, ...(data || {}) } : current
     );
-
-    const shouldSendUnderReviewEmail =
-      changes.contact_status === "contacted" &&
-      request?.contact_status !== "contacted";
-    const companyEmail = getEmailRecipient(
-      request?.company_email,
-      request?.contact_email,
-      request?.email,
-      request?.contact_email_or_phone
-    );
-
-    if (shouldSendUnderReviewEmail) {
-      void sendAutoEmail("company_request_under_review", companyEmail, {
-        requestId: id,
-        request_id: id,
-        companyName: request?.company_name || "",
-        contactName: request?.contact_name || request?.manager_name || "",
-        eventName: request?.event_name || "",
-        date: formatDateRange(
-          request?.start_date,
-          request?.end_date,
-          request?.event_date
-        ),
-        location: request?.event_location || "",
-      });
-    }
 
     await fetchAdminData();
     await refreshAdminOperationsData();
@@ -3968,53 +3882,8 @@ function sanitizeRecipientEmail(email) {
     setAssignmentDrafts((current) => ({ ...current, [requestId]: "" }));
     await updateMatchingApplicationStatus(request, interpreter, APPLICATION_STATUS.ACCEPTED);
 
-    const matchingEmailPayload = {
-      requestId,
-      request_id: requestId,
-      interpreterId: interpreter?.id || "",
-      name: interpreter?.name || "",
-      interpreterName: interpreter?.name || "",
-      jobTitle:
-        selectedJob?.title ||
-        request?.event_name ||
-        request?.company_name ||
-        "ON-LI 통역 의뢰",
-      eventName: request?.event_name || selectedJob?.event_name || selectedJob?.title || "",
-      companyName: selectedJob?.company_name || request?.company_name || "",
-      contactName: request?.contact_name || request?.manager_name || "",
-      date: formatDateRange(
-        request?.start_date || selectedJob?.start_date,
-        request?.end_date || selectedJob?.end_date,
-        request?.event_date || selectedJob?.event_date || selectedJob?.date
-      ),
-      location:
-        request?.event_location ||
-        selectedJob?.event_location ||
-        selectedJob?.location ||
-        "",
-    };
-    const companyEmail = getEmailRecipient(
-      request?.company_email,
-      request?.contact_email,
-      request?.email,
-      request?.contact_email_or_phone
-    );
-
-    void Promise.all([
-      sendAutoEmail(
-        "interpreter_matching_confirmed",
-        interpreter?.email,
-        matchingEmailPayload
-      ),
-      sendAutoEmail(
-        "company_matching_confirmed",
-        companyEmail,
-        matchingEmailPayload
-      ),
-      sendAdminAutoEmail("company_matching_confirmed", matchingEmailPayload),
-    ]);
-
     await fetchAdminData();
+    await refreshAdminOperationsData();
     const { data: latestRequest } = await supabase
       .from("requests")
       .select("*")
@@ -18279,34 +18148,12 @@ function isInterpreterResumeVerificationComplete(interpreter = {}) {
   );
 }
 
-function getResumeVerifiedEmailSentAt(interpreter = {}) {
-  return interpreter.resume_verified_email_sent_at || "";
-}
-
 function getInterpreterVerificationEmail(interpreter = {}) {
   return getEmailRecipient(
     interpreter.email,
     interpreter.contact_email,
     interpreter.applicant_email
   );
-}
-
-async function updateInterpreterResumeVerifiedEmailSentAt(interpreterId, sentAt) {
-  const { data, error } = await supabase
-    .from("interpreters")
-    .update({ resume_verified_email_sent_at: sentAt })
-    .eq("id", interpreterId)
-    .select("id, resume_verified_email_sent_at")
-    .single();
-
-  if (!error) return { data, error: null };
-
-  if (isMissingColumnError(error)) {
-    console.warn("resume_verified_email_sent_at 컬럼이 없어 발송 시각 저장을 건너뜁니다.", error);
-    return { data: null, error: null, skipped: true };
-  }
-
-  return { data: null, error };
 }
 
 function toNonNegativeInteger(value) {
