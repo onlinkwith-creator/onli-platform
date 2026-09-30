@@ -29,6 +29,10 @@ try {
     end; $$;
   `);
   await db.exec(await readFile(new URL('../supabase/migrations/20260930090000_queue_admin_workflow_notifications.sql', import.meta.url), 'utf8'));
+  const privileges = (await db.query(`select
+    has_function_privilege('anon','public.enqueue_notification_event_v2(text,text,text,text,text,text,jsonb,text,text,text,uuid,uuid,uuid,text)','EXECUTE') as anon,
+    has_function_privilege('authenticated','public.enqueue_notification_event_v2(text,text,text,text,text,text,jsonb,text,text,text,uuid,uuid,uuid,text)','EXECUTE') as authenticated`)).rows[0];
+  assert.deepEqual(privileges, { anon: false, authenticated: false });
   const events = async () => (await db.query('select event_type,target_id,recipient_type,recipient_email from queued order by event_type')).rows;
 
   await db.query(`insert into interpreters values(1,$1,'i@example.test','Interpreter','pending',false,array['Seoul'],array['IT'])`, [interpreterId]);
