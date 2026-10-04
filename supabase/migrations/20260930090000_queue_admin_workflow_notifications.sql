@@ -42,7 +42,9 @@ begin
 
   select contact_email,company_name,contact_name into company
   from public.businesses where auth_user_id=new.company_auth_user_id;
-  company.contact_email := coalesce(nullif(trim(company.contact_email), ''), nullif(trim(new.email), ''));
+  company.contact_email := coalesce(nullif(trim(company.contact_email), ''),
+    nullif(trim(to_jsonb(new)->>'contact_email'), ''),
+    nullif(trim(to_jsonb(new)->>'email'), ''));
   if company.contact_email is null then return new; end if;
 
   perform public.enqueue_notification_event_v2(
@@ -66,8 +68,11 @@ create or replace function public.queue_company_assignment_notification()
 returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
 declare request_row record; company record; interpreter_row record;
 begin
-  select company_auth_user_id,company_name,event_name,event_location,email,contact_name into request_row
-  from public.requests where id=new.request_id;
+  select r.company_auth_user_id,r.company_name,r.event_name,
+    coalesce(to_jsonb(r)->>'event_location',to_jsonb(r)->>'location') as event_location,
+    coalesce(to_jsonb(r)->>'contact_email',to_jsonb(r)->>'email') as email,
+    r.contact_name into request_row
+  from public.requests r where r.id=new.request_id;
   select contact_email,company_name,contact_name into company
   from public.businesses where auth_user_id=request_row.company_auth_user_id;
   company.contact_email := coalesce(nullif(trim(company.contact_email), ''), nullif(trim(request_row.email), ''));
