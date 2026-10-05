@@ -4560,6 +4560,7 @@ function sanitizeRecipientEmail(email) {
               ))}
             </section>
 
+            <div className="admin-mobile-operation-grid">
             <OperationOverview
               todayItems={operationDashboard.todayItems}
               urgentItems={operationDashboard.urgentItems}
@@ -4574,6 +4575,7 @@ function sanitizeRecipientEmail(email) {
               items={processingTaskItems}
               onOpenItem={(item) => handleDashboardShortcut(item.targetSubTab)}
             />
+            </div>
 
             <ProcessingQueue
               items={processingQueueItems}
