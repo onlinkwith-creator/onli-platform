@@ -1,6 +1,31 @@
-.company-applicants { padding: 24px; background: #fff; min-width: 0; }
-.company-applicant-filter { display: grid; gap: 8px; margin: 20px 0; }
-.company-applicant-filter select { width: 100%; min-width: 0; padding: 10px; border: 1px solid #dce2e8; border-radius: 6px; font: inherit; }
+.company-applicants { padding: 24px; background: #fff; min-width: 0; text-align: left; color: #0d253d; color-scheme: light; border: 1px solid #e2e7ed; border-radius: 8px; letter-spacing: 0; }
+.company-applicant-filter { display: grid; gap: 8px; margin: 20px 0 24px; text-align: left; }
+.company-applicant-filter > span { color: #59697b; font-size: 12px; font-weight: 700; }
+.company-applicant-select-wrap { position: relative; min-width: 0; }
+.company-applicant-filter select {
+  appearance: none;
+  color-scheme: light;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 44px 12px 14px;
+  border: 1px solid #d5dde8;
+  border-radius: 8px;
+  background: #f7f9fb;
+  color: #0d253d;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.company-applicant-filter select:hover { background: #fff; border-color: #a4b0cb; }
+.company-applicant-filter select:focus-visible { outline: 2px solid #4455a8; outline-offset: 3px; }
+.company-applicant-select-wrap > svg { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #4455a8; pointer-events: none; }
+.company-applicant-filter option { color: #0d253d; background: #fff; }
+.company-applicants .data-count-label { text-align: left; }
 .company-applicant-row { border-top: 1px solid #e4e8ed; padding: 18px 0; overflow-wrap: anywhere; }
 .company-applicant-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .company-applicant-heading h3 { margin: 0; font-size: 16px; }
@@ -16,4 +41,7 @@
 @media (max-width: 600px) {
   .company-applicants { padding: 16px; }
   .company-applicant-profile { grid-template-columns: minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .company-applicant-filter select { transition: none; }
 }

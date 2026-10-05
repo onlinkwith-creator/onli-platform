@@ -59,11 +59,14 @@ export default function CompanyApplicants({ requests, initialRequestId = "" }) {
       {requests.length === 0 ? <p className="loading-placeholder">등록된 의뢰가 없습니다.</p> : <>
         <label className="company-applicant-filter">
           <span>의뢰 선택</span>
+          <div className="company-applicant-select-wrap">
           <select value={String(requestId)} onChange={(event) => setSelectedId(event.target.value)}>
             {requests.map((request) => <option key={request.id} value={request.id}>
               {request.request_no || `의뢰 ${request.id}`} · {request.event_name || request.title || "통역 의뢰"}
             </option>)}
           </select>
+          <ChevronDown size={18} aria-hidden="true" />
+          </div>
         </label>
         {!selected?.job_id ? <p className="loading-placeholder">공고 공개 준비 중입니다.</p>
           : loading ? <p role="status" className="loading-placeholder">지원자를 불러오는 중입니다.</p>
