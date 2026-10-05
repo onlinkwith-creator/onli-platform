@@ -3629,3 +3629,35 @@
     transition: none !important;
   }
 }
+.resume-template-download-row {
+  display: flex;
+  margin: 16px 0 20px;
+}
+
+.resume-template-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #d4ddec;
+  border-radius: 8px;
+  background: #f7f9fc;
+  color: #354b85;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-decoration: none;
+  box-sizing: border-box;
+  max-width: 100%;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.resume-template-download:hover { background: #eef2fb; border-color: #a9b8d5; }
+.resume-template-download:focus-visible { outline: 2px solid #4455a8; outline-offset: 3px; }
+.resume-template-format { font-size: 11px; color: #61718a; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) {
+  .resume-template-download { transition: none; }
+}

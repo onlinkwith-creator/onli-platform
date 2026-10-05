@@ -37,6 +37,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CircleCheck,
+  Download,
   FileText,
   FolderCheck,
   Pencil,
@@ -1952,6 +1953,14 @@ function InterpreterMypage({
                     <p className="verification-status-desc resume-required-note">
                       통역 공고 지원을 위해 이력서 등록은 필수입니다. ON-LI 운영팀 검토 후 ON-LI 인증 배지가 표시될 수 있습니다.
                     </p>
+                    <div className="resume-template-download-row">
+                      <a className="resume-template-download" href="/templates/onli-interpreter-resume.docx"
+                        download="ON-LI_이력서_양식.docx">
+                        <Download size={18} aria-hidden="true" />
+                        이력서 양식 다운로드
+                        <span className="resume-template-format">DOCX</span>
+                      </a>
+                    </div>
                     <input
                       ref={resumeActionInputRef}
                       type="file"
