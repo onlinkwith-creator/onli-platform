@@ -38,6 +38,8 @@
 .company-applicant-profile dt { color: #66717e; font-size: 13px; margin-bottom: 6px; }
 .company-applicant-profile dd { margin: 0; white-space: pre-wrap; }
 .company-applicant-intro { grid-column: 1 / -1; }
+.company-applicant-resume { margin-top: 18px; }
+.company-applicant-resume p { color: #59697b; font-size: 13px; }
 @media (max-width: 600px) {
   .company-applicants { padding: 16px; }
   .company-applicant-profile { grid-template-columns: minmax(0,1fr); }

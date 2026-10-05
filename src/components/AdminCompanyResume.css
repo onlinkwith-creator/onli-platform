@@ -1,0 +1,11 @@
+.admin-company-resume { margin: 20px 0; padding: 16px 0; border-top: 1px solid #dce3ec; border-bottom: 1px solid #dce3ec; text-align: left; }
+.admin-company-resume h4 { display: flex; gap: 8px; align-items: center; margin: 0 0 10px; }
+.admin-company-resume-status { font-size: 13px; color: #526179; }
+.admin-company-resume form { display: grid; gap: 12px; }
+.admin-company-resume label { display: grid; gap: 8px; font-size: 13px; }
+.admin-company-resume .admin-company-resume-confirm { display: flex; align-items: flex-start; gap: 8px; }
+.admin-company-resume-confirm input { flex-shrink: 0; }
+.admin-company-resume input[type="file"] { width: 100%; min-width: 0; }
+.admin-company-resume button { display: inline-flex; align-items: center; justify-content: center; justify-self: start; gap: 8px; min-height: 40px; padding: 8px 12px; border: 1px solid #4455a8; border-radius: 6px; color: #fff; background: #4455a8; cursor: pointer; }
+.admin-company-resume button:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-company-resume button:focus-visible { outline: 2px solid #4455a8; outline-offset: 3px; }

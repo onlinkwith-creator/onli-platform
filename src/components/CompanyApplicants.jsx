@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, RefreshCw, UserRound } from "lucide-react";
 import { supabase } from "../supabase";
 import "./CompanyApplicants.css";
+import CompanyApplicantResume from "./CompanyApplicantResume";
 
 const STATUS_LABELS = {
   pending: "지원 접수", reviewing: "검토 중", accepted: "매칭 확정",
@@ -92,6 +93,7 @@ export default function CompanyApplicants({ requests, initialRequestId = "" }) {
                     <div><dt>통역 경험</dt><dd>{profile.experience_count == null ? "-" : `${profile.experience_count}회`}</dd></div>
                     <div className="company-applicant-intro"><dt>자기소개</dt><dd>{profile.short_intro || "등록된 자기소개가 없습니다."}</dd></div>
                   </dl>
+                  <CompanyApplicantResume applicationId={application.id} />
                 </details> : <p>현재 공개되지 않은 프로필입니다.</p>}
               </article>;
             })}

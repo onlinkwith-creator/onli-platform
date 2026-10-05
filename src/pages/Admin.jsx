@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
+import AdminCompanyResume from "../components/AdminCompanyResume";
 import { DayPicker } from "react-day-picker";
 import { ko } from "react-day-picker/locale";
 import MonthFilterInput from "../components/MonthFilterInput";
@@ -10546,6 +10547,7 @@ function InterpreterModal({
               textAlign: "left",
               boxShadow: "var(--shadow)"
             }}>
+              <AdminCompanyResume key={`${interpreter.id}-${interpreter.resume_uploaded_at || ""}`} interpreter={interpreter} />
               <div className="admin-interpreter-section-title" style={{
                 display: "flex",
                 alignItems: "center",
