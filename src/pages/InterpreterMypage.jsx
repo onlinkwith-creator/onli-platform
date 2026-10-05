@@ -15,6 +15,8 @@ import {
 } from "../utils/jobDisplay";
 import { formatDateRange } from "../utils/dateRange";
 import { fetchRequestDetail } from "../services/requestDetailService";
+import { fetchInterpreterSettlements } from "../services/interpreterSettlementService";
+import { getInterpreterSettlementStatusLabel, getSettlementStatusBadgeClass } from "../utils/settlementStatus";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
 import {
   canWithdrawJobApplication,
@@ -36,12 +38,14 @@ import {
   FileText,
   FolderCheck,
   Pencil,
+  RotateCw,
   UserRound,
   WalletCards,
   X,
 } from "lucide-react";
 import {
   DOCUMENT_BUCKET,
+  formatDocumentAmount,
 } from "../utils/documents";
 
 const TABS = [
@@ -117,6 +121,9 @@ function InterpreterMypage({
   const [applicationsLoadError, setApplicationsLoadError] = useState("");
   const [assignmentsLoadError, setAssignmentsLoadError] = useState("");
   const [settlements, setSettlements] = useState([]);
+  const [settlementsLoadError, setSettlementsLoadError] = useState("");
+  const [loadingSettlements, setLoadingSettlements] = useState(false);
+  const settlementLoadId = useRef(0);
   const [paymentDocuments, setPaymentDocuments] = useState([]);
   const [activeTab, setActiveTab] = useState("profile");
   const [loadingData, setLoadingData] = useState(false);
@@ -203,6 +210,23 @@ function InterpreterMypage({
   const [uploadingSettlementDocType, setUploadingSettlementDocType] = useState("");
   const [settlementDocActionType, setSettlementDocActionType] = useState("");
   const settlementDocInputRef = useRef(null);
+
+  const loadSettlements = async (interpreterId) => {
+    const loadId = ++settlementLoadId.current;
+    setLoadingSettlements(true);
+    setSettlementsLoadError("");
+    try {
+      const rows = await fetchInterpreterSettlements(supabase, interpreterId);
+      if (loadId === settlementLoadId.current) setSettlements(rows);
+    } catch (error) {
+      logInterpreterDataError("settlements fetch failed", error);
+      if (loadId === settlementLoadId.current) {
+        setSettlementsLoadError("정산 내역을 불러오지 못했습니다. 다시 시도해 주세요.");
+      }
+    } finally {
+      if (loadId === settlementLoadId.current) setLoadingSettlements(false);
+    }
+  };
 
   const fetchInterpreterProfile = async () => {
     if (authLoading) return;
@@ -313,18 +337,17 @@ function InterpreterMypage({
       setSettlements([]);
       setLoadingData(true);
       try {
-        const assignmentResult = await fetchMatchingsData(nextInterpreter.id);
-        const settlementRows = await fetchSettlementsData(nextInterpreter.id);
-        const [applicationResult, documentRows] = await Promise.all([
+        const [assignmentResult, , applicationResult, documentResult] = await Promise.allSettled([
+          fetchMatchingsData(nextInterpreter.id),
+          loadSettlements(nextInterpreter.id),
           fetchApplicationsData(nextInterpreter.id),
           fetchPaymentDocumentsData(),
         ]);
-        setApplications(applicationResult.data);
-        setMatchings(assignmentResult.data);
-        setApplicationsLoadError(applicationResult.errorMessage);
-        setAssignmentsLoadError(assignmentResult.errorMessage);
-        setSettlements(settlementRows);
-        setPaymentDocuments(documentRows);
+        setApplications(applicationResult.status === "fulfilled" ? applicationResult.value.data : []);
+        setMatchings(assignmentResult.status === "fulfilled" ? assignmentResult.value.data : []);
+        setApplicationsLoadError(applicationResult.status === "fulfilled" ? applicationResult.value.errorMessage : "지원 내역을 불러오지 못했습니다.");
+        setAssignmentsLoadError(assignmentResult.status === "fulfilled" ? assignmentResult.value.errorMessage : "배정 내역을 불러오지 못했습니다.");
+        setPaymentDocuments(documentResult.status === "fulfilled" ? documentResult.value : []);
       } catch (err) {
         console.error("Failed to load applications/matchings", err);
       } finally {
@@ -988,66 +1011,6 @@ function InterpreterMypage({
     }
   };
 
-  const fetchSettlementsData = async (interpreterId) => {
-    if (!supabase || !interpreterId) return [];
-
-    const { data: assignmentRows, error: assignmentError } = await supabase
-      .from("request_interpreters")
-      .select("id,request_id,interpreter_id,status,assigned_at")
-      .eq("interpreter_id", interpreterId)
-      .eq("status", "assigned")
-      .order("assigned_at", { ascending: false });
-    if (assignmentError) throw assignmentError;
-
-    const latestAssignmentByRequest = new Map();
-    for (const assignment of assignmentRows || []) {
-      if (assignment.request_id && Number(assignment.interpreter_id) === Number(interpreterId)
-        && !latestAssignmentByRequest.has(String(assignment.request_id))) {
-        latestAssignmentByRequest.set(String(assignment.request_id), assignment);
-      }
-    }
-    const activeAssignments = [...latestAssignmentByRequest.values()];
-    const assignedRequestIds = activeAssignments.map((row) => row.request_id);
-    if (assignedRequestIds.length === 0) return [];
-
-    const [requestResult, settlementResult] = await Promise.all([
-      supabase.rpc("get_portal_requests", { p_request_ids: assignedRequestIds }),
-      supabase.from("settlements").select("*")
-        .eq("interpreter_id", interpreterId)
-        .in("request_id", assignedRequestIds)
-        .order("updated_at", { ascending: false })
-        .order("created_at", { ascending: false }),
-    ]);
-    if (requestResult.error) throw requestResult.error;
-    if (settlementResult.error) throw settlementResult.error;
-
-    const requestMap = new Map((requestResult.data || []).map((row) => [String(row.id), row]));
-    const settlementMap = new Map();
-    for (const row of settlementResult.data || []) {
-      const key = `${row.request_id}:${row.interpreter_id}`;
-      if (!settlementMap.has(key)) settlementMap.set(key, row);
-    }
-
-    return activeAssignments.map((assignment) => {
-      const request = requestMap.get(String(assignment.request_id));
-      if (!request || Number(assignment.interpreter_id) !== Number(interpreterId)) return null;
-      const settlement = settlementMap.get(`${assignment.request_id}:${interpreterId}`) || null;
-      return mapMySettlementRow({
-        settlement_id: settlement?.id || `request-interpreter-${assignment.id}`,
-        request_id: request.id,
-        public_job_code: request.request_no || request.request_code,
-        title: request.event_name || request.title,
-        event_name: request.event_name,
-        start_date: request.start_date || request.event_date,
-        end_date: request.end_date || request.event_date,
-        amount: settlement?.amount ?? request.settlement_final_amount ?? request.interpreter_payment ?? 0,
-        settlement_final_amount: settlement?.amount ?? request.settlement_final_amount ?? request.interpreter_payment ?? 0,
-        settlement_status: settlement?.settlement_status || settlement?.payout_status || request.settlement_status,
-        settlement_completed_at: settlement?.settlement_completed_at || settlement?.paid_at || request.settlement_completed_at,
-        settlement_work_days: settlement?.work_days || request.settlement_work_days,
-      });
-    }).filter(Boolean);
-  };
 
   const fetchPaymentDocumentsData = async () => {
     if (!supabase) return [];
@@ -1451,7 +1414,10 @@ function InterpreterMypage({
                       key={tab.id}
                       type="button"
                       className={`mypage-tab-btn ${activeTab === tab.id ? "is-active" : ""}`}
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        if (tab.id === "settlements") loadSettlements(interpreter.id);
+                      }}
                     >
                       <span className="tab-icon">
                         <TabIcon size={17} aria-hidden="true" />
@@ -2478,8 +2444,18 @@ function InterpreterMypage({
 
                   <article className="interpreter-mypage-card animate-fade-in">
                     <h2>정산 내역</h2>
-                    {loadingData ? (
+                    <button type="button" className="file-download-btn" title="정산 내역 새로고침" aria-label="정산 내역 새로고침" disabled={loadingSettlements} onClick={() => loadSettlements(interpreter.id)}>
+                      <RotateCw size={16} aria-hidden="true" />
+                    </button>
+                    {loadingSettlements ? (
                       <p className="loading-text">정산 내역을 불러오고 있습니다...</p>
+                    ) : settlementsLoadError ? (
+                      <div role="alert" className="interpreter-empty-state">
+                        <p>{settlementsLoadError}</p>
+                        <button type="button" className="file-download-btn" onClick={() => loadSettlements(interpreter.id)}>
+                          <RotateCw size={16} aria-hidden="true" /> 다시 시도
+                        </button>
+                      </div>
                     ) : settlements.length === 0 ? (
                       <div className="interpreter-empty-state">
                         <span className="empty-icon">💰</span>
@@ -2499,8 +2475,8 @@ function InterpreterMypage({
                           <div key={settlement.id} className="interpreter-assignment-card interpreter-settlement-card">
                             <div className="card-top-row interpreter-settlement-card-header">
                               <span className="matching-no">{settlement.publicJobCode || "정산"}</span>
-                              <span className={`status-badge ${getStatusBadgeClass(settlement.settlementStatus)}`}>
-                                {getSettlementStatusLabel(settlement.settlementStatus)}
+                              <span className={`status-badge ${getSettlementStatusBadgeClass(settlement.settlementStatus)}`}>
+                                {getInterpreterSettlementStatusLabel(settlement.settlementStatus)}
                               </span>
                             </div>
                             <div className="assignment-list-summary interpreter-settlement-summary">
@@ -3382,18 +3358,9 @@ function formatDate(dateString) {
 function formatKRW(value) {
   const amount = Number(value || 0);
   if (!Number.isFinite(amount) || amount <= 0) return "-";
-  return `${amount.toLocaleString("ko-KR")}원`;
+  return formatDocumentAmount(amount);
 }
 
-function getSettlementStatusLabel(status) {
-  const normalized = String(status || "").trim().toLowerCase();
-  if (["pending", "settlement_pending", "정산대기"].includes(normalized)) return "정산대기";
-  if (["confirmed", "settlement_confirmed", "정산확정"].includes(normalized)) return "정산확정";
-  if (["paid", "completed", "settled", "정산완료"].includes(normalized)) return "지급완료";
-  if (["withheld", "on_hold", "hold", "settlement_on_hold", "정산보류"].includes(normalized)) return "보류";
-  if (["cancelled", "canceled", "취소"].includes(normalized)) return "취소";
-  return "정산대기";
-}
 
 function getDaysRemaining(startDateStr) {
   if (!startDateStr) return null;
@@ -3644,21 +3611,6 @@ function buildCompanyContact({ company = {}, contactVisible = true, joinFailed =
 }
 
 
-function mapMySettlementRow(row = {}) {
-  return {
-    id: row.settlement_id,
-    publicJobCode: row.public_job_code,
-    requestId: row.request_id,
-    title: row.title,
-    eventName: row.event_name,
-    startDate: row.start_date,
-    endDate: row.end_date,
-    amount: row.settlement_final_amount ?? row.amount,
-    settlementStatus: row.settlement_status,
-    completedAt: row.settlement_completed_at,
-    workDays: row.settlement_work_days,
-  };
-}
 
 function isAssignedPreparationStatus(status) {
   return String(status || "").trim() === "assigned";

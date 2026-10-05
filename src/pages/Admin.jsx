@@ -2169,7 +2169,7 @@ function sanitizeRecipientEmail(email) {
         recipient_id: nextSettlement.interpreter_auth_user_id || null,
         notification_type: "interpreter_payment_amount_updated",
         title: "통역사 지급액 변경 안내",
-        message: `통역사 지급액이 ${formatJPY(previousAmount)}에서 ${formatJPY(nextAmount)}로 변경되었습니다.`,
+        message: `통역사 지급액이 ${formatKRW(previousAmount)}에서 ${formatKRW(nextAmount)}로 변경되었습니다.`,
         related_request_id: nextSettlement.request_id || null,
         channel: "internal",
         status: "pending",
@@ -6994,9 +6994,9 @@ function InterpreterSettlementManagement({
                         )
                       : "정보 없음"}
                   </td>
-                  <td>{formatJPY(settlement.daily_rate ?? request.daily_rate)}</td>
+                  <td>{formatKRW(settlement.daily_rate ?? request.daily_rate)}</td>
                   <td>{settlement.work_days ?? request.work_days ?? request.settlement_work_days ?? "-"}</td>
-                  <td>{formatJPY(settlement.amount ?? request.interpreter_total_amount)}</td>
+                  <td>{formatKRW(settlement.amount ?? request.interpreter_total_amount)}</td>
                   <td>
                     <span className={`status-badge ${getSettlementPayoutBadgeClass(settlement.settlement_status)}`}>
                       {getSettlementPayoutStatusLabel(settlement.settlement_status)}
@@ -7068,7 +7068,7 @@ function InterpreterSettlementManagement({
                   </div>
                   <div>
                     <dt>일당</dt>
-                    <dd>{formatJPY(settlement.daily_rate ?? request.daily_rate)}</dd>
+                    <dd>{formatKRW(settlement.daily_rate ?? request.daily_rate)}</dd>
                   </div>
                   <div>
                     <dt>근무 일수</dt>
@@ -7076,7 +7076,7 @@ function InterpreterSettlementManagement({
                   </div>
                   <div>
                     <dt>최종 지급 금액</dt>
-                    <dd>{formatJPY(settlement.amount ?? request.interpreter_total_amount)}</dd>
+                    <dd>{formatKRW(settlement.amount ?? request.interpreter_total_amount)}</dd>
                   </div>
                   <div>
                     <dt>정산 확정일</dt>
@@ -8984,7 +8984,7 @@ function RequestDetailPanel({
               <Info label="과거 의뢰" value={`${companyHistory.requestCount}건`} />
               <Info label="진행한 행사" value={companyHistory.events || "-"} />
               <Info label="이용 통역사" value={companyHistory.interpreters || "-"} />
-              <Info label="총 이용 금액" value={formatJPY(companyHistory.totalAmount)} />
+              <Info label="총 이용 금액" value={formatKRW(companyHistory.totalAmount)} />
               <Info label="관리자 메모" value={companyHistory.memo || "-"} />
             </dl>
           </div>
@@ -9204,7 +9204,7 @@ function RequestDetailPanel({
               <div className="admin-profit">
                 <span>플랫폼 수익</span>
                 <strong className={platformProfitPreview !== null && platformProfitPreview < 0 ? "is-negative" : ""}>
-                  {platformProfitPreview === null ? "-" : formatJPY(platformProfitPreview)}
+                  {platformProfitPreview === null ? "-" : formatKRW(platformProfitPreview)}
                 </strong>
               </div>
               {platformProfitPreview !== null && platformProfitPreview < 0 && (
@@ -11073,7 +11073,7 @@ function InterpreterAssignmentHistoryTab({ error, histories = [], loading, settl
               </div>
               <div>
                 <dt>통역사 지급액</dt>
-                <dd>{settlement?.amount === null || settlement?.amount === undefined ? "-" : formatJPY(settlement.amount)}</dd>
+                <dd>{settlement?.amount === null || settlement?.amount === undefined ? "-" : formatKRW(settlement.amount)}</dd>
               </div>
               <div>
                 <dt>업무 완료 여부</dt>
@@ -12603,7 +12603,7 @@ function PaymentHistoryManagement({ assignmentsByRequest, interpreters, requests
                 <Info label="통역사" value={row.interpreterName} />
                 <Info label="행사명" value={row.request.event_name || row.request.title || "-"} />
                 <Info label="지급일" value={formatDate(row.request.updated_at || row.request.created_at)} />
-                <Info label="지급 금액" value={formatJPY(getInterpreterPayment(row.request))} />
+                <Info label="지급 금액" value={formatKRW(getInterpreterPayment(row.request))} />
                 <Info label="지급 상태" value={getSettlementFlowStatusLabel(getSettlementStatusValue(row.request))} />
                 <Info label="메모" value={row.request?.admin_memo || row.request?.memo || "-"} />
               </dl>
@@ -13522,7 +13522,7 @@ function SettlementRequestCard({
 
         {/* 금액: 최종 지급 예정 금액 */}
         <div style={{ fontSize: "14px", fontWeight: "800", color: "#4f46e5", margin: "4px 0" }}>
-          최종 지급 예정 금액: {formatJPY(interpreterPrice)}
+          최종 지급 예정 금액: {formatKRW(interpreterPrice)}
         </div>
 
         {/* Expandable Details Container */}
@@ -13617,10 +13617,10 @@ function SettlementRequestCard({
               <Info label="날짜" value={eventDate} />
               <Info label="근무일수" value={`${draft.settlement_work_days || 0}일`} />
               <Info label="적용 레벨" value={draft.settlement_level || "-"} />
-              <Info label="일당" value={formatJPY(dailyRate)} />
-              <Info label="추가금액" value={formatJPY(draft.settlement_extra_amount)} />
-              <Info label="차감금액" value={formatJPY(draft.settlement_deduction_amount)} />
-              <Info label="최종 지급금액" value={formatJPY(interpreterPrice)} />
+              <Info label="일당" value={formatKRW(dailyRate)} />
+              <Info label="추가금액" value={formatKRW(draft.settlement_extra_amount)} />
+              <Info label="차감금액" value={formatKRW(draft.settlement_deduction_amount)} />
+              <Info label="최종 지급금액" value={formatKRW(interpreterPrice)} />
             </dl>
 
             {/* Row 1: 정산서 생성 / 정산서 보기 */}
@@ -14102,15 +14102,15 @@ function RevenueSummaryPanel({ summary }) {
       <dl className="admin-revenue-grid">
         <div>
           <dt>기업 청구 금액</dt>
-          <dd>{formatJPY(summary?.companyAmount || 0)}</dd>
+          <dd>{formatKRW(summary?.companyAmount || 0)}</dd>
         </div>
         <div>
           <dt>통역사 지급 예정</dt>
-          <dd>{formatJPY(summary?.interpreterAmount || 0)}</dd>
+          <dd>{formatKRW(summary?.interpreterAmount || 0)}</dd>
         </div>
         <div>
           <dt>예상 운영 수익</dt>
-          <dd>{formatJPY(summary?.profit || 0)}</dd>
+          <dd>{formatKRW(summary?.profit || 0)}</dd>
         </div>
       </dl>
       <p className="admin-revenue-note">세금 계산 전 운영 참고용 예상값입니다.</p>
@@ -18284,8 +18284,8 @@ function upsertById(items, nextItem) {
   return [nextItem, ...items];
 }
 
-function formatJPY(value) {
-  return `¥${Number(value || 0).toLocaleString()}`;
+function formatKRW(value) {
+  return formatDocumentAmount(value);
 }
 
 function formatDate(value) {

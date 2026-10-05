@@ -45,6 +45,7 @@ export const SETTLEMENT_STATUS_ALIASES = {
   completed: ADMIN_SETTLEMENT_STATUS.COMPLETED,
   paid: ADMIN_SETTLEMENT_STATUS.COMPLETED,
   done: ADMIN_SETTLEMENT_STATUS.COMPLETED,
+  settled: ADMIN_SETTLEMENT_STATUS.COMPLETED,
   "정산_완료": ADMIN_SETTLEMENT_STATUS.COMPLETED,
   "정산완료": ADMIN_SETTLEMENT_STATUS.COMPLETED,
   "지급완료": ADMIN_SETTLEMENT_STATUS.COMPLETED,
@@ -71,4 +72,17 @@ export function getSettlementStatusBadgeClass(status) {
     [ADMIN_SETTLEMENT_STATUS.COMPLETED]: "badge-green",
   };
   return classes[normalizeAdminSettlementStatus(status)] || "badge-yellow";
+}
+
+export function getInterpreterSettlementStatusLabel(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (["withheld", "on_hold", "hold", "settlement_on_hold", "정산보류"].includes(value)) return "보류";
+  if (["cancelled", "canceled", "취소"].includes(value)) return "취소";
+  const labels = {
+    [ADMIN_SETTLEMENT_STATUS.WAITING]: "정산대기",
+    [ADMIN_SETTLEMENT_STATUS.CONFIRMED]: "정산확정",
+    [ADMIN_SETTLEMENT_STATUS.PAYING]: "지급중",
+    [ADMIN_SETTLEMENT_STATUS.COMPLETED]: "지급완료",
+  };
+  return labels[normalizeAdminSettlementStatus(status)];
 }
