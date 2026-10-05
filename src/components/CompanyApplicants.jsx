@@ -13,8 +13,8 @@ function listText(value) {
   return Array.isArray(value) ? value.filter(Boolean).join(" / ") : String(value || "-");
 }
 
-export default function CompanyApplicants({ requests }) {
-  const [selectedId, setSelectedId] = useState("");
+export default function CompanyApplicants({ requests, initialRequestId = "" }) {
+  const [selectedId, setSelectedId] = useState(String(initialRequestId));
   const [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState({ requestId: "", rows: [], loading: false, error: "" });
   const selected = requests.find((request) => String(request.id) === selectedId) || requests[0];

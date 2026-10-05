@@ -238,6 +238,7 @@ function BusinessMypage({
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [activeTab, setActiveTab] = useState("requests"); // "requests", "profile", "interpreters", "materials", "inquiry"
+  const [applicantRequestId, setApplicantRequestId] = useState("");
   const [status, setStatus] = useState("loading"); // "loading", "ready", "notRegistered", "restricted", "signedOut"
 
   // Material selection states
@@ -1241,7 +1242,11 @@ function BusinessMypage({
 
           {/* Main Display Area */}
           <main className="business-mypage-main-content">
-            {activeTab === "applicants" && <CompanyApplicants requests={requests} />}
+            {activeTab === "applicants" && <CompanyApplicants
+              key={applicantRequestId}
+              requests={requests}
+              initialRequestId={applicantRequestId}
+            />}
             
             {/* 1. 내 의뢰 현황 */}
             {activeTab === "requests" && (
@@ -1364,6 +1369,13 @@ function BusinessMypage({
                           </div>
 
                           <h3 className="request-card-title">{req.event_name || req.title || "제목 미입력 의뢰"}</h3>
+                          {req.job_id && <button type="button" className="btn-edit-trigger"
+                            onClick={() => {
+                              setApplicantRequestId(String(req.id));
+                              setActiveTab("applicants");
+                            }}>
+                            <UsersRound size={17} aria-hidden="true" /> 지원자 보기
+                          </button>}
 
                           <div className="request-meta-grid">
                             <div className="meta-item">
