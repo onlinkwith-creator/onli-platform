@@ -30,9 +30,9 @@ export const ASSIGNMENT_STATUS_OPTIONS = [
 
 export const OPERATION_STATUS_OPTIONS = [
   { value: OPERATION_STATUS.BEFORE_OPERATION, label: "운영전", companyLabel: "" },
-  { value: OPERATION_STATUS.PREPARING, label: "운영 준비중", companyLabel: "업무 준비중" },
-  { value: OPERATION_STATUS.SCHEDULED, label: "운영 예정", companyLabel: "진행 예정" },
-  { value: OPERATION_STATUS.IN_PROGRESS, label: "운영중", companyLabel: "진행중" },
+  { value: OPERATION_STATUS.PREPARING, label: "운영 준비중", companyLabel: "운영 준비중" },
+  { value: OPERATION_STATUS.SCHEDULED, label: "운영 예정", companyLabel: "운영 예정" },
+  { value: OPERATION_STATUS.IN_PROGRESS, label: "운영중", companyLabel: "운영중" },
   { value: OPERATION_STATUS.COMPLETED, label: "업무완료", companyLabel: "업무완료" },
 ];
 
@@ -43,6 +43,27 @@ export const SETTLEMENT_FLOW_STATUS_OPTIONS = [
   { value: SETTLEMENT_FLOW_STATUS.COMPLETED, label: "정산완료" },
   { value: SETTLEMENT_FLOW_STATUS.ON_HOLD, label: "정산보류" },
 ];
+
+export const REQUEST_PROGRESS_STEPS = [
+  "접수 완료", "검토중",
+  ...ASSIGNMENT_STATUS_OPTIONS.map((option) => option.label),
+  ...OPERATION_STATUS_OPTIONS
+    .filter((option) => option.value !== OPERATION_STATUS.BEFORE_OPERATION)
+    .map((option) => option.label),
+];
+
+export function getRequestProgressLabel(request = {}) {
+  if (request.matching_status === "cancelled" || request.status === "cancelled") return "취소됨";
+  if (request.operation_status) {
+    const operation = normalizeOperationStatus(request.operation_status);
+    if (operation !== OPERATION_STATUS.BEFORE_OPERATION) return getOperationStatusLabel(operation);
+  }
+  const assignment = normalizeAssignmentStatus(request);
+  if (assignment !== ASSIGNMENT_STATUS.WAITING || request.job_id) {
+    return getAssignmentStatusLabel(assignment);
+  }
+  return request.admin_checked ? "검토중" : "접수 완료";
+}
 
 export function normalizeAssignmentStatus(item = {}) {
   const value = getStatusValue(item.assignment_status || item.status || item.matching_status);

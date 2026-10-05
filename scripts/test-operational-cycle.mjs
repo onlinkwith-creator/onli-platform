@@ -5,6 +5,21 @@ import { getApplicationAvailability, hasEventPassed } from "../src/utils/jobStat
 import { getRecruitmentCountDisplay } from "../src/utils/jobRecruitment.js";
 import { getWorkTimeDisplay, isPreparationAssignment } from "../src/utils/assignmentDisplay.js";
 import { buildJobPayloadFromRequest } from "../src/utils/requestJobPayload.js";
+import { getRequestProgressLabel, REQUEST_PROGRESS_STEPS, OPERATION_STATUS_OPTIONS, getOperationCompanyStatusLabel } from "../src/utils/operationsStatus.js";
+
+assert.deepEqual(REQUEST_PROGRESS_STEPS, ["접수 완료", "검토중", "모집중", "배정중", "배정완료", "운영 준비중", "운영 예정", "운영중", "업무완료"]);
+assert.equal(getRequestProgressLabel({}), "접수 완료");
+assert.equal(getRequestProgressLabel({admin_checked:true}), "검토중");
+assert.equal(getRequestProgressLabel({job_id:"job",assignment_status:"assignment_pending"}), "모집중");
+assert.equal(getRequestProgressLabel({assignment_status:"assignment_in_progress",operation_status:"operation_before"}), "배정중");
+assert.equal(getRequestProgressLabel({assignment_status:"assigned"}), "배정완료");
+for (const option of OPERATION_STATUS_OPTIONS.slice(1)) {
+  assert.equal(getRequestProgressLabel({operation_status:option.value}), option.label);
+  assert.equal(getOperationCompanyStatusLabel(option.value), option.label);
+}
+assert.equal(getRequestProgressLabel({operation_status:"operation_completed",settlement_status:"pending"}), "업무완료");
+assert.equal(getRequestProgressLabel({operation_status:"operation_before",settlement_status:"completed"}), "접수 완료");
+assert.equal(getRequestProgressLabel({status:"cancelled",operation_status:"operation_completed"}), "취소됨");
 
 const now = new Date("2026-10-05T03:00:00Z");
 const open = { id: "job", status: "open", start_date: "2026-10-12", assigned_count: 0, people_count: 2 };

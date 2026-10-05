@@ -27,7 +27,8 @@ import {
 } from "../utils/documents";
 import {
   OPERATION_STATUS,
-  getOperationCompanyStatusLabel,
+  getRequestProgressLabel,
+  REQUEST_PROGRESS_STEPS,
   normalizeOperationStatus,
 } from "../utils/operationsStatus";
 import "./BusinessMypage.css";
@@ -962,37 +963,18 @@ function BusinessMypage({
   };
 
   // Dynamic corporate request status
-  const getRequestStatusLabel = (req) => {
-    if (req.matching_status === "cancelled" || req.status === "cancelled") {
-      return "취소됨";
-    }
-    if (req.operation_status !== undefined && req.operation_status !== null && req.operation_status !== "") {
-      const operationStatus = normalizeOperationStatus(req.operation_status);
-      if (operationStatus !== OPERATION_STATUS.BEFORE_OPERATION) {
-        return getOperationCompanyStatusLabel(operationStatus);
-      }
-    }
-    if (["assignment_completed", "assigned"].includes(req.assignment_status)) {
-      return "배정 완료";
-    }
-    if (["assignment_in_progress", "assigning"].includes(req.assignment_status)) {
-      return "통역사 모집중";
-    }
-    if (req.admin_checked) {
-      return "검토중";
-    }
-    return "접수 완료";
-  };
+  const getRequestStatusLabel = getRequestProgressLabel;
 
   const getStatusBadgeClass = (statusLabel) => {
     const classes = {
       "접수 완료": "badge-blue",
       "검토중": "badge-yellow",
-      "통역사 모집중": "badge-orange",
-      "배정 완료": "badge-purple",
-      "업무 준비중": "badge-teal",
-      "진행 예정": "badge-cyan",
-      "진행중": "badge-orange",
+      "모집중": "badge-orange",
+      "배정중": "badge-orange",
+      "배정완료": "badge-purple",
+      "운영 준비중": "badge-teal",
+      "운영 예정": "badge-cyan",
+      "운영중": "badge-orange",
       "업무완료": "badge-green",
       "취소됨": "badge-red",
     };
@@ -1000,7 +982,7 @@ function BusinessMypage({
   };
 
   const getStatusStepIndex = (statusLabel) => {
-    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "업무 준비중", "진행 예정", "진행중", "업무완료"];
+    const steps = REQUEST_PROGRESS_STEPS;
     return steps.indexOf(statusLabel);
   };
 
@@ -1040,7 +1022,7 @@ function BusinessMypage({
     }
 
     const currentIndex = getStatusStepIndex(statusLabel);
-    const steps = ["접수 완료", "검토중", "통역사 모집중", "배정 완료", "업무 준비중", "진행 예정", "진행중", "업무완료"];
+    const steps = REQUEST_PROGRESS_STEPS;
 
     return (
       <div className="status-timeline">
