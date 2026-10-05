@@ -18,6 +18,8 @@ import { fetchRequestDetail } from "../services/requestDetailService";
 import { fetchInterpreterSettlements } from "../services/interpreterSettlementService";
 import { getInterpreterSettlementStatusLabel, getSettlementStatusBadgeClass } from "../utils/settlementStatus";
 import { getRecruitmentCountDisplay } from "../utils/jobRecruitment";
+import { getWorkTimeDisplay, isPreparationAssignment } from "../utils/assignmentDisplay";
+import { normalizeOperationStatus, getOperationStatusLabel, OPERATION_STATUS } from "../utils/operationsStatus";
 import {
   canWithdrawJobApplication,
   isJobApplicationWithdrawalPermissionError,
@@ -2295,7 +2297,10 @@ function InterpreterMypage({
                             job?.event_name || job?.title || "의뢰명 미등록";
                           const start = mat.start_date || job?.start_date;
                           const end = mat.end_date || job?.end_date;
-                          const statusLabel = getMatchingStatusLabel(mat.status);
+                          const operationStatus = normalizeOperationStatus(mat);
+                          const statusLabel = operationStatus === OPERATION_STATUS.BEFORE_OPERATION
+                            ? getMatchingStatusLabel(mat.status)
+                            : getOperationStatusLabel(operationStatus);
                           const badgeClass = getStatusBadgeClass(mat.status);
                           const isExpanded = expandedAssignmentIds.has(mat.id);
                           const hasLinkedJob =
@@ -2831,7 +2836,7 @@ function ApplicationDetailPanel({
             label="근무 일정"
             value={formatDateRange(job.start_date, job.end_date, job.event_date || job.date)}
           />
-          <ApplicationInfo label="근무 시간" value="별도 안내" />
+          <ApplicationInfo label="근무 시간" value={getWorkTimeDisplay(job)} />
           <ApplicationInfo
             label="모집 인원"
             value={`${getRecruitmentCountDisplay(job)}명`}
@@ -2929,7 +2934,7 @@ function JobInformationSection({
             job.event_date || job.date
           )}
         />
-        <ApplicationInfo label="근무 시간" value="별도 안내" />
+        <ApplicationInfo label="근무 시간" value={getWorkTimeDisplay(job)} />
         <ApplicationInfo
           label={countLabel}
           value={`${getRecruitmentCountDisplay(job)}명`}
@@ -3017,7 +3022,7 @@ function AssignmentDetailPanel({
               job.event_date || job.date
             )}
           />
-          <ApplicationInfo label="근무 시간" value="별도 안내" />
+          <ApplicationInfo label="근무 시간" value={getWorkTimeDisplay(job)} />
           <ApplicationInfo
             label="모집 인원"
             value={`${getRecruitmentCountDisplay(job)}명`}
@@ -3542,6 +3547,7 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
     status: assignmentStatus,
     created_at: assignment.assigned_at || assignment.created_at,
     request_assignment_status: assignmentStatus,
+    operation_status: request.operation_status || request.matching_status,
     is_contact_visible: contactVisible,
     company_contact: companyContact,
     request_load_error: requestMissing,
@@ -3558,7 +3564,14 @@ function mapPublicJobFromRequestInterpreterRow({ request = {}, detail = null, st
 
   return {
     id: request.job_id || null,
-    job_no: detail?.requestNumber || "",
+    job_no: request.job_no || "",
+    request_no: detail?.requestNumber || "",
+    event_start_time: request.event_start_time,
+    event_end_time: request.event_end_time,
+    work_hours: request.work_hours,
+    people_count: request.requested_people_count ?? request.required_count,
+    assigned_count: request.assigned_count ?? null,
+    operation_status: request.operation_status,
     title,
     event_name: getFirstDisplayValue(request.event_name) || title,
     date: startDate,
@@ -3633,7 +3646,7 @@ function isAssignedMatchingStatus(status) {
 
 function getPreparationAssignments(matchings = []) {
   return matchings.filter(
-    (matching) => isAssignedMatchingStatus(matching.status)
+    (matching) => isAssignedMatchingStatus(matching.status) && isPreparationAssignment(matching)
   );
 }
 

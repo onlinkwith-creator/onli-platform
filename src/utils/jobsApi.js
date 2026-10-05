@@ -33,8 +33,14 @@ export async function fetchPublicJobs(supabase, { limit } = {}) {
 }
 
 export async function attachPublicJobCounts(supabase, jobs) {
+  if (!jobs.length) return [];
+  const { data, error } = await supabase.rpc("get_public_job_counts", {
+    p_job_ids: jobs.map((job) => job.id),
+  });
+  const counts = new Map((error ? [] : data || []).map((row) => [String(row.job_id), Number(row.assigned_count)]));
+  if (error) console.error("public job counts fetch failed:", error);
   return jobs.map((job) => {
-    const assignedCount = Number(job.assigned_count || job.matched_count || 0);
+    const assignedCount = counts.get(String(job.id)) ?? job.assigned_count ?? job.matched_count ?? null;
 
     return {
       ...job,

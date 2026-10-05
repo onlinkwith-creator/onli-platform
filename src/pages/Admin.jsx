@@ -810,7 +810,7 @@ function sanitizeRecipientEmail(email) {
     }
     if (supabase) {
       try {
-        const [notesResult, logsResult, notificationsResult, documentsResult, settlementsResult] = (
+        const [notesResult, logsResult, notificationsResult, documentsResult, settlementsResult, paymentsResult] = (
           await Promise.allSettled([
             supabase
               .from("admin_notes")
@@ -838,6 +838,7 @@ function sanitizeRecipientEmail(email) {
               .select(SETTLEMENTS_SELECT)
               .order("created_at", { ascending: false })
               .limit(500),
+            supabase.from("payments").select("*").order("created_at", { ascending: false }),
           ])
         ).map((result) =>
           result.status === "fulfilled"
@@ -850,6 +851,12 @@ function sanitizeRecipientEmail(email) {
           setOptionalDataError("일부 내부관리 데이터를 불러오지 못했습니다. 콘솔 오류를 확인해주세요.");
         } else {
           setAdminNotes(uniqueById(notesResult.data || []));
+        }
+
+        if (paymentsResult.error) {
+          logSupabaseFetchError("payments", paymentsResult.error);
+        } else {
+          setPayments(uniqueById(paymentsResult.data || []));
         }
 
         if (logsResult.error) {
@@ -2035,15 +2042,19 @@ function sanitizeRecipientEmail(email) {
           ? payment.id === paymentId
           : String(payment.request_id) === String(request.id)
       );
-      let existingPayment = cachedPayment || null;
-      if (!existingPayment) {
+      let existingPayment = null;
+      {
         const lookup = await supabase
           .from("payments")
-          .select("id, request_id, paid_at")
+          .select("*")
           .eq("request_id", request.id)
           .maybeSingle();
         if (lookup.error) throw lookup.error;
         existingPayment = lookup.data;
+      }
+      if (cachedPayment?.updated_at && existingPayment?.updated_at !== cachedPayment.updated_at) {
+        await refreshAdminOperationsData();
+        throw new Error("결제 정보가 변경되었습니다. 최신 정보를 확인한 후 다시 저장해주세요.");
       }
 
       const normalizedStatus = changes.payment_status || existingPayment?.payment_status || "unpaid";
@@ -2057,7 +2068,9 @@ function sanitizeRecipientEmail(email) {
       const payload = {
         amount: normalizeMoneyInput(request.company_amount),
         payment_status: normalizedStatus,
-        due_date: normalizeDateToISO(changes.due_date) || null,
+        due_date: Object.prototype.hasOwnProperty.call(changes, "due_date")
+          ? normalizeDateToISO(changes.due_date) || null
+          : existingPayment?.due_date || null,
         paid_at: normalizedPaidAt,
         ...(Object.prototype.hasOwnProperty.call(changes, "payment_method")
           ? { payment_method: changes.payment_method || null }
@@ -2070,10 +2083,14 @@ function sanitizeRecipientEmail(email) {
       let result;
 
       if (existingPayment?.id) {
-        result = await supabase
+        let update = supabase
           .from("payments")
           .update(payload)
-          .eq("id", existingPayment.id)
+          .eq("id", existingPayment.id);
+        update = existingPayment.updated_at
+          ? update.eq("updated_at", existingPayment.updated_at)
+          : update.is("updated_at", null);
+        result = await update
           .select("id, request_id, company_id, estimate_document_id, amount, payment_status, payment_method, paid_at, due_date, admin_memo, created_at, updated_at")
           .single();
       } else {
@@ -8517,9 +8534,25 @@ function RequestDetailPanel({
   const [paymentAdminMemo, setPaymentAdminMemo] = useState("");
   const eventDatePickerRef = useRef(null);
   const detailPanelRef = useRef(null);
-  const companyPayment = payments.find(
-    (payment) => String(payment.request_id) === String(safeRequest.id)
-  ) || null;
+  const [paymentLookup, setPaymentLookup] = useState({ requestId: null, loading: true, data: null, error: null });
+  const companyPayment = String(paymentLookup.requestId) === String(safeRequest.id) ? paymentLookup.data : null;
+  const paymentReady = String(paymentLookup.requestId) === String(safeRequest.id) && !paymentLookup.loading && !paymentLookup.error;
+  useEffect(() => {
+    let cancelled = false;
+    const requestId = safeRequest.id;
+    async function load() {
+      if (cancelled) return;
+      setPaymentLookup({ requestId, loading: true, data: null, error: null });
+      try {
+        const result = await supabase.from("payments").select("*").eq("request_id", requestId).maybeSingle();
+        if (!cancelled) setPaymentLookup({ requestId, loading: false, data: result.data, error: result.error });
+      } catch (error) {
+        if (!cancelled) setPaymentLookup({ requestId, loading: false, data: null, error });
+      }
+    }
+    queueMicrotask(load);
+    return () => { cancelled = true; };
+  }, [safeRequest.id, payments]);
   const interpreterPaymentInputKey = String(safeRequest?.id || "");
   const companyAmountInputKey = interpreterPaymentInputKey;
   const savedCompanyAmountInput = safeRequest.company_amount ?? "";
@@ -8551,13 +8584,14 @@ function RequestDetailPanel({
   );
 
   useEffect(() => {
+    if (!paymentReady) return;
     setPaymentDueDate(companyPayment?.due_date || "");
     setPaymentCompletedDate(
       companyPayment?.paid_at ? toAdminDateTimeInput(companyPayment.paid_at).slice(0, 10) : ""
     );
-    setPaymentStatus(companyPayment?.payment_status === "paid" ? "paid" : "unpaid");
+    setPaymentStatus(companyPayment?.payment_status || "unpaid");
     setPaymentAdminMemo(companyPayment?.admin_memo || "");
-  }, [companyPayment?.admin_memo, companyPayment?.due_date, companyPayment?.id, companyPayment?.paid_at, companyPayment?.payment_status, safeRequest.id]);
+  }, [companyPayment?.admin_memo, companyPayment?.due_date, companyPayment?.id, companyPayment?.paid_at, companyPayment?.payment_status, safeRequest.id, paymentReady]);
 
   useEffect(() => {
     const resetDetailView = () => {
@@ -8868,11 +8902,14 @@ function RequestDetailPanel({
               <FieldControl label="결제 상태">
                 <select
                   className="admin-filter-select"
-                  value={paymentStatus}
+                  value={paymentReady ? paymentStatus : ""}
+                  disabled={!paymentReady}
                   onChange={(event) => setPaymentStatus(event.target.value)}
                 >
                   <option value="unpaid">미입금</option>
                   <option value="paid">입금 완료</option>
+                  {!paymentReady && <option value="">{paymentLookup.error ? "조회 실패" : "확인 중"}</option>}
+                  {!["paid", "unpaid"].includes(paymentStatus) && <option value={paymentStatus}>{getCompanyPaymentStatusLabel(paymentStatus)}</option>}
                 </select>
               </FieldControl>
               <DateRangeInput
@@ -8903,10 +8940,11 @@ function RequestDetailPanel({
               </div>
             </div>
             <div className="admin-card-actions admin-request-payment-actions">
+              {!paymentReady && <p role="status">{paymentLookup.error ? "결제 정보 조회 실패. 상세를 다시 열어주세요." : "결제 정보를 확인 중입니다."}</p>}
               <button
                 type="button"
                 className="admin-save"
-                disabled={savingKey === `request-payment-${safeRequest.id}`}
+                disabled={!paymentReady || savingKey === `request-payment-${safeRequest.id}`}
                 onClick={() => saveRequestCompanyPayment?.(safeRequest, {
                   due_date: paymentDueDate,
                   paid_at: paymentCompletedDate,

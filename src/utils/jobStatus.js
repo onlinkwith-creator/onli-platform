@@ -3,8 +3,8 @@ import {
   JOB_STATUS_OPTIONS,
   getJobStatusLabel as getStandardJobStatusLabel,
   normalizeJobStatus as normalizeStandardJobStatus,
-} from "./status";
-import { getAssignedCount, getTotalPeopleCount } from "./jobRecruitment";
+} from "./status.js";
+import { getAssignedCount, getTotalPeopleCount } from "./jobRecruitment.js";
 import {
   ASSIGNMENT_STATUS,
   OPERATION_STATUS,
@@ -12,7 +12,7 @@ import {
   getOperationStatusLabel,
   normalizeAssignmentStatus,
   normalizeOperationStatus,
-} from "./operationsStatus";
+} from "./operationsStatus.js";
 
 export { JOB_STATUS, JOB_STATUS_OPTIONS };
 
@@ -26,6 +26,7 @@ export function normalizeJobStatus(job = {}) {
 }
 
 export function getJobStatusLabel(job = {}) {
+  if (normalizeJobStatus(job) === JOB_STATUS.RECRUITING && hasEventPassed(job)) return "모집 마감";
   return getStandardJobStatusLabel(normalizeJobStatus(job));
 }
 
@@ -64,6 +65,7 @@ export function getApplicationAvailability(job = {}, { now = new Date() } = {}) 
   }
 
   const jobStatus = normalizeJobStatus(job);
+  if (hasEventPassed(job, now)) return { allowed: false, reason: "event_passed" };
   if (
     [JOB_STATUS.CLOSED, JOB_STATUS.ASSIGNED, JOB_STATUS.COMPLETED, JOB_STATUS.CANCELLED].includes(
       jobStatus
@@ -109,9 +111,20 @@ export function getApplicationAvailability(job = {}, { now = new Date() } = {}) 
 }
 
 export function getApplicationAvailabilityLabel(availability = {}) {
+  if (availability.reason === "event_passed") return "모집 마감";
   if (availability.reason === "capacity_full") return "모집 마감";
   if (availability.reason === "deadline_passed") return "지원 마감";
   return availability.allowed ? "지원하기" : availability.label || "지원 불가";
+}
+
+export function hasEventPassed(job = {}, now = new Date()) {
+  const value = job.start_date || job.event_date || job.work_date || job.date;
+  if (!value) return false;
+  const match = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
+  if (!match) return false;
+  // Date-only events close after their start day in the service's Korea/Japan timezone.
+  const cutoff = new Date(`${match[1]}T23:59:59.999+09:00`).getTime();
+  return Number.isFinite(cutoff) && cutoff < new Date(now).getTime();
 }
 
 function parseApplicationDeadline(value) {

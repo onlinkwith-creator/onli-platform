@@ -11,13 +11,14 @@ export function getAssignedCount(job = {}) {
 
 export function getTotalPeopleCount(job = {}) {
   return getPositiveInteger(
-    job.people_count ?? job.required_count ?? job.requested_people_count ?? job.people,
+    job.people_count ?? job.required_count ?? job.requested_people_count ?? job.number_of_interpreters ?? job.people,
     1
   );
 }
 
 export function getRecruitmentCountDisplay(job = {}) {
-  return `${getAssignedCount(job)}/${getTotalPeopleCount(job)}`;
+  const count = job.assigned_count ?? job.assignment_count ?? job.matched_count ?? job.matchedCount ?? job.matched_applications_count;
+  return `${count == null ? "-" : getAssignedCount(job)}/${getTotalPeopleCount(job)}`;
 }
 
 export function isJobFullyAssigned(job = {}) {

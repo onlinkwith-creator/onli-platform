@@ -107,7 +107,9 @@ function JobApply({
         return;
       }
 
-      setJob(data);
+      const { attachPublicJobCounts } = await import("../utils/jobsApi");
+      const [jobWithCounts] = await attachPublicJobCounts(publicSupabase, [data]);
+      setJob(jobWithCounts);
     } catch (error) {
       console.error(error);
       setJob(null);
