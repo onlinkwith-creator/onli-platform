@@ -1,4 +1,4 @@
-import { formatDisplayDate, formatDisplayDateRange, normalizeDateToISO } from "./date";
+import { formatDisplayDate, formatDisplayDateRange, normalizeDateToISO } from "./date.js";
 
 export function formatDateRange(startDate, endDate, fallbackDate) {
   const fallbackRange = splitFallbackDate(fallbackDate);

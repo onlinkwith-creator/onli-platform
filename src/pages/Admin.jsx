@@ -27,6 +27,7 @@ import { ko } from "react-day-picker/locale";
 import MonthFilterInput from "../components/MonthFilterInput";
 import AdminJobs from "./AdminJobs";
 import { normalizeJobVisibility } from "../utils/jobStatus";
+import { buildJobPayloadFromRequest } from "../utils/requestJobPayload";
 import {
   APPLICATION_STATUS,
   APPLICATION_STATUS_OPTIONS,
@@ -1173,6 +1174,7 @@ function sanitizeRecipientEmail(email) {
 
     const result = requests.filter((request) => {
       const searchableText = [
+        request.request_no,
         request.company_name,
         request.event_name,
         request.event_location,
@@ -3174,18 +3176,8 @@ function sanitizeRecipientEmail(email) {
       error,
     });
     console.error("jobs insert error:", error);
-    if (!isMissingColumnError(error)) return { data: null, error };
-
-    const legacyPayload = buildLegacyJobPayloadFromRequest(request);
-    delete legacyPayload.job_no;
-    const { data: fallbackData, error: fallbackError } = await supabase
-      .from("jobs")
-      .insert([legacyPayload])
-      .select("*")
-      .single();
-
-    if (fallbackError) console.error("jobs insert fallback error:", fallbackError);
-    return { data: fallbackData, error: fallbackError };
+    // Never publish a reduced record without its dates, capacity, or management number.
+    return { data: null, error };
   };
 
   const updateJobVisibility = async (jobId, visibility) => {
@@ -14975,49 +14967,6 @@ function MessageBox({ text }) {
   return <div className="admin-message">{text}</div>;
 }
 
-function buildJobPayloadFromRequest(request) {
-  const title = request.event_name
-    ? `${request.event_name} 통역 모집`
-    : "통역 모집";
-  const peopleCount = request.requested_people_count || request.required_count;
-  const level = request.requested_level || request.required_level || "";
-  const field = request.interpretation_field || request.job_field || "";
-  const startDate = request.start_date || request.event_date || request.date || "";
-  const endDate = request.end_date || request.event_date || request.date || "";
-
-  return {
-    title,
-    event_name: request.event_name || title,
-    date: formatDateRange(startDate, endDate, startDate),
-    event_date: startDate,
-    start_date: startDate,
-    end_date: endDate,
-    location: request.event_location || request.location || "",
-    event_location: request.event_location || request.location || "",
-    pay: request.interpreter_fee
-      ? `${Number(request.interpreter_fee).toLocaleString()}원`
-      : "협의",
-    language: "한국어 ↔ 일본어",
-    level,
-    requested_level: level,
-    preference: [field, request.preferred_gender].filter(Boolean).join(" · "),
-    preferred_gender: request.preferred_gender || "",
-    people: peopleCount ? `${peopleCount}명` : "",
-    people_count: peopleCount || null,
-    field,
-    status: JOB_STATUS.RECRUITING,
-    assignment_status: normalizeAssignmentStatus(request),
-    operation_status: normalizeOperationStatus(request),
-    visibility: "public",
-    request_type: getDesignatedRequestType(request).label,
-    selected_interpreter_id: request.selected_interpreter_id || request.interpreter_id || null,
-    selected_interpreter_name:
-      request.selected_interpreter_name || request.interpreter_name || "",
-    interpreter_id: request.interpreter_id || request.selected_interpreter_id || null,
-    interpreter_name: request.interpreter_name || request.selected_interpreter_name || "",
-  };
-}
-
 function createRequestEditDraft(request = {}, job = null) {
   const flowSource = getRequestFlowSource(request, job);
   const eventName =
@@ -15095,22 +15044,6 @@ function createRequestEditDraft(request = {}, job = null) {
     payment_status: request.payment_status || "unpaid",
     estimate_status: request.estimate_status || "estimate_preparing",
     company_internal_memo: request.company_internal_memo || "",
-  };
-}
-
-function buildLegacyJobPayloadFromRequest(request) {
-  const payload = buildJobPayloadFromRequest(request);
-  return {
-    title: payload.title,
-    location: payload.location,
-    date: formatDateRange(payload.start_date, payload.end_date, payload.event_date),
-    pay: payload.pay,
-    language: payload.language,
-    level: payload.level,
-    preference: payload.preference,
-    people: payload.people,
-    status: JOB_STATUS.RECRUITING,
-    is_urgent: false,
   };
 }
 

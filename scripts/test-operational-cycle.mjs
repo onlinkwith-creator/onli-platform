@@ -4,6 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { getApplicationAvailability, hasEventPassed } from "../src/utils/jobStatus.js";
 import { getRecruitmentCountDisplay } from "../src/utils/jobRecruitment.js";
 import { getWorkTimeDisplay, isPreparationAssignment } from "../src/utils/assignmentDisplay.js";
+import { buildJobPayloadFromRequest } from "../src/utils/requestJobPayload.js";
 
 const now = new Date("2026-10-05T03:00:00Z");
 const open = { id: "job", status: "open", start_date: "2026-10-12", assigned_count: 0, people_count: 2 };
@@ -20,6 +21,11 @@ assert.equal(getWorkTimeDisplay({ work_hours: "2시간" }), "2시간");
 assert.equal(isPreparationAssignment({ operation_status: "operation_completed" }), false);
 assert.equal(isPreparationAssignment({ operation_status: "operation_in_progress" }), false);
 assert.equal(isPreparationAssignment({ operation_status: "operation_preparing" }), true);
+const requestJob = buildJobPayloadFromRequest({ event_name: "TEST", start_date: "2026-10-12", end_date: "2026-10-12", requested_people_count: 2 });
+assert.equal(requestJob.start_date, "2026-10-12");
+assert.equal(requestJob.people_count, 2);
+for (const key of ["request_type", "selected_interpreter_id", "interpreter_id"]) assert.equal(key in requestJob, false);
+assert.throws(() => buildJobPayloadFromRequest({ event_name: "Missing dates" }), /일정과 필요 인원/);
 
 const db = new PGlite();
 const publicId = "00000000-0000-0000-0000-000000000001";
