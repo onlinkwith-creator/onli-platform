@@ -32,6 +32,7 @@ import {
 } from "../utils/operationsStatus";
 import "./BusinessMypage.css";
 import CompanyApplicants from "../components/CompanyApplicants";
+import { getNewestRequestId, isRequestExpanded } from "../utils/requestExpansion";
 
 const PRIMARY_FIELDS_OPTIONS = [
   "뷰티",
@@ -229,6 +230,8 @@ function BusinessMypage({
 }) {
   const [business, setBusiness] = useState(null);
   const [requests, setRequests] = useState([]);
+  const [requestExpansion, setRequestExpansion] = useState({});
+  const newestRequestId = useMemo(() => getNewestRequestId(requests), [requests]);
   const [assignments, setAssignments] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -1331,6 +1334,9 @@ function BusinessMypage({
                 ) : (
                   <div className="business-requests-list">
                     {requests.map((req) => {
+                      const isExpanded = isRequestExpanded(req.id, newestRequestId, requestExpansion);
+                      const detailsId = `business-request-details-${req.id}`;
+                      const eventTitle = req.event_name || req.title || "제목 미입력 의뢰";
                       const statusLabel = getRequestStatusLabel(req);
                       const requestDocuments = documents.filter((doc) => doc.request_id === req.id);
                       
@@ -1363,12 +1369,27 @@ function BusinessMypage({
                             <span className="request-no-badge">
                               의뢰번호: {req.request_no || `REQ-${req.id}`}
                             </span>
-                            <span className={`status-badge ${getStatusBadgeClass(statusLabel)}`}>
-                              {statusLabel}
-                            </span>
+                            <div className="request-summary-controls">
+                              <span className={`status-badge ${getStatusBadgeClass(statusLabel)}`}>
+                                {statusLabel}
+                              </span>
+                              <button type="button" className="request-expand-button"
+                                aria-expanded={isExpanded} aria-controls={detailsId}
+                                aria-label={`${eventTitle} ${isExpanded ? "접기" : "펼치기"}`}
+                                title={isExpanded ? "의뢰 접기" : "의뢰 펼치기"}
+                                onClick={() => setRequestExpansion((current) => ({
+                                  ...current,
+                                  [String(req.id)]: !isRequestExpanded(req.id, newestRequestId, current),
+                                }))}>
+                                <ChevronDown size={20} aria-hidden="true" />
+                              </button>
+                            </div>
                           </div>
 
-                          <h3 className="request-card-title">{req.event_name || req.title || "제목 미입력 의뢰"}</h3>
+                          <h3 className="request-card-title">{eventTitle}</h3>
+                          <p className="request-summary-date">
+                            {req.start_date || req.event_date || "일정 미정"}{req.end_date ? ` ~ ${req.end_date}` : ""}
+                          </p>
                           {req.job_id && <button type="button" className="btn-edit-trigger"
                             onClick={() => {
                               setApplicantRequestId(String(req.id));
@@ -1377,6 +1398,7 @@ function BusinessMypage({
                             <UsersRound size={17} aria-hidden="true" /> 지원자 보기
                           </button>}
 
+                          <div id={detailsId} className="request-card-details" hidden={!isExpanded}>
                           <div className="request-meta-grid">
                             <div className="meta-item">
                               <span className="meta-label">일정</span>
@@ -1508,6 +1530,7 @@ function BusinessMypage({
                               </button>
                             </div>
                           )}
+                          </div>
                         </article>
                       );
                     })}
