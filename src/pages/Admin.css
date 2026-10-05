@@ -9377,3 +9377,193 @@
     transition: none !important;
   }
 }
+
+/* Compact mobile admin layout; keep document controls inside the viewport. */
+@media (min-width: 681px) and (max-width: 900px) {
+  .admin-processing-queue-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-processing-queue .admin-panel-head {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .admin-processing-queue .admin-panel-head > span {
+    width: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .admin-processing-queue {
+    padding: 14px;
+  }
+
+  .admin-processing-queue .admin-panel-head {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .admin-processing-queue .admin-panel-head > span {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .admin-processing-queue-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .admin-processing-queue-item {
+    min-width: 0;
+    min-height: 132px;
+    padding: 12px;
+    gap: 6px;
+    border-radius: 8px;
+    align-content: start;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-processing-queue-item .admin-processing-queue-label {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .admin-processing-queue-item strong {
+    font-size: 26px;
+  }
+
+  .admin-processing-queue-item span:not(.admin-processing-queue-label) {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .admin-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .admin-filter-bar .admin-date-filter-group {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    min-width: 0;
+  }
+
+  .admin-filter-bar .admin-date-filter-group label {
+    grid-column: 1 / -1 !important;
+    min-width: 0;
+  }
+
+  .admin-filter-bar .admin-date-filter-group input[type="month"] {
+    display: block;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .admin-filter-bar select.admin-filter-select {
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .admin-filter-bar input,
+  .admin-filter-bar select,
+  .admin-filter-bar button {
+    min-height: 44px !important;
+    height: 44px !important;
+  }
+
+  .admin-modal-overlay {
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)) !important;
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: none !important;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-modal-overlay > .admin-modal-card {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    max-height: calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom))) !important;
+  }
+
+  .admin-modal-card.admin-interpreter-detail-modal {
+    padding: 0 !important;
+  }
+
+  .admin-interpreter-detail-modal .admin-interpreter-modal-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 8px;
+    margin: 0;
+    padding: 14px !important;
+  }
+
+  .admin-interpreter-modal-head > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-interpreter-modal-head h2 {
+    font-size: 22px;
+  }
+
+  .admin-interpreter-modal-head .admin-modal-icon-close {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    align-self: start;
+  }
+
+  .admin-interpreter-detail-modal .admin-interpreter-detail-body {
+    padding: 0 12px 16px !important;
+    max-height: none;
+  }
+
+  .admin-interpreter-detail-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #fff;
+  }
+
+  .admin-interpreter-detail-tabs button {
+    min-width: 0;
+    padding: 10px 2px;
+    min-height: 44px;
+    font-size: 12px;
+    white-space: normal;
+  }
+
+  .admin-interpreter-detail-section dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .admin-interpreter-detail-item {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-interpreter-detail-item:has(textarea) {
+    grid-column: 1 / -1;
+  }
+
+  .admin-interpreter-detail-modal .admin-interpreter-detail-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .admin-interpreter-detail-modal .admin-interpreter-detail-item dd {
+    text-align: left;
+    font-size: 14px;
+  }
+}
