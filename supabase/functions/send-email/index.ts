@@ -387,9 +387,9 @@ function createEmailTemplate({
   }</p></td></tr></table>
 ${settlementProgress(status)}
 <div style="margin-top:24px; font-size:14px; line-height:1.8; color:#374151;">${message}</div>${information}${button}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin-top:32px; border-collapse:separate; border-radius:8px; background:#F8F7FF;"><tr><td style="padding:18px 20px; color:#4B5563; font-size:13px; line-height:1.7;"><strong style="display:block; margin-bottom:4px; color:#111827;">문의</strong>문의사항은 아래로 연락 부탁드립니다.<br><a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br>운영시간: 평일 09:00 ~ 18:00</td></tr></table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin-top:32px; border-collapse:separate; border-radius:8px; background:#F8F7FF;"><tr><td style="padding:18px 20px; color:#4B5563; font-size:13px; line-height:1.7;"><strong style="display:block; margin-bottom:4px; color:#111827;">문의</strong>문의사항은 아래로 연락 부탁드립니다.<br><a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">onlinkwith@gmail.com</a><br>운영시간: 평일 09:00 ~ 18:00</td></tr></table>
 </td></tr>
-<tr><td style="padding:24px 40px; border-top:1px solid #E5E7EB; background:#F3F4F6; color:#6B7280; font-size:11px; line-height:1.7;"><strong style="color:#374151;">ON-LI</strong><br>ON-Link Interpretation Platform<br>Website: <a href="https://on-li.jp" style="color:#5B4CF0; text-decoration:none;">https://on-li.jp</a><br>E-mail: <a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">support@on-li.jp</a><br><br>본 메일은 시스템에 의해 자동 발송되었습니다.<br>문의는 회신하지 마시고 홈페이지를 이용해주시기 바랍니다.</td></tr>
+<tr><td style="padding:24px 40px; border-top:1px solid #E5E7EB; background:#F3F4F6; color:#6B7280; font-size:11px; line-height:1.7;"><strong style="color:#374151;">ON-LI</strong><br>ON-Link Interpretation Platform<br>Website: <a href="https://on-li.jp" style="color:#5B4CF0; text-decoration:none;">https://on-li.jp</a><br>E-mail: <a href="mailto:onlinkwith@gmail.com" style="color:#5B4CF0; text-decoration:none;">onlinkwith@gmail.com</a><br><br>본 메일은 시스템에 의해 자동 발송되었습니다.<br>문의는 회신하지 마시고 홈페이지를 이용해주시기 바랍니다.</td></tr>
 </table></td></tr></table></body></html>`;
 }
 

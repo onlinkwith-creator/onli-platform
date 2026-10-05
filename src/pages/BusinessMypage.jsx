@@ -1228,8 +1228,7 @@ function BusinessMypage({
             <div className="sidebar-contact-info">
               <h3>ON-LI 고객센터</h3>
               <p>의뢰 변경이나 매칭 관련 긴급 문의는 고객센터로 연락해 주세요.</p>
-              <span className="contact-tel">010-4494-0418</span>
-              <span className="contact-email">support@on-li.co.kr</span>
+              <a className="contact-email" href="mailto:onlinkwith@gmail.com">onlinkwith@gmail.com</a>
             </div>
           </aside>
 
@@ -2009,16 +2008,9 @@ function BusinessMypage({
 
                   <div className="inquiry-channels">
                     <div className="channel-card">
-                      <span className="channel-icon">📞</span>
-                      <h4>대표 전화</h4>
-                      <p className="channel-contact">010-4494-0418</p>
-                      <small>평일 오전 9시 - 오후 6시 (주말/공휴일 제외)</small>
-                    </div>
-
-                    <div className="channel-card">
                       <span className="channel-icon">✉️</span>
                       <h4>이메일 문의</h4>
-                      <p className="channel-contact">support@on-li.co.kr</p>
+                      <p className="channel-contact"><a href="mailto:onlinkwith@gmail.com">onlinkwith@gmail.com</a></p>
                       <small>24시간 접수 가능 (영업일 기준 3시간 이내 회신)</small>
                     </div>
 

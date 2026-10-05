@@ -451,7 +451,7 @@ function Home({
             <h2 id="home-contact-title">통역 의뢰에 대해 궁금한 점이 있으신가요?</h2>
             <p>운영시간 평일 10:00–18:00 · 카카오톡 또는 메일로 문의해 주세요.</p>
           </div>
-          <a className="home-contact-cta-button" href="mailto:onlinkwith@gmail.com,onlinkcp@gmail.com">
+          <a className="home-contact-cta-button" href="mailto:onlinkwith@gmail.com">
             메일 문의하기
           </a>
         </div>
@@ -487,7 +487,7 @@ function Home({
               >
                 KakaoTalk
               </a>
-              <a className="home-footer-contact-item" href="mailto:onlinkwith@gmail.com,onlinkcp@gmail.com">
+              <a className="home-footer-contact-item" href="mailto:onlinkwith@gmail.com">
                 메일 문의
               </a>
               <span className="home-footer-contact-item" aria-label="운영시간">
