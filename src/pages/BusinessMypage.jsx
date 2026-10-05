@@ -31,6 +31,7 @@ import {
   normalizeOperationStatus,
 } from "../utils/operationsStatus";
 import "./BusinessMypage.css";
+import CompanyApplicants from "../components/CompanyApplicants";
 
 const PRIMARY_FIELDS_OPTIONS = [
   "뷰티",
@@ -1206,6 +1207,12 @@ function BusinessMypage({
                 <span className="tab-icon"><Handshake size={17} aria-hidden="true" /></span> 배정 통역
               </button>
               <button
+                className={`mypage-tab-btn ${activeTab === "applicants" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("applicants")}
+              >
+                <span className="tab-icon"><UsersRound size={17} aria-hidden="true" /></span> 지원자
+              </button>
+              <button
                 className={`mypage-tab-btn ${activeTab === "materials" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("materials")}
               >
@@ -1234,6 +1241,7 @@ function BusinessMypage({
 
           {/* Main Display Area */}
           <main className="business-mypage-main-content">
+            {activeTab === "applicants" && <CompanyApplicants requests={requests} />}
             
             {/* 1. 내 의뢰 현황 */}
             {activeTab === "requests" && (

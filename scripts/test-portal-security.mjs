@@ -93,12 +93,47 @@ try {
   await db.exec(await readFile(new URL('../supabase/migrations/20260913090000_portal_security_boundaries.sql', import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260913090500_portal_storage_boundaries.sql', import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260913091000_restrict_notification_enqueue.sql', import.meta.url),'utf8'));
+  await db.exec(`
+    alter table requests add column job_id uuid;
+    update requests set job_id=case when id=101 then '20000000-0000-0000-0000-000000000001'::uuid
+      else '20000000-0000-0000-0000-000000000002'::uuid end;
+    create table job_applications(id uuid primary key,job_id uuid,interpreter_id bigint,
+      status text,application_no text,created_at timestamptz default now(),
+      email text,phone text,message text);
+    insert into job_applications(id,job_id,interpreter_id,status,email,phone,message) values
+      ('30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',1,'pending','PRIVATE','PRIVATE','PRIVATE'),
+      ('30000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001',2,'pending','PRIVATE','PRIVATE','PRIVATE'),
+      ('30000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000002',1,'pending','PRIVATE','PRIVATE','PRIVATE');
+    create view public_interpreters as select * from interpreters
+      where approved=true and is_public=true and withdrawn_at is null;
+  `);
+  await db.exec(await readFile(new URL('../supabase/migrations/20261005120000_company_applicant_profiles.sql', import.meta.url),'utf8'));
   const login = async (id,role='authenticated') => {
     await db.exec('reset role');
     await db.query("select set_config('test.uid',$1,false)",[id]);
     await db.exec(`set role ${role}`);
   };
   const rows = async (sql,params=[]) => (await db.query(sql,params)).rows;
+  await login(company);
+  const applicants = await rows('select get_company_portal_applicants(101) as data');
+  assert.equal(applicants.length,2,'own request applications');
+  assert.equal(applicants[0].data.profile.name,'Interpreter A');
+  assert.equal(applicants[1].data.profile,null,'unpublished profile hidden');
+  assert.doesNotMatch(JSON.stringify(applicants),/PRIVATE|"phone"|"email"|"message"|bankbook|admin_memo/);
+  assert.equal((await rows('select get_company_portal_applicants(102) as data')).length,0,'other company request denied');
+  await login(stranger);
+  assert.equal((await rows('select get_company_portal_applicants(101) as data')).length,0);
+  assert.equal((await rows('select get_company_portal_applicants(102) as data')).length,1);
+  await db.exec('reset role');
+  await rows("update businesses set status='검토중' where id=2");
+  await login(stranger);
+  assert.equal((await rows('select get_company_portal_applicants(102) as data')).length,0,'unapproved company denied');
+  await db.exec('reset role');
+  await rows("update businesses set status='승인 완료' where id=2");
+  await login(interpreter);
+  assert.equal((await rows('select get_company_portal_applicants(101) as data')).length,0,'interpreter cannot list coapplicants');
+  await login('','anon');
+  await assert.rejects(rows('select get_company_portal_applicants(101) as data'));
   await login(company);
   assert.equal((await rows('select * from requests')).length,0,'company raw request access');
   assert.equal((await rows('select * from interpreters')).length,0,'company raw interpreter access');

@@ -1,0 +1,19 @@
+.company-applicants { padding: 24px; background: #fff; min-width: 0; }
+.company-applicant-filter { display: grid; gap: 8px; margin: 20px 0; }
+.company-applicant-filter select { width: 100%; min-width: 0; padding: 10px; border: 1px solid #dce2e8; border-radius: 6px; font: inherit; }
+.company-applicant-row { border-top: 1px solid #e4e8ed; padding: 18px 0; overflow-wrap: anywhere; }
+.company-applicant-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.company-applicant-heading h3 { margin: 0; font-size: 16px; }
+.company-applicant-status { margin-left: auto; color: #246b4b; font-size: 13px; }
+.company-applicant-meta { color: #66717e; font-size: 13px; }
+.company-applicant-row summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 10px 0; }
+.company-applicant-row summary:focus-visible { outline: 2px solid #246b4b; outline-offset: 3px; }
+.company-applicant-row details[open] summary svg { transform: rotate(180deg); }
+.company-applicant-profile { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; margin: 12px 0 0; }
+.company-applicant-profile dt { color: #66717e; font-size: 13px; margin-bottom: 6px; }
+.company-applicant-profile dd { margin: 0; white-space: pre-wrap; }
+.company-applicant-intro { grid-column: 1 / -1; }
+@media (max-width: 600px) {
+  .company-applicants { padding: 16px; }
+  .company-applicant-profile { grid-template-columns: minmax(0,1fr); }
+}
