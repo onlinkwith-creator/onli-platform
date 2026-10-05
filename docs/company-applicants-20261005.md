@@ -2,13 +2,17 @@
 
 ## Current Status
 
-Implemented locally and verified by security tests and a production build.
-Not deployed: production permission approval and SQL application are pending.
-Browser verification is incomplete because the Chrome control connection timed out.
+Production database and frontend rollout completed on 2026-10-05 after explicit user approval.
+The migration was applied through the Supabase SQL dashboard and returned success.
+Vercel production deployment f2d8d05 completed successfully.
+Verified in the real Chrome company account: request 117's Applicant View button
+selects the request and shows applicant Kang Sangin. Expanding Profile View shows
+level, specialties, region, experience count, and introduction.
+Desktop verification is complete; mobile viewport verification was not performed.
 
 ## Scope
 
-- Business mypage has an Applicants tab with a request selector, loading/error/empty states, refresh, and expandable public profiles.
+- Business mypage has an Applicants tab with a request selector, loading/error/empty states, refresh, and expandable public profiles. Each linked request also has an Applicant View button.
 - Only approved companies can list applications for requests they own.
 - Profiles come from public_interpreters. Unpublished profiles return null.
 - The explicit profile allowlist contains name, level, introduction, specialties, regions, experience count, and verification flag.
@@ -32,6 +36,8 @@ No customer profile phone numbers were removed.
 - npm run build: passed; existing large bundle warning remains.
 - git diff --check: passed.
 - Development preview: http://127.0.0.1:5187/business/mypage.
+- Live RPC: company account request 117 returns 1 applicant; unrelated request 102 returns none; interpreter account returns none; anonymous call denied with 42501. Sensitive fields absent.
+- Live UI: ONLI-REQ-016 -> Applicant View -> Profile View passed.
 
 ## Rollout
 
@@ -41,4 +47,6 @@ No customer profile phone numbers were removed.
 4. Deploy the frontend and verify the Applicants tab and expanded profile on desktop/mobile.
 5. Use the stable production address rather than an old immutable deployment address.
 
-The development frontend currently reports a fetch error if the new RPC has not been applied. That is expected until rollout completes.
+Use the stable production address and reload any tab that was open before deployment.
+The older fixed deployment URL is immutable and will not gain this feature.
+No passwords, application statuses, assignments, payment records, or email queues were modified by this rollout.
