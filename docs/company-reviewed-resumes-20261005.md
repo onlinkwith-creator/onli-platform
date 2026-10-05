@@ -4,7 +4,7 @@
 
 User authorized production rollout on 2026-10-05. Production migration succeeded
 through the Supabase SQL dashboard. Applicant IDs use UUIDs in production;
-the RPC and isolated fixtures use the same type. Frontend rollout is in progress.
+the RPC and isolated fixtures use the same type. Frontend rollout completed.
 No existing resume has been modified, redacted, or published by this work.
 
 ## Behavior
@@ -31,7 +31,12 @@ No existing resume has been modified, redacted, or published by this work.
 - Source replacement invalidates RPC and storage access.
 - Existing npm run test:security passed.
 - Component ESLint and production build passed; existing bundle-size warning remains.
-- Live DB, real PDF contents, and live frontend verification are pending rollout.
+- Live company RPC returns null without a reviewed copy; anonymous RPC is denied.
+- Company metadata read returns zero rows. Admin metadata/object listing succeeds.
+- Production has zero reviewed copies; no real file has been published for testing.
+- Live company UI shows a disabled Resume View button and a preparing message.
+- PDF publication/preview end-to-end and admin-modal browser verification have not
+  been performed because no reviewed PDF was supplied. File contents require human review.
 
 ## Deployment
 

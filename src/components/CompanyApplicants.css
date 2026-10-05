@@ -40,6 +40,7 @@
 .company-applicant-intro { grid-column: 1 / -1; }
 .company-applicant-resume { margin-top: 18px; }
 .company-applicant-resume p { color: #59697b; font-size: 13px; }
+.company-applicants .company-applicant-resume button:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (max-width: 600px) {
   .company-applicants { padding: 16px; }
   .company-applicant-profile { grid-template-columns: minmax(0,1fr); }
