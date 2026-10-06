@@ -31,7 +31,9 @@ resending these risks duplicate mail.
 1. Deploy `supabase/functions/admin-action-alert/index.ts` to `admin-action-alert`.
 2. Configure its gateway to use the DB nonce validation in the function instead
    of legacy JWT verification. Other functions and account permissions stay unchanged.
-3. Apply the queue migration, then `20261006120000_admin_alert_preferences.sql`.
+3. Apply the queue migration, then `20261006120000_admin_alert_preferences.sql`
+   and `20261006123000_admin_alert_delivery_channel.sql`. The last migration
+   overrides legacy internal-channel rules only for this new queue's records.
    Do not run any backfill or bulk-send operation.
 4. As an active admin, call `test_admin_action_alert()` once. This creates a
    category-only connection test, not a fake member or customer request.

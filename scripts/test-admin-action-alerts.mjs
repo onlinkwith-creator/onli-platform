@@ -25,10 +25,15 @@ try {
     .replace(/^create extension.*;$/gm,'');
   await db.exec(sql);
   await db.exec(await readFile(new URL('../supabase/migrations/20261006120000_admin_alert_preferences.sql',import.meta.url),'utf8'));
+  await db.exec(`create function legacy_admin_internal() returns trigger language plpgsql as $$begin
+   if new.recipient_type='admin' then new.channel:='internal';new.recipient_email:=null;end if;return new;end;$$;
+   create trigger legacy_admin_internal before insert or update on notifications for each row execute function legacy_admin_internal();`);
+  await db.exec(await readFile(new URL('../supabase/migrations/20261006123000_admin_alert_delivery_channel.sql',import.meta.url),'utf8'));
   const count = async () => (await db.query('select count(*)::integer n from admin_action_alerts')).rows[0].n;
   assert.equal(await count(),0,'no backfill of old registrations or pending mail');
   await db.exec("insert into interpreters(id) values(1);insert into businesses values(1);insert into requests(id) values(1);insert into job_applications values(gen_random_uuid());");
   assert.equal(await count(),4,'every new approval source enqueued');
+  assert.equal((await db.query("select count(*)::integer n from notifications where id in (select id from admin_action_alerts) and channel='email' and recipient_email='onlinkwith@gmail.com'")).rows[0].n,4,'automatic mail overrides legacy internal-only categorization');
   await db.exec("update interpreters set resume_file_url='private/resume.pdf',resume_uploaded_at=now() where id=1;update interpreters set name='changed' where id=1;");
   assert.equal(await count(),5,'resume queued; unrelated profile update not queued');
   await db.exec("update requests set estimate_status='estimate_approved' where id=1;update requests set estimate_status='estimate_approved' where id=1;");
@@ -69,6 +74,7 @@ try {
   await db.exec('insert into businesses values(2)');
   assert.equal(await count(),beforeMute,'disabled registration does not queue');
   assert.equal((await db.query("select count(*)::integer n from admin_action_alerts where status in ('pending','dispatched','failed')")).rows[0].n,0,'unclaimed backlog muted');
+  assert.equal((await db.query("select count(*)::integer n from notifications n join admin_action_alerts a on a.id=n.id where a.status='muted' and (n.channel<>'internal' or n.recipient_email is not null)")).rows[0].n,0,'muted jobs cannot be emailed by the manual sender');
   await db.query('select set_admin_alert_preferences(true,$1)',[JSON.stringify(pref.event_types)]);
   await db.exec('select dispatch_admin_action_alerts()');
   assert.equal((await db.query("select count(*)::integer n from admin_action_alerts where status='dispatched'")).rows[0].n,0,'re-enabling never drains muted backlog');
