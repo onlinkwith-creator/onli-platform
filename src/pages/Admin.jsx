@@ -15901,6 +15901,14 @@ function getNotificationPayloadSummary(event = {}) {
 
 function getNotificationEventTypeLabel(eventType) {
   const labels = {
+    admin_action_interpreter: "신규 통역사 승인 알림",
+    admin_action_company: "신규 기업 승인 알림",
+    admin_action_request: "신규 의뢰 확인 알림",
+    admin_action_application: "신규 지원자 검토 알림",
+    admin_action_resume: "이력서 검수 알림",
+    admin_action_documents: "정산 서류 확인 알림",
+    admin_action_estimate: "기업 견적 승인 확인 알림",
+    admin_action_test: "관리자 자동 알림 연결 테스트",
     assignment_created: "배정 완료 알림",
     interpreter_assignment_completed: "배정 완료 알림",
     application_created: "신규 지원 알림",

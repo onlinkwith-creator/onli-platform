@@ -5,3 +5,7 @@ verify_jwt = false
 
 [functions.generate-settlement-document]
 verify_jwt = false
+
+# Authenticated by a DB-generated, single-attempt nonce, not a browser JWT.
+[functions.admin-action-alert]
+verify_jwt = false

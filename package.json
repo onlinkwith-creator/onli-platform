@@ -11,6 +11,7 @@
     "test:settlements": "node scripts/test-settlement-display.mjs",
     "test:operations": "node scripts/test-operational-cycle.mjs",
     "test:certification": "node scripts/test-onli-certification.mjs",
+    "test:admin-alerts": "node scripts/test-admin-action-alerts.mjs",
     "preview": "vite preview",
     "seed:test-requests": "node scripts/seed-test-requests.mjs"
   },
