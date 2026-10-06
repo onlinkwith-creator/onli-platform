@@ -10,6 +10,7 @@
     "test:security": "node scripts/test-portal-security.mjs && node scripts/test-interpreter-security.mjs && node scripts/test-admin-workflow-notifications.mjs && node scripts/test-company-reviewed-resumes.mjs",
     "test:settlements": "node scripts/test-settlement-display.mjs",
     "test:operations": "node scripts/test-operational-cycle.mjs",
+    "test:certification": "node scripts/test-onli-certification.mjs",
     "preview": "vite preview",
     "seed:test-requests": "node scripts/seed-test-requests.mjs"
   },

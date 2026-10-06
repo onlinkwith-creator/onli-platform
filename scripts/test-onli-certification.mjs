@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+const db = new PGlite();
+const admin='00000000-0000-0000-0000-000000000001';
+const owner='00000000-0000-0000-0000-000000000002';
+try {
+  await db.exec(`create role anon; create role authenticated; create schema auth;
+    create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+    create function is_active_admin() returns boolean language sql stable as $$select coalesce(auth.uid()='${admin}'::uuid,false)$$;
+    create table interpreters(id bigint primary key,auth_user_id uuid,approved boolean default false,
+      name text,region text,level text,short_intro text,specialties text,available_regions text,
+      experience_count integer,is_public boolean default true,status text default 'active',withdrawn_at timestamptz,custom_regions text[]);
+    create table jobs(id uuid primary key,title text);
+    create table requests(id bigint primary key,event_name text,operation_status text,settlement_status text,assigned_interpreter_id bigint,is_test boolean);
+    create table request_interpreters(id bigint primary key,request_id bigint,interpreter_id bigint,status text);
+    create table matchings(id uuid primary key,request_id bigint,job_id uuid,interpreter_id bigint,status text);
+    insert into interpreters(id,auth_user_id) values(1,'${owner}');
+    insert into interpreters(id,approved) values(2,true);
+    grant usage on schema public,auth to anon,authenticated;
+    grant select,update on interpreters to authenticated;
+    grant select,insert,update,delete on requests,request_interpreters,matchings,jobs to authenticated;
+  `);
+  await db.exec(await readFile(new URL('../supabase/migrations/20261006090000_automatic_onli_certification.sql',import.meta.url),'utf8'));
+  await db.exec('grant select on public_interpreters to anon,authenticated');
+  const login=async (uid,role='authenticated')=>{
+    await db.exec('reset role'); await db.query("select set_config('test.uid',$1,false)",[uid]); await db.exec(`set role ${role}`);
+  };
+  const own=async()=> (await db.query('select * from get_interpreter_certifications() where interpreter_id=1')).rows[0];
+  await login(admin);
+  for(let id=1;id<=5;id++) await db.query("insert into requests values($1,'Real event','operation_completed','pending',1,false)",[id]);
+  assert.equal((await own()).completed_count,5);
+  assert.equal((await own()).certified,true);
+  await db.exec("insert into request_interpreters values(1,1,1,'assigned'),(2,1,1,'assigned'); insert into matchings values('00000000-0000-0000-0000-000000000010',1,null,1,'completed')");
+  assert.equal((await own()).completed_count,5,'same request counts once across sources');
+  await db.exec("insert into requests values(6,'[TEST] test event','operation_completed',null,1,false),(7,'Cancelled event','cancelled',null,1,false),(8,'Not finished','operation_before','pending',1,false),(9,'Test flag','operation_completed',null,1,true)");
+  assert.equal((await own()).completed_count,5,'test/cancelled/settlement pending do not count');
+  await db.exec("insert into requests values(10,'No-show event','operation_completed',null,1,false); insert into request_interpreters values(10,10,1,'no_show')");
+  assert.equal((await own()).completed_count,5,'no-show credit excluded');
+  await db.exec("select set_onli_certification_mode(1,'manual_rejected'); update requests set event_name='Renamed event' where id=1");
+  assert.equal((await own()).certified,false,'manual rejection survives recalculation');
+  await db.exec("select set_onli_certification_mode(1,'auto')");
+  assert.equal((await own()).certified,true);
+  await db.exec('delete from requests where id=5');
+  assert.equal((await own()).completed_count,4);
+  assert.equal((await own()).certified,false,'correction below five invalidates auto badge');
+  await db.exec("select set_onli_certification_mode(1,'manual_approved')");
+  assert.equal((await own()).certified,true,'manual grant works below threshold');
+  await db.exec('update interpreters set approved=false where id=1');
+  assert.equal((await own()).mode,'manual_rejected','legacy admin manual edit captured');
+  assert.equal((await db.query('select * from get_interpreter_certifications() where interpreter_id=2')).rows[0].mode,'manual_approved','existing manual approvals preserved');
+  await login(owner);
+  assert.equal((await db.query('select * from get_interpreter_certifications()')).rows.length,1);
+  await assert.rejects(db.exec("select set_onli_certification_mode(1,'manual_approved')"));
+  await assert.rejects(db.exec('update interpreter_certifications set completed_count=100'));
+  await assert.rejects(db.exec('select count_onli_completed_work(2)'));
+  await login('00000000-0000-0000-0000-000000000003');
+  assert.equal((await db.query('select * from get_interpreter_certifications()')).rows.length,0);
+  await login('','anon');
+  await assert.rejects(db.exec('select * from get_interpreter_certifications()'));
+  assert.equal((await db.query('select verified from public_interpreters where id=1')).rows[0].verified,false);
+  console.log('PASS: automatic five-work badge, duplicate/test/cancellation/no-show exclusions, separate settlement, recalculation, manual override/reset, private count and protected writes');
+} finally { await db.close(); }

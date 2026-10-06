@@ -114,6 +114,15 @@ function InterpreterMypage({
   onSignOut,
 }) {
   const [interpreter, setInterpreter] = useState(null);
+  const [certification, setCertification] = useState(null);
+  useEffect(() => {
+    let current = true;
+    setCertification(null);
+    if (interpreter?.id) supabase.rpc("get_interpreter_certifications").then(({ data, error }) => {
+      if (current && !error) setCertification(data?.find((row) => String(row.interpreter_id) === String(interpreter.id)) || null);
+    });
+    return () => { current = false; };
+  }, [interpreter?.id, interpreter?.approved]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("loading");
@@ -1242,7 +1251,7 @@ function InterpreterMypage({
   const resumeFileUrl = interpreter?.resume_file_url || interpreter?.resume_url || "";
   const resumeFileName = interpreter?.resume_file_name || (resumeFileUrl ? "이력서 파일" : "");
   const hasResume = Boolean(String(resumeFileUrl || "").trim());
-  const isVerifiedWithResume = interpreter?.approved === true && hasResume;
+  const isCertified = certification?.certified ?? interpreter?.approved === true;
 
   // DB-driven recent events from matchings
   const recentAssignedEvents = (matchings || [])
@@ -1951,7 +1960,7 @@ function InterpreterMypage({
                   <article className="mypage-verification-card animate-fade-in">
                     <h3>통역사 검증 & 배지 신청</h3>
                     <p className="verification-status-desc resume-required-note">
-                      통역 공고 지원을 위해 이력서 등록은 필수입니다. ON-LI 운영팀 검토 후 ON-LI 인증 배지가 표시될 수 있습니다.
+                      통역 공고 지원을 위해 이력서 등록은 필수입니다. ON-LI 업무를 5회 완료하면 자동으로 인증됩니다.
                     </p>
                     <div className="resume-template-download-row">
                       <a className="resume-template-download" href="/templates/onli-interpreter-resume.docx"
@@ -1969,14 +1978,14 @@ function InterpreterMypage({
                       style={{ display: "none" }}
                     />
                     
-                    {isVerifiedWithResume ? (
+                    {isCertified ? (
                       <div className="verification-status-box verified">
                         <span className="verification-status-badge verified">⭐ ON-LI 인증 완료</span>
                         <div className="verification-status-details">
                           <h4 className="verification-status-title">ON-LI 인증 통역사</h4>
                           <p className="verification-status-desc">
-                            귀하는 ON-LI 공식 인증을 받은 신뢰할 수 있는 통역사입니다. 
-                            프로필에 ON-LI 인증 배지가 표시되며 공고 추천 및 매칭에서 우선 순위를 얻게 됩니다.
+                            프로필에 ON-LI 인증 배지가 표시됩니다.
+                            {certification && ` ON-LI 완료 업무 ${certification.completed_count}회`}
                           </p>
                           <ResumeFileActions
                             fileName={resumeFileName}
@@ -1994,10 +2003,10 @@ function InterpreterMypage({
                       <div className="verification-status-box pending">
                         <span className="verification-status-badge pending">○ 일반 등록</span>
                         <div className="verification-status-details">
-                          <h4 className="verification-status-title">이력서 검토 중</h4>
+                          <h4 className="verification-status-title">ON-LI 업무 수행 중</h4>
                           <p className="verification-status-desc">
-                            제출하신 이력서를 바탕으로 운영팀에서 검증 절차를 진행 중입니다. 
-                            심사는 영업일 기준 1~3일 소요됩니다.
+                            ON-LI 완료 업무 {certification?.completed_count ?? 0}회 / 5회.
+                            업무 완료 횟수는 자동으로 집계되며, 관리자가 수동으로 인증을 관리할 수도 있습니다.
                           </p>
                           <ResumeFileActions
                             fileName={resumeFileName}

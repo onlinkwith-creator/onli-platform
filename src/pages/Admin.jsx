@@ -779,7 +779,16 @@ function sanitizeRecipientEmail(email) {
 
       const requestData = getAdminData("requests", requestResult);
       const jobData = getAdminData("jobs", jobResult);
-      const interpreterData = getAdminData("interpreters", interpreterResult);
+      let interpreterData = getAdminData("interpreters", interpreterResult);
+      const certificationResult = await supabase.rpc("get_interpreter_certifications");
+      if (!certificationResult.error) {
+        const certifications = new Map((certificationResult.data || []).map((row) => [String(row.interpreter_id), row]));
+        interpreterData = interpreterData.map((row) => {
+          const certification = certifications.get(String(row.id));
+          return certification ? { ...row, approved: certification.certified,
+            onli_completed_count: certification.completed_count, certification_mode: certification.mode } : row;
+        });
+      }
       const assignmentData = uniqueRequestInterpreterAssignments(
         normalizeRequestInterpreterRows(getAdminData("request_interpreters", assignmentResult))
       );
@@ -790,6 +799,8 @@ function sanitizeRecipientEmail(email) {
       if (!requestResult.error) setRequests(canonicalRequestData);
       if (!jobResult.error) setJobs(jobData);
       if (!interpreterResult.error) setInterpreters(interpreterData);
+      if (!interpreterResult.error) setSelectedInterpreter((current) => current
+        ? interpreterData.find((row) => row.id === current.id) || current : current);
       if (!assignmentResult.error) setAssignments(assignmentData);
       if (!matchingResult.error) setMatchings(matchingData);
       if (!businessResult.error) setBusinesses(businessData);
@@ -2309,8 +2320,21 @@ function sanitizeRecipientEmail(email) {
       return false;
     }
 
+    if (changes.certification_mode) {
+      setSavingKey(`interpreter-${id}`);
+      const { error } = await supabase.rpc("set_onli_certification_mode", {
+        p_id: id, p_mode: changes.certification_mode,
+      });
+      setSavingKey("");
+      if (error) { alert("인증 방식을 변경하지 못했습니다."); return false; }
+      await fetchAdminData();
+      return true;
+    }
+    const nextChanges = { ...changes };
+    const currentInterpreter = interpreters.find((item) => item.id === id);
+    if (nextChanges.approved === currentInterpreter?.approved) delete nextChanges.approved;
     const { payload, errorMessage: payloadErrorMessage } =
-      prepareInterpreterUpdatePayload(changes);
+      prepareInterpreterUpdatePayload(nextChanges);
 
     if (payloadErrorMessage) {
       alert(payloadErrorMessage);
@@ -10638,20 +10662,21 @@ function InterpreterModal({
                   <div style={{ flex: 1, paddingRight: "16px" }}>
                     <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-h)", fontWeight: "600" }}>ON-LI 인증 권한 제어</p>
                     <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: "var(--text)" }}>
-                      ON-LI에서 5회 이상 통역 업무를 수행하고 운영자가 신뢰도를 확인한 통역사에게 인증 뱃지를 부여합니다.
+                      ON-LI 실제 업무를 5회 완료하면 자동 인증됩니다. 수동 인증·해제도 가능합니다.
                     </p>
                     <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
                       <strong style={{ color: "var(--text-h)" }}>현재 판단:</strong>
                       <div>ON-LI 수행 횟수: {onliPerformanceCount}회</div>
                       <div>인증 조건: {certificationRequirementLabel}</div>
                       <div>ON-LI 인증 상태: {certificationStateLabel}</div>
+                      <div>인증 방식: {interpreter.certification_mode === "manual_approved" ? "수동 인증" : interpreter.certification_mode === "manual_rejected" ? "수동 해제" : "자동"}</div>
                     </div>
                     <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
                       <strong style={{ color: "var(--text-h)" }}>인증 기준:</strong>
                       <div>✓ ON-LI 업무 수행 5회 이상</div>
-                      <div>✓ 관리자 활동 이력 확인 완료</div>
-                      <div>✓ 관리자 내부 품질 메모 확인 완료</div>
-                      <div>※ 조건 충족 시에도 자동 인증되지 않으며, 관리자가 수동으로 부여합니다.</div>
+                      <div>✓ 테스트·취소·노쇼 제외, 동일 의뢰 중복 제외</div>
+                      <div>※ 정산대기만으로는 수행 횟수가 올라가지 않습니다.</div>
+                      <div>※ 수동 해제는 자동 인증보다 우선합니다.</div>
                     </div>
                   </div>
                   <div>
@@ -10660,7 +10685,7 @@ function InterpreterModal({
                         type="button"
                         onClick={async () => {
                           if (window.confirm("이 통역사의 ON-LI 인증을 해제하시겠습니까?")) {
-                            await updateInterpreter(interpreter.id, { approved: false }, { showSuccess: true });
+                            await updateInterpreter(interpreter.id, { certification_mode: "manual_rejected" }, { showSuccess: true });
                           }
                         }}
                         style={{
@@ -10682,7 +10707,7 @@ function InterpreterModal({
                         type="button"
                         onClick={async () => {
                           if (window.confirm("이 통역사에게 ON-LI 인증을 부여하시겠습니까?")) {
-                            await updateInterpreter(interpreter.id, { approved: true }, { showSuccess: true });
+                            await updateInterpreter(interpreter.id, { certification_mode: "manual_approved" }, { showSuccess: true });
                           }
                         }}
                         style={{
@@ -10698,6 +10723,12 @@ function InterpreterModal({
                         }}
                       >
                         ON-LI 인증 부여하기
+                      </button>
+                    )}
+                    {interpreter.certification_mode && interpreter.certification_mode !== "auto" && (
+                      <button type="button" className="admin-small-button" style={{ marginTop: "8px" }}
+                        onClick={() => updateInterpreter(interpreter.id, { certification_mode: "auto" })}>
+                        자동으로 복귀
                       </button>
                     )}
                   </div>
@@ -15601,6 +15632,7 @@ function getCompanyHistory(request = {}, requests = [], assignments = [], interp
 }
 
 function getOnliPerformanceCount({ interpreter = {}, matchings = [], requestAssignments = [], requests = [] } = {}) {
+  if (Number.isInteger(interpreter.onli_completed_count)) return interpreter.onli_completed_count;
   const interpreterId = String(interpreter.id || "");
   if (!interpreterId) return 0;
 
@@ -15634,15 +15666,8 @@ function getOnliPerformanceCount({ interpreter = {}, matchings = [], requestAssi
 
 function isCompletedOnliPerformanceRecord(item = {}) {
   if (isExcludedOnliPerformanceRecord(item)) return false;
-  const operationStatus = normalizeOperationStatus(item);
-  const settlementStatus = normalizeSettlementFlowStatus(item);
-  const status = String(item.status || item.matching_status || "").trim().toLowerCase();
-  return (
-    operationStatus === OPERATION_STATUS.COMPLETED ||
-    settlementStatus === SETTLEMENT_FLOW_STATUS.PENDING ||
-    settlementStatus === SETTLEMENT_FLOW_STATUS.COMPLETED ||
-    ["completed", "settlement_waiting", "settled", "업무완료", "운영완료", "정산대기", "정산완료"].includes(status)
-  );
+  const status = String(item.operation_status || item.status || item.matching_status || "").trim().toLowerCase();
+  return ["operation_completed", "completed", "done", "finished", "업무완료", "운영완료"].includes(status);
 }
 
 function isExcludedOnliPerformanceRecord(item = {}) {
