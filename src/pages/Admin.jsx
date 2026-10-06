@@ -23,6 +23,7 @@ import {
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
 import AdminCompanyResume from "../components/AdminCompanyResume";
+import AdminAlertPreferences from "../components/AdminAlertPreferences";
 import { DayPicker } from "react-day-picker";
 import { ko } from "react-day-picker/locale";
 import MonthFilterInput from "../components/MonthFilterInput";
@@ -5714,6 +5715,7 @@ function AdminAccountModal({
       onClose={onClose}
     >
       <div className="admin-modal-form admin-account-modal-form">
+        <AdminAlertPreferences />
         {/* 현재 로그인 계정 */}
         <div className="admin-account-current">
           <Info label="현재 관리자 이메일" value={currentUser?.email || "로그인 정보 없음"} />

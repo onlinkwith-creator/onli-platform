@@ -7,6 +7,7 @@ const db = new PGlite();
 try {
   await db.exec(`create role anon; create role authenticated; create role service_role;
    create schema net; create schema cron; create schema auth;
+   create function auth.uid() returns uuid language sql as $$select null::uuid$$;
    create function is_active_admin() returns boolean language sql as $$select coalesce(current_setting('test.admin',true)='true',false)$$;
    create table requests(id bigint primary key,estimate_status text,estimate_approved_at timestamptz);
    create table interpreters(id bigint primary key,resume_file_url text,resume_uploaded_at timestamptz,bankbook_file_url text,business_license_file_url text,name text);
@@ -23,6 +24,7 @@ try {
   const sql = (await readFile(new URL('../supabase/migrations/20261006110000_automatic_admin_action_alerts.sql',import.meta.url),'utf8'))
     .replace(/^create extension.*;$/gm,'');
   await db.exec(sql);
+  await db.exec(await readFile(new URL('../supabase/migrations/20261006120000_admin_alert_preferences.sql',import.meta.url),'utf8'));
   const count = async () => (await db.query('select count(*)::integer n from admin_action_alerts')).rows[0].n;
   assert.equal(await count(),0,'no backfill of old registrations or pending mail');
   await db.exec("insert into interpreters(id) values(1);insert into businesses values(1);insert into requests(id) values(1);insert into job_applications values(gen_random_uuid());");
@@ -55,7 +57,26 @@ try {
   await assert.rejects(db.query('select * from claim_admin_action_alert($1,$2)',[item.id,item.nonce]));
   await assert.rejects(db.query("select enqueue_admin_action_alert('x','x','','x','/admin')"));
   await assert.rejects(db.query('select test_admin_action_alert()'));
+  await assert.rejects(db.query('select get_admin_alert_preferences()'));
+  await assert.rejects(db.query("select set_admin_alert_preferences(false,'{}')"));
   await db.exec('reset role');
+
+  await db.exec("select set_config('test.admin','true',false)");
+  const pref=(await db.query('select get_admin_alert_preferences() p')).rows[0].p;
+  assert.equal(pref.recipient_email,'onlinkwith@gmail.com');
+  const beforeMute=await count();
+  await db.query('select set_admin_alert_preferences(false,$1)',[JSON.stringify(pref.event_types)]);
+  await db.exec('insert into businesses values(2)');
+  assert.equal(await count(),beforeMute,'disabled registration does not queue');
+  assert.equal((await db.query("select count(*)::integer n from admin_action_alerts where status in ('pending','dispatched','failed')")).rows[0].n,0,'unclaimed backlog muted');
+  await db.query('select set_admin_alert_preferences(true,$1)',[JSON.stringify(pref.event_types)]);
+  await db.exec('select dispatch_admin_action_alerts()');
+  assert.equal((await db.query("select count(*)::integer n from admin_action_alerts where status='dispatched'")).rows[0].n,0,'re-enabling never drains muted backlog');
+  const selective={...pref.event_types,admin_action_company:false};
+  await db.query('select set_admin_alert_preferences(true,$1)',[JSON.stringify(selective)]);
+  await db.exec('insert into businesses values(3);insert into requests(id) values(2)');
+  assert.equal(await count(),beforeMute+1,'per-type preference enforced on the server');
+  await assert.rejects(db.query('select set_admin_alert_preferences(true,$1)',[JSON.stringify({...pref.event_types,recipient_email:'attacker@example.invalid'})]));
 
   // Exercise the deployed function handler without SMTP or production data.
   const source=(await readFile(new URL('../supabase/functions/admin-action-alert/index.ts',import.meta.url),'utf8')).replace(/^import .*;\n/gm,'');
