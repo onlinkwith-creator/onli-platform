@@ -1231,6 +1231,7 @@ function BusinessMypage({
               key={applicantRequestId}
               requests={requests}
               initialRequestId={applicantRequestId}
+              onAssigned={fetchData}
             />}
             
             {/* 1. 내 의뢰 현황 */}

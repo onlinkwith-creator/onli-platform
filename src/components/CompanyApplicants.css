@@ -31,6 +31,18 @@
 .company-applicant-heading h3 { margin: 0; font-size: 16px; }
 .company-applicant-status { margin-left: auto; color: #246b4b; font-size: 13px; }
 .company-applicant-meta { color: #66717e; font-size: 13px; }
+.company-applicant-actions { display: flex; justify-content: flex-end; margin: 12px 0; }
+.company-applicants .company-assign-button, .company-applicants .company-assign-cancel { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid #4455a8; border-radius: 8px; background: #4455a8; color: #fff; font-size: 14px; cursor: pointer; }
+.company-applicants .company-assign-cancel { background: #fff; color: #4455a8; }
+.company-applicants .company-assign-button:hover:not(:disabled) { background: #36468f; }
+.company-applicants .company-assign-button:disabled, .company-applicants .company-assign-cancel:disabled { opacity: .5; cursor: not-allowed; }
+.company-applicants .company-assign-button:focus-visible, .company-applicants .company-assign-cancel:focus-visible { outline: 2px solid #4455a8; outline-offset: 3px; }
+.company-assignment-confirm { width: 100%; border-block: 1px solid #e4e8ed; padding: 12px 0; }
+.company-assignment-confirm p { margin: 0 0 12px; color: #0d253d; font-size: 14px; }
+.company-assignment-confirm > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.company-applicant-assigned { display: inline-flex; align-items: center; gap: 8px; color: #246b4b; font-size: 14px; }
+.company-assignment-notice { color: #246b4b; font-size: 14px; overflow-wrap: anywhere; }
+.company-assignment-notice.is-error { color: #a52c3c; }
 .company-applicant-row summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 10px 0; }
 .company-applicant-row summary:focus-visible { outline: 2px solid #246b4b; outline-offset: 3px; }
 .company-applicant-row details[open] summary svg { transform: rotate(180deg); }
