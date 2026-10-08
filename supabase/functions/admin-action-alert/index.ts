@@ -18,12 +18,15 @@ const workflowTypes = new Set([
   "workflow_materials_uploaded", "workflow_completion_reminder", "workflow_review_reminder",
   "workflow_matching_job", "workflow_recruiting_reopened",
   "workflow_message_unread",
+  "workflow_change_proposed", "workflow_change_applied", "workflow_change_declined",
+  "workflow_change_cancelled", "workflow_change_expired",
 ]);
 const workflowPaths = new Set([
   "/interpreter-mypage?tab=assignments", "/business/mypage?tab=applicants", "/business/mypage?tab=work",
   "/business/mypage?tab=materials", "/interpreter-mypage?tab=preparation",
   "/interpreter-mypage?tab=applications", "/jobs",
   "/business/mypage?tab=messages", "/interpreter-mypage?tab=messages",
+  "/business/mypage?tab=changes", "/interpreter-mypage?tab=changes",
 ]);
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "Content-Type": "application/json" },

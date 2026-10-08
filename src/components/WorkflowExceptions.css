@@ -6,4 +6,7 @@
 .workflow-exceptions li span { overflow-wrap: anywhere; }
 .workflow-exceptions button { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; color: #4455a8; background: #fff; border: 1px solid #dce2eb; border-radius: 8px; cursor: pointer; }
 .workflow-exceptions .workflow-exception-refresh { margin-block: 8px; }
+.workflow-exceptions label { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.workflow-exceptions select { min-height: 44px; max-width: 100%; padding: 8px; color: #14263a; background: #fff; border: 1px solid #dce2eb; border-radius: 8px; }
+.workflow-exceptions small { display: block; font-size: 11px; color: #526176; overflow-wrap: anywhere; }
 @media(max-width:600px) { .workflow-exceptions li { grid-template-columns: minmax(0,1fr) 44px; gap: 4px 8px; } .workflow-exceptions li span:first-child { grid-column: 1; color: #a52c3c; } .workflow-exceptions li button { grid-column: 2; grid-row: 1 / 3; } }

@@ -1,5 +1,6 @@
 import { Component, useEffect, useState } from "react";
 import { validWorkflowReturnTarget } from "./utils/workflowReturnTarget";
+import { makeRepeatRequestTemplate } from "./utils/repeatRequest";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Business from "./pages/Business";
@@ -616,7 +617,7 @@ function App() {
             navigate("jobCreate", null, null);
           }}
           onDuplicateRequest={(req) => {
-            setDuplicateRequestTemplate(req);
+            setDuplicateRequestTemplate(makeRepeatRequestTemplate(req));
             navigate("jobCreate", null, null);
           }}
         />

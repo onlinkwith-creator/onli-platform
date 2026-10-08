@@ -136,8 +136,8 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
           contactPhone: duplicateTemplate.phone || "",
           contactEmail: duplicateTemplate.email || "",
           eventName: duplicateTemplate.event_name || "",
-          startDate: duplicateTemplate.start_date || duplicateTemplate.event_date || "",
-          endDate: duplicateTemplate.end_date || "",
+          startDate: "",
+          endDate: "",
           startTime: duplicateTemplate.event_start_time || "",
           endTime: duplicateTemplate.event_end_time || "",
           eventLocation: duplicateTemplate.event_location || "",
@@ -157,9 +157,10 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
     }
   }, [duplicateTemplate]);
 
-  // Prepopulate from user's business profile if not duplicating
+  // Use the current business contact, never a previous request's contact.
   useEffect(() => {
-    if (user && !duplicateTemplate) {
+    let active = true;
+    if (user) {
       const fetchBusinessProfile = async () => {
         try {
           const { data, error } = await supabase
@@ -167,7 +168,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
             .select("*")
             .eq("auth_user_id", user.id)
             .maybeSingle();
-          if (!error && data) {
+          if (active && !error && data) {
             setForm(current => ({
               ...current,
               companyName: data.company_name || "",
@@ -182,6 +183,7 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       };
       fetchBusinessProfile();
     }
+    return () => { active = false; };
   }, [user, duplicateTemplate]);
 
   const handleChange = (event) => {
