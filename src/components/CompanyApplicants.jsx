@@ -80,7 +80,7 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
       await onAssigned?.();
     } catch (error) {
       const messages = {
-        ASSIGNMENT_CAPACITY_FULL: "필요 인원이 모두 배정되었습니다.",
+        ASSIGNMENT_CAPACITY_FULL: "확정 배정 또는 수락 대기 요청으로 정원이 찼습니다. 기존 요청의 응답이나 만료 후 다시 확인해 주세요.",
         ASSIGNMENT_SCHEDULE_CONFLICT: "통역사의 다른 배정 일정과 겹칩니다. 관리자에게 문의해 주세요.",
         ASSIGNMENT_REQUEST_CLOSED: "이미 시작했거나 종료·취소된 의뢰에는 배정할 수 없습니다.",
         ASSIGNMENT_APPLICATION_UNAVAILABLE: "철회·취소·미선정된 지원자는 배정할 수 없습니다.",
@@ -187,7 +187,7 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
                         </div>
                       </div> : <button type="button" className="company-assign-button" disabled={saving || loading || full || !application.assignment_open}
                         onClick={() => { setConfirmId(application.id); setOfferAmount(""); setNotice(null); }}>
-                        <UserRoundCheck size={16} aria-hidden="true" />{!application.assignment_open ? "배정 불가" : full ? "배정 정원 마감" : "배정 요청"}
+                        <UserRoundCheck size={16} aria-hidden="true" />{!application.assignment_open ? "배정 불가" : assignedCount >= requiredCount ? "배정 완료" : full ? "수락 대기 중" : "배정 요청"}
                       </button>
                     )}
                 </div>
