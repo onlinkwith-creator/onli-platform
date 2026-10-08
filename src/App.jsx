@@ -253,13 +253,11 @@ function App() {
 
       if (hasInterpreter) {
         navigate("interpreterMypage", null, null);
-        restoreWorkflowTarget("interpreter");
         return;
       }
 
       if (hasBusiness) {
         navigate("businessMypage", null, null);
-        restoreWorkflowTarget("company");
         return;
       }
 
@@ -370,36 +368,36 @@ function App() {
     }
   };
 
-  const restoreWorkflowTarget = (role) => {
-    try {
-      const target = window.sessionStorage.getItem("onli.workflowReturnTarget");
-      window.sessionStorage.removeItem("onli.workflowReturnTarget");
-      if (validWorkflowReturnTarget(target, role)) window.history.replaceState(window.history.state, "", target);
-    } catch { /* Navigation still works when storage is unavailable. */ }
-  };
-
   const navigate = (
     nextPage,
     interpreter = selectedInterpreter,
     jobId = selectedJobId,
     policyKey = selectedPolicyKey
   ) => {
+    let nextPath = getPath(nextPage, interpreter, jobId, policyKey);
     if (nextPage === "login" || nextPage === "interpreterLogin") {
       const target = window.location.pathname + window.location.search;
       if (validWorkflowReturnTarget(target)) {
         try { window.sessionStorage.setItem("onli.workflowReturnTarget", target); } catch { /* Optional return target. */ }
+        nextPath += `?next=${encodeURIComponent(target)}`;
       }
     }
+    const role = nextPage === "businessMypage" ? "company" : nextPage === "interpreterMypage" ? "interpreter" : null;
+    if (role) {
+      let target = new URLSearchParams(window.location.search).get("next");
+      try {
+        target ||= window.sessionStorage.getItem("onli.workflowReturnTarget");
+        window.sessionStorage.removeItem("onli.workflowReturnTarget");
+      } catch { /* The fixed URL return target works without storage. */ }
+      if (validWorkflowReturnTarget(target, role)) nextPath = target;
+    }
+    // Set the URL before mounting dashboards that read the initial tab.
+    window.history.pushState({ page: nextPage, interpreter, jobId, policyKey }, "", nextPath);
     setSelectedInterpreter(interpreter);
     setSelectedInterpreterId(interpreter?.id || null);
     setSelectedJobId(jobId);
     setSelectedPolicyKey(policyKey || null);
     setPage(nextPage);
-    window.history.pushState(
-      { page: nextPage, interpreter, jobId, policyKey },
-      "",
-      getPath(nextPage, interpreter, jobId, policyKey)
-    );
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 

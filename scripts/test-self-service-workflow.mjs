@@ -305,6 +305,7 @@ try {
   assert.equal(await scalar('select count(distinct matching_no)::int as value from matchings where request_id=100'),2,'duplicate legacy assignment history remains distinct');
   assert.equal(await scalar('select count(*)::int as value from workflow_action_alerts'),mailBefore,'renumbering never sends mail');
   await db.exec(await migration('20261008160000_workflow_followups.sql'));
+  await db.exec(await migration('20261008170000_nullable_discovery_regions.sql'));
   assert.equal(await scalar('select count(*)::int as value from workflow_action_alerts'),mailBefore,'no historical followup backfill');
   await login(company); await assert.rejects(db.query('select get_workflow_exceptions()'),/Admin required/);
   await assert.rejects(db.query('select prepare_workflow_followups()'),/permission denied/);
@@ -368,6 +369,10 @@ try {
   await db.exec('select queue_workflow_exception_alerts()');
   await db.exec('create or replace function is_active_admin() returns boolean language sql stable as $$select true$$');
   assert.ok((await db.query('select * from get_workflow_exceptions()')).rows.length>=0);
+  await login(interpreter);await db.query('select set_my_discovery_alerts(true)');
+  await login('');await db.exec('reset role');await db.exec('update interpreters set available_regions=null where id=1');
+  await seed(905,5);
+  assert.equal(await scalar("select count(*)::int as value from workflow_action_alerts where event_type='workflow_matching_job' and source_id='905'"),0,'missing discovery regions cannot break request publication');
   assert.equal(await scalar("select count(*)::int as value from workflow_action_alerts where event_type like '%participation%'"),0,'no pre-event participation reconfirmation');
   console.log('PASS: linked immutable display numbers, opt-in discovery, reminders, stale cancellation, recruiting closure/reopening, materials dedupe, scoped exceptions and unchanged financial states');
   console.log('PASS: offer acceptance, ownership, capacity reservations, expiry, cancellation, immutable terms, protected lifecycle, safe publication, bilateral completion, credit deduplication and unchanged payments');
