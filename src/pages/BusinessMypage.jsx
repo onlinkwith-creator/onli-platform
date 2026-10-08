@@ -34,6 +34,7 @@ import {
 import "./BusinessMypage.css";
 import CompanyApplicants from "../components/CompanyApplicants";
 import SelfServiceWorkflow from "../components/SelfServiceWorkflow";
+import RequestMessages from "../components/RequestMessages";
 import { getNewestRequestId, isRequestExpanded } from "../utils/requestExpansion";
 
 const PRIMARY_FIELDS_OPTIONS = [
@@ -244,7 +245,7 @@ function BusinessMypage({
   const [loadingData, setLoadingData] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    return ["applicants", "work", "materials"].includes(tab) ? tab : "requests";
+    return ["applicants", "work", "materials", "messages"].includes(tab) ? tab : "requests";
   });
   const [applicantRequestId, setApplicantRequestId] = useState("");
   const [status, setStatus] = useState("loading"); // "loading", "ready", "notRegistered", "restricted", "signedOut"
@@ -1208,6 +1209,9 @@ function BusinessMypage({
               >
                 <span className="tab-icon"><ClipboardList size={17} aria-hidden="true" /></span> 업무 완료
               </button>
+              <button type="button" className={`mypage-tab-btn ${activeTab === "messages" ? "is-active" : ""}`} onClick={() => setActiveTab("messages")}>
+                <span className="tab-icon"><MessageCircle size={17} aria-hidden="true" /></span> 의뢰 메시지
+              </button>
               <button
                 className={`mypage-tab-btn ${activeTab === "materials" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("materials")}
@@ -1237,6 +1241,7 @@ function BusinessMypage({
 
           {/* Main Display Area */}
           <main className="business-mypage-main-content">
+            {activeTab === "messages" && <RequestMessages key={user?.id} />}
             {activeTab === "work" && <SelfServiceWorkflow role="company" onChange={fetchData} />}
             {activeTab === "applicants" && <CompanyApplicants
               key={applicantRequestId}

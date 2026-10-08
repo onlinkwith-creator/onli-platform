@@ -1,6 +1,6 @@
 const targets = {
-  interpreter: new Set(["/interpreter-mypage?tab=assignments", "/interpreter-mypage?tab=applications", "/interpreter-mypage?tab=preparation"]),
-  company: new Set(["/business/mypage?tab=applicants", "/business/mypage?tab=work", "/business/mypage?tab=materials"]),
+  interpreter: new Set(["/interpreter-mypage?tab=assignments", "/interpreter-mypage?tab=applications", "/interpreter-mypage?tab=preparation", "/interpreter-mypage?tab=messages"]),
+  company: new Set(["/business/mypage?tab=applicants", "/business/mypage?tab=work", "/business/mypage?tab=materials", "/business/mypage?tab=messages"]),
 };
 
 export function validWorkflowReturnTarget(path, role) {

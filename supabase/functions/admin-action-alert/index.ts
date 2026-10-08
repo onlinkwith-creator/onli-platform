@@ -17,11 +17,13 @@ const workflowTypes = new Set([
   "workflow_offer_reminder", "workflow_unassigned_reminder", "workflow_materials_reminder",
   "workflow_materials_uploaded", "workflow_completion_reminder", "workflow_review_reminder",
   "workflow_matching_job", "workflow_recruiting_reopened",
+  "workflow_message_unread",
 ]);
 const workflowPaths = new Set([
   "/interpreter-mypage?tab=assignments", "/business/mypage?tab=applicants", "/business/mypage?tab=work",
   "/business/mypage?tab=materials", "/interpreter-mypage?tab=preparation",
   "/interpreter-mypage?tab=applications", "/jobs",
+  "/business/mypage?tab=messages", "/interpreter-mypage?tab=messages",
 ]);
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "Content-Type": "application/json" },

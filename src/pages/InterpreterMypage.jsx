@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
 import SelfServiceWorkflow from "../components/SelfServiceWorkflow";
+import RequestMessages from "../components/RequestMessages";
 import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
@@ -41,6 +42,7 @@ import {
   Download,
   FileText,
   FolderCheck,
+  MessageCircle,
   Pencil,
   RotateCw,
   UserRound,
@@ -56,6 +58,7 @@ const TABS = [
   { id: "profile", label: "프로필 정보", icon: UserRound },
   { id: "applications", label: "지원 내역", icon: FileText },
   { id: "assignments", label: "배정 요청 · 내역", icon: BriefcaseBusiness },
+  { id: "messages", label: "의뢰 메시지", icon: MessageCircle },
   { id: "preparation", label: "업무 준비", icon: FolderCheck },
   { id: "settlements", label: "정산", icon: WalletCards },
   { id: "schedule", label: "일정 및 캘린더", icon: CalendarDays },
@@ -1446,6 +1449,7 @@ function InterpreterMypage({
 
               {/* Dynamic Content Pane */}
               <div className="interpreter-mypage-tab-pane">
+                {activeTab === "messages" && <RequestMessages key={user?.id} />}
                 {activeTab === "profile" && interpreter && (
                   <>
                     <article className="interpreter-mypage-card animate-fade-in">
