@@ -1,5 +1,6 @@
 import nodemailer from "npm:nodemailer@8.0.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { createEmailTemplate } from "../_shared/email-template.js";
 
 const adminRecipient = "onlinkwith@gmail.com";
 const allowedTypes = new Set([
@@ -68,7 +69,13 @@ Deno.serve(async (request) => {
       from: Deno.env.get("EMAIL_FROM") || `"ON-LI" <${user.trim()}>`, to: recipient,
       subject: `[ON-LI${workflow ? "" : " 확인 필요"}] ${alert.title}`,
       text: `${alert.title}\n\n${message}\n${button}: ${link}\n\n상세 내용과 제출 파일은 로그인 후 확인해주세요.`,
-      html: `<h2>${escape(alert.title)}</h2><p>${escape(message)}</p><p><a href="${escape(link)}">${button}</a></p><p>상세 내용과 제출 파일은 로그인 후 확인해주세요.</p>`,
+      html: workflow ? createEmailTemplate({
+        title: alert.title,
+        status: alert.title,
+        message: `<p>${escape(message)}</p><p>상세 내용과 제출 파일은 로그인 후 확인해주세요.</p>`,
+        buttonText: button,
+        buttonUrl: link,
+      }) : `<h2>${escape(alert.title)}</h2><p>${escape(message)}</p><p><a href="${escape(link)}">${button}</a></p><p>상세 내용과 제출 파일은 로그인 후 확인해주세요.</p>`,
     });
   } catch (error) {
     const retryable = ["EAUTH", "ECONNECTION", "EDNS"].includes(error?.code);

@@ -5,7 +5,7 @@ const source = (path) => readFileSync(new URL("../" + path, import.meta.url), "u
 const home = source("src/pages/Home.jsx");
 const business = source("src/pages/BusinessMypage.jsx");
 const policy = source("src/pages/PolicyPage.jsx");
-const email = source("supabase/functions/send-email/index.ts");
+const email = source("supabase/functions/send-email/index.ts") + source("supabase/functions/_shared/email-template.js");
 
 for (const page of [home, business, policy]) {
   const links = [...page.matchAll(/href="mailto:([^"]+)"/g)].map((match) => match[1]);

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createEmailTemplate } from '../supabase/functions/_shared/email-template.js';
 import { PGlite } from '@electric-sql/pglite';
 import vm from 'node:vm';
 
@@ -257,7 +258,7 @@ try {
   const workerSource = (await readFile(new URL('../supabase/functions/admin-action-alert/index.ts',import.meta.url),'utf8')).replace(/^import .*;\n/gm,'');
   let handler, sent=0, finished='', claimAvailable=true;
   const worker = {
-    Response, Set, String, Number, JSON,
+    Response, Set, String, Number, JSON, createEmailTemplate,
     Deno: {env:{get:()=> 'configured'},serve:(fn)=>{handler=fn;}},
     createClient:()=>({rpc:async(name,args)=>{
       if (name==='claim_workflow_action_alert') return {data:claimAvailable ? [{id:dispatched.id,event_type:'workflow_offer_received',
@@ -266,6 +267,11 @@ try {
     }}),
     nodemailer:{createTransport:()=>({close:()=>{},sendMail:async(mail)=>{
       assert.equal(mail.to,'interpreter@example.invalid');assert.ok(mail.text.includes('?tab=assignments'));
+      assert.match(mail.html, /ON-Link Interpretation Platform/);
+      assert.match(mail.html, /class="email-button"/);
+      assert.match(mail.html, /현재 상태/);
+      assert.match(mail.html, /mailto:onlinkwith@gmail.com/);
+      assert.ok(mail.html.includes('?tab=assignments'));
       sent++;return {messageId:'smtp-confirmed',accepted:['interpreter@example.invalid']};
     }})},
   };

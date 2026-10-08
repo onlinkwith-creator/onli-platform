@@ -58,6 +58,15 @@ and the old immediate-assignment RPC remain denied.
 
 ## Verification
 
+Company/interpreter workflow emails now use the original ON-LI branded form
+through `supabase/functions/_shared/email-template.js`, shared with `send-email`.
+The original form's generated HTML was verified byte-for-byte for representative
+workflow and settlement inputs. The workflow worker's bundled equivalent was
+deployed through the Supabase Code editor; delivery authentication, recipients,
+plain-text fallback and historical queue behavior are unchanged. Administrator
+approval emails retain their existing form. Previously delivered emails are not
+resent to apply presentation changes.
+
 `npm run test:self-service` loads the new migration and real assignment lifecycle
 and certification migrations in PGlite with protected-write guard fixtures.
 It covers ownership, anonymous/direct access denial, idempotency, reservations,
