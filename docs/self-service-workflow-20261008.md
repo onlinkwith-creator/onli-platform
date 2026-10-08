@@ -72,8 +72,25 @@ tests also pass. Production build passes with the existing bundle size warning.
 New components/test have clean focused ESLint. Dashboard files still have existing
 lint errors/warnings unrelated to this workflow.
 
-Not yet verified: production migration/worker deployment, real SMTP delivery,
-live company/interpreter E2E state changes, multi-connection concurrency and mobile
-screenshots. Activation requires action-time confirmation of public event fields,
-new scoped user authorities and automatic recipient email delivery. No real
-assignment, payment or customer notification has been created for this verification.
+Production activation was explicitly approved and completed on 2026-10-08:
+both migrations, the shared Edge worker, and release commit `6503926` deployed.
+Both Vercel deployment checks succeeded. A clean archive build of the committed
+release also passed, excluding unrelated pending resume-publication edits.
+
+Live company/interpreter read RPCs succeeded; anonymous workflow reads, company
+administrator preferences and direct private mail-queue reads were denied. A
+zero-amount proposal was rejected without creating an offer. The company browser
+shows an existing pending offer without the original assignment error and the
+new completion review tab loads. No commercial offer or completion was submitted
+by the verification process.
+
+One explicitly labeled connection-test email to the owner's verified mailbox
+was processed by cron: queue `79229b3a-a97e-4008-ba13-41a13d24e2e6` is `sent`,
+attempts `1`, no error, and a provider message ID is present. This confirms SMTP
+acceptance, not inbox delivery. No historical pending mail was dispatched and
+no payment/payout states or passwords were changed.
+
+Not yet verified: live company/interpreter E2E state changes, multi-connection
+concurrency and mobile screenshots. An unauthenticated company email deep link
+currently returns to the default request tab after login; already authenticated
+links select the requested tab. Login return-target preservation remains a UX gap.
