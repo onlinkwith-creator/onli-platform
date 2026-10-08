@@ -1,0 +1,284 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+import vm from 'node:vm';
+
+const db = new PGlite();
+const uuid = (id) => `00000000-0000-0000-0000-${String(id).padStart(12, '0')}`;
+const company = uuid(1);
+const interpreter = uuid(11);
+const migration = (name) => readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), 'utf8');
+const login = async (uid, role = 'authenticated') => {
+  await db.exec('reset role');
+  await db.query("select set_config('test.uid',$1,false)", [uid]);
+  await db.exec(`set role ${role}`);
+};
+const scalar = async (sql, args = []) => (await db.query(sql, args)).rows[0].value;
+try {
+  await db.exec(`
+    create role anon; create role authenticated; create role service_role; create schema auth;
+    create function auth.uid() returns uuid language sql stable as
+      $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+    create function is_active_admin() returns boolean language sql stable as $$select false$$;
+    create function is_admin() returns boolean language sql stable as $$select false$$;
+    create function auth.role() returns text language sql stable as
+      $$select case when auth.uid() is null then 'service_role' else 'authenticated' end$$;
+    create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
+    insert into auth.users values('${company}','company@example.invalid',now()),('${interpreter}','interpreter@example.invalid',now()),
+     ('${uuid(12)}','second@example.invalid',now()),('${uuid(2)}','other@example.invalid',now());
+    create schema net; create schema cron;
+    create table net.calls(body jsonb);
+    create function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer) returns bigint language plpgsql as
+     $$begin insert into net.calls values(body);return 1;end;$$;
+    create function cron.schedule(text,text,text) returns bigint language sql as $$select 1::bigint$$;
+    create table notifications(id uuid primary key,recipient_type text,recipient_id uuid,recipient_email text,notification_type text,
+     title text,message text,channel text,status text,provider_message_id text,error_message text,sent_at timestamptz,
+     attempt_count integer,last_attempt_at timestamptz);
+    insert into notifications(id,notification_type,status) values('${uuid(9999)}','historical','pending');
+    create table businesses(id bigint primary key,auth_user_id uuid,status text,company_name text);
+    create table jobs(id uuid primary key default gen_random_uuid(),status text,assignment_status text,operation_status text,
+      start_date date,end_date date,title text,event_name text,company_name text,location text,visibility text,pay text);
+    create table requests(id bigint primary key,company_id bigint,company_auth_user_id uuid,job_id uuid,
+      requested_people_count integer,required_count integer,start_date date,end_date date,event_date date,
+      status text default 'draft',operation_status text default 'operation_before',matching_status text,assignment_status text,
+      assigned_interpreter_id bigint,assigned_interpreter_name text,matched_interpreter_id bigint,
+      matched_interpreter_name text,updated_at timestamptz,event_name text default 'Conference',request_no text,
+      company_name text default 'Company',event_location text default 'Tokyo',requested_level text,required_level text,
+      request_type text default 'general',is_public boolean default false,is_job_public boolean default false,
+      work_hours text,event_start_time text,event_end_time text,contact_email text,contact_phone text,reference_file_path text,
+      estimate_status text,payment_status text default 'unpaid',contact_status text default 'not_contacted',
+      client_price numeric default 0,interpreter_price numeric default 0,profit numeric default 0,interpreter_fee numeric default 0,
+      admin_checked boolean default false);
+    create function portal_owns_request(p_id bigint) returns boolean language sql stable security definer as
+      $$select auth.uid() is not null and exists(select 1 from requests r join businesses b
+      on b.auth_user_id=auth.uid() where r.id=p_id and b.status='승인 완료'
+      and (r.company_id=b.id or r.company_auth_user_id=auth.uid()))$$;
+    create table interpreters(id bigint primary key,name text,auth_user_id uuid,is_public boolean default true,
+      activity_status text default 'active',status text default 'active',approved boolean default false,
+      region text,level text,short_intro text,specialties text[],available_regions text[],experience_count integer,
+      custom_regions text[],withdrawn_at timestamptz);
+    create view public_interpreters as select id,name from interpreters where is_public;
+    create function portal_owns_interpreter(p_id bigint) returns boolean language sql stable security definer as
+      $$select exists(select 1 from interpreters where id=p_id and auth_user_id=auth.uid())$$;
+    create function portal_pick(j jsonb,keys text[]) returns jsonb language sql immutable as
+      $$select coalesce(jsonb_object_agg(key,value),'{}') from jsonb_each(j) where key=any(keys)$$;
+    create table job_applications(id uuid primary key,job_id uuid,interpreter_id bigint,status text default 'pending',created_at timestamptz default now());
+    create table request_interpreters(id bigserial primary key,request_id bigint,interpreter_id bigint,
+      status text default 'assigned',contact_visible boolean default false,assigned_at timestamptz default now(),unique(request_id,interpreter_id));
+    create table matchings(id bigint,request_id bigint,job_id uuid,interpreter_id bigint,status text,start_date date,end_date date);
+    create table settlements(request_id bigint,interpreter_id bigint,amount numeric,payout_status text);
+    alter table request_interpreters enable row level security;
+    grant usage on schema public,auth to anon,authenticated;
+    grant insert,update,delete on request_interpreters to authenticated;
+    grant usage on sequence request_interpreters_id_seq to authenticated;
+    insert into businesses(id,auth_user_id,status) values(1,'${company}','승인 완료'),(2,'${uuid(2)}','승인 완료');
+    insert into interpreters(id,name,auth_user_id) values(1,'First','${interpreter}'),(2,'Second','${uuid(12)}');
+    create function prevent_non_admin_request_operation_fields() returns trigger language plpgsql security definer as $$
+    BEGIN
+      if public.is_admin() or auth.role()='service_role' then return new; end if;
+      if tg_op='UPDATE' and (old.company_auth_user_id=auth.uid() or
+       (old.company_auth_user_id is null and exists(select 1 from businesses b where b.auth_user_id=auth.uid() and b.company_name=old.company_name)))
+       and new.company_auth_user_id=old.company_auth_user_id and new.id=old.id
+       and new.estimate_status in ('estimate_approved','company_approved')
+       and coalesce(old.estimate_status,'') is distinct from coalesce(new.estimate_status,'')
+       and (to_jsonb(new)-'estimate_status'-'updated_at')=(to_jsonb(old)-'estimate_status'-'updated_at') then return new; end if;
+      if new.payment_status is distinct from 'unpaid' or new.contact_status is distinct from 'not_contacted'
+       or coalesce(new.client_price,0)<>0 or coalesce(new.interpreter_price,0)<>0 or coalesce(new.profit,0)<>0
+       or coalesce(new.interpreter_fee,0)<>0 or new.assigned_interpreter_id is not null or new.assigned_interpreter_name is not null
+       or new.matched_interpreter_id is not null or new.matched_interpreter_name is not null or new.admin_checked is distinct from false
+       then raise exception 'Only admins can set request operation fields.'; end if;
+      if tg_op='UPDATE' then raise exception 'Only admins can update requests.'; end if;
+      return new;
+    END; $$;
+    create trigger protected_request before update on requests for each row execute function prevent_non_admin_request_operation_fields();
+    create function prevent_non_admin_job_application_review_fields() returns trigger language plpgsql security definer as $$
+    BEGIN
+      if public.is_admin() or auth.role()='service_role' then return new; end if;
+      if tg_op='INSERT' and lower(trim(coalesce(new.status,'pending'))) not in ('pending','지원완료')
+       then raise exception 'Only admins can set job application review fields.'; end if;
+      if tg_op='UPDATE' then raise exception 'Only admins can update job applications.'; end if;
+      return new;
+    END; $$;
+    create trigger protected_application before update on job_applications for each row execute function prevent_non_admin_job_application_review_fields();
+  `);
+  await db.exec(await migration('20260711020500_sync_assignment_lifecycle_from_request_interpreters.sql'));
+  await db.exec(await migration('20261008090000_company_applicant_assignment.sql'));
+  await db.exec(await migration('20261006090000_automatic_onli_certification.sql'));
+  await db.exec(`insert into jobs(id,status) values('${uuid(99)}','open');
+   insert into requests(id,company_id,company_auth_user_id,job_id,requested_people_count,start_date,end_date)
+   values(99,1,'${company}','${uuid(99)}',1,current_date+30,current_date+30);
+   insert into job_applications(id,job_id,interpreter_id) values('${uuid(991)}','${uuid(99)}',1);`);
+  await login(company);
+  await assert.rejects(db.query('select assign_company_applicant(99,$1)',[uuid(991)]),/Only admins can update job applications/,
+    'reproduces the live company assignment failure with the production protection rules');
+  await login('', 'service_role');
+  await db.exec('reset role');
+  assert.equal(await scalar('select count(*)::int as value from request_interpreters'),0,'failed assignment rolled back');
+  await db.exec(await migration('20261008120000_self_service_workflow.sql'));
+  await db.exec(await migration('20261008130000_self_service_email_alerts.sql'));
+  assert.equal(await scalar('select count(*)::int as value from workflow_action_alerts'),0,'no backfill of historical events');
+  const seed = async (id, days = 30, count = 1, type = 'general', owner = 1) => {
+    await login('');
+    await db.exec('reset role');
+    await db.query(`insert into requests(id,company_id,company_auth_user_id,requested_people_count,start_date,end_date,request_type,
+      contact_email,contact_phone,reference_file_path) values($1,$2,$3,$4,current_date+$5::integer,current_date+$5::integer,$6,'private@email','private-phone','private/file')`,
+    [id, owner, uuid(owner), count, days, type]);
+    let job = await scalar('select job_id as value from requests where id=$1', [id]);
+    if (!job) {
+      job = uuid(id);
+      await db.query("insert into jobs(id,status) values($1,'open')", [job]);
+      await db.query('update requests set job_id=$1 where id=$2', [job,id]);
+    }
+    for (let i = 1; i <= 2; i++) await db.query('insert into job_applications(id,job_id,interpreter_id) values($1,$2,$3)', [uuid(id * 10 + i),job,i]);
+  };
+  const propose = async (id, i = 1, amount = 500000) => scalar('select propose_company_assignment($1,$2,$3) as value',[id,uuid(id*10+i),amount]);
+  const respond = (offer, accept = true) => scalar('select respond_assignment_offer($1,$2) as value',[offer.offer_id,accept]);
+  await seed(100);
+  const publicJob = await scalar('select to_jsonb(j) as value from jobs j join requests r on r.job_id=j.id where r.id=100');
+  assert.equal(publicJob.visibility,'public'); assert.equal(publicJob.pay,'협의');
+  assert.ok(!JSON.stringify(publicJob).includes('private'));
+  await login('', 'anon'); await assert.rejects(propose(100));
+  await login(uuid(2)); await assert.rejects(propose(100),/FORBIDDEN/);
+  await login(company); await assert.rejects(propose(100,1,0),/INVALID_AMOUNT/);
+  await assert.rejects(db.query('select assign_company_applicant(100,$1)',[uuid(1001)]),/permission denied/);
+  await assert.rejects(db.query('select get_company_portal_applicants_base(100)'),/permission denied/);
+  const offer = await propose(100);
+  assert.equal((await propose(100)).offer_id,offer.offer_id);
+  await assert.rejects(propose(100,2),/CAPACITY_FULL/);
+  await assert.rejects(propose(100,1,600000),/CANCEL_OFFER_FIRST/);
+  await assert.rejects(respond(offer),/FORBIDDEN/);
+  await assert.rejects(db.query('select * from assignment_offers'),/permission denied/);
+  await db.exec('reset role');
+  assert.equal(await scalar('select count(*)::int as value from request_interpreters'),0);
+  await login(uuid(12)); await assert.rejects(respond(offer),/FORBIDDEN/);
+  await login(interpreter);
+  const assigned = await respond(offer);
+  assert.equal(assigned.status,'accepted'); assert.equal((await respond(offer)).assignment_id,assigned.assignment_id);
+  assert.equal(await scalar("select coalesce(current_setting('app.onli_self_service',true),'') as value"),'');
+  await assert.rejects(db.exec('insert into request_interpreters(request_id,interpreter_id) values(100,2)'));
+  await db.exec('reset role');
+  const actual = (await db.query('select * from request_interpreters')).rows[0];
+  assert.equal(actual.contact_visible,false); assert.equal(Number(actual.agreed_total_amount),500000);
+  assert.equal(await scalar('select assignment_status as value from requests where id=100'),'assignment_completed');
+  await login(company); await assert.rejects(db.query("select allow_self_service_request_update('{}','{}')"),/permission denied/);
+  await db.exec('reset role');
+  for (const scope of ['on','company_publication','company_completion','interpreter_acceptance']) {
+    await db.query("select set_config('app.onli_self_service',$1,false)",[scope]);
+    await assert.rejects(db.exec("update requests set payment_status='paid' where id=100"),/Only admins/,
+      'workflow context does not grant company financial/admin powers');
+    await assert.rejects(db.exec('update requests set company_id=2 where id=100'),/Only admins/);
+  }
+  await db.exec("select set_config('app.onli_self_service','',false)");
+  await login(interpreter); await assert.rejects(db.query('select submit_assignment_completion($1,$2)',[assigned.assignment_id,'Finished']),/NOT_FINISHED/);
+  await seed(200); await login(company); const declined = await propose(200,2);
+  await login(uuid(12)); assert.equal((await respond(declined,false)).status,'declined');
+  await login(company); const expired = await propose(200,2);
+  await db.exec('reset role'); await db.query("update assignment_offers set expires_at=now()-interval '1 hour' where id=$1",[expired.offer_id]);
+  await login(company); const changed = await propose(200,1);
+  await login(''); await db.exec('reset role'); await db.exec("update requests set event_location='Osaka' where id=200");
+  await login(interpreter); await assert.rejects(respond(changed),/TERMS_CHANGED/);
+  await login(company); await db.query('select cancel_assignment_offer($1)',[changed.offer_id]);
+  await seed(300,30,1,'urgent');
+  await db.exec('reset role'); assert.equal(await scalar('select is_public as value from requests where id=300'),false);
+  await seed(400,-10);
+  await db.exec('reset role');
+  await db.exec("insert into request_interpreters(request_id,interpreter_id) values(400,1); insert into settlements values(400,1,123456,'paid')");
+  const pastAssignment = await scalar('select id as value from request_interpreters where request_id=400');
+  await login(company); await assert.rejects(db.query('select submit_assignment_completion($1,$2)',[pastAssignment,'Finished']),/FORBIDDEN/);
+  await login(interpreter); await db.query('select submit_assignment_completion($1,$2)',[pastAssignment,'Finished']);
+  await login(uuid(2)); await assert.rejects(db.query('select review_assignment_completion($1,true)',[pastAssignment]),/FORBIDDEN/);
+  await login(company); await db.query('select review_assignment_completion($1,false,$2)',[pastAssignment,'Add report']);
+  await login(interpreter); await db.query('select submit_assignment_completion($1,$2)',[pastAssignment,'Detailed report']);
+  await login(company); await db.query('select review_assignment_completion($1,true)',[pastAssignment]);
+  await db.query('select review_assignment_completion($1,true)',[pastAssignment]);
+  await db.exec('reset role');
+  assert.equal(await scalar('select operation_status as value from requests where id=400'),'operation_completed');
+  assert.equal(await scalar('select count_onli_completed_work(1) as value'),1);
+  const settlement = (await db.query('select * from settlements where request_id=400')).rows[0];
+  assert.equal(settlement.payout_status,'paid'); assert.equal(Number(settlement.amount),123456); assert.ok(settlement.work_confirmed_at);
+  await login(company); await assert.rejects(db.query('select * from assignment_completions'),/permission denied/);
+  await assert.rejects(db.exec("insert into assignment_offers(request_id,application_id,interpreter_id,proposed_by,amount,terms) values(100,'"+uuid(1002)+"',2,'"+company+"',100,'{}')"),/permission denied/);
+  await seed(500,30,2); await login(company); const conflict = await propose(500);
+  await login(interpreter); await assert.rejects(respond(conflict),/SCHEDULE_CONFLICT/);
+  await login(company); await db.query('select cancel_assignment_offer($1)',[conflict.offer_id]);
+  await seed(600,60); await login(company); const withdrawn = await propose(600,2);
+  await login(''); await db.exec('reset role'); await db.query("update job_applications set status='withdrawn' where id=$1",[uuid(6002)]);
+  await login(uuid(12)); await assert.rejects(respond(withdrawn),/APPLICATION_UNAVAILABLE/);
+  await login(company); await db.query('select cancel_assignment_offer($1)',[withdrawn.offer_id]);
+  await seed(700,-5,2); await login(''); await db.exec('reset role');
+  await db.exec('insert into request_interpreters(request_id,interpreter_id) values(700,1),(700,2)');
+  const ids = (await db.query('select id,interpreter_id from request_interpreters where request_id=700 order by interpreter_id')).rows;
+  await login(interpreter); await db.query('select submit_assignment_completion($1,$2)',[ids[0].id,'Finished']);
+  await login(company); await db.query('select review_assignment_completion($1,true)',[ids[0].id]);
+  await login(''); await db.exec('reset role');
+  assert.equal(await scalar('select count_onli_completed_work(1) as value'),2,'individual confirmation counts before whole request completion');
+  assert.notEqual(await scalar('select operation_status as value from requests where id=700'),'operation_completed');
+  await login(uuid(12)); await db.query('select submit_assignment_completion($1,$2)',[ids[1].id,'Finished']);
+  await login(company); await db.query('select review_assignment_completion($1,true)',[ids[1].id]);
+  await login(''); await db.exec('reset role');
+  assert.equal(await scalar('select operation_status as value from requests where id=700'),'operation_completed');
+  assert.equal(await scalar('select count_onli_completed_work(1) as value'),2,'whole request transition does not double count');
+  await seed(800,-10); await login(''); await db.exec('reset role');
+  await db.exec("update requests set event_name='[TEST] Conference' where id=800; insert into request_interpreters(request_id,interpreter_id) values(800,1)");
+  const testId = await scalar('select id as value from request_interpreters where request_id=800');
+  await login(interpreter); await db.query('select submit_assignment_completion($1,$2)',[testId,'Finished']);
+  await login(company); await db.query('select review_assignment_completion($1,true)',[testId]);
+  await login(''); await db.exec('reset role');
+  assert.equal(await scalar('select count_onli_completed_work(1) as value'),2,'test jobs remain excluded');
+  await seed(900,-5); await login(''); await db.exec('reset role');
+  await db.exec('insert into request_interpreters(request_id,interpreter_id) values(900,1)');
+  const movedId = await scalar('select id as value from request_interpreters where request_id=900');
+  await login(interpreter); await db.query('select submit_assignment_completion($1,$2)',[movedId,'Finished']);
+  await login(''); await db.exec('reset role'); await db.exec('update requests set start_date=current_date+10,end_date=current_date+10 where id=900');
+  await login(company); await assert.rejects(db.query('select review_assignment_completion($1,true)',[movedId]),/NOT_FINISHED/);
+  await login(''); await db.exec('reset role');
+  const alerts = (await db.query('select * from workflow_action_alerts')).rows;
+  assert.ok(alerts.some((item) => item.event_type==='workflow_offer_received' && item.recipient_email==='interpreter@example.invalid'));
+  assert.ok(alerts.some((item) => item.event_type==='workflow_offer_accepted' && item.recipient_email==='company@example.invalid'));
+  assert.ok(alerts.some((item) => item.event_type==='workflow_completion_submitted' && item.recipient_type==='company'));
+  assert.ok(alerts.some((item) => item.event_type==='workflow_completion_revision' && item.recipient_type==='interpreter'));
+  assert.ok(alerts.some((item) => item.event_type==='workflow_completion_confirmed' && item.recipient_type==='interpreter'));
+  assert.ok(alerts.every((item) => !JSON.stringify({title:item.title,message:item.message}).includes('500000')),'no remuneration in mail');
+  await db.exec('select dispatch_workflow_action_alerts()');
+  assert.equal(await scalar('select status as value from notifications where id=$1',[uuid(9999)]),'pending','historical pending mail untouched');
+  assert.ok((await db.query('select body from net.calls')).rows.every(({body}) => body.scope==='workflow'));
+  const dispatched = (await db.query("select id,nonce from workflow_action_alerts where status='dispatched' limit 1")).rows[0];
+  assert.equal((await db.query('select * from claim_workflow_action_alert($1,gen_random_uuid())',[dispatched.id])).rows.length,0);
+  assert.equal((await db.query('select * from claim_workflow_action_alert($1,$2)',[dispatched.id,dispatched.nonce])).rows.length,1);
+  assert.equal((await db.query('select * from claim_workflow_action_alert($1,$2)',[dispatched.id,dispatched.nonce])).rows.length,0,'nonce replay denied');
+  await assert.rejects(db.query("select finish_workflow_action_alert($1,'sent',null)",[dispatched.id]),/Provider confirmation/);
+  await db.query("select finish_workflow_action_alert($1,'sent','smtp-confirmed')",[dispatched.id]);
+  assert.equal(await scalar('select status as value from notifications where id=$1',[dispatched.id]),'sent');
+  await login(company);
+  await assert.rejects(db.query('select * from workflow_action_alerts'),/permission denied/);
+  await assert.rejects(db.query('select dispatch_workflow_action_alerts()'),/permission denied/);
+  await assert.rejects(db.query('select * from claim_workflow_action_alert($1,$2)',[dispatched.id,dispatched.nonce]),/permission denied/);
+
+  const workerSource = (await readFile(new URL('../supabase/functions/admin-action-alert/index.ts',import.meta.url),'utf8')).replace(/^import .*;\n/gm,'');
+  let handler, sent=0, finished='', claimAvailable=true;
+  const worker = {
+    Response, Set, String, Number, JSON,
+    Deno: {env:{get:()=> 'configured'},serve:(fn)=>{handler=fn;}},
+    createClient:()=>({rpc:async(name,args)=>{
+      if (name==='claim_workflow_action_alert') return {data:claimAvailable ? [{id:dispatched.id,event_type:'workflow_offer_received',
+        recipient_email:'interpreter@example.invalid',portal_path:'/interpreter-mypage?tab=assignments',title:'New offer',message:'Log in to review'}] : [],error:null};
+      assert.equal(name,'finish_workflow_action_alert');finished=args.p_status;return {error:null};
+    }}),
+    nodemailer:{createTransport:()=>({close:()=>{},sendMail:async(mail)=>{
+      assert.equal(mail.to,'interpreter@example.invalid');assert.ok(mail.text.includes('?tab=assignments'));
+      sent++;return {messageId:'smtp-confirmed',accepted:['interpreter@example.invalid']};
+    }})},
+  };
+  vm.runInNewContext(workerSource,worker);
+  const workerRequest = (body)=>new Request('https://example.invalid',{method:'POST',body:JSON.stringify(body)});
+  assert.equal((await handler(workerRequest({scope:'workflow',id:dispatched.id,nonce:dispatched.nonce,to:'attacker@example.invalid'}))).status,200);
+  assert.equal(sent,1);assert.equal(finished,'sent');
+  claimAvailable=false;
+  assert.equal((await handler(workerRequest({scope:'workflow',id:dispatched.id,nonce:dispatched.nonce}))).status,401);
+  assert.equal(sent,1);
+  console.log('PASS: offer acceptance, ownership, capacity reservations, expiry, cancellation, immutable terms, protected lifecycle, safe publication, bilateral completion, credit deduplication and unchanged payments');
+  console.log('PASS: production assignment guard regression, future-only recipient-resolved emails, no historical sends, nonce authentication, replay denial and SMTP confirmation');
+} catch (error) {
+  console.error(error.message, error.stack?.split('\n').filter((line) => line.includes('test-self-service-workflow')).join('\n'));
+  process.exitCode = 1;
+} finally { await db.close(); }

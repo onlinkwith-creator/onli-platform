@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase, supabaseConfigError } from "../supabase";
+import SelfServiceWorkflow from "../components/SelfServiceWorkflow";
 import {
   INTERPRETER_ACTIVITY_STATUS,
   getInterpreterActivityStatusLabel,
@@ -54,7 +55,7 @@ import {
 const TABS = [
   { id: "profile", label: "프로필 정보", icon: UserRound },
   { id: "applications", label: "지원 내역", icon: FileText },
-  { id: "assignments", label: "배정 내역", icon: BriefcaseBusiness },
+  { id: "assignments", label: "배정 요청 · 내역", icon: BriefcaseBusiness },
   { id: "preparation", label: "업무 준비", icon: FolderCheck },
   { id: "settlements", label: "정산", icon: WalletCards },
   { id: "schedule", label: "일정 및 캘린더", icon: CalendarDays },
@@ -137,7 +138,8 @@ function InterpreterMypage({
   const [loadingSettlements, setLoadingSettlements] = useState(false);
   const settlementLoadId = useRef(0);
   const [paymentDocuments, setPaymentDocuments] = useState([]);
-  const [activeTab, setActiveTab] = useState("profile");
+  const [activeTab, setActiveTab] = useState(() =>
+    new URLSearchParams(window.location.search).get("tab") === "assignments" ? "assignments" : "profile");
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [withdrawalTarget, setWithdrawalTarget] = useState(null);
@@ -2292,6 +2294,7 @@ function InterpreterMypage({
                 {activeTab === "assignments" && (
                   <article className="interpreter-mypage-card animate-fade-in">
                     <h2>배정 내역 목록</h2>
+                    <SelfServiceWorkflow role="interpreter" onChange={fetchInterpreterProfile} embedded />
                     {loadingData ? (
                       <p className="loading-text">배정 내역을 불러오고 있습니다...</p>
                     ) : assignmentsLoadError ? (

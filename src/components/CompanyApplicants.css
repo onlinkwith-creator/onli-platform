@@ -43,6 +43,8 @@
 .company-applicant-assigned { display: inline-flex; align-items: center; gap: 8px; color: #246b4b; font-size: 14px; }
 .company-assignment-notice { color: #246b4b; font-size: 14px; overflow-wrap: anywhere; }
 .company-assignment-notice.is-error { color: #a52c3c; }
+.company-offer-amount { display: grid; gap: 8px; max-width: 320px; margin-bottom: 12px; color: #526176; font-size: 13px; }
+.company-offer-amount input { min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid #d5dde8; border-radius: 8px; background: #fff; color: #0d253d; }
 .company-applicant-row summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 10px 0; }
 .company-applicant-row summary:focus-visible { outline: 2px solid #246b4b; outline-offset: 3px; }
 .company-applicant-row details[open] summary svg { transform: rotate(180deg); }

@@ -1,11 +1,20 @@
 import nodemailer from "npm:nodemailer@8.0.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const recipient = "onlinkwith@gmail.com";
+const adminRecipient = "onlinkwith@gmail.com";
 const allowedTypes = new Set([
   "admin_action_interpreter", "admin_action_resume", "admin_action_documents",
   "admin_action_company", "admin_action_request", "admin_action_estimate",
   "admin_action_application", "admin_action_test",
+]);
+const workflowTypes = new Set([
+  "workflow_offer_received", "workflow_offer_accepted", "workflow_offer_declined",
+  "workflow_offer_cancelled", "workflow_offer_expired", "workflow_completion_submitted",
+  "workflow_completion_revision", "workflow_completion_confirmed",
+  "workflow_application_received", "workflow_job_published",
+]);
+const workflowPaths = new Set([
+  "/interpreter-mypage?tab=assignments", "/business/mypage?tab=applicants", "/business/mypage?tab=work",
 ]);
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "Content-Type": "application/json" },
@@ -18,6 +27,8 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "POST required" }, 405);
   if (Number(request.headers.get("content-length")) > 2048) return json({ error: "Too large" }, 413);
   const body = await request.json().catch(() => null);
+  if (body?.scope !== undefined && body.scope !== "workflow") return json({ error: "Invalid scope" }, 400);
+  const workflow = body?.scope === "workflow";
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuid.test(body?.id || "") || !uuid.test(body?.nonce || "")) return json({ error: "Unauthorized" }, 401);
   const url = Deno.env.get("SUPABASE_URL");
@@ -28,18 +39,25 @@ Deno.serve(async (request) => {
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   // The DB issues a private per-attempt nonce. Claiming consumes it atomically.
   // The caller cannot supply the recipient, message, link, or SMTP credentials.
-  const claimed = await db.rpc("claim_admin_action_alert", { p_id: body.id, p_nonce: body.nonce });
+  const claimed = await db.rpc(workflow ? "claim_workflow_action_alert" : "claim_admin_action_alert", { p_id: body.id, p_nonce: body.nonce });
   if (claimed.error) return json({ error: "Claim unavailable" }, 503);
   const alert = claimed.data?.[0];
   if (!alert) return json({ error: "Unauthorized or already processed" }, 401);
-  const finish = (status, messageId = null, error = null) => db.rpc("finish_admin_action_alert", {
+  const finish = (status, messageId = null, error = null) => db.rpc(workflow ? "finish_workflow_action_alert" : "finish_admin_action_alert", {
     p_id: alert.id, p_status: status, p_message_id: messageId, p_error: error,
   });
-  if (!allowedTypes.has(alert.event_type) || !/^\/admin\?subTab=[a-z_]+$/.test(alert.admin_path)) {
+  const path = workflow ? alert.portal_path : alert.admin_path;
+  const recipient = workflow ? String(alert.recipient_email || "").trim().toLowerCase() : adminRecipient;
+  const valid = workflow
+    ? workflowTypes.has(alert.event_type) && workflowPaths.has(path) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)
+    : allowedTypes.has(alert.event_type) && /^\/admin\?subTab=[a-z_]+$/.test(path);
+  if (!valid) {
     await finish("uncertain", null, "Invalid server alert");
     return json({ error: "Invalid alert" }, 400);
   }
-  const link = `https://onli-platform.vercel.app${alert.admin_path}`;
+  const link = `https://onli-platform.vercel.app${path}`;
+  const message = workflow ? alert.message : "새로운 항목의 승인 또는 확인이 필요합니다.";
+  const button = workflow ? "마이페이지에서 확인하기" : "관리자 페이지에서 확인하기";
   const transporter = nodemailer.createTransport({
     service: "gmail", auth: { user: user.trim(), pass: password.replace(/\s/g, "") },
     connectionTimeout: 12000, greetingTimeout: 12000, socketTimeout: 20000,
@@ -48,9 +66,9 @@ Deno.serve(async (request) => {
   try {
     result = await transporter.sendMail({
       from: Deno.env.get("EMAIL_FROM") || `"ON-LI" <${user.trim()}>`, to: recipient,
-      subject: `[ON-LI 확인 필요] ${alert.title}`,
-      text: `${alert.title}\n\n새로운 항목의 승인 또는 확인이 필요합니다.\n관리자 페이지: ${link}\n\n개인정보와 제출 파일은 로그인 후 확인해주세요.`,
-      html: `<h2>${escape(alert.title)}</h2><p>새로운 항목의 승인 또는 확인이 필요합니다.</p><p><a href="${escape(link)}">관리자 페이지에서 확인하기</a></p><p>개인정보와 제출 파일은 로그인 후 확인해주세요.</p>`,
+      subject: `[ON-LI${workflow ? "" : " 확인 필요"}] ${alert.title}`,
+      text: `${alert.title}\n\n${message}\n${button}: ${link}\n\n상세 내용과 제출 파일은 로그인 후 확인해주세요.`,
+      html: `<h2>${escape(alert.title)}</h2><p>${escape(message)}</p><p><a href="${escape(link)}">${button}</a></p><p>상세 내용과 제출 파일은 로그인 후 확인해주세요.</p>`,
     });
   } catch (error) {
     const retryable = ["EAUTH", "ECONNECTION", "EDNS"].includes(error?.code);
@@ -61,7 +79,8 @@ Deno.serve(async (request) => {
     transporter.close();
   }
   const accepted = (result.accepted || []).map((value) => String(value).toLowerCase());
-  if (!result.messageId || !accepted.includes(recipient)) {
+  const rejected = (result.rejected || []).map((value) => String(value).toLowerCase());
+  if (!result.messageId || !accepted.includes(recipient) || rejected.includes(recipient)) {
     await finish("uncertain", null, "메일 서버 수신 확인 없음: 자동 재발송 중지");
     return json({ error: "Provider confirmation missing" }, 502);
   }

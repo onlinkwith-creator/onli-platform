@@ -480,7 +480,9 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
     alert(
       isDesignatedRequest
         ? "통역 의뢰가 접수되었습니다.\n\n선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.\n일정이 맞지 않는 경우 ON-LI에서 조건에 맞는 다른 통역사를 안내해드립니다."
-        : "통역 의뢰가 접수되었습니다.\n\nON-LI 담당자가 내용을 확인 후\n영업일 기준 3시간 이내 연락드립니다."
+        : requestType === "general"
+          ? "통역 의뢰가 접수되었습니다. 기업 마이페이지에서 공고와 지원자를 확인해 주세요."
+          : "긴급 의뢰가 접수되었습니다. ON-LI 담당자가 내용을 확인 후 연락드립니다."
     );
     setForm(initialForm);
     if (referenceFileInputRef.current) {
@@ -728,8 +730,8 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
 
           <div className="request-submit-card">
             <div>
-              <strong>의뢰 접수 후 영업일 기준 3시간 이내 담당자가 연락드립니다.</strong>
-              <p>일정, 장소, 분야를 확인한 뒤 적합한 통역 조건을 안내합니다.</p>
+              <strong>{isGeneralRequest ? "일반 의뢰 공개 공고 · 긴급 의뢰 별도 검토" : "지정 의뢰는 담당자가 확인합니다."}</strong>
+              {isGeneralRequest && <p>일반 의뢰의 회사명, 행사명, 일정, 장소와 모집 조건이 공고에 공개됩니다. 담당자 연락처와 참고 자료는 공개되지 않습니다.</p>}
               {!isGeneralRequest && (
                 <p className="request-designated-note">
                   선택하신 통역사의 일정 및 가능 여부 확인 후 최종 매칭됩니다.

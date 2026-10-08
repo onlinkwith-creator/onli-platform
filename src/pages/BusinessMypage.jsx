@@ -33,6 +33,7 @@ import {
 } from "../utils/operationsStatus";
 import "./BusinessMypage.css";
 import CompanyApplicants from "../components/CompanyApplicants";
+import SelfServiceWorkflow from "../components/SelfServiceWorkflow";
 import { getNewestRequestId, isRequestExpanded } from "../utils/requestExpansion";
 
 const PRIMARY_FIELDS_OPTIONS = [
@@ -241,7 +242,10 @@ function BusinessMypage({
   const [areNotificationsOpen, setAreNotificationsOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
-  const [activeTab, setActiveTab] = useState("requests"); // "requests", "profile", "interpreters", "materials", "inquiry"
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return ["applicants", "work"].includes(tab) ? tab : "requests";
+  });
   const [applicantRequestId, setApplicantRequestId] = useState("");
   const [status, setStatus] = useState("loading"); // "loading", "ready", "notRegistered", "restricted", "signedOut"
 
@@ -1199,6 +1203,12 @@ function BusinessMypage({
                 <span className="tab-icon"><UsersRound size={17} aria-hidden="true" /></span> 지원자
               </button>
               <button
+                className={`mypage-tab-btn ${activeTab === "work" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("work")}
+              >
+                <span className="tab-icon"><ClipboardList size={17} aria-hidden="true" /></span> 업무 완료
+              </button>
+              <button
                 className={`mypage-tab-btn ${activeTab === "materials" ? "is-active" : ""}`}
                 onClick={() => setActiveTab("materials")}
               >
@@ -1227,6 +1237,7 @@ function BusinessMypage({
 
           {/* Main Display Area */}
           <main className="business-mypage-main-content">
+            {activeTab === "work" && <SelfServiceWorkflow role="company" onChange={fetchData} />}
             {activeTab === "applicants" && <CompanyApplicants
               key={applicantRequestId}
               requests={requests}

@@ -13,6 +13,7 @@
     "test:certification": "node scripts/test-onli-certification.mjs",
     "test:admin-alerts": "node scripts/test-admin-action-alerts.mjs",
     "test:company-assignment": "node scripts/test-company-assignment.mjs",
+    "test:self-service": "node scripts/test-self-service-workflow.mjs",
     "preview": "vite preview",
     "seed:test-requests": "node scripts/seed-test-requests.mjs"
   },

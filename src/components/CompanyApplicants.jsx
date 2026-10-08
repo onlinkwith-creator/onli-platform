@@ -21,6 +21,7 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
   const [confirmId, setConfirmId] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [offerAmount, setOfferAmount] = useState("");
   const selected = requests.find((request) => String(request.id) === selectedId) || requests[0];
   const requestId = selected?.id;
 
@@ -47,25 +48,33 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
     return () => { current = false; };
   }, [requestId, selected?.job_id, refresh]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible" && !saving) setRefresh((value) => value + 1);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [saving]);
+
   const loading = result.loading || result.requestId !== requestId;
   const rows = result.requestId === requestId ? result.rows : [];
   const assignedCount = Number(rows[0]?.assigned_count || 0);
+  const reservedCount = Number(rows[0]?.reserved_count || 0);
   const requiredCount = Number(rows[0]?.required_count || selected?.requested_people_count || selected?.required_count || 1);
-  const full = assignedCount >= requiredCount;
+  const full = assignedCount + reservedCount >= requiredCount;
 
   const assign = async (application) => {
     if (saving) return;
     setSaving(true);
     setNotice(null);
     try {
-      const { error } = await supabase.rpc("assign_company_applicant", {
-        p_request_id: requestId, p_application_id: application.id,
+      const { error } = await supabase.rpc("propose_company_assignment", {
+        p_request_id: requestId, p_application_id: application.id, p_amount: Number(offerAmount),
       });
       if (error) throw error;
       setConfirmId("");
-      setNotice({ requestId, text: `${application.profile.name} 통역사가 배정되었습니다.`, error: false });
+      setNotice({ requestId, text: `${application.profile.name} 통역사에게 배정 요청을 보냈습니다.`, error: false });
       setRefresh((value) => value + 1);
-      onAssigned?.();
+      await onAssigned?.();
     } catch (error) {
       const messages = {
         ASSIGNMENT_CAPACITY_FULL: "필요 인원이 모두 배정되었습니다.",
@@ -76,12 +85,34 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
         ASSIGNMENT_SCHEDULE_MISSING: "행사 일정 확인이 필요합니다. 관리자에게 문의해 주세요.",
         ASSIGNMENT_ADMIN_REQUIRED: "이전 배정 기록이 있어 관리자 확인이 필요합니다.",
         ASSIGNMENT_FORBIDDEN: "이 의뢰를 배정할 권한이 없습니다.",
+        WORKFLOW_INVALID_AMOUNT: "전체 일정 기준 세전 보수를 원 단위로 입력해 주세요.",
+        WORKFLOW_CANCEL_OFFER_FIRST: "기존 요청을 취소한 후 보수를 변경해 주세요.",
       };
       const key = Object.keys(messages).find((code) => error.message?.includes(code));
-      setNotice({ requestId, error: true, text: messages[key] || "배정을 확인하지 못했습니다. 새로고침으로 배정 상태를 확인한 후 다시 시도해 주세요." });
+      const unavailable = error.code === "PGRST202";
+      const protectedWrite = error.message?.includes("Only admins can");
+      setNotice({ requestId, error: true, text: messages[key] || (unavailable
+        ? "배정 요청 기능 업데이트 중입니다. 잠시 후 새로고침해 주세요."
+        : protectedWrite ? "배정 권한 설정을 확인해야 합니다. 고객센터에 문의해 주세요."
+          : "배정을 확인하지 못했습니다. 새로고침으로 배정 상태를 확인한 후 다시 시도해 주세요.") });
       setConfirmId("");
       setRefresh((value) => value + 1);
     } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelOffer = async (id) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.rpc("cancel_assignment_offer", { p_offer_id: id });
+      if (error) throw error;
+      setNotice({ requestId, error: false, text: "배정 요청을 취소했습니다." });
+    } catch {
+      setNotice({ requestId, error: true, text: "요청을 취소하지 못했습니다. 상태를 새로 확인해 주세요." });
+    } finally {
+      setRefresh((value) => value + 1);
       setSaving(false);
     }
   };
@@ -117,7 +148,7 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
           : result.error ? <p role="alert">{result.error}</p>
           : rows.length === 0 ? <p className="loading-placeholder">아직 지원자가 없습니다.</p>
           : <div className="company-applicant-list">
-            <p className="data-count-label">지원자 {rows.length}명 · 배정 {assignedCount}/{requiredCount}명</p>
+            <p className="data-count-label">지원자 {rows.length}명 · 배정 {assignedCount}/{requiredCount}명 · 수락 대기 {reservedCount}명</p>
             {rows.map((application) => {
               const profile = application.profile;
               return <article key={application.id} className="company-applicant-row">
@@ -130,18 +161,25 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
                 <p className="company-applicant-meta">{application.application_no || "-"} · {formatDate(application.created_at)}</p>
                 <div className="company-applicant-actions">
                   {application.assigned ? <span className="company-applicant-assigned"><Check size={16} aria-hidden="true" />배정 완료</span>
-                    : profile && ["pending", "reviewing", "accepted", "approved"].includes(application.status) && (
+                    : application.offer?.status === "pending" ? <div className="company-assignment-confirm">
+                      <p>수락 대기 · {Number(application.offer.amount).toLocaleString("ko-KR")}원 · {formatExpiry(application.offer.expires_at)} 만료</p>
+                      <button type="button" className="company-assign-cancel" disabled={saving} onClick={() => cancelOffer(application.offer.id)}>요청 취소</button>
+                    </div> : profile && ["pending", "reviewing", "accepted", "approved"].includes(application.status) && (
                       confirmId === application.id ? <div className="company-assignment-confirm">
-                        <p>{profile.name} 통역사를 이 의뢰에 배정할까요?</p>
+                        <p>{profile.name} 통역사에게 배정 요청</p>
+                        <label className="company-offer-amount">전체 일정 기준 세전 보수 (원)
+                          <input type="number" min="1" max="100000000" step="1" inputMode="numeric" value={offerAmount}
+                            disabled={saving} onChange={(event) => setOfferAmount(event.target.value)} />
+                        </label>
                         <div>
-                          <button type="button" className="company-assign-button" disabled={saving || full || !application.assignment_open} onClick={() => assign(application)}>
-                            <UserRoundCheck size={16} aria-hidden="true" />{saving ? "배정 중…" : "배정 확정"}
+                          <button type="button" className="company-assign-button" disabled={saving || full || !application.assignment_open || !Number.isSafeInteger(Number(offerAmount)) || Number(offerAmount)<=0 || Number(offerAmount)>100000000} onClick={() => assign(application)}>
+                            <UserRoundCheck size={16} aria-hidden="true" />{saving ? "요청 중…" : "배정 요청 보내기"}
                           </button>
                           <button type="button" className="company-assign-cancel" disabled={saving} onClick={() => setConfirmId("")}>취소</button>
                         </div>
                       </div> : <button type="button" className="company-assign-button" disabled={saving || loading || full || !application.assignment_open}
-                        onClick={() => { setConfirmId(application.id); setNotice(null); }}>
-                        <UserRoundCheck size={16} aria-hidden="true" />{!application.assignment_open ? "배정 불가" : full ? "배정 정원 마감" : "배정하기"}
+                        onClick={() => { setConfirmId(application.id); setOfferAmount(""); setNotice(null); }}>
+                        <UserRoundCheck size={16} aria-hidden="true" />{!application.assignment_open ? "배정 불가" : full ? "배정 정원 마감" : "배정 요청"}
                       </button>
                     )}
                 </div>
@@ -161,6 +199,13 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
       </>}
     </section>
   );
+}
+
+function formatExpiry(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "-" : new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short",
+  }).format(date);
 }
 
 function formatDate(value) {
