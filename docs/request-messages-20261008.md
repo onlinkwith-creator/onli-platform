@@ -55,3 +55,13 @@ retry nonces, limits, cursor/read semantics, and coalesced/suppressed emails.
 Existing workflow/security tests and production build remain release gates.
 Real-message browser checks must use designated test accounts and not commercial
 assignments; live SMTP delivery is not implied by isolated queue tests.
+
+Production DB migration and the shared-template email worker were applied on
+2026-10-08. Runtime rejected a fake workflow nonce with the expected 401 without
+SMTP submission. Production browser checks used the provided interpreter/company
+test accounts on `[TEST E2E 20261005]` / `ONLI-REQ-016`, exchanging two clearly
+labelled test messages; company receipt, interpreter reply receipt and peer-read
+display passed. Assignment/completion/financial actions were not submitted.
+Both Vercel projects completed the feature deployment. A follow-up heading-color
+fix prevents global dark-mode heading colors leaking into the light messaging UI.
+Live inbox arrival of an unread reminder was not asserted in this browser check.

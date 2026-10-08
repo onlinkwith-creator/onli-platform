@@ -168,6 +168,8 @@ try {
   assert.equal(validWorkflowReturnTarget('/interpreter-mypage?tab=messages','company'),false);
   const component = await readFile(new URL('../src/components/RequestMessages.jsx',import.meta.url),'utf8');
   assert.ok(!component.includes('dangerouslySetInnerHTML'),'messages rendered as text, never HTML');
+  const styles = await readFile(new URL('../src/components/RequestMessages.css',import.meta.url),'utf8');
+  assert.match(styles,/\.request-messaging h2\s*\{[^}]*color:\s*#14263a/,'heading color must not inherit global dark-mode text');
   const worker = await readFile(new URL('../supabase/functions/admin-action-alert/index.ts',import.meta.url),'utf8');
   assert.ok(worker.includes('"workflow_message_unread"') && worker.includes('"/business/mypage?tab=messages"') && worker.includes('"/interpreter-mypage?tab=messages"'));
   console.log('Request messages: permissions, pair isolation, retries, read cursors, rate limits, pagination, unread mail and cancellation PASS');

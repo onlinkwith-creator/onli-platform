@@ -1,8 +1,8 @@
 .request-messaging { min-width: 0; padding: 24px; background: #fff; color: #14263a; border: 1px solid #e2e7ed; border-radius: 8px; text-align: left; color-scheme: light; }
 .request-messaging *, .request-messaging *::before, .request-messaging *::after { box-sizing: border-box; letter-spacing: 0; }
 .request-messaging-title, .request-message-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.request-messaging h2 { font-size: 20px; margin: 0; }
-.request-messaging h3 { font-size: 16px; margin: 0; }
+.request-messaging h2 { font-size: 20px; margin: 0; color: #14263a; }
+.request-messaging h3 { font-size: 16px; margin: 0; color: #14263a; }
 .request-messaging button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 14px; border: 1px solid #4455a8; border-radius: 8px; background: #4455a8; color: #fff; font: inherit; font-size: 14px; cursor: pointer; transition: background 150ms; }
 .request-messaging button:hover:not(:disabled) { background: #34458e; }
 .request-messaging button:disabled { opacity: .5; cursor: not-allowed; }
