@@ -1,0 +1,9 @@
+.workflow-exceptions { padding: 16px 0; margin: 16px 0; border-block: 1px solid #dce2eb; color: #14263a; }
+.workflow-exceptions summary { display: flex; gap: 12px; align-items: center; cursor: pointer; min-height: 44px; font-weight: 700; }
+.workflow-exceptions summary span { color: #a52c3c; font-size: 13px; }
+.workflow-exceptions ul { list-style: none; padding: 0; margin: 8px 0; }
+.workflow-exceptions li { display: grid; grid-template-columns: 130px minmax(0,1fr) 44px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid #e2e7ed; font-size: 13px; }
+.workflow-exceptions li span { overflow-wrap: anywhere; }
+.workflow-exceptions button { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; color: #4455a8; background: #fff; border: 1px solid #dce2eb; border-radius: 8px; cursor: pointer; }
+.workflow-exceptions .workflow-exception-refresh { margin-block: 8px; }
+@media(max-width:600px) { .workflow-exceptions li { grid-template-columns: minmax(0,1fr) 44px; gap: 4px 8px; } .workflow-exceptions li span:first-child { grid-column: 1; color: #a52c3c; } .workflow-exceptions li button { grid-column: 2; grid-row: 1 / 3; } }

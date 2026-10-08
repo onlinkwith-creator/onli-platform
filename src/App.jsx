@@ -1,4 +1,5 @@
 import { Component, useEffect, useState } from "react";
+import { validWorkflowReturnTarget } from "./utils/workflowReturnTarget";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Business from "./pages/Business";
@@ -252,11 +253,13 @@ function App() {
 
       if (hasInterpreter) {
         navigate("interpreterMypage", null, null);
+        restoreWorkflowTarget("interpreter");
         return;
       }
 
       if (hasBusiness) {
         navigate("businessMypage", null, null);
+        restoreWorkflowTarget("company");
         return;
       }
 
@@ -367,12 +370,26 @@ function App() {
     }
   };
 
+  const restoreWorkflowTarget = (role) => {
+    try {
+      const target = window.sessionStorage.getItem("onli.workflowReturnTarget");
+      window.sessionStorage.removeItem("onli.workflowReturnTarget");
+      if (validWorkflowReturnTarget(target, role)) window.history.replaceState(window.history.state, "", target);
+    } catch { /* Navigation still works when storage is unavailable. */ }
+  };
+
   const navigate = (
     nextPage,
     interpreter = selectedInterpreter,
     jobId = selectedJobId,
     policyKey = selectedPolicyKey
   ) => {
+    if (nextPage === "login" || nextPage === "interpreterLogin") {
+      const target = window.location.pathname + window.location.search;
+      if (validWorkflowReturnTarget(target)) {
+        try { window.sessionStorage.setItem("onli.workflowReturnTarget", target); } catch { /* Optional return target. */ }
+      }
+    }
     setSelectedInterpreter(interpreter);
     setSelectedInterpreterId(interpreter?.id || null);
     setSelectedJobId(jobId);

@@ -244,7 +244,7 @@ function BusinessMypage({
   const [loadingData, setLoadingData] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    return ["applicants", "work"].includes(tab) ? tab : "requests";
+    return ["applicants", "work", "materials"].includes(tab) ? tab : "requests";
   });
   const [applicantRequestId, setApplicantRequestId] = useState("");
   const [status, setStatus] = useState("loading"); // "loading", "ready", "notRegistered", "restricted", "signedOut"

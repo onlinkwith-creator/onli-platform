@@ -24,6 +24,7 @@ import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
 import AdminCompanyResume from "../components/AdminCompanyResume";
 import AdminAlertPreferences from "../components/AdminAlertPreferences";
+import WorkflowExceptions from "../components/WorkflowExceptions";
 import { DayPicker } from "react-day-picker";
 import { ko } from "react-day-picker/locale";
 import MonthFilterInput from "../components/MonthFilterInput";
@@ -734,7 +735,7 @@ function sanitizeRecipientEmail(email) {
             (async () => {
               const result = await supabase
                 .from("request_interpreters")
-                .select("id, request_id, interpreter_id, contact_visible")
+                .select("id, assignment_no, request_id, interpreter_id, contact_visible")
                 .order("id", { ascending: false });
 
               if (!result.error) {
@@ -4601,6 +4602,11 @@ function sanitizeRecipientEmail(email) {
               onOpenItem={(item) => handleDashboardShortcut(item.targetSubTab)}
             />
             </div>
+
+            <WorkflowExceptions onOpenRequest={(requestId) => {
+              const request = requests.find((item) => String(item.id) === String(requestId));
+              if (request) { switchSubTab("requests"); openRequestModal("detail", request); }
+            }} />
 
             <ProcessingQueue
               items={processingQueueItems}
@@ -15252,7 +15258,7 @@ function buildAssignmentManagementRows({
       rowId: `assignment-${assignment.id}`,
       assignment,
       request,
-      assignmentNo: matching.matching_no || `ONLI-MAT-${String(assignment.id).padStart(4, "0")}`,
+      assignmentNo: assignment.assignment_no || matching.matching_no || `ONLI-MAT-${String(assignment.id).padStart(4, "0")}`,
       requestNo: request?.request_no || request?.request_number || "",
       applicationNo: application?.application_no || "",
       interpreterName: interpreter.name || "",
@@ -15906,6 +15912,7 @@ function getNotificationEventTypeLabel(eventType) {
     admin_action_interpreter: "신규 통역사 승인 알림",
     admin_action_company: "신규 기업 승인 알림",
     admin_action_request: "신규 의뢰 확인 알림",
+    admin_action_workflow: "운영 예외 확인 알림",
     admin_action_application: "신규 지원자 검토 알림",
     admin_action_resume: "이력서 검수 알림",
     admin_action_documents: "정산 서류 확인 알림",

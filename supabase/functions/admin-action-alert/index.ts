@@ -7,15 +7,21 @@ const allowedTypes = new Set([
   "admin_action_interpreter", "admin_action_resume", "admin_action_documents",
   "admin_action_company", "admin_action_request", "admin_action_estimate",
   "admin_action_application", "admin_action_test",
+  "admin_action_workflow",
 ]);
 const workflowTypes = new Set([
   "workflow_offer_received", "workflow_offer_accepted", "workflow_offer_declined",
   "workflow_offer_cancelled", "workflow_offer_expired", "workflow_completion_submitted",
   "workflow_completion_revision", "workflow_completion_confirmed",
   "workflow_application_received", "workflow_job_published",
+  "workflow_offer_reminder", "workflow_unassigned_reminder", "workflow_materials_reminder",
+  "workflow_materials_uploaded", "workflow_completion_reminder", "workflow_review_reminder",
+  "workflow_matching_job", "workflow_recruiting_reopened",
 ]);
 const workflowPaths = new Set([
   "/interpreter-mypage?tab=assignments", "/business/mypage?tab=applicants", "/business/mypage?tab=work",
+  "/business/mypage?tab=materials", "/interpreter-mypage?tab=preparation",
+  "/interpreter-mypage?tab=applications", "/jobs",
 ]);
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "Content-Type": "application/json" },

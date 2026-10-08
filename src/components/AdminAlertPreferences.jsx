@@ -7,6 +7,7 @@ const alertTypes = [
   ["admin_action_interpreter", "신규 통역사 등록"],
   ["admin_action_company", "신규 기업 등록"],
   ["admin_action_request", "신규 기업 의뢰"],
+  ["admin_action_workflow", "미배정 · 완료 지연 · 일정 충돌"],
   ["admin_action_application", "신규 공고 지원자"],
   ["admin_action_resume", "이력서 제출·교체"],
   ["admin_action_documents", "정산 서류 변경"],

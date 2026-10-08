@@ -3,6 +3,7 @@ import { Check, ChevronDown, RefreshCw, UserRound, UserRoundCheck } from "lucide
 import { supabase } from "../supabase";
 import "./CompanyApplicants.css";
 import CompanyApplicantResume from "./CompanyApplicantResume";
+import { rankApplicants } from "../utils/applicantRanking";
 
 const STATUS_LABELS = {
   pending: "지원 접수", reviewing: "검토 중", accepted: "매칭 확정",
@@ -22,6 +23,7 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);
   const [offerAmount, setOfferAmount] = useState("");
+  const [sort, setSort] = useState("fit");
   const selected = requests.find((request) => String(request.id) === selectedId) || requests[0];
   const requestId = selected?.id;
 
@@ -56,7 +58,8 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
   }, [saving]);
 
   const loading = result.loading || result.requestId !== requestId;
-  const rows = result.requestId === requestId ? result.rows : [];
+  const sourceRows = result.requestId === requestId ? result.rows : [];
+  const rows = sort === "fit" ? rankApplicants(sourceRows, selected) : sourceRows;
   const assignedCount = Number(rows[0]?.assigned_count || 0);
   const reservedCount = Number(rows[0]?.reserved_count || 0);
   const requiredCount = Number(rows[0]?.required_count || selected?.requested_people_count || selected?.required_count || 1);
@@ -149,6 +152,11 @@ export default function CompanyApplicants({ requests, initialRequestId = "", onA
           : rows.length === 0 ? <p className="loading-placeholder">아직 지원자가 없습니다.</p>
           : <div className="company-applicant-list">
             <p className="data-count-label">지원자 {rows.length}명 · 배정 {assignedCount}/{requiredCount}명 · 수락 대기 {reservedCount}명</p>
+            <label className="company-applicant-filter"><span>정렬</span>
+              <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                <option value="fit">지역 · 레벨 조건순</option><option value="recent">최신 지원순</option>
+              </select>
+            </label>
             {rows.map((application) => {
               const profile = application.profile;
               return <article key={application.id} className="company-applicant-row">

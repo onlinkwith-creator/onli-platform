@@ -17,6 +17,28 @@ export default function SelfServiceWorkflow({ role, onChange, embedded = false }
   const [confirmation, setConfirmation] = useState("");
   const [checked, setChecked] = useState(false);
   const [history, setHistory] = useState(false);
+  const [discovery, setDiscovery] = useState(false);
+  const [preferenceBusy, setPreferenceBusy] = useState(false);
+
+  useEffect(() => {
+    if (role !== "interpreter") return;
+    let active = true;
+    supabase.rpc("get_my_discovery_alerts").then(({ data, error }) => {
+      if (active && !error) setDiscovery(Boolean(data));
+    });
+    return () => { active = false; };
+  }, [role]);
+
+  const toggleDiscovery = async (enabled) => {
+    setPreferenceBusy(true);
+    try {
+      const { error } = await supabase.rpc("set_my_discovery_alerts", { p_enabled: enabled });
+      if (error) throw error;
+      setDiscovery(enabled);
+    } catch {
+      setNotice({ error: true, text: "공고 알림 설정을 저장하지 못했습니다." });
+    } finally { setPreferenceBusy(false); }
+  };
 
   const load = useCallback(async () => {
     const [offerResult, workResult] = await Promise.all([
@@ -78,6 +100,8 @@ export default function SelfServiceWorkflow({ role, onChange, embedded = false }
     {notice && <p role={notice.error ? "alert" : "status"} className={`self-service-notice${notice.error ? " is-error" : ""}`}>{notice.text}</p>}
     {loading ? <p role="status">업무 상태를 불러오는 중입니다.</p> : <>
       {role === "interpreter" && <div className="self-service-offers">
+        <label className="self-service-check"><input type="checkbox" checked={discovery} disabled={preferenceBusy}
+          onChange={(event) => toggleDiscovery(event.target.checked)} />새 공고 · 재모집 이메일 알림</label>
         <div className="self-service-heading"><h3>배정 요청</h3>
           <label className="self-service-history"><input type="checkbox" checked={history} onChange={(event) => setHistory(event.target.checked)} />지난 요청</label>
         </div>
@@ -107,7 +131,7 @@ export default function SelfServiceWorkflow({ role, onChange, embedded = false }
       {work.length === 0 && <p className="self-service-muted">배정된 업무가 없습니다.</p>}
       {work.map((item) => <details key={item.assignment_id} className="self-service-item">
         <summary><span>{item.event_name} · {item.interpreter_name}</span><span>{LABELS[item.status]}</span></summary>
-        <p>{item.request_no} · {item.start_date} ~ {item.end_date}</p>
+        <p>{item.assignment_no || item.request_no} · {item.start_date} ~ {item.end_date}</p>
         {item.agreed_total_amount != null && <p>전체 일정 세전 보수: {Number(item.agreed_total_amount).toLocaleString("ko-KR")}원</p>}
         {item.report && <p className="self-service-report">{item.report}</p>}
         {item.review_note && <p className="self-service-notice is-error">수정 요청: {item.review_note}</p>}

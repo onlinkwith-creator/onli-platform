@@ -138,8 +138,10 @@ function InterpreterMypage({
   const [loadingSettlements, setLoadingSettlements] = useState(false);
   const settlementLoadId = useRef(0);
   const [paymentDocuments, setPaymentDocuments] = useState([]);
-  const [activeTab, setActiveTab] = useState(() =>
-    new URLSearchParams(window.location.search).get("tab") === "assignments" ? "assignments" : "profile");
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return TABS.some((item) => item.id === tab) ? tab : "profile";
+  });
   const [loadingData, setLoadingData] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [withdrawalTarget, setWithdrawalTarget] = useState(null);
@@ -993,7 +995,7 @@ function InterpreterMypage({
 
     const { data: assignments, error: assignmentError } = await supabase
       .from("request_interpreters")
-      .select("id, request_id, interpreter_id, assigned_at, status, contact_visible, is_contact_visible, contact_revealed")
+      .select("id, assignment_no, request_id, interpreter_id, assigned_at, status, contact_visible, is_contact_visible, contact_revealed")
       .eq("interpreter_id", interpreterId)
       .order("assigned_at", { ascending: false });
 
@@ -3557,7 +3559,7 @@ function mapRequestInterpreterAssignmentRow(row = {}) {
   const endDate = getFirstValue(request.event_end_date, request.end_date);
   const mappedRequest = {
     id: assignment.id,
-    matching_no: detail?.requestNumber || "관리번호 미등록",
+    matching_no: assignment.assignment_no || detail?.requestNumber || "관리번호 미등록",
     job_id: request.job_id || null,
     request_id: assignment.request_id,
     // Internal relationship key only. It is never rendered as company information.
