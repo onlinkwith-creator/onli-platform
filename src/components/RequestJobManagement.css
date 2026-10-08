@@ -1,0 +1,27 @@
+.admin-request-detail-modal .admin-request-job-tab { padding: 24px 28px; }
+.request-job-management { min-width: 0; }
+.request-job-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.request-job-heading h3 { margin: 0; }
+.request-job-empty { display: grid; justify-items: start; gap: 12px; }
+.request-job-empty p { margin: 0; }
+.request-job-empty button { display: inline-flex; align-items: center; gap: 8px; }
+.request-job-management .admin-section { padding: 0; margin: 0; border: 0; background: none; box-shadow: none; }
+.request-job-management .admin-management-card-grid { grid-template-columns: minmax(0, 1fr); }
+.admin-request-detail-modal .request-job-management .admin-list-card { width: 100%; max-width: none; box-sizing: border-box; box-shadow: none; }
+.request-job-management .accordion-card { border: 0; border-radius: 0; padding: 0; cursor: default; }
+.request-job-management .admin-card-expandable-content-inner { padding: 0; }
+.request-job-inline-editor, .request-job-inline-applicants { min-width: 0; width: 100%; }
+.request-job-management .admin-modal-head { padding: 0 0 12px; }
+.request-job-management .admin-modal-body { padding: 0; max-height: none; overflow: visible; }
+.request-job-management .job-modal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.request-job-management .job-modal-grid input, .request-job-management .job-modal-grid select { min-width: 0; }
+.request-job-management .date-range-input { width: 100%; max-width: 100%; box-sizing: border-box; }
+.admin-request-detail-modal .request-job-management .admin-modal-head { flex-direction: row; align-items: center; text-align: left; }
+.admin-request-detail-modal .request-job-management .admin-modal-head h2 { font-size: 18px; letter-spacing: 0; }
+.admin-request-detail-modal .request-job-management .admin-modal-head button { flex: 0 0 auto; width: auto; }
+@media (max-width: 600px) {
+  .request-job-management .job-modal-grid { grid-template-columns: minmax(0, 1fr); }
+  .request-job-management .admin-job-form-actions { flex-wrap: wrap; }
+  .request-job-management .admin-job-form-actions > button { flex: 1; }
+  .request-job-management .admin-card-primary-actions { flex-wrap: wrap; }
+}

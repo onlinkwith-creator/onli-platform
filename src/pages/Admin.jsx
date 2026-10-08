@@ -29,6 +29,7 @@ import { DayPicker } from "react-day-picker";
 import { ko } from "react-day-picker/locale";
 import MonthFilterInput from "../components/MonthFilterInput";
 import AdminJobs from "./AdminJobs";
+import RequestJobManagement from "../components/RequestJobManagement";
 import { normalizeJobVisibility } from "../utils/jobStatus";
 import { buildJobPayloadFromRequest } from "../utils/requestJobPayload";
 import {
@@ -5131,6 +5132,22 @@ function sanitizeRecipientEmail(email) {
             {activeRequest && (
               <RequestActionModal
                 activeModal={activeRequestModal}
+                jobManagement={
+                  <RequestJobManagement
+                    request={activeRequest}
+                    jobs={jobs}
+                    requests={requests}
+                    interpreters={interpreters}
+                    assignments={assignments}
+                    settlements={safeSettlements}
+                    applications={jobApplications}
+                    onDataChanged={fetchAdminData}
+                    onPublish={toggleRequestJobPublic}
+                    saving={savingKey === `request-job-${activeRequest.id}`}
+                    getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
+                    updateApplicationStatus={updateJobApplicationStatus}
+                  />
+                }
                 applications={
                   activeRequest.job_id
                     ? jobApplicationsByJob.get(String(activeRequest.job_id)) || []
@@ -5183,6 +5200,7 @@ function sanitizeRecipientEmail(email) {
 
 function RequestActionModal({
   activeModal,
+  jobManagement,
   adminActivityLogs = [],
   adminNotes = [],
   applications,
@@ -5264,6 +5282,7 @@ function RequestActionModal({
     >
       {activeModal.type === "detail" && (
         <RequestDetailPanel
+          jobManagement={jobManagement}
           request={request}
           requests={requests}
           payments={payments}
@@ -8470,6 +8489,7 @@ function PreparationChecklistPanel({ requestId }) {
 }
 
 function RequestDetailPanel({
+  jobManagement,
   adminActivityLogs = [],
   adminNotes = [],
   applications,
@@ -8883,6 +8903,7 @@ function RequestDetailPanel({
 
   const tabs = [
     { id: "basic", label: "기본 정보" },
+    { id: "jobs", label: "공고 관리" },
     { id: "operation", label: "운영 정보" },
     { id: "documents", label: "문서" },
     { id: "memo", label: `메모 · 이력${allTargetLogs.length > 0 ? ` (${allTargetLogs.length})` : ""}` },
@@ -8905,6 +8926,12 @@ function RequestDetailPanel({
           </button>
         ))}
       </div>
+
+      {activeTab === "jobs" && (
+        <div className="admin-detail-tab-content admin-request-job-tab" role="tabpanel" aria-label="공고 관리">
+          {jobManagement}
+        </div>
+      )}
 
       {/* ── TAB: 기본 정보 ── */}
       {activeTab === "basic" && (

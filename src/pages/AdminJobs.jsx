@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
 import MonthFilterInput from "../components/MonthFilterInput";
@@ -220,6 +221,7 @@ async function updateJobWithFallback(jobId, changes) {
 function AdminJobs({
   onBackClick,
   embedded = false,
+  requestScoped = false,
   jobs: controlledJobs,
   requests = [],
   interpreters = [],
@@ -258,8 +260,9 @@ function AdminJobs({
   const visibleApplications = isControlled
     ? controlledApplications || []
     : applications;
-  const requestsByJobId = requests.reduce((map, request) => {
-    if (request.job_id) map.set(String(request.job_id), request);
+  const requestsByJobId = visibleJobs.reduce((map, job) => {
+    const request = findRequestForJob(job, requests);
+    if (request) map.set(String(job.id), request);
     return map;
   }, new Map());
   const assignmentsByRequestId = assignments.reduce((map, assignment) => {
@@ -345,6 +348,7 @@ function AdminJobs({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (saving || (requestScoped && (!editingId || !visibleJobs.some((job) => String(job.id) === String(editingId))))) return;
     setSaving(true);
     setErrorMessage("");
 
@@ -477,7 +481,7 @@ function AdminJobs({
         }
       }
 
-      if (editingId && form.settlement_status) {
+      if (!requestScoped && editingId && form.settlement_status) {
         const originalJob = visibleJobs.find((item) => item.id === editingId) || {};
         await ensureSettlementForJob(
           { ...originalJob, settlement_status: form.settlement_status },
@@ -531,12 +535,14 @@ function AdminJobs({
   };
 
   const openCreateModal = () => {
+    if (requestScoped) return;
     setForm(emptyForm);
     setEditingId(null);
     setIsJobCreateModalOpen(true);
   };
 
   const closeJobModal = () => {
+    if (saving) return;
     resetForm();
     setIsJobEditModalOpen(false);
     setIsJobCreateModalOpen(false);
@@ -636,6 +642,7 @@ function AdminJobs({
   };
 
   const updateJob = async (job, changes) => {
+    if (requestScoped && (!visibleJobs.some((item) => String(item.id) === String(job.id)) || "settlement_status" in (changes || {}))) return;
     if (!supabase) {
       alert(supabaseConfigError.message);
       return;
@@ -762,7 +769,7 @@ function AdminJobs({
   }, []);
 
   useEffect(() => {
-    if (!activeApplicantsJobId) return undefined;
+    if (!activeApplicantsJobId || requestScoped) return undefined;
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") closeApplicantsModal();
@@ -770,7 +777,7 @@ function AdminJobs({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeApplicantsJobId, closeApplicantsModal]);
+  }, [activeApplicantsJobId, closeApplicantsModal, requestScoped]);
 
   const updateApplicationStatus = async (
     application,
@@ -859,7 +866,13 @@ function AdminJobs({
 
   const content = (
     <>
-      <section className="admin-section">
+      <section className="admin-section" onKeyDown={requestScoped ? (event) => {
+        if (event.key === "Escape" && (isJobEditModalOpen || activeApplicantsJobId)) {
+          event.stopPropagation();
+          if (!saving) { closeJobModal(); closeApplicantsModal(); }
+        }
+      } : undefined}>
+        {!requestScoped && <>
         <div className="admin-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div>
@@ -921,6 +934,8 @@ function AdminJobs({
             ))}
           </select>
         </div>
+        </>}
+        {!(requestScoped && (isJobEditModalOpen || activeApplicantsJobId)) && <>
         {loading ? (
           <MessageBox text="공고를 불러오는 중입니다..." />
         ) : errorMessage ? (
@@ -961,7 +976,8 @@ function AdminJobs({
                     startEdit={startEdit}
                     updateJob={updateJob}
                     request={request}
-                    expanded={localExpandedJobId === job.id}
+                    expanded={requestScoped || localExpandedJobId === job.id}
+                    requestScoped={requestScoped}
                     setExpandedJobId={setLocalExpandedJobId}
                   />
                 );
@@ -969,10 +985,11 @@ function AdminJobs({
             </div>
           )
         )}
-      </section>
+        </>}
 
       {activeApplicantsJobId && (
         <JobApplicantsModal
+          inline={requestScoped}
           applications={getApplicationsForJob(activeApplicantsJobId)}
           getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
           job={visibleJobs.find(
@@ -985,6 +1002,7 @@ function AdminJobs({
 
       {(isJobEditModalOpen || isJobCreateModalOpen) && (
         <JobModal
+          inline={requestScoped}
           editingId={editingId}
           form={form}
           saving={saving}
@@ -993,6 +1011,7 @@ function AdminJobs({
           onSubmit={handleSubmit}
         />
       )}
+      </section>
     </>
   );
 
@@ -1033,6 +1052,7 @@ function AdminJobs({
 }
 
 function JobManagementCard({
+  requestScoped = false,
   assignedInterpreterName,
   interpreterName,
   job,
@@ -1055,6 +1075,7 @@ function JobManagementCard({
     <article
       className={`admin-list-card accordion-card ${expanded ? "is-expanded" : ""}`}
       onClick={(e) => {
+        if (requestScoped) return;
         // Only expand/collapse if clicking general areas, not controls or buttons
         if (
           e.target.closest("button") ||
@@ -1069,7 +1090,7 @@ function JobManagementCard({
         }
         setExpandedJobId(expanded ? null : job.id);
       }}
-      style={{
+      style={requestScoped ? undefined : {
         cursor: "pointer",
         transition: "box-shadow 0.2s ease, border-color 0.2s ease",
         borderColor: expanded ? "#c084fc" : "#e5e7eb",
@@ -1159,7 +1180,7 @@ function JobManagementCard({
                     ))}
                   </select>
                 </JobField>
-                <JobField label="정산 상태">
+                {!requestScoped && <JobField label="정산 상태">
                   <select
                     className="admin-inline-select"
                     value={statuses.settlement_status}
@@ -1172,7 +1193,7 @@ function JobManagementCard({
                       </option>
                     ))}
                   </select>
-                </JobField>
+                </JobField>}
               </div>
             </div>
 
@@ -1210,7 +1231,7 @@ function JobManagementCard({
               </button>
             </div>
 
-            <div className="admin-card-secondary-area">
+            {!requestScoped && <div className="admin-card-secondary-area">
               <div className="admin-card-secondary-actions" style={{ justifyContent: "flex-end" }}>
                 <button
                   type="button"
@@ -1223,12 +1244,12 @@ function JobManagementCard({
                   삭제
                 </button>
               </div>
-            </div>
+            </div>}
           </div>
         </div>
 
         {/* Expand / Collapse Indicator Button */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+        {!requestScoped && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
           <button
             type="button"
             onClick={(e) => {
@@ -1253,7 +1274,7 @@ function JobManagementCard({
           >
             {expanded ? "▲ 접기" : "▼ 펼치기"}
           </button>
-        </div>
+        </div>}
       </div>
     </article>
   );
@@ -1359,18 +1380,23 @@ function MessageBox({ text }) {
 }
 
 function JobApplicantsModal({
+  inline = false,
   applications,
   getInterpreterScheduleConflicts,
   job,
   onClose,
   onStatusChange,
 }) {
+  const inlineRef = useRef(null);
+  useEffect(() => { if (inline) inlineRef.current?.focus({ preventScroll: true }); }, [inline]);
   return (
-    <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
+    <div className={inline ? "request-job-inline-applicants" : "admin-modal-overlay"} role={inline ? undefined : "presentation"} onMouseDown={inline ? undefined : onClose}>
       <section
-        className="admin-modal-card admin-jobs-applicant-modal"
-        role="dialog"
-        aria-modal="true"
+        ref={inlineRef}
+        tabIndex={inline ? -1 : undefined}
+        className={inline ? "request-job-applicants" : "admin-modal-card admin-jobs-applicant-modal"}
+        role={inline ? "region" : "dialog"}
+        aria-modal={inline ? undefined : "true"}
         aria-labelledby="job-applicants-modal-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
@@ -1750,6 +1776,7 @@ function getJobSettlementStatusLabel(job = {}) {
 
 
 function JobModal({
+  inline = false,
   editingId,
   form,
   saving,
@@ -1757,18 +1784,24 @@ function JobModal({
   onClose,
   onSubmit,
 }) {
+  const inlineRef = useRef(null);
   useEffect(() => {
+    if (inline) { inlineRef.current?.focus({ preventScroll: true }); return undefined; }
     const handleKeyDown = (event) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [inline, onClose]);
 
   return (
-    <div className="job-modal-backdrop" onMouseDown={onClose}>
+    <div className={inline ? "request-job-inline-editor" : "job-modal-backdrop"} onMouseDown={inline ? undefined : onClose}>
       <section
-        className="job-modal"
+        ref={inlineRef}
+        tabIndex={inline ? -1 : undefined}
+        role={inline ? "region" : undefined}
+        aria-label={inline ? "공고 편집" : undefined}
+        className={inline ? "request-job-editor" : "job-modal"}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="admin-modal-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", borderBottom: "1px solid #e5e7eb", paddingBottom: "12px" }}>
@@ -1781,9 +1814,12 @@ function JobModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={saving}
+            aria-label="공고 편집 닫기"
+            title="공고 편집 닫기"
             style={{ background: "none", border: "none", fontSize: "24px", cursor: "pointer", color: "#9ca3af", padding: 0 }}
           >
-            &times;
+            {inline ? <X size={18} /> : <>&times;</>}
           </button>
         </div>
 
@@ -1868,7 +1904,7 @@ function JobModal({
               </select>
             </JobField>
 
-            {editingId && (
+            {editingId && !inline && (
               <JobField label="정산 상태">
                 <select name="settlement_status" value={form.settlement_status} onChange={onChange} style={{ width: "100%", height: "40px", boxSizing: "border-box", padding: "0 10px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff" }}>
                   <option value="">정산 없음</option>
@@ -1887,6 +1923,7 @@ function JobModal({
               type="button"
               className="admin-link-button"
               onClick={onClose}
+              disabled={saving}
               style={{ height: "40px", padding: "0 20px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontWeight: "600" }}
             >
               취소
