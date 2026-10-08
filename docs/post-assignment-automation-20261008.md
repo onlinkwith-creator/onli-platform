@@ -66,3 +66,19 @@ layouts without horizontal overflow. Fixture files are development-only and are
 not production entry points. Multi-connection production race tests and live email
 inbox receipt are not claimed. No real assignment, consent, completion or payment
 is submitted as a verification action.
+
+## Production Rollout
+
+Migration 20261008220000 applied successfully on 2026-10-08. The deployed worker
+source matches the release bundle; an invalid delivery nonce returns HTTP 401.
+Vercel deployments for both onli-platform and onli-platform-itus succeeded for
+commit 6c04a8a. Read-only production checks confirm private table access is blocked,
+authenticated portal RPC access is enabled, anonymous RPC access is blocked and
+both existing scheduler jobs are active with successful recent runs.
+
+The company and interpreter accounts opened Condition Changes without load errors.
+The company's existing request material shows the assigned interpreter's pending
+acknowledgement. These accounts currently have no future confirmed assignment
+eligible for a new change, so live proposal/consent submission and inbox receipt
+remain unverified. Screenshots are in /Users/kang-sangin/outputs. Test accounts were
+logged out; normal browser account state was not changed.
