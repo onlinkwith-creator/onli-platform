@@ -1975,7 +1975,7 @@ function InterpreterMypage({
                       통역 공고 지원을 위해 이력서 등록은 필수입니다. ON-LI 업무를 5회 완료하면 자동으로 인증됩니다.
                     </p>
                     <div className="resume-template-download-row">
-                      <a className="resume-template-download" href="/templates/onli-interpreter-resume.docx?v=20261008"
+                      <a className="resume-template-download" href="/templates/onli-interpreter-resume.docx?v=20261009-9f5d16f8"
                         download="ON-LI_이력서_양식.docx">
                         <Download size={18} aria-hidden="true" />
                         이력서 양식 다운로드
