@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { loadPolicyBundle } from "./lib/loadPolicyBundle.mjs";
 
+const [option, filename, ...extra] = process.argv.slice(2);
+if (option !== "--output" || !/^\d{14}_[a-z0-9_]+\.sql$/.test(filename || "") || extra.length) {
+  throw new Error("Usage: node scripts/generate-policy-snapshot.mjs --output <new migration filename.sql>");
+}
 const { POLICY_PAGES, POLICY_VERSION } = await loadPolicyBundle();
 if (!/^[a-zA-Z0-9.-]+$/.test(POLICY_VERSION)) throw new Error("Invalid policy version");
 const documents = JSON.stringify(POLICY_PAGES);
@@ -14,5 +18,6 @@ insert into public.policy_revisions(version,documents,content_sha256)
 values('${POLICY_VERSION}',${delimiter}${documents}${delimiter}::jsonb,'${hash}');
 commit;
 `;
-await writeFile(new URL("../supabase/migrations/20261009020000_policy_revision_snapshot.sql", import.meta.url), sql);
+// Never overwrite a revision that may already have acceptance receipts.
+await writeFile(new URL(`../supabase/migrations/${filename}`, import.meta.url), sql, { flag: "wx" });
 console.log(`Draft policy snapshot: ${POLICY_VERSION}, SHA-256 ${hash}`);

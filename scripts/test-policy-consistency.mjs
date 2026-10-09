@@ -59,6 +59,27 @@ assert.ok(refund.includes("통역사의 취소·노쇼 또는 ON-LI의 귀책사
 assert.ok(refund.includes("배정·일정별로 수행 여부를 구분"));
 assert.ok(refund.includes("사전에 합의되지 않은 비용"));
 assert.ok(refund.includes("외부 분쟁 해결 절차를 제한하지"));
+for (const key of ["commonTerms", "interpreterPolicy", "clientPolicy"]) {
+  const text = policies.POLICY_PAGES[key].sections.flatMap((section) => section.items).join("\n");
+  assert.ok(text.includes("중개·지급대행 및 지급보증"), `${key}: missing service roles`);
+  assert.ok(text.includes("통역사가 실제로 지급받은 범위"), `${key}: agency receipt must not discharge unpaid worker debt`);
+  assert.ok(text.includes("법령상 직접 지급"), `${key}: mandatory payment rules must prevail`);
+}
+for (const clause of [
+  "기준 금액은 미수행 취소 부분에 배분된 사전 합의된 ON-LI 중개료",
+  "14일 이상 전: 기준 중개료의 0%",
+  "7일 이상~14일 미만 전: 기준 중개료의 20% 이내",
+  "48시간 이상~7일 미만 전: 기준 중개료의 50% 이내",
+  "48시간 미만 전·당일 취소·기업 노쇼: 기준 중개료의 100% 이내",
+  "법정 취소율이 아닌", "순손해 중 적은 금액", "더 낮은 요율 구간",
+  "정상 중개료와 취소료를 중복 청구하지", "소급 적용하지",
+  "불가항력 취소에는 위 기업 취소료를 부과하지",
+  "공제액 확정 후 7영업일 이내", "다툼 없는 반환액은 먼저",
+  "지급보장 기한을 연장하지", "적용 가능한 강행법규"
+]) assert.ok(refund.includes(clause), `Refund safeguard missing: ${clause}`);
+assert.ok(common.includes("기업의 미입금·지급불능은 지급보장 거절 사유가 아닙니다"));
+assert.ok(common.includes("대한민국 법을 준거법"));
+assert.ok(!/[ぁ-んァ-ヶ]/.test(common + refund + interpreterText + policies.POLICY_PAGES.clientPolicy.sections.flatMap((section) => section.items).join("\n")));
 const client = policies.renderAgreement("client");
 const interpreter = policies.renderAgreement("interpreter");
 assert.ok(client.includes('href="/refund-policy"'));

@@ -56,6 +56,7 @@ try {
   await db.exec(canonicalSource.slice(start, end + 4));
   await db.exec(await migration("20261009010000_policy_acceptance_history.sql"));
   await db.exec(await migration("20261009020000_policy_revision_snapshot.sql"));
+  await db.exec(await migration("20261009050000_policy_payment_cancellation_snapshot.sql"));
   await db.exec(await migration("20261009030000_bind_policy_acceptance_to_operations.sql"));
   await db.exec("update policy_revisions set published_at=now()-interval '1 day',effective_at=now()-interval '1 hour'");
 

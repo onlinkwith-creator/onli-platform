@@ -29,8 +29,12 @@ try {
   `);
   await db.exec(await readFile(new URL("../supabase/migrations/20261009010000_policy_acceptance_history.sql", import.meta.url), "utf8"));
   await db.exec(await readFile(new URL("../supabase/migrations/20261009020000_policy_revision_snapshot.sql", import.meta.url), "utf8"));
+  const previous = (await db.query("select * from public.policy_revisions where version='2026-10-09-v1'")).rows[0];
+  assert.equal(previous.content_sha256, "715a2613bea56911ef44a580cdd45888d05a1ded726dd23ddc91493f597ccafe");
+  await db.exec(await readFile(new URL("../supabase/migrations/20261009050000_policy_payment_cancellation_snapshot.sql", import.meta.url), "utf8"));
+  assert.deepEqual((await db.query("select * from public.policy_revisions where version='2026-10-09-v1'")).rows[0], previous);
   const { POLICY_PAGES } = await loadPolicyBundle();
-  const snapshot = (await db.query("select * from public.policy_revisions")).rows[0];
+  const snapshot = (await db.query("select * from public.policy_revisions where version=$1", [POLICY_VERSION])).rows[0];
   assert.deepEqual(snapshot.documents, POLICY_PAGES, "Regenerate snapshot after changing policy source");
   assert.equal(snapshot.content_sha256, createHash("sha256").update(JSON.stringify(POLICY_PAGES)).digest("hex"));
   assert.equal(snapshot.effective_at, null);
