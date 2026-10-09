@@ -6,6 +6,7 @@ import { validWorkflowReturnTarget } from '../src/utils/workflowReturnTarget.js'
 import { makeRepeatRequestTemplate } from '../src/utils/repeatRequest.js';
 import { PGlite } from '@electric-sql/pglite';
 import vm from 'node:vm';
+import { testPolicyWorkflowIntegration } from './lib/testPolicyWorkflowIntegration.mjs';
 
 const db = new PGlite();
 const uuid = (id) => `00000000-0000-0000-0000-${String(id).padStart(12, '0')}`;
@@ -569,6 +570,7 @@ try {
   vm.runInNewContext(workerSource,{...worker});
   assert.equal((await handler(workerRequest({scope:'workflow',id:uuid(88888),nonce:uuid(88889)}))).status,200);
   assert.equal(changeEmail,1,'new condition emails use original branded form and allowlisted role link');
+  await testPolicyWorkflowIntegration({ db, login, seed, propose, company, interpreter, uuid });
   console.log('PASS: unanimous condition changes, original terms until agreement, retries, decline/expiry, stale assignment denial, private material receipts, replacement invalidation, safe repeat templates and admin-only delivery exceptions');
   console.log('PASS: scheduled offer expiry, released slots, private company vacancy alerts, stale alert suppression, manual closure protection, Korean deadline guard and live capacity sync');
   console.log('PASS: request messages integrate with canonical assignments, original private email claims, read cancellation and unchanged financial state');

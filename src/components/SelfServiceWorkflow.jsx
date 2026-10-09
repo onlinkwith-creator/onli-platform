@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, RefreshCw, Send, UserRoundCheck, X } from "lucide-react";
 import { supabase } from "../supabase";
+import { POLICY_ACCEPTANCE_ERROR, recordPolicyAcceptance } from "../services/policyAcceptance";
 import "./SelfServiceWorkflow.css";
 
 const LABELS = { pending: "수락 대기", accepted: "배정 확정", declined: "거절", expired: "만료", cancelled: "취소",
@@ -64,7 +65,18 @@ export default function SelfServiceWorkflow({ role, onChange, embedded = false }
     if (busy) return;
     setBusy(key); setNotice(null);
     try {
-      const { data, error } = await supabase.rpc(rpc, args);
+      let actionArgs = args;
+      if (rpc === "respond_assignment_offer" && args.p_accept === true) {
+        if (!checked) throw new Error(POLICY_ACCEPTANCE_ERROR);
+        const acceptance = await recordPolicyAcceptance(supabase, {
+          action: "assignment_acceptance",
+          subjectId: args.p_offer_id,
+          agreements: { agreedPolicy: checked, agreedTerms: checked, agreedCancelPolicy: checked },
+        });
+        if (!acceptance.ok) throw new Error(POLICY_ACCEPTANCE_ERROR);
+        actionArgs = { ...args, p_policy_receipt_id: acceptance.receiptId };
+      }
+      const { data, error } = await supabase.rpc(rpc, actionArgs);
       if (error) throw error;
       setNotice({ error: false, text: data?.status === "expired" ? "수락 기한이 지나 요청이 만료되었습니다." : success });
       setConfirmation(""); setChecked(false);
@@ -85,7 +97,7 @@ export default function SelfServiceWorkflow({ role, onChange, embedded = false }
         WORKFLOW_REVIEW_NOTE_REQUIRED: "수정이 필요한 내용을 입력해 주세요.",
       };
       const code = Object.keys(messages).find((value) => error.message?.includes(value));
-      setNotice({ error: true, text: messages[code] || "처리 결과를 확인하지 못했습니다. 새로고침으로 상태를 확인한 후 다시 시도해 주세요." });
+      setNotice({ error: true, text: messages[code] || (error.message === POLICY_ACCEPTANCE_ERROR ? POLICY_ACCEPTANCE_ERROR : "처리 결과를 확인하지 못했습니다. 새로고침으로 상태를 확인한 후 다시 시도해 주세요.") });
       await load().catch(() => {});
     } finally { setBusy(""); }
   };
@@ -117,7 +129,7 @@ export default function SelfServiceWorkflow({ role, onChange, embedded = false }
           </dl>
           {offer.status === "pending" && <div className="self-service-actions">
             {confirmation === offer.id ? <>
-              <label className="self-service-check"><input type="checkbox" checked={checked} disabled={Boolean(busy)} onChange={(event) => setChecked(event.target.checked)} />일정·업무 조건·세전 보수를 확인했습니다.</label>
+              <label className="self-service-check"><input type="checkbox" checked={checked} disabled={Boolean(busy)} onChange={(event) => setChecked(event.target.checked)} /><span>일정·업무 조건·세전 보수를 확인하고 <a href="/terms" target="_blank" rel="noreferrer">이용약관</a>·<a href="/interpreter-policy" target="_blank" rel="noreferrer">통역사 약관</a>·<a href="/terms#cancel-policy" target="_blank" rel="noreferrer">취소 규정</a>에 동의하며, <a href="/privacy" target="_blank" rel="noreferrer">개인정보처리방침</a>을 확인했습니다.</span></label>
               <button type="button" disabled={Boolean(busy) || !checked} onClick={() => action(offer.id,"respond_assignment_offer",{p_offer_id:offer.id,p_accept:true},"배정이 확정되었습니다.")}><Check size={16} />수락하여 배정 확정</button>
               <button type="button" className="is-secondary" disabled={Boolean(busy)} onClick={() => { setConfirmation(""); setChecked(false); }}>닫기</button>
             </> : <>

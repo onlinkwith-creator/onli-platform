@@ -5,6 +5,7 @@ import TermsAgreement, {
 } from "../components/TermsAgreement";
 import DateRangeInput from "../components/DateRangeInput";
 import { supabase, supabaseConfigError } from "../supabase";
+import { POLICY_ACCEPTANCE_ERROR, recordPolicyAcceptance } from "../services/policyAcceptance";
 import { getUrgency } from "../utils/pricing";
 import { MATCHING_STATUS } from "../utils/status";
 import {
@@ -456,8 +457,13 @@ function RequestForm({ user, interpreter, duplicateTemplate, onBackClick, onSubm
       selected_interpreter_name: interpreter?.name || "",
     };
     const insertPayload = designatedPayload;
+    const acceptance = await recordPolicyAcceptance(supabase, { action: "company_request", agreements });
+    if (!acceptance.ok) {
+      setErrorMessage(POLICY_ACCEPTANCE_ERROR);
+      return;
+    }
     const { error } = await supabase.rpc("submit_company_request", {
-      p_payload: insertPayload,
+      p_payload: { ...insertPayload, policy_receipt_id: acceptance.receiptId },
     });
 
     if (error) {

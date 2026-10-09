@@ -21,6 +21,7 @@ import TermsAgreement, {
   initialTermsAgreement,
 } from "../components/TermsAgreement";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
+import { POLICY_ACCEPTANCE_ERROR, recordPolicyAcceptance } from "../services/policyAcceptance";
 import { useAuth } from "../hooks/useAuth";
 import {
   checkInterpreterScheduleConflict,
@@ -374,9 +375,12 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
         }
       }
 
+      const acceptance = await recordPolicyAcceptance(supabase, { action: "job_application", agreements, subjectId: job.id });
+      if (!acceptance.ok) throw new Error(POLICY_ACCEPTANCE_ERROR);
+
       const { data, error } = await supabase
         .from("job_applications")
-        .insert([application])
+        .insert([{ ...application, policy_receipt_id: acceptance.receiptId }])
         .select(
           "id, agreed_terms, agreed_policy, agreed_cancel_policy, agreed_at, cancel_policy_agreed_at"
         )
@@ -416,7 +420,7 @@ function JobDetail({ jobId, isAdmin, onBackClick, onLoginClick, onRegisterClick,
         return;
       }
 
-      const message = getJobApplicationSubmitErrorMessage(error);
+      const message = error.message === POLICY_ACCEPTANCE_ERROR ? POLICY_ACCEPTANCE_ERROR : getJobApplicationSubmitErrorMessage(error);
       setSubmitStatus({ type: "error", message: message });
       alert(message);
       setSubmitting(false);

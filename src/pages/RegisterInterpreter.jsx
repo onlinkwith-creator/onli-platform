@@ -5,6 +5,7 @@ import TermsAgreement, {
   initialTermsAgreement,
 } from "../components/TermsAgreement";
 import { supabase, supabaseConfigError } from "../supabase";
+import { POLICY_ACCEPTANCE_ERROR, recordPolicyAcceptance } from "../services/policyAcceptance";
 import {
   MANAGEMENT_NUMBER_CONFIG,
   addManagementNumber,
@@ -285,8 +286,15 @@ function RegisterInterpreter({ authUser, onBackClick, onSubmitSuccess, onLoginCl
 
     console.log("BEFORE DB INSERT");
 
+    const acceptance = await recordPolicyAcceptance(supabase, { action: "interpreter_registration", agreements });
+    if (!acceptance.ok) {
+      setErrorMessage(POLICY_ACCEPTANCE_ERROR);
+      return;
+    }
+
     const managementConfig = MANAGEMENT_NUMBER_CONFIG.interpreters;
     const profilePayload = {
+      policy_receipt_id: acceptance.receiptId,
       name: form.name,
       gender: form.gender,
       age: form.age,
