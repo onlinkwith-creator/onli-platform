@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Briefcase,
   Building2,
-  CheckCircle2,
   Eye,
   FileText,
   Languages,
@@ -22,13 +21,12 @@ import {
 } from "lucide-react";
 import { publicSupabase, supabase, supabaseConfigError } from "../supabase";
 import DateRangeInput from "../components/DateRangeInput";
-import AdminCompanyResume from "../components/AdminCompanyResume";
+import AdminInterpreterVerification from "../components/AdminInterpreterVerification";
 import AdminAlertPreferences from "../components/AdminAlertPreferences";
 import WorkflowExceptions from "../components/WorkflowExceptions";
 import { DayPicker } from "react-day-picker";
 import { ko } from "react-day-picker/locale";
 import MonthFilterInput from "../components/MonthFilterInput";
-import AdminJobs from "./AdminJobs";
 import RequestJobManagement from "../components/RequestJobManagement";
 import { normalizeJobVisibility } from "../utils/jobStatus";
 import { buildJobPayloadFromRequest } from "../utils/requestJobPayload";
@@ -150,7 +148,6 @@ const SUB_TABS = {
   ],
   requests: [
     { id: "all_requests", label: "전체 의뢰" },
-    { id: "jobs", label: "공고 관리" },
     { id: "applications", label: "지원자 관리" },
     { id: "assignments", label: "배정 관리" },
   ],
@@ -267,6 +264,7 @@ const NEW_REQUEST_STATUSES = [
   MATCHING_STATUS.DRAFT,
 ];
 const ADMIN_TAB_ALIASES = {
+  jobs: "all_requests",
   requests: "all_requests",
   interpreters: "registered_interpreters",
   businesses: "all_businesses",
@@ -561,7 +559,7 @@ function getInitialAdminSubTab() {
   const sectionParam = params.get("section");
 
   if (tabParam) return normalizeAdminSubTabId(tabParam);
-  if (path === "/admin/jobs") return "jobs";
+  if (path === "/admin/jobs") return "all_requests";
   if (path === "/admin/applications") return "applications";
   if (path === "/admin/interpreters") return "registered_interpreters";
   if (path === "/admin/businesses") return "all_businesses";
@@ -1452,7 +1450,6 @@ function sanitizeRecipientEmail(email) {
     if (subTabId === "new_requests") return newRequests.length;
     if (subTabId === "new_interpreters") return pendingInterpreters.length;
     if (subTabId === "all_requests") return requests.length;
-    if (subTabId === "jobs") return jobs.length;
     if (subTabId === "applications") {
       return jobApplications.filter(isApplicantManagementApplication).length;
     }
@@ -1541,10 +1538,6 @@ function sanitizeRecipientEmail(email) {
       targetTab: "notification_history",
     },
   ];
-
-  const switchToJobsTab = () => {
-    switchSubTab("jobs");
-  };
 
   const handleMetricCardClick = (card) => {
     if (card.targetTab === "all_requests") {
@@ -4690,7 +4683,6 @@ function sanitizeRecipientEmail(email) {
                 jobsById={jobsById}
                 requestsByJobId={requestsByJobId}
                 jobApplicationsByJob={jobApplicationsByJob}
-                onJobsAdminClick={switchToJobsTab}
                 setAssignmentDrafts={setAssignmentDrafts}
                 setApplicationsRequestId={setApplicationsRequestId}
                 setExpandedRequestId={setExpandedRequestId}
@@ -4782,7 +4774,6 @@ function sanitizeRecipientEmail(email) {
                 jobsById={jobsById}
                 requestsByJobId={requestsByJobId}
                 jobApplicationsByJob={jobApplicationsByJob}
-                onJobsAdminClick={switchToJobsTab}
                 setAssignmentDrafts={setAssignmentDrafts}
                 setApplicationsRequestId={setApplicationsRequestId}
                 setExpandedRequestId={setExpandedRequestId}
@@ -4817,22 +4808,6 @@ function sanitizeRecipientEmail(email) {
                 onOpenModal={openInterpreterModal}
                 updateInterpreter={updateInterpreter}
                 deleteInterpreter={deleteInterpreter}
-              />
-            )}
-
-            {activeSubTab === "jobs" && (
-              <AdminJobs
-                embedded
-                jobs={jobs}
-                requests={requests}
-                interpreters={interpreters}
-                assignments={assignments}
-                settlements={safeSettlements}
-                applications={jobApplications}
-                onDataChanged={fetchAdminData}
-                getInterpreterScheduleConflicts={getInterpreterScheduleConflicts}
-                matchings={matchings}
-                updateApplicationStatus={updateJobApplicationStatus}
               />
             )}
 
@@ -7891,7 +7866,6 @@ function RequestManagement({
   jobsById,
   requestsByJobId,
   jobApplicationsByJob,
-  onJobsAdminClick,
   requests,
   settlements = [],
   sectionCount,
@@ -8009,7 +7983,6 @@ function RequestManagement({
               }
               jobsById={jobsById}
               requestsByJobId={requestsByJobId}
-              onJobsAdminClick={onJobsAdminClick}
               request={request}
               settlements={settlements}
               savingKey={savingKey}
@@ -10091,7 +10064,7 @@ function InterpreterCard({
   );
 }
 
-function InterpreterModal({
+export function InterpreterModal({
   adminActivityLogs = [],
   adminNotes = [],
   applications = [],
@@ -10116,6 +10089,7 @@ function InterpreterModal({
   onOpenModal,
 }) {
   const [activeInterpreterDetailTab, setActiveInterpreterDetailTab] = useState("basic");
+  const interpreterDetailBodyRef = useRef(null);
   const [assignmentHistory, setAssignmentHistory] = useState([]);
   const [assignmentHistorySettlements, setAssignmentHistorySettlements] = useState([]);
   const [assignmentHistoryLoading, setAssignmentHistoryLoading] = useState(false);
@@ -10272,7 +10246,6 @@ function InterpreterModal({
   });
   const certificationRequirementMet = onliPerformanceCount >= 5;
   const certificationRequirementLabel = certificationRequirementMet ? "충족" : "미충족";
-  const certificationStateLabel = interpreter.approved ? "ON-LI 인증 통역사" : "등록 통역사";
 
   return (
     <div className="admin-modal-overlay" role="presentation" onMouseDown={onClose}>
@@ -10296,7 +10269,6 @@ function InterpreterModal({
                     {levelLabel}
                   </span>
                   <StatusBadge status={approvalStatus} />
-                  <StatusBadge status={approvalLabel} />
                   <span className={`status-badge ${getInterpreterActivityStatusBadgeClass(activityStatus)}`}>
                     {activityLabel}
                   </span>
@@ -10313,7 +10285,6 @@ function InterpreterModal({
               </button>
             </div>
 
-            <div className="admin-modal-body admin-interpreter-detail-body">
             <div className="admin-interpreter-detail-tabs" role="tablist" aria-label="통역사 상세 정보 탭">
               {[
                 { id: "basic", label: "기본 정보" },
@@ -10327,12 +10298,32 @@ function InterpreterModal({
                   className={activeInterpreterDetailTab === tab.id ? "active" : ""}
                   role="tab"
                   aria-selected={activeInterpreterDetailTab === tab.id}
-                  onClick={() => setActiveInterpreterDetailTab(tab.id)}
+                  id={`interpreter-tab-${tab.id}`}
+                  aria-controls="interpreter-detail-panel"
+                  tabIndex={activeInterpreterDetailTab === tab.id ? 0 : -1}
+                  onClick={() => {
+                    setActiveInterpreterDetailTab(tab.id);
+                    if (interpreterDetailBodyRef.current) interpreterDetailBodyRef.current.scrollTop = 0;
+                  }}
+                  onKeyDown={(event) => {
+                    const tabs = Array.from(event.currentTarget.parentElement.querySelectorAll('[role="tab"]'));
+                    const index = tabs.indexOf(event.currentTarget);
+                    const next = event.key === "ArrowRight" ? (index + 1) % tabs.length
+                      : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length
+                      : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : null;
+                    if (next === null) return;
+                    event.preventDefault();
+                    tabs[next].focus();
+                    tabs[next].click();
+                  }}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
+
+            <div className="admin-modal-body admin-interpreter-detail-body" ref={interpreterDetailBodyRef}
+              id="interpreter-detail-panel" role="tabpanel" aria-labelledby={`interpreter-tab-${activeInterpreterDetailTab}`}>
 
             {activeInterpreterDetailTab === "basic" && (
             <div className="admin-interpreter-summary-card">
@@ -10599,177 +10590,14 @@ function InterpreterModal({
             )}
 
             {activeInterpreterDetailTab === "activity" && (
-            <section className="admin-interpreter-verification-card" style={{
-              background: "var(--bg)",
-              border: "1px solid var(--border)",
-              borderRadius: "16px",
-              padding: "24px",
-              marginBottom: "24px",
-              textAlign: "left",
-              boxShadow: "var(--shadow)"
-            }}>
-              <AdminCompanyResume key={`${interpreter.id}-${interpreter.resume_uploaded_at || ""}`} interpreter={interpreter} />
-              <div className="admin-interpreter-section-title" style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                marginBottom: "16px",
-                borderBottom: "1px solid var(--border)",
-                paddingBottom: "12px"
-              }}>
-                <CheckCircle2 size={20} color="#aa3bff" aria-hidden="true" />
-                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "600", color: "var(--text-h)" }}>ON-LI 인증 통역사 관리</h3>
-              </div>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <h4 style={{ margin: "0 0 6px 0", fontSize: "0.95rem", color: "var(--text-h)" }}>제출된 이력서 / 포트폴리오</h4>
-                    {(interpreter.resume_url || interpreter.resume_file_url) ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                        {interpreter.resume_url && (
-                          <a
-                            href={interpreter.resume_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: "#aa3bff",
-                              textDecoration: "underline",
-                              fontWeight: "600",
-                              fontSize: "0.95rem",
-                              wordBreak: "break-all"
-                            }}
-                          >
-                            포트폴리오 링크 ↗
-                          </a>
-                        )}
-                        {interpreter.resume_file_url && (
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                            <span style={{ fontSize: "13px", color: "var(--text-h)", fontWeight: "700" }}>
-                              📎 {interpreter.resume_file_name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadFile(interpreter.resume_file_url, interpreter.resume_file_name)}
-                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#5b5cf0", color: "#ffffff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
-                            >
-                              📥 다운로드
-                            </button>
-                          </div>
-                        )}
-                        {interpreter.resume_submitted_at && (
-                          <span style={{ fontSize: "0.8rem", color: "var(--text)" }}>
-                            제출 일시: {formatDateTime(interpreter.resume_submitted_at)}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span style={{ color: "var(--text)", fontSize: "0.95rem", fontStyle: "italic" }}>제출된 이력서가 없습니다.</span>
-                    )}
-                  </div>
-                  
-                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                    <div style={{ textAlign: "right" }}>
-                      <span style={{ fontSize: "0.85rem", color: "var(--text)", display: "block", marginBottom: "4px" }}>현재 상태</span>
-                      {interpreter.approved ? (
-                        <span className="status-badge verified" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: "6px 12px", borderRadius: "20px", fontWeight: "bold", display: "inline-block" }}>
-                          ⭐ ON-LI 인증 완료
-                        </span>
-                      ) : (
-                        <span className="status-badge unsubmitted" style={{ background: '#f3f4f6', color: '#6b7280', border: '1px solid #e5e7eb', padding: "6px 12px", borderRadius: "20px", display: "inline-block" }}>
-                          ○ 일반 등록
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{
-                  background: "var(--code-bg)",
-                  padding: "16px",
-                  borderRadius: "12px",
-                  border: "1px solid var(--border)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginTop: "8px"
-                }}>
-                  <div style={{ flex: 1, paddingRight: "16px" }}>
-                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-h)", fontWeight: "600" }}>ON-LI 인증 권한 제어</p>
-                    <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: "var(--text)" }}>
-                      ON-LI 실제 업무를 5회 완료하면 자동 인증됩니다. 수동 인증·해제도 가능합니다.
-                    </p>
-                    <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
-                      <strong style={{ color: "var(--text-h)" }}>현재 판단:</strong>
-                      <div>ON-LI 수행 횟수: {onliPerformanceCount}회</div>
-                      <div>인증 조건: {certificationRequirementLabel}</div>
-                      <div>ON-LI 인증 상태: {certificationStateLabel}</div>
-                      <div>인증 방식: {interpreter.certification_mode === "manual_approved" ? "수동 인증" : interpreter.certification_mode === "manual_rejected" ? "수동 해제" : "자동"}</div>
-                    </div>
-                    <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "var(--text)", lineHeight: 1.7 }}>
-                      <strong style={{ color: "var(--text-h)" }}>인증 기준:</strong>
-                      <div>✓ ON-LI 업무 수행 5회 이상</div>
-                      <div>✓ 테스트·취소·노쇼 제외, 동일 의뢰 중복 제외</div>
-                      <div>※ 정산대기만으로는 수행 횟수가 올라가지 않습니다.</div>
-                      <div>※ 수동 해제는 자동 인증보다 우선합니다.</div>
-                    </div>
-                  </div>
-                  <div>
-                    {interpreter.approved ? (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (window.confirm("이 통역사의 ON-LI 인증을 해제하시겠습니까?")) {
-                            await updateInterpreter(interpreter.id, { certification_mode: "manual_rejected" }, { showSuccess: true });
-                          }
-                        }}
-                        style={{
-                          background: "#fee2e2",
-                          color: "#991b1b",
-                          border: "1px solid #fca5a5",
-                          padding: "8px 16px",
-                          borderRadius: "8px",
-                          fontSize: "0.85rem",
-                          fontWeight: "600",
-                          cursor: "pointer",
-                          transition: "all 0.2s"
-                        }}
-                      >
-                        ON-LI 인증 해제하기
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (window.confirm("이 통역사에게 ON-LI 인증을 부여하시겠습니까?")) {
-                            await updateInterpreter(interpreter.id, { certification_mode: "manual_approved" }, { showSuccess: true });
-                          }
-                        }}
-                        style={{
-                          background: "#aa3bff",
-                          color: "#fff",
-                          border: "none",
-                          padding: "8px 16px",
-                          borderRadius: "8px",
-                          fontSize: "0.85rem",
-                          fontWeight: "600",
-                          cursor: "pointer",
-                          transition: "all 0.2s"
-                        }}
-                      >
-                        ON-LI 인증 부여하기
-                      </button>
-                    )}
-                    {interpreter.certification_mode && interpreter.certification_mode !== "auto" && (
-                      <button type="button" className="admin-small-button" style={{ marginTop: "8px" }}
-                        onClick={() => updateInterpreter(interpreter.id, { certification_mode: "auto" })}>
-                        자동으로 복귀
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
+              <AdminInterpreterVerification
+                interpreter={interpreter}
+                count={onliPerformanceCount}
+                saving={saving}
+                onDownload={handleDownloadFile}
+                onUpdate={updateInterpreter}
+                formatDateTime={formatDateTime}
+              />
             )}
 
             </>

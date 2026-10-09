@@ -408,7 +408,7 @@ function App() {
     setSelectedJobId(null);
     setSelectedPolicyKey(null);
     setPage("admin");
-    window.history.pushState({ page: "admin" }, "", "/admin/jobs");
+    window.history.pushState({ page: "admin" }, "", "/admin/requests?tab=all_requests");
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
